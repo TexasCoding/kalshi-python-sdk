@@ -37,8 +37,8 @@ class TestMarketsList:
                 200,
                 json={
                     "events": [
-                        {"ticker": "MKT-A", "title": "Market A", "yes_bid": "0.45"},
-                        {"ticker": "MKT-B", "title": "Market B", "yes_bid": "0.60"},
+                        {"ticker": "MKT-A", "title": "Market A", "yes_bid_dollars": "0.4500"},
+                        {"ticker": "MKT-B", "title": "Market B", "yes_bid_dollars": "0.6000"},
                     ],
                     "cursor": "page2",
                 },
@@ -47,7 +47,7 @@ class TestMarketsList:
         page = markets.list()
         assert len(page) == 2
         assert page.items[0].ticker == "MKT-A"
-        assert page.items[0].yes_bid == Decimal("0.45")
+        assert page.items[0].yes_bid == Decimal("0.4500")
         assert page.has_next is True
         assert page.cursor == "page2"
 
@@ -98,12 +98,18 @@ class TestMarketsGet:
         respx.get("https://test.kalshi.com/trade-api/v2/events/TEST-MKT").mock(
             return_value=httpx.Response(
                 200,
-                json={"event": {"ticker": "TEST-MKT", "title": "Test Market", "yes_ask": "0.72"}},
+                json={
+                    "event": {
+                        "ticker": "TEST-MKT",
+                        "title": "Test Market",
+                        "yes_ask_dollars": "0.7200",
+                    }
+                },
             )
         )
         market = markets.get("TEST-MKT")
         assert market.ticker == "TEST-MKT"
-        assert market.yes_ask == Decimal("0.72")
+        assert market.yes_ask == Decimal("0.7200")
 
     @respx.mock
     def test_not_found(self, markets: MarketsResource) -> None:
@@ -121,9 +127,9 @@ class TestMarketsOrderbook:
             return_value=httpx.Response(
                 200,
                 json={
-                    "orderbook": {
-                        "yes": [["0.45", 100], ["0.50", 50]],
-                        "no": [["0.55", 75]],
+                    "orderbook_fp": {
+                        "yes_dollars": [["0.4500", "100.00"], ["0.5000", "50.00"]],
+                        "no_dollars": [["0.5500", "75.00"]],
                     }
                 },
             )
@@ -131,8 +137,8 @@ class TestMarketsOrderbook:
         ob = markets.orderbook("TEST-MKT")
         assert ob.ticker == "TEST-MKT"
         assert len(ob.yes) == 2
-        assert ob.yes[0].price == Decimal("0.45")
-        assert ob.yes[0].quantity == 100
+        assert ob.yes[0].price == Decimal("0.4500")
+        assert ob.yes[0].quantity == Decimal("100.00")
         assert len(ob.no) == 1
 
 
@@ -146,12 +152,17 @@ class TestMarketsCandlesticks:
                 200,
                 json={
                     "candlesticks": [
-                        {"ticker": "MKT", "open": "0.50", "close": "0.55", "volume": 100}
+                        {
+                            "ticker": "MKT",
+                            "open_dollars": "0.5000",
+                            "close_dollars": "0.5500",
+                            "volume": 100,
+                        }
                     ]
                 },
             )
         )
         candles = markets.candlesticks("SER", "MKT")
         assert len(candles) == 1
-        assert candles[0].open == Decimal("0.50")
+        assert candles[0].open == Decimal("0.5000")
         assert candles[0].volume == 100

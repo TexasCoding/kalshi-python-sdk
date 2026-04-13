@@ -62,16 +62,21 @@ class MarketsResource(SyncResource):
 
     def orderbook(self, ticker: str) -> Orderbook:
         data = self._get(f"/markets/{ticker}/orderbook")
-        orderbook_data = data.get("orderbook", data)
+        # API returns {orderbook_fp: {yes_dollars: [...], no_dollars: [...]}}
+        # Fall back to legacy keys for backward compatibility with tests/mocks
+        ob = data.get("orderbook_fp") or data.get("orderbook", data)
+
+        yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
+        no_raw = ob.get("no_dollars") or ob.get("no", []) or []
 
         yes_levels = [
             OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in (orderbook_data.get("yes", []) or [])
+            for pair in yes_raw
             if len(pair) >= 2
         ]
         no_levels = [
             OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in (orderbook_data.get("no", []) or [])
+            for pair in no_raw
             if len(pair) >= 2
         ]
 
@@ -147,16 +152,19 @@ class AsyncMarketsResource(AsyncResource):
 
     async def orderbook(self, ticker: str) -> Orderbook:
         data = await self._get(f"/markets/{ticker}/orderbook")
-        orderbook_data = data.get("orderbook", data)
+        ob = data.get("orderbook_fp") or data.get("orderbook", data)
+
+        yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
+        no_raw = ob.get("no_dollars") or ob.get("no", []) or []
 
         yes_levels = [
             OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in (orderbook_data.get("yes", []) or [])
+            for pair in yes_raw
             if len(pair) >= 2
         ]
         no_levels = [
             OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in (orderbook_data.get("no", []) or [])
+            for pair in no_raw
             if len(pair) >= 2
         ]
 
