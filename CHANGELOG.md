@@ -2,6 +2,29 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.2.0] - 2026-04-12
+
+### Added
+- Exchange resource: `client.exchange.status()`, `schedule()`, `announcements()` for checking exchange operational state
+- Portfolio resource: `client.portfolio.balance()`, `positions()`, `settlements()`, `settlements_all()` for account and position management
+- Events resource: `client.events.list()`, `list_all()`, `get()`, `metadata()` for browsing event containers
+- Historical resource: `client.historical.cutoff()`, `markets()`, `market()`, `candlesticks()`, `fills()`, `orders()`, `trades()` plus `_all()` auto-paginators for backtesting data
+- `fills_all()` auto-paginator on OrdersResource and AsyncOrdersResource
+- `_params()` helper for DRY query parameter building across all resources
+- New models: `Event`, `EventMetadata`, `ExchangeStatus`, `Schedule`, `Announcement`, `Balance`, `MarketPosition`, `EventPosition`, `PositionsResponse`, `Settlement`, `HistoricalCutoff`, `Trade`, `BidAskDistribution`, `PriceDistribution`
+- `PositionsResponse.has_next` property for pagination consistency
+- New Market fields: `market_type`, `yes_sub_title`, `no_sub_title`, `settlement_value`, `yes_bid_size`, `yes_ask_size`, `no_bid_size`, `no_ask_size`, `created_time`, `updated_time`, `latest_expiration_time`, `fractional_trading_enabled`, `settlement_timer_seconds`
+- New Fill fields: `fill_id`, `market_ticker`, `fee_cost` (with `_dollars` alias)
+- 72 new tests (149 to 221 total) covering all new resources, async parity, and model validation
+
+### Changed
+- **BREAKING:** `MarketsResource.list()` and `get()` now hit `/markets` endpoint (was `/events`). Response keys changed from `events`/`event` to `markets`/`market`
+- **BREAKING:** `Market.volume`, `Market.volume_24h`, `Market.open_interest` changed from `int` to `DollarDecimal` (API returns FixedPointCount `_fp` strings)
+- **BREAKING:** `Fill.count` changed from `int` to `DollarDecimal` (API returns `count_fp` as FixedPointCount)
+- **BREAKING:** `Candlestick` model redesigned with nested `BidAskDistribution`/`PriceDistribution` objects matching the real API schema (was flat OHLC fields)
+- `CreateOrderRequest` now uses `extra="forbid"` to reject unknown fields (catches typos)
+- `Settlement.fee_cost` and `Fill.fee_cost` now accept `fee_cost_dollars` alias
+
 ## [0.1.2] - 2026-04-12
 
 ### Added
