@@ -86,7 +86,10 @@ class Fill(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    fee_cost: DollarDecimal | None = None
+    fee_cost: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
+    )
     created_time: datetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}

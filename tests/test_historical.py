@@ -473,3 +473,115 @@ class TestAsyncHistoricalFills:
         page = await async_historical.fills()
         assert len(page) == 1
         assert page.items[0].fee_cost == Decimal("0.05")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fills_all(self, async_historical: AsyncHistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/fills").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "a", "count_fp": "1"}],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "b", "count_fp": "2"}],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [f.trade_id async for f in async_historical.fills_all()]
+        assert ids == ["a", "b"]
+
+
+class TestAsyncHistoricalMarket:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_market(self, async_historical: AsyncHistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/markets/HIST-MKT").mock(
+            return_value=httpx.Response(
+                200,
+                json={"market": {"ticker": "HIST-MKT", "result": "yes"}},
+            )
+        )
+        market = await async_historical.market("HIST-MKT")
+        assert market.ticker == "HIST-MKT"
+        assert market.result == "yes"
+
+
+class TestAsyncHistoricalCandlesticks:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_candlesticks(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        respx.get(f"{BASE}/historical/markets/MKT/candlesticks").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "candlesticks": [
+                        {
+                            "end_period_ts": 1700000000,
+                            "yes_bid": {
+                                "open_dollars": "0.40",
+                                "high_dollars": "0.50",
+                                "low_dollars": "0.35",
+                                "close_dollars": "0.45",
+                            },
+                            "volume_fp": "500.00",
+                        }
+                    ]
+                },
+            )
+        )
+        candles = await async_historical.candlesticks("MKT")
+        assert len(candles) == 1
+        assert candles[0].yes_bid is not None
+        assert candles[0].yes_bid.open == Decimal("0.40")
+
+
+class TestAsyncHistoricalOrders:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_page(self, async_historical: AsyncHistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [{"order_id": "o1", "status": "executed"}],
+                    "cursor": "",
+                },
+            )
+        )
+        page = await async_historical.orders()
+        assert len(page) == 1
+        assert page.items[0].order_id == "o1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_orders_all(self, async_historical: AsyncHistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/orders").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "orders": [{"order_id": "a"}],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "orders": [{"order_id": "b"}],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [o.order_id async for o in async_historical.orders_all()]
+        assert ids == ["a", "b"]

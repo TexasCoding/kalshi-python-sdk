@@ -25,7 +25,7 @@ class Event(BaseModel):
     available_on_brokers: bool | None = None
     product_metadata: dict[str, Any] | None = None
     last_updated_ts: datetime | None = None
-    markets: list[Market] | None = None
+    markets: list[Market] = []
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

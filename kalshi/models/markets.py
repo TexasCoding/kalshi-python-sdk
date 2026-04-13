@@ -82,6 +82,14 @@ class Market(BaseModel):
         default=None,
         validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
     )
+    no_bid_size: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_bid_size_fp", "no_bid_size"),
+    )
+    no_ask_size: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_ask_size_fp", "no_ask_size"),
+    )
     volume: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),

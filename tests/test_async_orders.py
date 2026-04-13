@@ -345,3 +345,29 @@ class TestAsyncOrdersFills:
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["order_id"] == "ord-1"
+
+
+class TestAsyncOrdersFillsAll:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_auto_paginates(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "a", "yes_price_dollars": "0.50"}],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "b", "yes_price_dollars": "0.60"}],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [f.trade_id async for f in orders.fills_all()]
+        assert ids == ["a", "b"]

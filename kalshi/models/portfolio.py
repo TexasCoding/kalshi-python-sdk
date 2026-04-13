@@ -115,6 +115,9 @@ class Settlement(BaseModel):
     )
     revenue: int | None = None
     settled_time: datetime | None = None
-    fee_cost: DollarDecimal | None = None
+    fee_cost: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
+    )
 
     model_config = {"extra": "allow", "populate_by_name": True}
