@@ -90,7 +90,8 @@ class CreateOrderRequest(BaseModel):
     """Parameters for creating an order.
 
     Price fields are serialized with ``_dollars`` suffix for the API.
-    ``buy_max_cost`` is serialized as integer cents.
+    ``buy_max_cost`` is sent as-is (the API expects integer cents for this field;
+    callers should pass cents, not dollars).
     """
 
     ticker: str

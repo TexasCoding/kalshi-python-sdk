@@ -78,10 +78,14 @@ class Market(BaseModel):
 
 
 class OrderbookLevel(BaseModel):
-    """A single price level in the orderbook."""
+    """A single price level in the orderbook.
+
+    Quantity is DollarDecimal to support fractional contracts
+    (FixedPointCount strings like ``"100.50"`` from the API).
+    """
 
     price: DollarDecimal
-    quantity: int
+    quantity: DollarDecimal
 
 
 class Orderbook(BaseModel):

@@ -138,7 +138,7 @@ class TestMarketsOrderbook:
         assert ob.ticker == "TEST-MKT"
         assert len(ob.yes) == 2
         assert ob.yes[0].price == Decimal("0.4500")
-        assert ob.yes[0].quantity == 100
+        assert ob.yes[0].quantity == Decimal("100.00")
         assert len(ob.no) == 1
 
 
