@@ -130,6 +130,12 @@ class KalshiAuth:
         if clean_path != "/" and clean_path.endswith("/"):
             clean_path = clean_path.rstrip("/")
 
+        # NOTE: Percent-encoded characters are NOT normalized (e.g., %2D stays as %2D).
+        # Kalshi tickers are alphanumeric + hyphens, so percent-encoding is unlikely.
+        # If Kalshi introduces tickers with encodable characters, this may need
+        # urllib.parse.unquote() normalization — but only after verifying the server
+        # normalizes before signature verification. See GitHub issue #2.
+
         ts_str = str(timestamp_ms)
         message = ts_str + method.upper() + clean_path
         message_bytes = message.encode("utf-8")

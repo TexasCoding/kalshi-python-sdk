@@ -42,7 +42,7 @@ class TestOrdersCreate:
                         "ticker": "TEST-MKT",
                         "side": "yes",
                         "status": "resting",
-                        "yes_price": "0.65",
+                        "yes_price_dollars": "0.6500",
                         "count": 10,
                     }
                 },
@@ -50,7 +50,7 @@ class TestOrdersCreate:
         )
         order = orders.create(ticker="TEST-MKT", side="yes", count=10, yes_price=0.65)
         assert order.order_id == "ord-123"
-        assert order.yes_price == Decimal("0.65")
+        assert order.yes_price == Decimal("0.6500")
         assert order.count == 10
 
     @respx.mock
@@ -81,8 +81,9 @@ class TestOrdersCreate:
 
         import json
         body = json.loads(route.calls[0].request.content)
-        # Must be "0.65" string, not a float
-        assert body["yes_price"] == "0.65"
+        # Must be sent as yes_price_dollars (FixedPointDollars string)
+        assert body["yes_price_dollars"] == "0.65"
+        assert "yes_price" not in body
 
     @respx.mock
     def test_validation_error(self, orders: OrdersResource) -> None:
@@ -186,7 +187,12 @@ class TestOrdersFills:
                 200,
                 json={
                     "fills": [
-                        {"trade_id": "t1", "order_id": "o1", "yes_price": "0.50", "count": 5}
+                        {
+                            "trade_id": "t1",
+                            "order_id": "o1",
+                            "yes_price_dollars": "0.5000",
+                            "count": 5,
+                        }
                     ]
                 },
             )
@@ -194,4 +200,4 @@ class TestOrdersFills:
         page = orders.fills()
         assert len(page) == 1
         assert page.items[0].trade_id == "t1"
-        assert page.items[0].yes_price == Decimal("0.50")
+        assert page.items[0].yes_price == Decimal("0.5000")

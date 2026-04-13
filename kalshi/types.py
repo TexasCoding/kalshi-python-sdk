@@ -11,9 +11,10 @@ from pydantic import BeforeValidator, PlainSerializer
 def _to_decimal_dollars(value: Any) -> Decimal:
     """Convert a raw API dollar-string value to Decimal.
 
-    Kalshi API returns price fields with a '_dollars' suffix as string
-    representations of dollar amounts (e.g., "0.65"). This converts them
-    to Decimal without float intermediaries.
+    Kalshi API returns price fields as FixedPointDollars strings
+    (e.g., ``"0.5600"``), with up to 6 decimal places of precision.
+    Response fields use a ``_dollars`` suffix (e.g., ``yes_bid_dollars``).
+    This converts them to Decimal without float intermediaries.
     """
     if isinstance(value, Decimal):
         return value

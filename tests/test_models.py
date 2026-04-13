@@ -61,6 +61,89 @@ class TestDollarDecimalField:
         assert o.no_price == Decimal("0.35")
 
 
+class TestDollarsAliasFields:
+    """Verify models accept _dollars-suffixed field names from the API.
+
+    The Kalshi API returns price fields with a '_dollars' suffix
+    (e.g. 'yes_bid_dollars') as FixedPointDollars strings. The SDK
+    uses shorter Python field names (e.g. 'yes_bid') with validation
+    aliases to accept both formats.
+    """
+
+    def test_market_accepts_dollars_suffix(self) -> None:
+        m = Market.model_validate({
+            "ticker": "T",
+            "yes_bid_dollars": "0.4500",
+            "yes_ask_dollars": "0.5500",
+            "no_bid_dollars": "0.3000",
+            "no_ask_dollars": "0.7000",
+            "last_price_dollars": "0.5000",
+        })
+        assert m.yes_bid == Decimal("0.4500")
+        assert m.yes_ask == Decimal("0.5500")
+        assert m.no_bid == Decimal("0.3000")
+        assert m.no_ask == Decimal("0.7000")
+        assert m.last_price == Decimal("0.5000")
+
+    def test_market_accepts_bare_names(self) -> None:
+        m = Market(ticker="T", yes_bid="0.45")
+        assert m.yes_bid == Decimal("0.45")
+
+    def test_order_accepts_dollars_suffix(self) -> None:
+        o = Order.model_validate({
+            "order_id": "x",
+            "yes_price_dollars": "0.6500",
+            "no_price_dollars": "0.3500",
+            "taker_fill_cost_dollars": "6.5000",
+            "maker_fill_cost_dollars": "0.0000",
+            "taker_fees_dollars": "0.0650",
+            "maker_fees_dollars": "0.0000",
+        })
+        assert o.yes_price == Decimal("0.6500")
+        assert o.no_price == Decimal("0.3500")
+        assert o.taker_fill_cost == Decimal("6.5000")
+        assert o.taker_fees == Decimal("0.0650")
+
+    def test_fill_accepts_dollars_suffix(self) -> None:
+        from kalshi.models.orders import Fill
+
+        f = Fill.model_validate({
+            "trade_id": "t1",
+            "yes_price_dollars": "0.5000",
+            "no_price_dollars": "0.5000",
+        })
+        assert f.yes_price == Decimal("0.5000")
+        assert f.no_price == Decimal("0.5000")
+
+    def test_candlestick_accepts_dollars_suffix(self) -> None:
+        from kalshi.models.markets import Candlestick
+
+        c = Candlestick.model_validate({
+            "open_dollars": "0.5000",
+            "high_dollars": "0.6000",
+            "low_dollars": "0.4000",
+            "close_dollars": "0.5500",
+            "volume": 100,
+        })
+        assert c.open == Decimal("0.5000")
+        assert c.high == Decimal("0.6000")
+        assert c.low == Decimal("0.4000")
+        assert c.close == Decimal("0.5500")
+
+    def test_create_order_serializes_with_dollars_alias(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="T",
+            side="yes",
+            yes_price=Decimal("0.65"),
+        )
+        data = req.model_dump(exclude_none=True, by_alias=True)
+        assert "yes_price_dollars" in data
+        assert data["yes_price_dollars"] == "0.65"
+        assert "yes_price" not in data
+
+
 class TestErrorHierarchy:
     def test_all_errors_inherit_base(self) -> None:
         from kalshi.errors import (

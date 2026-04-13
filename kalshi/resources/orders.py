@@ -36,9 +36,9 @@ class OrdersResource(SyncResource):
             "count": count,
         }
         if yes_price is not None:
-            body["yes_price"] = str(to_decimal(yes_price))
+            body["yes_price_dollars"] = str(to_decimal(yes_price))
         if no_price is not None:
-            body["no_price"] = str(to_decimal(no_price))
+            body["no_price_dollars"] = str(to_decimal(no_price))
         if client_order_id:
             body["client_order_id"] = client_order_id
         if expiration_ts is not None:
@@ -92,7 +92,7 @@ class OrdersResource(SyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
-        body = {"orders": [o.model_dump(exclude_none=True) for o in orders]}
+        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o) for o in raw_orders]
@@ -149,9 +149,9 @@ class AsyncOrdersResource(AsyncResource):
             "count": count,
         }
         if yes_price is not None:
-            body["yes_price"] = str(to_decimal(yes_price))
+            body["yes_price_dollars"] = str(to_decimal(yes_price))
         if no_price is not None:
-            body["no_price"] = str(to_decimal(no_price))
+            body["no_price_dollars"] = str(to_decimal(no_price))
         if client_order_id:
             body["client_order_id"] = client_order_id
         if expiration_ts is not None:
@@ -208,7 +208,7 @@ class AsyncOrdersResource(AsyncResource):
     async def batch_create(
         self, orders: builtins.list[CreateOrderRequest]
     ) -> builtins.list[Order]:
-        body = {"orders": [o.model_dump(exclude_none=True) for o in orders]}
+        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o) for o in raw_orders]

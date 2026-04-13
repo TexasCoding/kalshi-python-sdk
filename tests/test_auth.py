@@ -103,6 +103,40 @@ class TestSignRequest:
         ts = int(headers["KALSHI-ACCESS-TIMESTAMP"])
         assert ts > 1_700_000_000_000  # after 2023
 
+    def test_percent_encoded_path_signed_as_is(
+        self, rsa_private_key: rsa.RSAPrivateKey, test_auth: KalshiAuth
+    ) -> None:
+        """Percent-encoded paths are signed without decoding.
+
+        Known limitation (see issue #2): /events/TICKER%2DNAME and
+        /events/TICKER-NAME produce DIFFERENT signatures. This is safe
+        because Kalshi tickers are alphanumeric + hyphens only. If Kalshi
+        introduces encodable characters, this needs revisiting after
+        verifying server-side normalization behavior.
+        """
+        headers = test_auth.sign_request(
+            "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
+        )
+        sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+        # Signature is against the raw (encoded) path
+        expected_msg = b"1000GET/trade-api/v2/events/TICKER%2DNAME"
+        rsa_private_key.public_key().verify(
+            sig, expected_msg,
+            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.DIGEST_LENGTH),
+            hashes.SHA256(),
+        )
+
+    def test_encoded_and_decoded_paths_differ(self, test_auth: KalshiAuth) -> None:
+        """Documents the current behavior: encoded and decoded paths produce
+        different signatures. See issue #2 for the known limitation."""
+        h1 = test_auth.sign_request(
+            "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
+        )
+        h2 = test_auth.sign_request(
+            "GET", "/trade-api/v2/events/TICKER-NAME", timestamp_ms=1000
+        )
+        assert h1["KALSHI-ACCESS-SIGNATURE"] != h2["KALSHI-ACCESS-SIGNATURE"]
+
 
 class TestFromKeyPath:
     def test_loads_valid_pem_file(self, pem_bytes: bytes) -> None:

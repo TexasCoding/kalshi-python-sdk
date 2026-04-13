@@ -49,6 +49,11 @@ tests/
 
 ## Key conventions
 
+- **Price format:** Kalshi API returns prices as FixedPointDollars strings (e.g., `"0.5600"`)
+  with `_dollars` suffix field names (e.g., `yes_bid_dollars`, `yes_price_dollars`).
+  SDK models use short Python names (e.g., `yes_bid`) with `validation_alias=AliasChoices(...)`
+  to accept both formats. CreateOrderRequest serializes with `_dollars` suffix via
+  `serialization_alias`. Verified against OpenAPI spec v3.13.0 on 2026-04-12.
 - All prices use `Decimal` via the `DollarDecimal` custom Pydantic type
 - Auth signing payload: `str(timestamp_ms) + METHOD + path_only` (path from urlparse, no query params, no trailing slash)
 - POST and DELETE are NEVER retried (duplicate order/cancel risk). Only GET/HEAD/OPTIONS retry.
@@ -59,7 +64,7 @@ tests/
 
 ## Adding a new resource
 
-1. Create `kalshi/models/new_resource.py` with Pydantic models (use `DollarDecimal` for price fields)
+1. Create `kalshi/models/new_resource.py` with Pydantic models (use `DollarDecimal` for price fields, `validation_alias=AliasChoices("api_name_dollars", "short_name")` for API field mapping)
 2. Create `kalshi/resources/new_resource.py` with both `NewResource(SyncResource)` and `AsyncNewResource(AsyncResource)`
 3. Add resource to `KalshiClient.__init__` and `AsyncKalshiClient.__init__`
 4. Export models from `kalshi/models/__init__.py` and `kalshi/__init__.py`
@@ -69,7 +74,7 @@ tests/
 ## Testing
 
 - pytest + pytest-asyncio + respx (httpx mock)
-- 80 tests covering auth, transport, retry, error mapping, pagination, markets, orders, models
+- 104 tests covering auth, transport, retry, error mapping, pagination, markets, orders, models, client constructors
 - Use `respx.mock` decorator for HTTP mocking
 - Generate test RSA keys via conftest.py fixtures
 - When writing new functions, write a corresponding test

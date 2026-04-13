@@ -1,6 +1,12 @@
-"""Tests for kalshi._base_client — HTTP transport, retry, error mapping."""
+"""Tests for kalshi._base_client and kalshi.client.
+
+Covers HTTP transport, retry, error mapping, and client constructors.
+"""
 
 from __future__ import annotations
+
+import os
+import tempfile
 
 import httpx
 import pytest
@@ -8,7 +14,8 @@ import respx
 
 from kalshi._base_client import SyncTransport, _map_error
 from kalshi.auth import KalshiAuth
-from kalshi.config import KalshiConfig
+from kalshi.client import KalshiClient
+from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
     KalshiAuthError,
     KalshiNotFoundError,
@@ -178,3 +185,131 @@ class TestSyncTransportContextManager:
     def test_close(self, test_auth: KalshiAuth, config: KalshiConfig) -> None:
         transport = SyncTransport(test_auth, config)
         transport.close()  # should not raise
+
+
+class TestKalshiClientConstructor:
+    """Tests for KalshiClient constructor branches and from_env()."""
+
+    def test_auth_passthrough(self, test_auth: KalshiAuth) -> None:
+        client = KalshiClient(auth=test_auth)
+        assert client._auth is test_auth
+        client.close()
+
+    def test_key_id_and_path(self, pem_bytes: bytes) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(pem_bytes)
+            f.flush()
+            client = KalshiClient(key_id="test-key", private_key_path=f.name)
+            assert client._auth.key_id == "test-key"
+            client.close()
+        os.unlink(f.name)
+
+    def test_key_id_and_pem(self, pem_string: str) -> None:
+        client = KalshiClient(key_id="test-key", private_key=pem_string)
+        assert client._auth.key_id == "test-key"
+        client.close()
+
+    def test_raises_without_auth(self) -> None:
+        with pytest.raises(ValueError, match="Provide auth"):
+            KalshiClient()
+
+    def test_demo_flag(self, test_auth: KalshiAuth) -> None:
+        client = KalshiClient(auth=test_auth, demo=True)
+        assert client._config.base_url == DEMO_BASE_URL
+        client.close()
+
+    def test_base_url_override(self, test_auth: KalshiAuth) -> None:
+        custom = "https://custom.api.com/v2"
+        client = KalshiClient(auth=test_auth, base_url=custom)
+        assert client._config.base_url == custom
+        client.close()
+
+    def test_base_url_takes_precedence_over_demo(self, test_auth: KalshiAuth) -> None:
+        custom = "https://custom.api.com/v2"
+        client = KalshiClient(auth=test_auth, base_url=custom, demo=True)
+        assert client._config.base_url == custom
+        client.close()
+
+    def test_default_production_url(self, test_auth: KalshiAuth) -> None:
+        client = KalshiClient(auth=test_auth)
+        assert client._config.base_url == PRODUCTION_BASE_URL
+        client.close()
+
+    def test_context_manager(self, test_auth: KalshiAuth) -> None:
+        with KalshiClient(auth=test_auth) as client:
+            assert client.markets is not None
+            assert client.orders is not None
+
+    def test_has_resources(self, test_auth: KalshiAuth) -> None:
+        client = KalshiClient(auth=test_auth)
+        assert hasattr(client, "markets")
+        assert hasattr(client, "orders")
+        client.close()
+
+
+class TestKalshiClientFromEnv:
+    """Tests for KalshiClient.from_env() with various env var combinations."""
+
+    def test_from_env_with_pem_string(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth.key_id == "env-key"
+        assert client._config.base_url == PRODUCTION_BASE_URL
+        client.close()
+
+    def test_from_env_with_key_path(
+        self, monkeypatch: pytest.MonkeyPatch, pem_bytes: bytes
+    ) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(pem_bytes)
+            f.flush()
+            monkeypatch.setenv("KALSHI_KEY_ID", "path-key")
+            monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+            monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", f.name)
+            monkeypatch.delenv("KALSHI_DEMO", raising=False)
+            monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+            client = KalshiClient.from_env()
+            assert client._auth.key_id == "path-key"
+            client.close()
+        os.unlink(f.name)
+
+    def test_from_env_demo_flag(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.setenv("KALSHI_DEMO", "true")
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._config.base_url == DEMO_BASE_URL
+        client.close()
+
+    def test_from_env_base_url_override(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        custom = "https://custom.api.com/v2"
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.setenv("KALSHI_API_BASE_URL", custom)
+        client = KalshiClient.from_env()
+        assert client._config.base_url == custom
+        client.close()
+
+    def test_from_env_missing_key_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        with pytest.raises(KalshiAuthError, match="KALSHI_KEY_ID"):
+            KalshiClient.from_env()
+
+    def test_from_env_missing_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "test")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
+            KalshiClient.from_env()
