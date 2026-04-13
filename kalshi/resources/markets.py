@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -82,7 +83,7 @@ class MarketsResource(SyncResource):
         ticker: str,
         *,
         period_interval: int | None = None,
-    ) -> list[Candlestick]:
+    ) -> builtins.list[Candlestick]:
         params: dict[str, Any] = {}
         if period_interval is not None:
             params["period_interval"] = period_interval
@@ -167,7 +168,7 @@ class AsyncMarketsResource(AsyncResource):
         ticker: str,
         *,
         period_interval: int | None = None,
-    ) -> list[Candlestick]:
+    ) -> builtins.list[Candlestick]:
         params: dict[str, Any] = {}
         if period_interval is not None:
             params["period_interval"] = period_interval

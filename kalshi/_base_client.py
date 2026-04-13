@@ -73,7 +73,7 @@ def _map_error(response: httpx.Response) -> KalshiError:
 def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
     """Exponential backoff with jitter."""
     delay = config.retry_base_delay * (2**attempt) + random.uniform(0, 0.5)
-    return min(delay, config.retry_max_delay)
+    return float(min(delay, config.retry_max_delay))
 
 
 class SyncTransport:

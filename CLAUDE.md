@@ -7,8 +7,12 @@ uv sync                         # install dependencies
 uv run pytest tests/ -v         # run all tests
 uv run ruff check .             # lint
 uv run ruff check . --fix       # lint + auto-fix
-uv run mypy kalshi/             # type check
+uv run mypy kalshi/             # type check (MUST pass before every commit)
 ```
+
+**Always run mypy before committing.** CI runs mypy strict and will reject the PR if it fails.
+The `list` builtin is shadowed by resource `.list()` methods. Use `builtins.list[T]` in type
+annotations inside resource classes (not bare `list[T]`).
 
 ## Architecture
 

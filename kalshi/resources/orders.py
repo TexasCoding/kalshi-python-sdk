@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -90,13 +91,13 @@ class OrdersResource(SyncResource):
             params["limit"] = limit
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
-    def batch_create(self, orders: list[CreateOrderRequest]) -> list[Order]:
+    def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
         body = {"orders": [o.model_dump(exclude_none=True) for o in orders]}
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o) for o in raw_orders]
 
-    def batch_cancel(self, order_ids: list[str]) -> None:
+    def batch_cancel(self, order_ids: builtins.list[str]) -> None:
         body = {"ids": order_ids}
         self._delete_with_body("/portfolio/orders/batched", json=body)
 
@@ -204,13 +205,15 @@ class AsyncOrdersResource(AsyncResource):
             params["limit"] = limit
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
-    async def batch_create(self, orders: list[CreateOrderRequest]) -> list[Order]:
+    async def batch_create(
+        self, orders: builtins.list[CreateOrderRequest]
+    ) -> builtins.list[Order]:
         body = {"orders": [o.model_dump(exclude_none=True) for o in orders]}
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o) for o in raw_orders]
 
-    async def batch_cancel(self, order_ids: list[str]) -> None:
+    async def batch_cancel(self, order_ids: builtins.list[str]) -> None:
         body = {"ids": order_ids}
         await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
 
