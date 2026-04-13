@@ -58,6 +58,11 @@ class KalshiAuth:
             pem_data = pem_data.encode("utf-8")
         try:
             private_key = serialization.load_pem_private_key(pem_data, password=None)
+        except TypeError:
+            raise KalshiAuthError(
+                "Passphrase-protected private keys are not supported. "
+                "Remove the passphrase with: openssl pkey -in key.pem -out key_nopass.pem"
+            )
         except (ValueError, UnsupportedAlgorithm) as e:
             raise KalshiAuthError(
                 f"Invalid PEM private key: {e}. Ensure the key is an RSA private key "

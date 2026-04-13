@@ -23,12 +23,17 @@ class KalshiConfig:
         retry_max_delay: Maximum delay in seconds for backoff. Defaults to 30.
     """
 
-    base_url: str = PRODUCTION_BASE_URL
+    base_url: str = PRODUCTION_BASE_URL  # trailing slash is stripped automatically
     timeout: float = DEFAULT_TIMEOUT
     max_retries: int = DEFAULT_MAX_RETRIES
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
     extra_headers: dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Strip trailing slash to prevent double-slash in auth signing paths
+        if self.base_url.endswith("/"):
+            object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
 
     @classmethod
     def production(cls, **kwargs: object) -> KalshiConfig:
