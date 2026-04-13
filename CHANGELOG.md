@@ -2,6 +2,12 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.1.2] - 2026-04-12
+
+### Added
+- Full async test coverage: 45 new tests mirroring every sync test for AsyncTransport, AsyncKalshiClient, AsyncMarketsResource, and AsyncOrdersResource
+- Tests cover async retry logic (502, 429), POST/DELETE not retried, constructor branches, `from_env()`, context manager, auto-pagination, orderbook, candlesticks, batch operations, and fills
+
 ## [0.1.1] - 2026-04-12
 
 ### Fixed
