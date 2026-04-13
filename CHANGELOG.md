@@ -2,6 +2,19 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- OpenAPI spec drift detection pipeline: contract tests compare hand-written SDK models against the Kalshi OpenAPI spec
+- `kalshi/_contract_map.py`: explicit manifest mapping 15 SDK models to OpenAPI schema components
+- `tests/test_contracts.py`: 32 contract tests (additive drift, required drift, schema coverage, map completeness)
+- `scripts/sync_spec.py`: downloads latest OpenAPI + AsyncAPI specs with retry/backoff
+- `scripts/generate.py`: local dev tool to generate reference Pydantic models via datamodel-code-generator
+- `.github/workflows/spec-drift.yml`: CI workflow (PRs use pinned spec, nightly downloads fresh)
+- Pinned `specs/openapi.yaml` snapshot for deterministic PR builds
+- New dev dependencies: `datamodel-code-generator`, `pyyaml`
+- P1 TODO: endpoint-level contract tests for resource method validation
+
 ## [0.2.0] - 2026-04-12
 
 ### Added
