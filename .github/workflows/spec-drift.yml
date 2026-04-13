@@ -1,0 +1,41 @@
+name: Spec Drift Detection
+
+on:
+  pull_request:
+  schedule:
+    # Nightly at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      # Nightly: download fresh spec to detect API changes
+      - name: Download fresh spec (nightly only)
+        if: github.event_name == 'schedule'
+        run: uv run python scripts/sync_spec.py
+
+      # PR builds use the committed pinned spec (specs/openapi.yaml)
+      # for deterministic, network-independent builds.
+
+      # Nightly: promote all warnings to errors (additive drift = failure)
+      - name: Run contract tests (nightly — strict)
+        if: github.event_name == 'schedule'
+        run: uv run pytest tests/test_contracts.py -v -W error::UserWarning
+
+      # PR: additive drift warns only, doesn't block merge
+      - name: Run contract tests (PR — warnings only)
+        if: github.event_name != 'schedule'
+        run: uv run pytest tests/test_contracts.py -v

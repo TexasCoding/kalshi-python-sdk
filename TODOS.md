@@ -24,6 +24,14 @@
 **Depends on:** v0.2 shipped.
 **Added:** 2026-04-12 via /plan-eng-review (Codex outside voice identified the gap)
 
+## P1: Endpoint-level contract tests for resource methods
+**What:** Add contract tests that verify resource methods (request building, response reshaping) match the OpenAPI operation definitions. Currently the spec drift pipeline only checks model schemas, not the resource layer that reshapes data.
+**Why:** The SDK's real breakage surface is in resource methods: `orderbook()` rewrites `orderbook_fp` data (resources/markets.py:59), `create()` hand-builds request JSON bypassing `CreateOrderRequest` (resources/orders.py:18), `get()` on events changes shape based on `with_nested_markets` (resources/events.py:49). Model-schema comparison can stay green while the SDK is broken.
+**Pros:** Catches the most dangerous class of bugs (SDK works but returns wrong data).
+**Cons:** Doubles the contract test complexity. Requires parsing spec operations, not just schemas.
+**Depends on:** Issue #9 (spec drift pipeline) shipped first.
+**Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
+
 ## Completed
 
 ### ~~Async test coverage~~

@@ -22,3 +22,10 @@ uv.lock
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Generated models (build artifact, not committed)
+kalshi/_generated/models.py
+
+# AsyncAPI spec (downloaded for future WebSocket support, not committed)
+# Note: specs/openapi.yaml IS committed as a pinned snapshot for deterministic PR builds.
+specs/asyncapi.yaml
