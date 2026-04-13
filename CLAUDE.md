@@ -74,7 +74,7 @@ tests/
 ## Testing
 
 - pytest + pytest-asyncio + respx (httpx mock)
-- 104 tests covering auth, transport, retry, error mapping, pagination, markets, orders, models, client constructors
+- 149 tests covering auth, transport, retry, error mapping, pagination, markets, orders, models, client constructors, async transport, async resources
 - Use `respx.mock` decorator for HTTP mocking
 - Generate test RSA keys via conftest.py fixtures
 - When writing new functions, write a corresponding test
