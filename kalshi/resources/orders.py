@@ -8,7 +8,7 @@ from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.orders import CreateOrderRequest, Fill, Order
-from kalshi.resources._base import AsyncResource, SyncResource
+from kalshi.resources._base import AsyncResource, SyncResource, _params
 from kalshi.types import to_decimal
 
 
@@ -113,16 +113,18 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Fill]:
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if order_id:
-            params["order_id"] = order_id
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
+        params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
         return self._list("/portfolio/fills", Fill, "fills", params=params)
+
+    def fills_all(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        limit: int | None = None,
+    ) -> Iterator[Fill]:
+        params = _params(ticker=ticker, order_id=order_id, limit=limit)
+        return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
 
 class AsyncOrdersResource(AsyncResource):
@@ -225,13 +227,15 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Fill]:
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if order_id:
-            params["order_id"] = order_id
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
+        params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
         return await self._list("/portfolio/fills", Fill, "fills", params=params)
+
+    def fills_all(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[Fill]:
+        params = _params(ticker=ticker, order_id=order_id, limit=limit)
+        return self._list_all("/portfolio/fills", Fill, "fills", params=params)

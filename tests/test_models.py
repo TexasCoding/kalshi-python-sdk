@@ -115,20 +115,30 @@ class TestDollarsAliasFields:
         assert f.yes_price == Decimal("0.5000")
         assert f.no_price == Decimal("0.5000")
 
-    def test_candlestick_accepts_dollars_suffix(self) -> None:
+    def test_candlestick_nested_structure(self) -> None:
         from kalshi.models.markets import Candlestick
 
         c = Candlestick.model_validate({
-            "open_dollars": "0.5000",
-            "high_dollars": "0.6000",
-            "low_dollars": "0.4000",
-            "close_dollars": "0.5500",
-            "volume": 100,
+            "end_period_ts": 1700000000,
+            "yes_bid": {
+                "open_dollars": "0.4000",
+                "high_dollars": "0.5000",
+                "low_dollars": "0.3500",
+                "close_dollars": "0.4500",
+            },
+            "price": {
+                "open_dollars": "0.5000",
+                "close_dollars": "0.5500",
+            },
+            "volume_fp": "100.00",
         })
-        assert c.open == Decimal("0.5000")
-        assert c.high == Decimal("0.6000")
-        assert c.low == Decimal("0.4000")
-        assert c.close == Decimal("0.5500")
+        assert c.yes_bid is not None
+        assert c.yes_bid.open == Decimal("0.4000")
+        assert c.yes_bid.high == Decimal("0.5000")
+        assert c.price is not None
+        assert c.price.open == Decimal("0.5000")
+        assert c.price.close == Decimal("0.5500")
+        assert c.volume == Decimal("100.00")
 
     def test_create_order_serializes_with_dollars_alias(self) -> None:
         from kalshi.models.orders import CreateOrderRequest

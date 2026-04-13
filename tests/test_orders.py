@@ -201,3 +201,28 @@ class TestOrdersFills:
         assert len(page) == 1
         assert page.items[0].trade_id == "t1"
         assert page.items[0].yes_price == Decimal("0.5000")
+
+
+class TestOrdersFillsAll:
+    @respx.mock
+    def test_auto_paginates(self, orders: OrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "a", "yes_price_dollars": "0.50"}],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{"trade_id": "b", "yes_price_dollars": "0.60"}],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [f.trade_id for f in orders.fills_all()]
+        assert ids == ["a", "b"]

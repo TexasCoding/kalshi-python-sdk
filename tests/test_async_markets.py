@@ -38,12 +38,12 @@ class TestAsyncMarketsList:
         self, markets: AsyncMarketsResource
     ) -> None:
         respx.get(
-            "https://test.kalshi.com/trade-api/v2/events"
+            "https://test.kalshi.com/trade-api/v2/markets"
         ).mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "events": [
+                    "markets": [
                         {
                             "ticker": "MKT-A",
                             "title": "Market A",
@@ -72,10 +72,10 @@ class TestAsyncMarketsList:
         self, markets: AsyncMarketsResource
     ) -> None:
         route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/events"
+            "https://test.kalshi.com/trade-api/v2/markets"
         ).mock(
             return_value=httpx.Response(
-                200, json={"events": [], "cursor": None}
+                200, json={"markets": [], "cursor": None}
             )
         )
         await markets.list(status="open")
@@ -87,10 +87,10 @@ class TestAsyncMarketsList:
         self, markets: AsyncMarketsResource
     ) -> None:
         respx.get(
-            "https://test.kalshi.com/trade-api/v2/events"
+            "https://test.kalshi.com/trade-api/v2/markets"
         ).mock(
             return_value=httpx.Response(
-                200, json={"events": []}
+                200, json={"markets": []}
             )
         )
         page = await markets.list()
@@ -105,13 +105,13 @@ class TestAsyncMarketsListAll:
         self, markets: AsyncMarketsResource
     ) -> None:
         route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/events"
+            "https://test.kalshi.com/trade-api/v2/markets"
         ).mock(
             side_effect=[
                 httpx.Response(
                     200,
                     json={
-                        "events": [
+                        "markets": [
                             {"ticker": "A"},
                             {"ticker": "B"},
                         ],
@@ -121,7 +121,7 @@ class TestAsyncMarketsListAll:
                 httpx.Response(
                     200,
                     json={
-                        "events": [{"ticker": "C"}],
+                        "markets": [{"ticker": "C"}],
                         "cursor": None,
                     },
                 ),
@@ -139,12 +139,12 @@ class TestAsyncMarketsGet:
         self, markets: AsyncMarketsResource
     ) -> None:
         respx.get(
-            "https://test.kalshi.com/trade-api/v2/events/TEST-MKT"
+            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT"
         ).mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "event": {
+                    "market": {
                         "ticker": "TEST-MKT",
                         "title": "Test Market",
                         "yes_ask_dollars": "0.7200",
@@ -162,10 +162,10 @@ class TestAsyncMarketsGet:
         self, markets: AsyncMarketsResource
     ) -> None:
         respx.get(
-            "https://test.kalshi.com/trade-api/v2/events/FAKE"
+            "https://test.kalshi.com/trade-api/v2/markets/FAKE"
         ).mock(
             return_value=httpx.Response(
-                404, json={"message": "event not found"}
+                404, json={"message": "market not found"}
             )
         )
         with pytest.raises(KalshiNotFoundError):
@@ -205,7 +205,7 @@ class TestAsyncMarketsOrderbook:
 class TestAsyncMarketsCandlesticks:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_candlesticks(
+    async def test_returns_nested_candlesticks(
         self, markets: AsyncMarketsResource
     ) -> None:
         respx.get(
@@ -217,10 +217,27 @@ class TestAsyncMarketsCandlesticks:
                 json={
                     "candlesticks": [
                         {
-                            "ticker": "MKT",
-                            "open_dollars": "0.5000",
-                            "close_dollars": "0.5500",
-                            "volume": 100,
+                            "end_period_ts": 1700000000,
+                            "yes_bid": {
+                                "open_dollars": "0.4000",
+                                "high_dollars": "0.5000",
+                                "low_dollars": "0.3500",
+                                "close_dollars": "0.4500",
+                            },
+                            "yes_ask": {
+                                "open_dollars": "0.5500",
+                                "high_dollars": "0.6000",
+                                "low_dollars": "0.5000",
+                                "close_dollars": "0.5500",
+                            },
+                            "price": {
+                                "open_dollars": "0.5000",
+                                "high_dollars": "0.5500",
+                                "low_dollars": "0.4500",
+                                "close_dollars": "0.5000",
+                            },
+                            "volume_fp": "1234.50",
+                            "open_interest_fp": "5000.00",
                         }
                     ]
                 },
@@ -228,5 +245,11 @@ class TestAsyncMarketsCandlesticks:
         )
         candles = await markets.candlesticks("SER", "MKT")
         assert len(candles) == 1
-        assert candles[0].open == Decimal("0.5000")
-        assert candles[0].volume == 100
+        c = candles[0]
+        assert c.end_period_ts == 1700000000
+        assert c.yes_bid is not None
+        assert c.yes_bid.open == Decimal("0.4000")
+        assert c.price is not None
+        assert c.price.close == Decimal("0.5000")
+        assert c.volume == Decimal("1234.50")
+        assert c.open_interest == Decimal("5000.00")

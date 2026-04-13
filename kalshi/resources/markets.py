@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
-from kalshi.resources._base import AsyncResource, SyncResource
+from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
 class MarketsResource(SyncResource):
@@ -20,21 +19,19 @@ class MarketsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
+        market_type: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
-        params: dict[str, Any] = {}
-        if status:
-            params["status"] = status
-        if series_ticker:
-            params["series_ticker"] = series_ticker
-        if event_ticker:
-            params["event_ticker"] = event_ticker
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
-        return self._list("/events", Market, "events", params=params)
+        params = _params(
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            market_type=market_type,
+            limit=limit,
+            cursor=cursor,
+        )
+        return self._list("/markets", Market, "markets", params=params)
 
     def list_all(
         self,
@@ -42,23 +39,22 @@ class MarketsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
+        market_type: str | None = None,
         limit: int | None = None,
     ) -> Iterator[Market]:
-        params: dict[str, Any] = {}
-        if status:
-            params["status"] = status
-        if series_ticker:
-            params["series_ticker"] = series_ticker
-        if event_ticker:
-            params["event_ticker"] = event_ticker
-        if limit is not None:
-            params["limit"] = limit
-        return self._list_all("/events", Market, "events", params=params)
+        params = _params(
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            market_type=market_type,
+            limit=limit,
+        )
+        return self._list_all("/markets", Market, "markets", params=params)
 
     def get(self, ticker: str) -> Market:
-        data = self._get(f"/events/{ticker}")
-        event = data.get("event", data)
-        return Market.model_validate(event)
+        data = self._get(f"/markets/{ticker}")
+        market = data.get("market", data)
+        return Market.model_validate(market)
 
     def orderbook(self, ticker: str) -> Orderbook:
         data = self._get(f"/markets/{ticker}/orderbook")
@@ -89,9 +85,7 @@ class MarketsResource(SyncResource):
         *,
         period_interval: int | None = None,
     ) -> builtins.list[Candlestick]:
-        params: dict[str, Any] = {}
-        if period_interval is not None:
-            params["period_interval"] = period_interval
+        params = _params(period_interval=period_interval)
         data = self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
             params=params,
@@ -109,21 +103,19 @@ class AsyncMarketsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
+        market_type: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
-        params: dict[str, Any] = {}
-        if status:
-            params["status"] = status
-        if series_ticker:
-            params["series_ticker"] = series_ticker
-        if event_ticker:
-            params["event_ticker"] = event_ticker
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
-        return await self._list("/events", Market, "events", params=params)
+        params = _params(
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            market_type=market_type,
+            limit=limit,
+            cursor=cursor,
+        )
+        return await self._list("/markets", Market, "markets", params=params)
 
     def list_all(
         self,
@@ -131,24 +123,23 @@ class AsyncMarketsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
+        market_type: str | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Market]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
-        params: dict[str, Any] = {}
-        if status:
-            params["status"] = status
-        if series_ticker:
-            params["series_ticker"] = series_ticker
-        if event_ticker:
-            params["event_ticker"] = event_ticker
-        if limit is not None:
-            params["limit"] = limit
-        return self._list_all("/events", Market, "events", params=params)
+        params = _params(
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            market_type=market_type,
+            limit=limit,
+        )
+        return self._list_all("/markets", Market, "markets", params=params)
 
     async def get(self, ticker: str) -> Market:
-        data = await self._get(f"/events/{ticker}")
-        event = data.get("event", data)
-        return Market.model_validate(event)
+        data = await self._get(f"/markets/{ticker}")
+        market = data.get("market", data)
+        return Market.model_validate(market)
 
     async def orderbook(self, ticker: str) -> Orderbook:
         data = await self._get(f"/markets/{ticker}/orderbook")
@@ -177,9 +168,7 @@ class AsyncMarketsResource(AsyncResource):
         *,
         period_interval: int | None = None,
     ) -> builtins.list[Candlestick]:
-        params: dict[str, Any] = {}
-        if period_interval is not None:
-            params["period_interval"] = period_interval
+        params = _params(period_interval=period_interval)
         data = await self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
             params=params,

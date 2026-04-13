@@ -13,6 +13,7 @@ from kalshi.errors import (
     KalshiValidationError,
 )
 from kalshi.models import (
+    BidAskDistribution,
     Candlestick,
     CreateOrderRequest,
     Fill,
@@ -21,10 +22,12 @@ from kalshi.models import (
     Orderbook,
     OrderbookLevel,
     Page,
+    PriceDistribution,
 )
 
 __all__ = [
     "AsyncKalshiClient",
+    "BidAskDistribution",
     "Candlestick",
     "CreateOrderRequest",
     "Fill",
@@ -42,6 +45,7 @@ __all__ = [
     "Orderbook",
     "OrderbookLevel",
     "Page",
+    "PriceDistribution",
 ]
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
