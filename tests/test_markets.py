@@ -1,0 +1,157 @@
+"""Tests for kalshi.resources.markets — Markets resource."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+import httpx
+import pytest
+import respx
+
+from kalshi._base_client import SyncTransport
+from kalshi.auth import KalshiAuth
+from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiNotFoundError
+from kalshi.resources.markets import MarketsResource
+
+
+@pytest.fixture
+def config() -> KalshiConfig:
+    return KalshiConfig(
+        base_url="https://test.kalshi.com/trade-api/v2",
+        timeout=5.0,
+        max_retries=0,
+    )
+
+
+@pytest.fixture
+def markets(test_auth: KalshiAuth, config: KalshiConfig) -> MarketsResource:
+    return MarketsResource(SyncTransport(test_auth, config))
+
+
+class TestMarketsList:
+    @respx.mock
+    def test_returns_page_of_markets(self, markets: MarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "events": [
+                        {"ticker": "MKT-A", "title": "Market A", "yes_bid": "0.45"},
+                        {"ticker": "MKT-B", "title": "Market B", "yes_bid": "0.60"},
+                    ],
+                    "cursor": "page2",
+                },
+            )
+        )
+        page = markets.list()
+        assert len(page) == 2
+        assert page.items[0].ticker == "MKT-A"
+        assert page.items[0].yes_bid == Decimal("0.45")
+        assert page.has_next is True
+        assert page.cursor == "page2"
+
+    @respx.mock
+    def test_with_status_filter(self, markets: MarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": None})
+        )
+        markets.list(status="open")
+        assert route.calls[0].request.url.params["status"] == "open"
+
+    @respx.mock
+    def test_empty_result(self, markets: MarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            return_value=httpx.Response(200, json={"events": []})
+        )
+        page = markets.list()
+        assert len(page) == 0
+        assert page.has_next is False
+
+
+class TestMarketsListAll:
+    @respx.mock
+    def test_auto_paginates(self, markets: MarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "events": [{"ticker": "A"}, {"ticker": "B"}],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={"events": [{"ticker": "C"}], "cursor": None},
+                ),
+            ]
+        )
+        tickers = [m.ticker for m in markets.list_all()]
+        assert tickers == ["A", "B", "C"]
+        assert route.call_count == 2
+
+
+class TestMarketsGet:
+    @respx.mock
+    def test_returns_market(self, markets: MarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/TEST-MKT").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": {"ticker": "TEST-MKT", "title": "Test Market", "yes_ask": "0.72"}},
+            )
+        )
+        market = markets.get("TEST-MKT")
+        assert market.ticker == "TEST-MKT"
+        assert market.yes_ask == Decimal("0.72")
+
+    @respx.mock
+    def test_not_found(self, markets: MarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/FAKE").mock(
+            return_value=httpx.Response(404, json={"message": "event not found"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            markets.get("FAKE")
+
+
+class TestMarketsOrderbook:
+    @respx.mock
+    def test_returns_orderbook(self, markets: MarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orderbook": {
+                        "yes": [["0.45", 100], ["0.50", 50]],
+                        "no": [["0.55", 75]],
+                    }
+                },
+            )
+        )
+        ob = markets.orderbook("TEST-MKT")
+        assert ob.ticker == "TEST-MKT"
+        assert len(ob.yes) == 2
+        assert ob.yes[0].price == Decimal("0.45")
+        assert ob.yes[0].quantity == 100
+        assert len(ob.no) == 1
+
+
+class TestMarketsCandlesticks:
+    @respx.mock
+    def test_returns_candlesticks(self, markets: MarketsResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "candlesticks": [
+                        {"ticker": "MKT", "open": "0.50", "close": "0.55", "volume": 100}
+                    ]
+                },
+            )
+        )
+        candles = markets.candlesticks("SER", "MKT")
+        assert len(candles) == 1
+        assert candles[0].open == Decimal("0.50")
+        assert candles[0].volume == 100

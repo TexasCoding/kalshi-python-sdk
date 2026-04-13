@@ -1,0 +1,66 @@
+[project]
+name = "kalshi-sdk"
+version = "0.1.0"
+description = "A professional Python SDK for the Kalshi prediction markets API"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "Texas Coding" }]
+keywords = ["kalshi", "prediction-markets", "trading", "api", "sdk"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2.0,<3",
+    "cryptography>=43,<45",
+]
+
+[project.urls]
+Homepage = "https://github.com/TexasCoding/kalshi-python-sdk"
+Documentation = "https://github.com/TexasCoding/kalshi-python-sdk"
+Repository = "https://github.com/TexasCoding/kalshi-python-sdk"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["kalshi"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "SIM", "RUF"]
+ignore = [
+    "A002",   # allow shadowing builtins like 'type' (Kalshi API uses this field name)
+    "UP046",  # Pydantic v2 requires Generic[T] subclass syntax for generic models
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+    "pytest-asyncio>=0.24,<1",
+    "respx>=0.21,<1",
+    "ruff>=0.8,<1",
+    "mypy>=1.13,<2",
+]
