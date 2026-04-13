@@ -119,7 +119,7 @@ class AsyncMarketsResource(AsyncResource):
             params["cursor"] = cursor
         return await self._list("/events", Market, "events", params=params)
 
-    async def list_all(
+    def list_all(
         self,
         *,
         status: str | None = None,
@@ -127,6 +127,7 @@ class AsyncMarketsResource(AsyncResource):
         event_ticker: str | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Market]:
+        """Non-async method that returns an async iterator for direct use with `async for`."""
         params: dict[str, Any] = {}
         if status:
             params["status"] = status

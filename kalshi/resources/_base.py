@@ -60,10 +60,11 @@ class SyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
+        max_pages: int = 1000,
     ) -> Iterator[T]:
         """Auto-paginate through all pages, yielding items."""
         current_params = dict(params) if params else {}
-        while True:
+        for _ in range(max_pages):
             page = self._list(path, model_cls, items_key, params=current_params)
             yield from page.items
             if not page.has_next:
@@ -117,9 +118,10 @@ class AsyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
+        max_pages: int = 1000,
     ) -> AsyncIterator[T]:
         current_params = dict(params) if params else {}
-        while True:
+        for _ in range(max_pages):
             page = await self._list(path, model_cls, items_key, params=current_params)
             for item in page.items:
                 yield item

@@ -10,6 +10,7 @@ import logging
 import random
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -27,7 +28,8 @@ from kalshi.errors import (
 logger = logging.getLogger("kalshi")
 
 RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
-RETRYABLE_METHODS = {"GET", "DELETE", "HEAD", "OPTIONS"}
+# DELETE excluded: cancel/batch_cancel are not safely idempotent
+RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
 def _map_error(response: httpx.Response) -> KalshiError:
@@ -53,7 +55,12 @@ def _map_error(response: httpx.Response) -> KalshiError:
         return KalshiNotFoundError(message=str(message), status_code=status)
     if status == 429:
         retry_after = response.headers.get("Retry-After")
-        retry_after_val = float(retry_after) if retry_after else None
+        retry_after_val: float | None = None
+        if retry_after:
+            try:
+                retry_after_val = float(retry_after)
+            except ValueError:
+                retry_after_val = None  # HTTP-date format, fall back to computed backoff
         return KalshiRateLimitError(
             message=str(message), status_code=status, retry_after=retry_after_val
         )
@@ -90,11 +97,12 @@ class SyncTransport:
         json: dict[str, Any] | None = None,
     ) -> httpx.Response:
         """Make an authenticated HTTP request with retry logic."""
-        full_path = self._config.base_url + path
+        # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
+        sign_path = urlparse(self._config.base_url).path + path
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), full_path)
+            auth_headers = self._auth.sign_request(method.upper(), sign_path)
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -143,7 +151,7 @@ class SyncTransport:
 
             # Use Retry-After header if available for 429
             if isinstance(error, KalshiRateLimitError) and error.retry_after:
-                delay = error.retry_after
+                delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
 
@@ -190,11 +198,12 @@ class AsyncTransport:
         """Make an authenticated async HTTP request with retry logic."""
         import asyncio
 
-        full_path = self._config.base_url + path
+        # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
+        sign_path = urlparse(self._config.base_url).path + path
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), full_path)
+            auth_headers = self._auth.sign_request(method.upper(), sign_path)
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
@@ -243,7 +252,7 @@ class AsyncTransport:
                 raise error
 
             if isinstance(error, KalshiRateLimitError) and error.retry_after:
-                delay = error.retry_after
+                delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
 

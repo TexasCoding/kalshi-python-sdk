@@ -129,16 +129,14 @@ class TestSyncTransportRetry:
         assert route.call_count == 1
 
     @respx.mock
-    def test_delete_retried(self, transport: SyncTransport) -> None:
+    def test_delete_not_retried(self, transport: SyncTransport) -> None:
+        """DELETE is not retried (cancel operations are not safely idempotent)."""
         route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/abc").mock(
-            side_effect=[
-                httpx.Response(503, text="Unavailable"),
-                httpx.Response(200, json={}),
-            ]
+            return_value=httpx.Response(503, text="Unavailable"),
         )
-        resp = transport.request("DELETE", "/portfolio/orders/abc")
-        assert resp.status_code == 200
-        assert route.call_count == 2
+        with pytest.raises(KalshiServerError):
+            transport.request("DELETE", "/portfolio/orders/abc")
+        assert route.call_count == 1
 
     @respx.mock
     def test_max_retries_exhausted(self, transport: SyncTransport) -> None:

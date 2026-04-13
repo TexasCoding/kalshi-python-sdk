@@ -187,13 +187,14 @@ class AsyncOrdersResource(AsyncResource):
             params["cursor"] = cursor
         return await self._list("/portfolio/orders", Order, "orders", params=params)
 
-    async def list_all(
+    def list_all(
         self,
         *,
         ticker: str | None = None,
         status: str | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Order]:
+        """Non-async method that returns an async iterator for direct use with `async for`."""
         params: dict[str, Any] = {}
         if ticker:
             params["ticker"] = ticker
