@@ -63,14 +63,21 @@ class Fill(BaseModel):
     """A filled trade.
 
     Price fields accept both ``_dollars``-suffixed names from the API
-    and short names.
+    and short names. Count accepts ``_fp``-suffixed name.
     """
 
     trade_id: str
+    fill_id: str | None = None
     order_id: str | None = None
     ticker: str | None = None
+    market_ticker: str | None = None
     side: str | None = None
+    action: str | None = None
     is_taker: bool | None = None
+    count: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("count_fp", "count"),
+    )
     yes_price: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
@@ -79,8 +86,7 @@ class Fill(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    count: int | None = None
-    action: str | None = None
+    fee_cost: DollarDecimal | None = None
     created_time: datetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
@@ -110,3 +116,5 @@ class CreateOrderRequest(BaseModel):
     client_order_id: str | None = None
     expiration_ts: int | None = None
     buy_max_cost: DollarDecimal | None = None
+
+    model_config = {"extra": "forbid"}

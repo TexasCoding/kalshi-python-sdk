@@ -9,8 +9,12 @@ from types import TracebackType
 from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, KalshiConfig
+from kalshi.resources.events import AsyncEventsResource
+from kalshi.resources.exchange import AsyncExchangeResource
+from kalshi.resources.historical import AsyncHistoricalResource
 from kalshi.resources.markets import AsyncMarketsResource
 from kalshi.resources.orders import AsyncOrdersResource
+from kalshi.resources.portfolio import AsyncPortfolioResource
 
 
 class AsyncKalshiClient:
@@ -66,8 +70,12 @@ class AsyncKalshiClient:
 
         # Build transport and resources
         self._transport = AsyncTransport(self._auth, self._config)
+        self.events = AsyncEventsResource(self._transport)
+        self.exchange = AsyncExchangeResource(self._transport)
+        self.historical = AsyncHistoricalResource(self._transport)
         self.markets = AsyncMarketsResource(self._transport)
         self.orders = AsyncOrdersResource(self._transport)
+        self.portfolio = AsyncPortfolioResource(self._transport)
 
     @classmethod
     def from_env(cls, **kwargs: object) -> AsyncKalshiClient:

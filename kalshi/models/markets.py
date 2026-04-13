@@ -15,13 +15,19 @@ class Market(BaseModel):
 
     Price fields accept both ``_dollars``-suffixed names from the API
     (e.g. ``yes_bid_dollars``) and short names (e.g. ``yes_bid``).
+    Volume/count fields accept both ``_fp``-suffixed names and short names.
     """
 
     ticker: str
     event_ticker: str | None = None
+    market_type: str | None = None
     title: str | None = None
     subtitle: str | None = None
+    yes_sub_title: str | None = None
+    no_sub_title: str | None = None
     status: str | None = None
+
+    # Price fields (FixedPointDollars)
     yes_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
@@ -58,14 +64,53 @@ class Market(BaseModel):
         default=None,
         validation_alias=AliasChoices("notional_value_dollars", "notional_value"),
     )
-    volume: int | None = None
-    volume_24h: int | None = None
-    open_interest: int | None = None
+    settlement_value: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("settlement_value_dollars", "settlement_value"),
+    )
+    liquidity: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("liquidity_dollars", "liquidity"),
+    )
+
+    # Size/volume fields (FixedPointCount)
+    yes_bid_size: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
+    )
+    yes_ask_size: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
+    )
+    volume: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("volume_fp", "volume"),
+    )
+    volume_24h: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("volume_24h_fp", "volume_24h"),
+    )
+    open_interest: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("open_interest_fp", "open_interest"),
+    )
+
+    # Timestamps
+    created_time: datetime | None = None
+    updated_time: datetime | None = None
     open_time: datetime | None = None
     close_time: datetime | None = None
+    latest_expiration_time: datetime | None = None
+    expected_expiration_time: datetime | None = None
+    expiration_time: datetime | None = None
+    settlement_ts: datetime | None = None
+
+    # Metadata
+    settlement_timer_seconds: int | None = None
     result: str | None = None
     can_close_early: bool | None = None
-    expiration_time: datetime | None = None
+    fractional_trading_enabled: bool | None = None
+    expiration_value: str | None = None
     category: str | None = None
     risk_limit_cents: int | None = None
     strike_type: str | None = None
@@ -96,15 +141,9 @@ class Orderbook(BaseModel):
     no: list[OrderbookLevel] = []
 
 
-class Candlestick(BaseModel):
-    """A candlestick (OHLCV) data point.
+class BidAskDistribution(BaseModel):
+    """OHLC data for bid/ask prices within a candlestick period."""
 
-    OHLC fields accept both ``_dollars``-suffixed names from the API
-    and short names.
-    """
-
-    ticker: str | None = None
-    period_start: datetime | None = None
     open: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("open_dollars", "open"),
@@ -121,7 +160,58 @@ class Candlestick(BaseModel):
         default=None,
         validation_alias=AliasChoices("close_dollars", "close"),
     )
-    volume: int | None = None
-    open_interest: int | None = None
 
     model_config = {"populate_by_name": True}
+
+
+class PriceDistribution(BaseModel):
+    """OHLC data for trade prices within a candlestick period.
+
+    Fields are nullable because there may be no trades in a period.
+    """
+
+    open: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("open_dollars", "open"),
+    )
+    high: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("high_dollars", "high"),
+    )
+    low: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("low_dollars", "low"),
+    )
+    close: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("close_dollars", "close"),
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class Candlestick(BaseModel):
+    """A candlestick data point for a market.
+
+    The API returns nested OHLC objects for yes_bid, yes_ask, and price,
+    plus volume and open interest as FixedPointCount strings.
+    """
+
+    end_period_ts: int | None = None
+    yes_bid: BidAskDistribution | None = None
+    yes_ask: BidAskDistribution | None = None
+    price: PriceDistribution | None = None
+    volume: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("volume_fp", "volume"),
+    )
+    open_interest: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("open_interest_fp", "open_interest"),
+    )
+
+    # Legacy flat fields for backward compat with older API responses
+    ticker: str | None = None
+    period_start: datetime | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}

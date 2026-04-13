@@ -13,6 +13,11 @@ from kalshi.models.common import Page
 T = TypeVar("T", bound=BaseModel)
 
 
+def _params(**kwargs: Any) -> dict[str, Any]:
+    """Build a query-param dict, dropping None values."""
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
 class SyncResource:
     """Base class for sync resource modules."""
 
