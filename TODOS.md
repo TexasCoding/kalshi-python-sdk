@@ -1,10 +1,5 @@
 # TODOS
 
-## P1: Auth path percent-encoding canonicalization
-**What:** Normalize percent-encoding in auth signing paths. Currently trailing slashes and query params are stripped, but percent-encoded characters (e.g., `%2F`) are not normalized.
-**Why:** A percent-encoded path segment would produce a different signature than the decoded version. Could cause silent 401 errors on edge-case tickers.
-**Depends on:** v0.1 shipped + demo API verification.
-**Added:** 2026-04-12 via /plan-eng-review (partially addressed: trailing slash + query strip done)
 
 ## P2: Unauthenticated client path for public endpoints
 **What:** Allow SDK usage without RSA auth credentials for public endpoints (exchange status, events list, historical data, market data). Either `KalshiClient()` with no auth, or a separate `KalshiPublicClient`.
@@ -20,17 +15,6 @@
 **Depends on:** v0.3 shipped (WS models must exist first). Issue #9 spec drift pipeline.
 **Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
 
-## P1: Integration test — deeper field assertions on model responses
-**What:** Current integration tests assert `isinstance(result, Model)` but don't verify individual field values, types, or Decimal precision. Add deep assertions that verify: (1) DollarDecimal fields parse to Decimal, not float, (2) price fields are in the expected range (0-1 for binary markets), (3) timestamp fields parse correctly, (4) required fields from OpenAPI spec are non-None.
-**Why:** `isinstance` proves the model validates, but doesn't catch subtle issues like prices returning as cents instead of dollars, or fields that are always None because the alias mapping is wrong. The candlestick and batch_create bugs both passed isinstance checks while being fundamentally broken.
-**Depends on:** Integration test suite shipped (done).
-**Added:** 2026-04-14
-
-## P1: Integration test — error path coverage
-**What:** Add integration tests for error responses: invalid ticker (404), expired/missing auth (401), malformed request params (400), rate limiting (429). Currently all integration tests only cover happy paths.
-**Why:** The SDK has an error hierarchy (KalshiNotFoundError, KalshiAuthError, KalshiValidationError, KalshiRateLimitError) but none of it is verified against the real API. Error message format, status code mapping, and retry behavior are all untested.
-**Depends on:** Integration test suite shipped (done).
-**Added:** 2026-04-14
 
 ## P2: Integration test — WebSocket live connection
 **What:** Add integration tests that connect to `wss://demo-api.kalshi.co/trade-api/ws/v2`, subscribe to a channel (e.g., ticker for an active market), receive at least one message, and verify the message parses into the expected WS model. Test connect, subscribe, receive, unsubscribe, disconnect lifecycle.
@@ -93,3 +77,12 @@
 
 ### ~~Add py.typed marker for PEP 561 compliance~~
 **Completed:** v0.1.0 (2026-04-12). File at `kalshi/py.typed`.
+
+### ~~Auth path percent-encoding canonicalization~~
+**Completed:** 2026-04-14. Added `_normalize_percent_encoding()` in `kalshi/auth.py` to normalize percent-encoded hex digits to uppercase per RFC 3986 section 2.1. Test vector corpus with 7 parametrized cases added to `tests/test_auth.py`.
+
+### ~~Integration test — deeper field assertions on model responses~~
+**Completed:** 2026-04-14. Created `tests/integration/assertions.py` with `assert_model_fields()` semantic oracle. Validates Decimal types (no floats), price ranges [0,1] for 18 named fields, datetime parsing, required-field presence, and recurses into nested BaseModel and list[BaseModel] fields. Wired into all 6 integration test files (markets, events, exchange, historical, orders, portfolio).
+
+### ~~Integration test — error path coverage~~
+**Completed:** 2026-04-14. Created `tests/integration/test_errors.py` with 5 tests for 404 (KalshiNotFoundError), 400 (KalshiValidationError), and 401 (KalshiAuthError) error paths against the demo API. Verifies status_code, message, and type-specific attributes (details, retry_after). Sync-only (error mapping is transport-shared via _map_error()).
