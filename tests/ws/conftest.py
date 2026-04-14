@@ -31,6 +31,7 @@ class FakeKalshiWS:
         self.reject_auth: bool = False
         self.disconnect_after: int | None = None
         self._msg_count = 0
+        self._force_error: bool = False
 
     def _process_request(
         self, connection: ServerConnection, request: Request
@@ -67,6 +68,17 @@ class FakeKalshiWS:
         cmd = msg.get("cmd")
         msg_id = msg.get("id", 0)
         if cmd == "subscribe":
+            if self._force_error:
+                await ws.send(
+                    json.dumps(
+                        {
+                            "id": msg_id,
+                            "type": "error",
+                            "msg": {"code": 400, "msg": "Forced error"},
+                        }
+                    )
+                )
+                return
             channels: builtins.list[str] = msg.get("params", {}).get(
                 "channels", []
             )
@@ -99,6 +111,10 @@ class FakeKalshiWS:
                         }
                     )
                 )
+        elif cmd == "update_subscription":
+            await ws.send(
+                json.dumps({"id": msg_id, "type": "ok", "msg": {}})
+            )
         elif cmd == "list_subscriptions":
             subs = [
                 {"channel": v["channel"], "sid": k}
