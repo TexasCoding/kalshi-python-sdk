@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import os
 import time
+import re
 from pathlib import Path
 
 from cryptography.exceptions import UnsupportedAlgorithm
@@ -23,6 +24,24 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from kalshi.errors import KalshiAuthError
+
+
+def _normalize_percent_encoding(path: str) -> str:
+    """Normalize percent-encoded characters to uppercase hex digits.
+
+    RFC 3986 section 2.1: percent-encoded octets should use uppercase
+    hex digits for consistency. This ensures signing payloads are
+    identical regardless of how the URL was constructed.
+
+    Examples:
+        /markets/ABC%2fDEF -> /markets/ABC%2FDEF
+        /markets/ABC%2FDEF -> /markets/ABC%2FDEF (no change)
+    """
+    return re.sub(
+        r"%([0-9a-fA-F]{2})",
+        lambda m: "%" + m.group(1).upper(),
+        path,
+    )
 
 
 class KalshiAuth:
@@ -130,11 +149,8 @@ class KalshiAuth:
         if clean_path != "/" and clean_path.endswith("/"):
             clean_path = clean_path.rstrip("/")
 
-        # NOTE: Percent-encoded characters are NOT normalized (e.g., %2D stays as %2D).
-        # Kalshi tickers are alphanumeric + hyphens, so percent-encoding is unlikely.
-        # If Kalshi introduces tickers with encodable characters, this may need
-        # urllib.parse.unquote() normalization — but only after verifying the server
-        # normalizes before signature verification. See GitHub issue #2.
+        # Normalize percent-encoding to uppercase hex (RFC 3986 section 2.1)
+        clean_path = _normalize_percent_encoding(clean_path)
 
         ts_str = str(timestamp_ms)
         message = ts_str + method.upper() + clean_path

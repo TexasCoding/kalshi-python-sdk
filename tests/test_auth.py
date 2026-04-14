@@ -103,17 +103,11 @@ class TestSignRequest:
         ts = int(headers["KALSHI-ACCESS-TIMESTAMP"])
         assert ts > 1_700_000_000_000  # after 2023
 
-    def test_percent_encoded_path_signed_as_is(
+    def test_percent_encoded_path_preserved_but_normalized(
         self, rsa_private_key: rsa.RSAPrivateKey, test_auth: KalshiAuth
     ) -> None:
-        """Percent-encoded paths are signed without decoding.
-
-        Known limitation (see issue #2): /events/TICKER%2DNAME and
-        /events/TICKER-NAME produce DIFFERENT signatures. This is safe
-        because Kalshi tickers are alphanumeric + hyphens only. If Kalshi
-        introduces encodable characters, this needs revisiting after
-        verifying server-side normalization behavior.
-        """
+        """Percent-encoded paths are signed without decoding, but hex digits
+        are normalized to uppercase per RFC 3986 section 2.1."""
         headers = test_auth.sign_request(
             "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
         )
@@ -127,8 +121,9 @@ class TestSignRequest:
         )
 
     def test_encoded_and_decoded_paths_differ(self, test_auth: KalshiAuth) -> None:
-        """Documents the current behavior: encoded and decoded paths produce
-        different signatures. See issue #2 for the known limitation."""
+        """Encoded and decoded paths produce different signatures.
+        %2D is the encoding of '-', but the signing payload preserves the
+        encoding rather than decoding it."""
         h1 = test_auth.sign_request(
             "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
         )
@@ -136,6 +131,88 @@ class TestSignRequest:
             "GET", "/trade-api/v2/events/TICKER-NAME", timestamp_ms=1000
         )
         assert h1["KALSHI-ACCESS-SIGNATURE"] != h2["KALSHI-ACCESS-SIGNATURE"]
+
+    @pytest.mark.parametrize(
+        "input_path,expected_canonical",
+        [
+            # Already uppercase — no change
+            ("/trade-api/v2/markets/ABC%2FDEF", "/trade-api/v2/markets/ABC%2FDEF"),
+            # Lowercase hex -> uppercase
+            ("/trade-api/v2/markets/ABC%2fDEF", "/trade-api/v2/markets/ABC%2FDEF"),
+            # Encoded space
+            ("/trade-api/v2/markets/test%20name", "/trade-api/v2/markets/test%20name"),
+            # Mixed case multiple
+            ("/trade-api/v2/markets/%2F%2f%2F", "/trade-api/v2/markets/%2F%2F%2F"),
+            # Lowercase + query (query stripped, then hex uppercased)
+            ("/trade-api/v2/markets/ABC%2fDEF?q=1", "/trade-api/v2/markets/ABC%2FDEF"),
+            # Lowercase + trailing slash
+            ("/trade-api/v2/markets/ABC%2fDEF/", "/trade-api/v2/markets/ABC%2FDEF"),
+            # No encoding needed
+            ("/trade-api/v2/markets/simple", "/trade-api/v2/markets/simple"),
+        ],
+        ids=[
+            "uppercase_passthrough",
+            "lowercase_to_uppercase",
+            "encoded_space",
+            "mixed_case_multiple",
+            "lowercase_plus_query",
+            "lowercase_plus_trailing_slash",
+            "no_encoding",
+        ],
+    )
+    def test_percent_encoding_canonicalization(
+        self,
+        rsa_private_key: rsa.RSAPrivateKey,
+        test_auth: KalshiAuth,
+        input_path: str,
+        expected_canonical: str,
+    ) -> None:
+        """Signing should normalize percent-encoding to uppercase hex."""
+        ts = 1000
+        headers = test_auth.sign_request("GET", input_path, timestamp_ms=ts)
+        sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+
+        expected_msg = f"{ts}GET{expected_canonical}".encode()
+        # If the signing used the canonical path, verification will succeed.
+        # If not, this will raise InvalidSignature.
+        rsa_private_key.public_key().verify(
+            sig,
+            expected_msg,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.DIGEST_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
+
+    def test_case_variants_produce_same_canonical_path(
+        self,
+        rsa_private_key: rsa.RSAPrivateKey,
+        test_auth: KalshiAuth,
+    ) -> None:
+        """Paths differing only in percent-encoding case should sign the same canonical message.
+
+        RSA-PSS uses randomized padding, so signatures differ between calls even
+        for the same input. Instead, verify both signatures against the canonical
+        (uppercase) message.
+        """
+        canonical_msg = b"1000GET/trade-api/v2/events/TICKER%2DNAME"
+        pub = rsa_private_key.public_key()
+        pss = padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.DIGEST_LENGTH,
+        )
+
+        h1 = test_auth.sign_request(
+            "GET", "/trade-api/v2/events/TICKER%2dNAME", timestamp_ms=1000
+        )
+        h2 = test_auth.sign_request(
+            "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
+        )
+
+        # Both signatures must verify against the same canonical message
+        pub.verify(base64.b64decode(h1["KALSHI-ACCESS-SIGNATURE"]), canonical_msg, pss, hashes.SHA256())
+        pub.verify(base64.b64decode(h2["KALSHI-ACCESS-SIGNATURE"]), canonical_msg, pss, hashes.SHA256())
 
 
 class TestFromKeyPath:
