@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 from types import TracebackType
+from typing import TYPE_CHECKING
 
 from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth

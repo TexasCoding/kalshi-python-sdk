@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-from kalshi.models.markets import Orderbook, OrderbookLevel
 from kalshi.ws.models.orderbook_delta import (
     OrderbookDeltaMessage,
     OrderbookDeltaPayload,
@@ -86,7 +84,7 @@ class TestOrderbookManager:
         book = mgr.apply_delta(make_delta(price=60, delta=200, side="yes"))
         assert book is not None
         assert len(book.yes) == 2
-        prices = [l.price for l in book.yes]
+        prices = [level.price for level in book.yes]
         assert prices == [Decimal("0.50"), Decimal("0.60")]  # sorted
 
     def test_apply_delta_no_side(self) -> None:

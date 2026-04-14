@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from kalshi.config import KalshiConfig
@@ -194,7 +192,9 @@ class TestUpdateSubscription:
             market_tickers=["T2"],
         )
         # Find the update_subscription command in the fake server's received commands
-        update_cmds = [c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"]
+        update_cmds = [
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        ]
         assert len(update_cmds) == 1
         assert update_cmds[0]["params"]["sids"] == [sub.server_sid]
         assert update_cmds[0]["params"]["action"] == "add_markets"

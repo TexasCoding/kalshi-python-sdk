@@ -75,7 +75,8 @@ class TestSequenceTracker:
         assert tracker.should_track("fill") is False
 
     async def test_sequenced_channels_constant(self) -> None:
-        assert SEQUENCED_CHANNELS == {"orderbook_delta", "orderbook_snapshot", "order_group_updates"}
+        expected = {"orderbook_delta", "orderbook_snapshot", "order_group_updates"}
+        assert expected == SEQUENCED_CHANNELS
 
     async def test_gap_updates_last_seq(self) -> None:
         """After a gap, tracking continues from the new seq."""

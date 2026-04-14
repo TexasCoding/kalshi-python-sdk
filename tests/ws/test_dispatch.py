@@ -133,7 +133,7 @@ class TestMessageDispatcher:
         assert expected == set(MESSAGE_MODELS.keys())
 
     async def test_control_types(self) -> None:
-        assert CONTROL_TYPES == {"subscribed", "unsubscribed", "ok", "error"}
+        assert {"subscribed", "unsubscribed", "ok", "error"} == CONTROL_TYPES
 
     async def test_unregister_callback(self) -> None:
         """Verify unregister_callback removes the callback and routes to queue."""

@@ -40,5 +40,5 @@ class TestFixedPointCount:
         assert data["count"] == "100.00"
 
     def test_invalid_type_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             SampleModel.model_validate({"count": [1, 2, 3]})

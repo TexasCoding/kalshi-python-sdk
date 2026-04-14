@@ -93,6 +93,6 @@ class TestMessageQueue:
             await asyncio.sleep(0.05)
             await q.put("delayed")
 
-        asyncio.create_task(delayed_put())
+        _task = asyncio.create_task(delayed_put())  # noqa: RUF006
         msg = await asyncio.wait_for(q.get(), timeout=1.0)
         assert msg == "delayed"

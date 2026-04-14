@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import collections
+from collections.abc import AsyncIterator
 from enum import Enum
-from typing import AsyncIterator, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from kalshi.errors import KalshiBackpressureError
 
