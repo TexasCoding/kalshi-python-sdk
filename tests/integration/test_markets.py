@@ -52,18 +52,22 @@ class TestMarketsSync:
             assert isinstance(level, OrderbookLevel)
             assert isinstance(level.price, Decimal)
 
-    @pytest.mark.xfail(
-        reason="SDK bug: MarketsResource.candlesticks() missing required start_ts parameter",
-        raises=Exception,
-    )
     def test_candlesticks(
         self, sync_client: KalshiClient, demo_market: Market, demo_event_ticker: str
     ) -> None:
-        # Candlestick endpoint requires series_ticker. Get it from the event.
+        import time
+
         event = sync_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker for candlestick endpoint")
-        result = sync_client.markets.candlesticks(event.series_ticker, demo_market.ticker)
+        now = int(time.time())
+        result = sync_client.markets.candlesticks(
+            event.series_ticker,
+            demo_market.ticker,
+            start_ts=now - 86400 * 7,
+            end_ts=now,
+            period_interval=60,
+        )
         assert isinstance(result, list)
         for candle in result:
             assert isinstance(candle, Candlestick)
@@ -96,15 +100,20 @@ class TestMarketsAsync:
         assert isinstance(ob, Orderbook)
         assert ob.ticker == demo_market_ticker
 
-    @pytest.mark.xfail(
-        reason="SDK bug: MarketsResource.candlesticks() missing required start_ts parameter",
-        raises=Exception,
-    )
     async def test_candlesticks(
         self, async_client: AsyncKalshiClient, demo_market: Market, demo_event_ticker: str
     ) -> None:
+        import time
+
         event = await async_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")
-        result = await async_client.markets.candlesticks(event.series_ticker, demo_market.ticker)
+        now = int(time.time())
+        result = await async_client.markets.candlesticks(
+            event.series_ticker,
+            demo_market.ticker,
+            start_ts=now - 86400 * 7,
+            end_ts=now,
+            period_interval=60,
+        )
         assert isinstance(result, list)

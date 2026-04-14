@@ -187,7 +187,9 @@ class TestMarketsCandlesticks:
                 },
             )
         )
-        candles = markets.candlesticks("SER", "MKT")
+        candles = markets.candlesticks(
+            "SER", "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
+        )
         assert len(candles) == 1
         c = candles[0]
         assert c.end_period_ts == 1700000000
@@ -208,7 +210,9 @@ class TestMarketsCandlesticks:
         ).mock(
             return_value=httpx.Response(200, json={"candlesticks": []})
         )
-        candles = markets.candlesticks("SER", "MKT")
+        candles = markets.candlesticks(
+            "SER", "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
+        )
         assert candles == []
 
 

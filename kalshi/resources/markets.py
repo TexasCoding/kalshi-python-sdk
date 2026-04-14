@@ -83,9 +83,15 @@ class MarketsResource(SyncResource):
         series_ticker: str,
         ticker: str,
         *,
-        period_interval: int | None = None,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
     ) -> builtins.list[Candlestick]:
-        params = _params(period_interval=period_interval)
+        params = _params(
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+        )
         data = self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
             params=params,
@@ -166,9 +172,15 @@ class AsyncMarketsResource(AsyncResource):
         series_ticker: str,
         ticker: str,
         *,
-        period_interval: int | None = None,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
     ) -> builtins.list[Candlestick]:
-        params = _params(period_interval=period_interval)
+        params = _params(
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+        )
         data = await self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
             params=params,

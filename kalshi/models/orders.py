@@ -120,7 +120,7 @@ class CreateOrderRequest(BaseModel):
     side: str
     type: str = "limit"
     action: str = "buy"
-    count: FixedPointCount = Decimal("1")
+    count: FixedPointCount = Field(default=Decimal("1"), serialization_alias="count_fp")
     yes_price: DollarDecimal | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",

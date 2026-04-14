@@ -62,9 +62,9 @@ class HistoricalResource(SyncResource):
         self,
         ticker: str,
         *,
-        period_interval: int | None = None,
-        start_ts: int | None = None,
-        end_ts: int | None = None,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
     ) -> builtins.list[Candlestick]:
         params = _params(
             period_interval=period_interval,
@@ -185,9 +185,9 @@ class AsyncHistoricalResource(AsyncResource):
         self,
         ticker: str,
         *,
-        period_interval: int | None = None,
-        start_ts: int | None = None,
-        end_ts: int | None = None,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
     ) -> builtins.list[Candlestick]:
         params = _params(
             period_interval=period_interval,

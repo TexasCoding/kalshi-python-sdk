@@ -161,7 +161,9 @@ class TestHistoricalCandlesticks:
                 },
             )
         )
-        candles = historical.candlesticks("MKT")
+        candles = historical.candlesticks(
+            "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
+        )
         assert len(candles) == 1
         assert candles[0].yes_bid is not None
         assert candles[0].yes_bid.open == Decimal("0.40")
@@ -539,7 +541,9 @@ class TestAsyncHistoricalCandlesticks:
                 },
             )
         )
-        candles = await async_historical.candlesticks("MKT")
+        candles = await async_historical.candlesticks(
+            "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
+        )
         assert len(candles) == 1
         assert candles[0].yes_bid is not None
         assert candles[0].yes_bid.open == Decimal("0.40")

@@ -94,10 +94,6 @@ class TestOrdersSync:
             except Exception:
                 logger.warning("Failed to cancel order %s in teardown", order.order_id)
 
-    @pytest.mark.xfail(
-        reason="SDK bug: batch_create request body rejected by API — format mismatch",
-        raises=Exception,
-    )
     def test_batch_create_cancel(
         self,
         sync_client: KalshiClient,
@@ -200,10 +196,6 @@ class TestOrdersAsync:
             except Exception:
                 logger.warning("Failed to cancel async order %s", order.order_id)
 
-    @pytest.mark.xfail(
-        reason="SDK bug: batch_create request body rejected by API — format mismatch",
-        raises=Exception,
-    )
     async def test_batch_create_cancel(
         self,
         async_client: AsyncKalshiClient,

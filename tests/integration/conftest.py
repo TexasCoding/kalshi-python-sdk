@@ -10,6 +10,7 @@ Tests auto-skip when credentials are absent.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import uuid
@@ -98,10 +99,8 @@ async def async_client() -> AsyncIterator[AsyncKalshiClient]:
     client = AsyncKalshiClient.from_env()
     _assert_demo_url(client._config.base_url)
     yield client
-    try:
-        await client.close()
-    except RuntimeError:
-        pass  # Event loop closing during teardown — safe to ignore
+    with contextlib.suppress(RuntimeError):
+        await client.close()  # Event loop may be closing during teardown
 
 
 # ---------------------------------------------------------------------------

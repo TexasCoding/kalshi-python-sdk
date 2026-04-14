@@ -95,7 +95,7 @@ class OrdersResource(SyncResource):
         body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
-        return [Order.model_validate(o) for o in raw_orders]
+        return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
     def batch_cancel(self, order_ids: builtins.list[str]) -> None:
         body = {"ids": order_ids}
@@ -213,7 +213,7 @@ class AsyncOrdersResource(AsyncResource):
         body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
-        return [Order.model_validate(o) for o in raw_orders]
+        return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
     async def batch_cancel(self, order_ids: builtins.list[str]) -> None:
         body = {"ids": order_ids}

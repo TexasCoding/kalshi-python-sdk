@@ -243,7 +243,9 @@ class TestAsyncMarketsCandlesticks:
                 },
             )
         )
-        candles = await markets.candlesticks("SER", "MKT")
+        candles = await markets.candlesticks(
+            "SER", "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
+        )
         assert len(candles) == 1
         c = candles[0]
         assert c.end_period_ts == 1700000000
