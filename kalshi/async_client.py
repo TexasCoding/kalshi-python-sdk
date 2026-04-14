@@ -64,8 +64,8 @@ class AsyncKalshiClient:
             config_kwargs: dict[str, object] = {}
             if base_url:
                 config_kwargs["base_url"] = base_url
-            elif demo:
-                config_kwargs["base_url"] = DEMO_BASE_URL
+            if demo:
+                config_kwargs.setdefault("base_url", DEMO_BASE_URL)
                 config_kwargs["ws_base_url"] = DEMO_WS_URL
             if timeout is not None:
                 config_kwargs["timeout"] = timeout

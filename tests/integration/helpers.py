@@ -98,7 +98,7 @@ def fill_guarantee(
         pytest.skip(f"No orderbook liquidity on {ticker} — cannot guarantee fill")
 
     best_bid = max(ob.yes, key=lambda lvl: lvl.price)
-    best_ask = min(ob.no, key=lambda lvl: lvl.price)
+    best_ask = max(ob.no, key=lambda lvl: lvl.price)
 
     # Compute midpoint, round to nearest $0.01 tick
     midpoint = ((best_bid.price + (Decimal("1") - best_ask.price)) / 2).quantize(
