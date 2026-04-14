@@ -14,6 +14,7 @@ from kalshi.types import to_decimal
 from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
+from tests.integration.helpers import fill_guarantee
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,47 @@ class TestOrdersSync:
 
             if count >= 2:
                 break
+
+    def test_order_fill_lifecycle(
+        self,
+        sync_client: KalshiClient,
+        demo_market_ticker: str,
+        demo_balance_cents: int,
+        test_run_id: str,
+    ) -> None:
+        """Place opposing orders to produce a fill, then verify fill data."""
+        skip_if_low_balance(demo_balance_cents, threshold_cents=2000)
+
+        buy_id, sell_id = fill_guarantee(
+            sync_client, demo_market_ticker, test_run_id=test_run_id,
+        )
+
+        # Query fills and look for our fill
+        import time
+        time.sleep(1)  # Brief delay for fill to propagate
+
+        page = sync_client.orders.fills(limit=20)
+        our_fills = [
+            f for f in page.items
+            if f.order_id in (buy_id, sell_id)
+        ]
+
+        if not our_fills:
+            pytest.skip(
+                "No fills found after placing opposing orders — "
+                "self-trading may be prohibited on demo"
+            )
+
+        fill = our_fills[0]
+        assert isinstance(fill, Fill)
+        assert_model_fields(fill)
+
+        # Verify key fill fields
+        assert fill.ticker == demo_market_ticker or fill.market_ticker == demo_market_ticker
+        assert fill.yes_price is not None
+        assert fill.count is not None
+        assert fill.created_time is not None
+        assert fill.side in ("yes", "no")
 
     def test_create_get_cancel(
         self,

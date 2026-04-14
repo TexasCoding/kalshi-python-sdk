@@ -6,10 +6,13 @@ import asyncio
 import functools
 import logging
 from collections.abc import Callable
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, TypeVar
 
+import pytest
 from websockets.exceptions import ConnectionClosed
 
+from kalshi.client import KalshiClient
 from kalshi.errors import KalshiConnectionError
 
 logger = logging.getLogger(__name__)
@@ -70,3 +73,80 @@ def retry_transient(max_retries: int = 2, delay: float = 1.0) -> Callable[[F], F
         return wrapper  # type: ignore[return-value]
 
     return decorator
+
+
+def fill_guarantee(
+    client: KalshiClient,
+    ticker: str,
+    *,
+    test_run_id: str,
+) -> tuple[str, str]:
+    """Place opposing buy+sell orders to produce a fill.
+
+    Queries the orderbook, computes the midpoint price, places a YES buy
+    and YES sell at that price (both count=1). Returns (buy_order_id, sell_order_id).
+
+    Skips the test if:
+      - No orderbook liquidity (no bids or asks)
+      - Either order is rejected (e.g., self-trade prohibited)
+
+    The caller is responsible for cleanup of any resting orders.
+    """
+    ob = client.markets.orderbook(ticker)
+
+    if not ob.yes or not ob.no:
+        pytest.skip(f"No orderbook liquidity on {ticker} — cannot guarantee fill")
+
+    best_bid = max(ob.yes, key=lambda lvl: lvl.price)
+    best_ask = min(ob.no, key=lambda lvl: lvl.price)
+
+    # Compute midpoint, round to nearest $0.01 tick
+    midpoint = ((best_bid.price + (Decimal("1") - best_ask.price)) / 2).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+    # Clamp to valid range
+    if midpoint < Decimal("0.01"):
+        midpoint = Decimal("0.01")
+    elif midpoint > Decimal("0.99"):
+        midpoint = Decimal("0.99")
+
+    price_str = str(midpoint)
+
+    # Place buy order
+    try:
+        buy_order = client.orders.create(
+            ticker=ticker,
+            side="yes",
+            type="limit",
+            action="buy",
+            count=1,
+            yes_price=price_str,
+            client_order_id=f"{test_run_id}-fill-buy",
+        )
+    except Exception as exc:
+        pytest.skip(f"Buy order rejected: {exc}")
+
+    # Place sell order to match against the buy
+    try:
+        sell_order = client.orders.create(
+            ticker=ticker,
+            side="yes",
+            type="limit",
+            action="sell",
+            count=1,
+            yes_price=price_str,
+            client_order_id=f"{test_run_id}-fill-sell",
+        )
+    except Exception as exc:
+        # Clean up the resting buy order
+        try:
+            client.orders.cancel(buy_order.order_id)
+        except Exception:
+            logger.warning(
+                "Failed to cancel buy order %s during fill_guarantee cleanup",
+                buy_order.order_id,
+            )
+        pytest.skip(f"Sell order rejected (self-trade prohibited?): {exc}")
+
+    return buy_order.order_id, sell_order.order_id
