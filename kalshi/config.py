@@ -7,8 +7,12 @@ from dataclasses import dataclass, field
 PRODUCTION_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 DEMO_BASE_URL = "https://demo-api.kalshi.co/trade-api/v2"
 
+PRODUCTION_WS_URL = "wss://api.elections.kalshi.com/trade-api/ws/v2"
+DEMO_WS_URL = "wss://demo-api.kalshi.co/trade-api/ws/v2"
+
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 3
+DEFAULT_WS_MAX_RETRIES = 10
 
 
 @dataclass(frozen=True)
@@ -29,18 +33,22 @@ class KalshiConfig:
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
     extra_headers: dict[str, str] = field(default_factory=dict)
+    ws_base_url: str = PRODUCTION_WS_URL  # trailing slash is stripped automatically
+    ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
 
     def __post_init__(self) -> None:
         # Strip trailing slash to prevent double-slash in auth signing paths
         if self.base_url.endswith("/"):
             object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
+        if self.ws_base_url.endswith("/"):
+            object.__setattr__(self, "ws_base_url", self.ws_base_url.rstrip("/"))
 
     @classmethod
     def production(cls, **kwargs: object) -> KalshiConfig:
         """Create config for Kalshi production environment."""
-        return cls(base_url=PRODUCTION_BASE_URL, **kwargs)  # type: ignore[arg-type]
+        return cls(base_url=PRODUCTION_BASE_URL, ws_base_url=PRODUCTION_WS_URL, **kwargs)  # type: ignore[arg-type]
 
     @classmethod
     def demo(cls, **kwargs: object) -> KalshiConfig:
         """Create config for Kalshi demo/sandbox environment."""
-        return cls(base_url=DEMO_BASE_URL, **kwargs)  # type: ignore[arg-type]
+        return cls(base_url=DEMO_BASE_URL, ws_base_url=DEMO_WS_URL, **kwargs)  # type: ignore[arg-type]
