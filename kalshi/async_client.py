@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 from types import TracebackType
 
 from kalshi._base_client import AsyncTransport
@@ -15,6 +16,9 @@ from kalshi.resources.historical import AsyncHistoricalResource
 from kalshi.resources.markets import AsyncMarketsResource
 from kalshi.resources.orders import AsyncOrdersResource
 from kalshi.resources.portfolio import AsyncPortfolioResource
+
+if TYPE_CHECKING:
+    from kalshi.ws.client import KalshiWebSocket
 
 
 class AsyncKalshiClient:
@@ -76,6 +80,19 @@ class AsyncKalshiClient:
         self.markets = AsyncMarketsResource(self._transport)
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
+
+    @property
+    def ws(self) -> KalshiWebSocket:
+        """WebSocket client for real-time streaming.
+
+        Usage::
+
+            async with client.ws.connect() as session:
+                async for msg in session.subscribe_ticker(tickers=["ECON-GDP-25Q1"]):
+                    print(msg.msg.yes_bid)
+        """
+        from kalshi.ws.client import KalshiWebSocket as _KalshiWebSocket
+        return _KalshiWebSocket(auth=self._auth, config=self._config)
 
     @classmethod
     def from_env(cls, **kwargs: object) -> AsyncKalshiClient:
