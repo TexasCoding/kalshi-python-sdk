@@ -22,6 +22,7 @@ import pytest_asyncio
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.markets import Market
+from kalshi.ws.client import KalshiWebSocket
 
 try:
     from dotenv import load_dotenv
@@ -194,3 +195,18 @@ def cleanup_orders(sync_client: KalshiClient) -> Iterator[None]:
                     logger.warning("Cleanup: failed to cancel order %s", order.order_id)
     except Exception:
         logger.warning("Cleanup: failed to list orders for cleanup sweep")
+
+
+# ---------------------------------------------------------------------------
+# WebSocket connection fixture
+# ---------------------------------------------------------------------------
+@pytest_asyncio.fixture
+async def ws_session(sync_client: KalshiClient) -> AsyncIterator[KalshiWebSocket]:
+    """Connect to demo WS, yield an active session, clean up on exit."""
+    config = sync_client._config
+    _assert_demo_url(config.base_url, config.ws_base_url)
+
+    auth = sync_client._auth
+    ws = KalshiWebSocket(auth=auth, config=config)
+    async with ws.connect() as session:
+        yield session
