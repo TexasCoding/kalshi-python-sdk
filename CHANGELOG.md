@@ -2,6 +2,36 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.3.0] - 2026-04-14
+
+### Added
+- Full WebSocket client supporting all 11 Kalshi channels: orderbook_delta, ticker, trade, fill, market_positions, user_orders, order_group_updates, market_lifecycle_v2, multivariate, multivariate_market_lifecycle, communications
+- `KalshiWebSocket` client with async context manager: `async with client.ws.connect() as session`
+- Per-channel typed subscribe methods (`subscribe_ticker()`, `subscribe_fill()`, etc.) for mypy strict compatibility
+- Generic `subscribe(channel, **params)` for dynamic use cases
+- Callback API via `@session.on("channel")` decorator, mutually exclusive per channel with async iterators
+- `ws.orderbook("TICKER")` convenience yields full `Orderbook` state on every delta update
+- `ConnectionManager` with 6-state machine (DISCONNECTED, CONNECTING, CONNECTED, STREAMING, RECONNECTING, CLOSED)
+- Auto-reconnect with exponential backoff + jitter, configurable via `ws_max_retries` (default 10)
+- RSA-PSS auth during WebSocket handshake (reuses existing `KalshiAuth`)
+- `SubscriptionManager` with durable client-side subscription IDs that survive reconnection (server sids are remapped transparently)
+- `update_subscription()` for adding/removing tickers from live subscriptions without re-subscribing
+- `SequenceTracker` for gap detection on channels that support `seq` (orderbook_delta, order_group_updates)
+- Sequence gap triggers automatic resync (re-subscribe with fresh snapshot)
+- `OrderbookManager` maintains local in-memory orderbook from WS snapshots + deltas
+- `MessageQueue` with configurable overflow strategies: `DROP_OLDEST` (default for ticker/trade) and `ERROR` (default for orderbook_delta)
+- `FixedPointCount` Pydantic type for `_fp` suffix fields (contract counts, volumes)
+- 5 new WebSocket exception classes: `KalshiWebSocketError`, `KalshiConnectionError`, `KalshiSequenceGapError`, `KalshiBackpressureError`, `KalshiSubscriptionError`
+- `ws_base_url` and `ws_max_retries` fields on `KalshiConfig`
+- Typed Pydantic models for all 11 channel message payloads (24 model classes total)
+- Fake WebSocket test server for integration testing (simulates subscribe, broadcast, disconnect, auth rejection)
+- 306 new tests (149 existing + 306 new = 455 total)
+
+### Changed
+- **BREAKING:** `Order.count`, `initial_count`, `remaining_count`, `fill_count` changed from `int` to `FixedPointCount` (Decimal). Accepts both `int` and `_fp` string formats.
+- **BREAKING:** `CreateOrderRequest.count` changed from `int = 1` to `FixedPointCount = Decimal("1")`
+- `websockets>=14,<17` added as a dependency
+
 ## [Unreleased]
 
 ### Added
