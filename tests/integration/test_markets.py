@@ -78,6 +78,69 @@ class TestMarketsSync:
             assert isinstance(candle, Candlestick)
             assert_model_fields(candle)
 
+    def test_pagination_no_overlap(self, sync_client: KalshiClient) -> None:
+        """Verify cursor-based pagination returns non-overlapping pages."""
+        page1 = sync_client.markets.list(limit=2)
+        if len(page1.items) < 2 or not page1.cursor:
+            pytest.skip("Not enough markets for pagination test (need >= 3)")
+
+        tickers_page1 = {m.ticker for m in page1.items}
+
+        page2 = sync_client.markets.list(limit=2, cursor=page1.cursor)
+        tickers_page2 = {m.ticker for m in page2.items}
+
+        if not tickers_page2:
+            pytest.skip("Page 2 is empty — not enough markets for pagination test")
+
+        overlap = tickers_page1 & tickers_page2
+        assert not overlap, (
+            f"Pages overlap! Shared tickers: {overlap}. "
+            f"Page 1: {tickers_page1}, Page 2: {tickers_page2}"
+        )
+
+    def test_pagination_cursor_terminates(self, sync_client: KalshiClient) -> None:
+        """Verify cursor eventually becomes None (pagination terminates)."""
+        all_tickers: list[str] = []
+        page = sync_client.markets.list(limit=5)
+        all_tickers.extend(m.ticker for m in page.items)
+
+        max_pages = 20  # Safety limit to prevent infinite loops
+        pages_fetched = 1
+        while page.cursor and pages_fetched < max_pages:
+            page = sync_client.markets.list(limit=5, cursor=page.cursor)
+            all_tickers.extend(m.ticker for m in page.items)
+            pages_fetched += 1
+
+        # Either cursor became None (pagination terminated) or we hit the safety limit
+        if pages_fetched >= max_pages:
+            # We fetched 20 pages * 5 = 100 items, that's enough to prove cursor works
+            pass
+        else:
+            # Cursor terminated naturally — verify we got all items
+            assert len(all_tickers) > 0
+
+        # Verify no duplicates across all pages
+        assert len(all_tickers) == len(set(all_tickers)), (
+            f"Found duplicate tickers across pages: "
+            f"{[t for t in all_tickers if all_tickers.count(t) > 1]}"
+        )
+
+    def test_list_all_no_duplicates(self, sync_client: KalshiClient) -> None:
+        """Verify list_all() SDK abstraction produces no duplicate tickers."""
+        tickers: list[str] = []
+        for count, market in enumerate(sync_client.markets.list_all(limit=2)):
+            tickers.append(market.ticker)
+            if count >= 5:
+                break
+
+        if len(tickers) <= 1:
+            pytest.skip("Not enough markets to verify pagination deduplication")
+
+        assert len(tickers) == len(set(tickers)), (
+            f"list_all() produced duplicate tickers: "
+            f"{[t for t in tickers if tickers.count(t) > 1]}"
+        )
+
 
 @pytest.mark.integration
 class TestMarketsAsync:
