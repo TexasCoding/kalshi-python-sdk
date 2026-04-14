@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class Order(BaseModel):
@@ -31,10 +32,22 @@ class Order(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    count: int | None = None
-    initial_count: int | None = None
-    remaining_count: int | None = None
-    fill_count: int | None = None
+    count: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("count_fp", "count"),
+    )
+    initial_count: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("initial_count_fp", "initial_count"),
+    )
+    remaining_count: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("remaining_count_fp", "remaining_count"),
+    )
+    fill_count: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("fill_count_fp", "fill_count"),
+    )
     taker_fill_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("taker_fill_cost_dollars", "taker_fill_cost"),
@@ -107,7 +120,7 @@ class CreateOrderRequest(BaseModel):
     side: str
     type: str = "limit"
     action: str = "buy"
-    count: int = 1
+    count: FixedPointCount = Decimal("1")
     yes_price: DollarDecimal | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",
