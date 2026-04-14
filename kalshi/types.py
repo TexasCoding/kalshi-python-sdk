@@ -42,6 +42,34 @@ DollarDecimal = Annotated[
 """
 
 
+def _to_decimal_fp(value: Any) -> Decimal:
+    """Convert a raw API fixed-point count string to Decimal.
+
+    Kalshi API returns count/volume fields as FixedPoint strings
+    (e.g., ``"100.00"``), with ``_fp`` suffix field names (e.g., ``count_fp``).
+    This converts them to Decimal without float intermediaries.
+    """
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int, float)):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        return Decimal(value)
+    raise TypeError(f"Cannot convert {type(value).__name__} to Decimal")
+
+
+FixedPointCount = Annotated[
+    Decimal,
+    BeforeValidator(_to_decimal_fp),
+    PlainSerializer(_decimal_to_str, return_type=str),
+]
+"""A Decimal field that handles bidirectional conversion for Kalshi count/volume values.
+
+- Parse: Accepts str/int/float/Decimal, converts via Decimal(str(value))
+- Serialize: Outputs string representation for API requests
+"""
+
+
 def to_decimal(value: int | float | str | Decimal) -> Decimal:
     """Convert a user-supplied price/count value to Decimal safely.
 
