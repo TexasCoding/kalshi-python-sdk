@@ -58,6 +58,12 @@
 **Depends on:** New resource methods need to be added to OrdersResource.
 **Added:** 2026-04-14
 
+## P3: Integration test — handle transient 500 errors from demo API
+**What:** `TestOrdersSync::test_list_all` intermittently fails with `KalshiServerError: HTTP 500` when paginating orders on the demo server. Investigate whether this is a known demo server issue or a bug in cursor handling. Consider adding a retry wrapper or `pytest.mark.flaky` for demo-specific transient failures.
+**Why:** Transient 500s on demo cause false test failures, making CI unreliable. The SDK's retry logic already handles 500s for GET requests, but `list_all()` re-raises after exhausting retries. Either the retry count is too low for demo, or the demo server has a known instability on the orders list endpoint with cursors.
+**Depends on:** Integration test suite stable (done).
+**Added:** 2026-04-14
+
 ## Completed
 
 ### ~~Verify Kalshi price format (cents vs dollars)~~
