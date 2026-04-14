@@ -11,6 +11,7 @@ from kalshi.client import KalshiClient
 from kalshi.models.common import Page
 from kalshi.models.orders import CreateOrderRequest, Fill, Order
 from kalshi.types import to_decimal
+from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
 
@@ -39,10 +40,12 @@ class TestOrdersSync:
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Order)
+            assert_model_fields(item)
 
     def test_list_all(self, sync_client: KalshiClient) -> None:
         for count, order in enumerate(sync_client.orders.list_all(limit=2)):
             assert isinstance(order, Order)
+            assert_model_fields(order)
 
             if count >= 2:
                 break
@@ -52,10 +55,12 @@ class TestOrdersSync:
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Fill)
+            assert_model_fields(item)
 
     def test_fills_all(self, sync_client: KalshiClient) -> None:
         for count, fill in enumerate(sync_client.orders.fills_all(limit=2)):
             assert isinstance(fill, Fill)
+            assert_model_fields(fill)
 
             if count >= 2:
                 break
@@ -82,11 +87,13 @@ class TestOrdersSync:
             client_order_id=client_order_id,
         )
         assert isinstance(order, Order)
+        assert_model_fields(order)
         assert order.order_id
 
         try:
             retrieved = sync_client.orders.get(order.order_id)
             assert isinstance(retrieved, Order)
+            assert_model_fields(retrieved)
             assert retrieved.order_id == order.order_id
         finally:
             try:
@@ -123,6 +130,7 @@ class TestOrdersSync:
         assert len(orders) > 0
         for o in orders:
             assert isinstance(o, Order)
+            assert_model_fields(o)
 
         order_ids = [o.order_id for o in orders]
         try:
@@ -141,11 +149,15 @@ class TestOrdersAsync:
     async def test_list(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.orders.list(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Order)
+            assert_model_fields(item)
 
     async def test_list_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for order in async_client.orders.list_all(limit=2):
             assert isinstance(order, Order)
+            assert_model_fields(order)
             count += 1
             if count >= 3:
                 break
@@ -153,11 +165,15 @@ class TestOrdersAsync:
     async def test_fills(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.orders.fills(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Fill)
+            assert_model_fields(item)
 
     async def test_fills_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for fill in async_client.orders.fills_all(limit=2):
             assert isinstance(fill, Fill)
+            assert_model_fields(fill)
             count += 1
             if count >= 3:
                 break
@@ -184,11 +200,13 @@ class TestOrdersAsync:
             client_order_id=client_order_id,
         )
         assert isinstance(order, Order)
+        assert_model_fields(order)
         assert order.order_id
 
         try:
             retrieved = await async_client.orders.get(order.order_id)
             assert isinstance(retrieved, Order)
+            assert_model_fields(retrieved)
             assert retrieved.order_id == order.order_id
         finally:
             try:
@@ -223,6 +241,9 @@ class TestOrdersAsync:
         orders = await async_client.orders.batch_create(requests)
         assert isinstance(orders, list)
         assert len(orders) > 0
+        for o in orders:
+            assert isinstance(o, Order)
+            assert_model_fields(o)
 
         order_ids = [o.order_id for o in orders]
         try:

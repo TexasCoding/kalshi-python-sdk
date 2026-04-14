@@ -10,6 +10,7 @@ from kalshi.models.common import Page
 from kalshi.models.historical import HistoricalCutoff, Trade
 from kalshi.models.markets import Candlestick, Market
 from kalshi.models.orders import Fill, Order
+from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
 register(
@@ -35,16 +36,19 @@ class TestHistoricalSync:
     def test_cutoff(self, sync_client: KalshiClient) -> None:
         result = sync_client.historical.cutoff()
         assert isinstance(result, HistoricalCutoff)
+        assert_model_fields(result)
 
     def test_markets(self, sync_client: KalshiClient) -> None:
         page = sync_client.historical.markets(limit=5)
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Market)
+            assert_model_fields(item)
 
     def test_markets_all(self, sync_client: KalshiClient) -> None:
         for count, market in enumerate(sync_client.historical.markets_all(limit=2)):
             assert isinstance(market, Market)
+            assert_model_fields(market)
 
             if count >= 2:
                 break
@@ -56,6 +60,7 @@ class TestHistoricalSync:
         ticker = page.items[0].ticker
         result = sync_client.historical.market(ticker)
         assert isinstance(result, Market)
+        assert_model_fields(result)
         assert result.ticker == ticker
 
     def test_candlesticks(self, sync_client: KalshiClient) -> None:
@@ -74,16 +79,19 @@ class TestHistoricalSync:
         assert isinstance(result, list)
         for candle in result:
             assert isinstance(candle, Candlestick)
+            assert_model_fields(candle)
 
     def test_fills(self, sync_client: KalshiClient) -> None:
         page = sync_client.historical.fills(limit=5)
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Fill)
+            assert_model_fields(item)
 
     def test_fills_all(self, sync_client: KalshiClient) -> None:
         for count, fill in enumerate(sync_client.historical.fills_all(limit=2)):
             assert isinstance(fill, Fill)
+            assert_model_fields(fill)
 
             if count >= 2:
                 break
@@ -93,10 +101,12 @@ class TestHistoricalSync:
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Order)
+            assert_model_fields(item)
 
     def test_orders_all(self, sync_client: KalshiClient) -> None:
         for count, order in enumerate(sync_client.historical.orders_all(limit=2)):
             assert isinstance(order, Order)
+            assert_model_fields(order)
 
             if count >= 2:
                 break
@@ -106,10 +116,12 @@ class TestHistoricalSync:
         assert isinstance(page, Page)
         for item in page.items:
             assert isinstance(item, Trade)
+            assert_model_fields(item)
 
     def test_trades_all(self, sync_client: KalshiClient) -> None:
         for count, trade in enumerate(sync_client.historical.trades_all(limit=2)):
             assert isinstance(trade, Trade)
+            assert_model_fields(trade)
 
             if count >= 2:
                 break
@@ -120,15 +132,20 @@ class TestHistoricalAsync:
     async def test_cutoff(self, async_client: AsyncKalshiClient) -> None:
         result = await async_client.historical.cutoff()
         assert isinstance(result, HistoricalCutoff)
+        assert_model_fields(result)
 
     async def test_markets(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.historical.markets(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Market)
+            assert_model_fields(item)
 
     async def test_markets_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for market in async_client.historical.markets_all(limit=2):
             assert isinstance(market, Market)
+            assert_model_fields(market)
             count += 1
             if count >= 3:
                 break
@@ -140,6 +157,7 @@ class TestHistoricalAsync:
         ticker = page.items[0].ticker
         result = await async_client.historical.market(ticker)
         assert isinstance(result, Market)
+        assert_model_fields(result)
 
     async def test_candlesticks(self, async_client: AsyncKalshiClient) -> None:
         import time
@@ -154,15 +172,22 @@ class TestHistoricalAsync:
             ticker, start_ts=start_ts, end_ts=now, period_interval=60
         )
         assert isinstance(result, list)
+        for candle in result:
+            assert isinstance(candle, Candlestick)
+            assert_model_fields(candle)
 
     async def test_fills(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.historical.fills(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Fill)
+            assert_model_fields(item)
 
     async def test_fills_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for fill in async_client.historical.fills_all(limit=2):
             assert isinstance(fill, Fill)
+            assert_model_fields(fill)
             count += 1
             if count >= 3:
                 break
@@ -170,11 +195,15 @@ class TestHistoricalAsync:
     async def test_orders(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.historical.orders(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Order)
+            assert_model_fields(item)
 
     async def test_orders_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for order in async_client.historical.orders_all(limit=2):
             assert isinstance(order, Order)
+            assert_model_fields(order)
             count += 1
             if count >= 3:
                 break
@@ -182,11 +211,15 @@ class TestHistoricalAsync:
     async def test_trades(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.historical.trades(limit=5)
         assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Trade)
+            assert_model_fields(item)
 
     async def test_trades_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for trade in async_client.historical.trades_all(limit=2):
             assert isinstance(trade, Trade)
+            assert_model_fields(trade)
             count += 1
             if count >= 3:
                 break

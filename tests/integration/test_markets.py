@@ -10,6 +10,7 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
 from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
+from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
 register("MarketsResource", ["candlesticks", "get", "list", "list_all", "orderbook"])
@@ -24,16 +25,19 @@ class TestMarketsSync:
         if page.items:
             market = page.items[0]
             assert isinstance(market, Market)
+            assert_model_fields(market)
             assert market.ticker
 
     def test_get(self, sync_client: KalshiClient, demo_market_ticker: str) -> None:
         market = sync_client.markets.get(demo_market_ticker)
         assert isinstance(market, Market)
+        assert_model_fields(market)
         assert market.ticker == demo_market_ticker
 
     def test_list_all(self, sync_client: KalshiClient) -> None:
         for count, market in enumerate(sync_client.markets.list_all(limit=2)):
             assert isinstance(market, Market)
+            assert_model_fields(market)
 
             if count >= 2:
                 break
@@ -42,6 +46,7 @@ class TestMarketsSync:
     def test_orderbook(self, sync_client: KalshiClient, demo_market_ticker: str) -> None:
         ob = sync_client.markets.orderbook(demo_market_ticker)
         assert isinstance(ob, Orderbook)
+        assert_model_fields(ob)
         assert ob.ticker == demo_market_ticker
         assert isinstance(ob.yes, list)
         assert isinstance(ob.no, list)
@@ -71,6 +76,7 @@ class TestMarketsSync:
         assert isinstance(result, list)
         for candle in result:
             assert isinstance(candle, Candlestick)
+            assert_model_fields(candle)
 
 
 @pytest.mark.integration
@@ -78,16 +84,22 @@ class TestMarketsAsync:
     async def test_list(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.markets.list(limit=5)
         assert isinstance(page, Page)
+        if page.items:
+            market = page.items[0]
+            assert isinstance(market, Market)
+            assert_model_fields(market)
 
     async def test_get(self, async_client: AsyncKalshiClient, demo_market_ticker: str) -> None:
         market = await async_client.markets.get(demo_market_ticker)
         assert isinstance(market, Market)
+        assert_model_fields(market)
         assert market.ticker == demo_market_ticker
 
     async def test_list_all(self, async_client: AsyncKalshiClient) -> None:
         count = 0
         async for market in async_client.markets.list_all(limit=2):
             assert isinstance(market, Market)
+            assert_model_fields(market)
             count += 1
             if count >= 3:
                 break
@@ -98,6 +110,7 @@ class TestMarketsAsync:
     ) -> None:
         ob = await async_client.markets.orderbook(demo_market_ticker)
         assert isinstance(ob, Orderbook)
+        assert_model_fields(ob)
         assert ob.ticker == demo_market_ticker
 
     async def test_candlesticks(
@@ -117,3 +130,6 @@ class TestMarketsAsync:
             period_interval=60,
         )
         assert isinstance(result, list)
+        for candle in result:
+            assert isinstance(candle, Candlestick)
+            assert_model_fields(candle)
