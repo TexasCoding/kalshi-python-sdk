@@ -55,7 +55,7 @@ def assert_model_fields(model: BaseModel, *, _path: str = "") -> None:
     prefix = f"{_path}." if _path else ""
     model_name = type(model).__name__
 
-    for field_name, field_info in model.model_fields.items():
+    for field_name, field_info in type(model).model_fields.items():
         full_name = f"{prefix}{model_name}.{field_name}"
         val = getattr(model, field_name, None)
 
