@@ -58,12 +58,18 @@ def _credentials_available() -> bool:
     return bool(os.environ.get("KALSHI_KEY_ID"))
 
 
-def _assert_demo_url(base_url: str) -> None:
+def _assert_demo_url(base_url: str, ws_base_url: str | None = None) -> None:
     """Hard-fail if the client is not pointed at the demo environment."""
     if DEMO_HOST not in base_url:
         pytest.fail(
             f"SAFETY: Integration tests must run against the demo API. "
             f"Resolved base_url is '{base_url}', expected '{DEMO_HOST}'. "
+            f"Check KALSHI_API_BASE_URL and KALSHI_DEMO env vars."
+        )
+    if ws_base_url is not None and DEMO_HOST not in ws_base_url:
+        pytest.fail(
+            f"SAFETY: WS integration tests must run against the demo API. "
+            f"Resolved ws_base_url is '{ws_base_url}', expected '{DEMO_HOST}'. "
             f"Check KALSHI_API_BASE_URL and KALSHI_DEMO env vars."
         )
 
@@ -83,7 +89,7 @@ def sync_client() -> Iterator[KalshiClient]:
         pytest.skip("KALSHI_KEY_ID not set — skipping integration tests")
     os.environ.setdefault("KALSHI_DEMO", "true")
     client = KalshiClient.from_env()
-    _assert_demo_url(client._config.base_url)
+    _assert_demo_url(client._config.base_url, client._config.ws_base_url)
     yield client
     client.close()
 
@@ -97,7 +103,7 @@ async def async_client() -> AsyncIterator[AsyncKalshiClient]:
         pytest.skip("KALSHI_KEY_ID not set — skipping integration tests")
     os.environ.setdefault("KALSHI_DEMO", "true")
     client = AsyncKalshiClient.from_env()
-    _assert_demo_url(client._config.base_url)
+    _assert_demo_url(client._config.base_url, client._config.ws_base_url)
     yield client
     with contextlib.suppress(RuntimeError):
         await client.close()  # Event loop may be closing during teardown
