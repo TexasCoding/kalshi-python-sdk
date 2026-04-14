@@ -74,6 +74,8 @@ class KalshiWebSocket:
         self._orderbook_mgr: OrderbookManager | None = None
         self._recv_task: asyncio.Task[None] | None = None
         self._running = False
+        self._subscribe_lock = asyncio.Lock()
+        self._pending_callbacks: list[tuple[str, Callable[..., Awaitable[None]]]] = []
 
     def connect(self) -> _WebSocketSession:
         """Return an async context manager for the WebSocket session."""
@@ -97,6 +99,11 @@ class KalshiWebSocket:
             on_error=self._on_error,
         )
         self._running = True
+
+        # Register any callbacks that were buffered before connect()
+        for channel, func in self._pending_callbacks:
+            self._dispatcher.register_callback(channel, func)
+        self._pending_callbacks.clear()
 
     async def _stop(self) -> None:
         """Stop the receive loop and close the connection."""
@@ -189,6 +196,10 @@ class KalshiWebSocket:
                         await self._connection._set_state(ConnectionState.STREAMING)
                 except Exception as reconnect_err:
                     logger.error("Reconnect failed: %s", reconnect_err)
+                    # Send sentinels so consumers don't hang forever
+                    if self._sub_mgr:
+                        for sub in self._sub_mgr.active_subscriptions.values():
+                            await sub.queue.put_sentinel()
                     break
             except Exception as e:
                 # Application error (backpressure, callback, parse) — log, don't reconnect
@@ -222,16 +233,20 @@ class KalshiWebSocket:
         overflow: OverflowStrategy = OverflowStrategy.DROP_OLDEST,
         maxsize: int = 1000,
     ) -> AsyncIterator[Any]:
-        """Pause recv_loop, subscribe, resume recv_loop, return queue."""
+        """Pause recv_loop, subscribe, resume recv_loop, return queue.
+
+        Serialized with asyncio.Lock to prevent concurrent subscribe races.
+        """
         assert self._sub_mgr is not None
-        await self._pause_recv_loop()
-        try:
-            sub = await self._sub_mgr.subscribe(
-                channel, params=params, overflow=overflow, maxsize=maxsize,
-            )
-        finally:
-            # Always restart recv loop, even if subscribe fails
-            self._ensure_recv_loop()
+        async with self._subscribe_lock:
+            await self._pause_recv_loop()
+            try:
+                sub = await self._sub_mgr.subscribe(
+                    channel, params=params, overflow=overflow, maxsize=maxsize,
+                )
+            finally:
+                # Always restart recv loop, even if subscribe fails
+                self._ensure_recv_loop()
         return sub.queue
 
     # ------------------------------------------------------------------
@@ -367,12 +382,18 @@ class KalshiWebSocket:
     # ------------------------------------------------------------------
 
     def on(self, channel: str) -> _CallbackDecorator:
-        """Decorator to register a callback for a channel."""
+        """Decorator to register a callback for a channel.
+
+        Works both before and after connect(). Callbacks registered before
+        connect are buffered and applied when the session starts.
+        """
         def decorator(
             func: Callable[..., Awaitable[None]],
         ) -> Callable[..., Awaitable[None]]:
             if self._dispatcher:
                 self._dispatcher.register_callback(channel, func)
+            else:
+                self._pending_callbacks.append((channel, func))
             return func
         return decorator
 
