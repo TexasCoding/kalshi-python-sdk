@@ -80,38 +80,31 @@ def fill_guarantee(
     ticker: str,
     *,
     test_run_id: str,
+    price: str = "0.50",
 ) -> tuple[str, str]:
     """Place opposing buy+sell orders to produce a fill.
 
-    Queries the orderbook, computes the midpoint price, places a YES buy
-    and YES sell at that price (both count=1). Returns (buy_order_id, sell_order_id).
+    Places a YES buy and YES sell at the same price (both count=1).
+    If the orderbook has liquidity, uses the midpoint. Otherwise falls
+    back to the provided price (default $0.50). Returns (buy_order_id, sell_order_id).
 
-    Skips the test if:
-      - No orderbook liquidity (no bids or asks)
-      - Either order is rejected (e.g., self-trade prohibited)
+    Skips the test if either order is rejected (e.g., self-trade prohibited).
 
     The caller is responsible for cleanup of any resting orders.
     """
     ob = client.markets.orderbook(ticker)
 
-    if not ob.yes or not ob.no:
-        pytest.skip(f"No orderbook liquidity on {ticker} — cannot guarantee fill")
+    if ob.yes and ob.no:
+        # Use orderbook midpoint for best fill price
+        best_bid = max(ob.yes, key=lambda lvl: lvl.price)
+        best_ask = max(ob.no, key=lambda lvl: lvl.price)
+        midpoint = ((best_bid.price + (Decimal("1") - best_ask.price)) / 2).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        if Decimal("0.01") <= midpoint <= Decimal("0.99"):
+            price = str(midpoint)
 
-    best_bid = max(ob.yes, key=lambda lvl: lvl.price)
-    best_ask = max(ob.no, key=lambda lvl: lvl.price)
-
-    # Compute midpoint, round to nearest $0.01 tick
-    midpoint = ((best_bid.price + (Decimal("1") - best_ask.price)) / 2).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
-    )
-
-    # Clamp to valid range
-    if midpoint < Decimal("0.01"):
-        midpoint = Decimal("0.01")
-    elif midpoint > Decimal("0.99"):
-        midpoint = Decimal("0.99")
-
-    price_str = str(midpoint)
+    price_str = price
 
     # Place buy order
     try:
