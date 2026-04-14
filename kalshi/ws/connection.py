@@ -108,7 +108,7 @@ class ConnectionManager:
             self._ws = await connect(
                 self._config.ws_base_url,
                 additional_headers=headers,
-                ping_interval=None,
+                ping_interval=20,
                 ping_timeout=self._heartbeat_timeout,
                 close_timeout=5.0,
             )
@@ -132,6 +132,12 @@ class ConnectionManager:
         Raises:
             KalshiConnectionError: If max retries exceeded.
         """
+        # Close existing connection first
+        if self._ws:
+            with contextlib.suppress(Exception):
+                await self._ws.close()
+            self._ws = None
+
         await self._set_state(ConnectionState.RECONNECTING)
         for attempt in range(self._config.ws_max_retries):
             delay = self._config.retry_base_delay * (
@@ -151,7 +157,7 @@ class ConnectionManager:
                 self._ws = await connect(
                     self._config.ws_base_url,
                     additional_headers=headers,
-                    ping_interval=None,
+                    ping_interval=20,
                     ping_timeout=self._heartbeat_timeout,
                     close_timeout=5.0,
                 )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -69,6 +70,36 @@ class SubscriptionManager:
         self._next_msg_id += 1
         return mid
 
+    async def _wait_for_response(
+        self, msg_id: int, timeout: float = 5.0
+    ) -> dict[str, Any]:
+        """Read frames until we get the response matching our command id.
+
+        Non-matching frames (e.g. data messages queued before the ack) are
+        logged and discarded.  The recv loop is paused during subscribe so
+        these frames would not have been consumed anyway.
+        """
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                from kalshi.errors import KalshiSubscriptionError
+
+                raise KalshiSubscriptionError(
+                    f"Timed out waiting for response to command {msg_id}"
+                )
+            raw = await asyncio.wait_for(
+                self._connection.recv(), timeout=remaining
+            )
+            data: dict[str, Any] = json.loads(raw)
+            if data.get("id") == msg_id:
+                return data
+            # Non-matching frame (data message that arrived before ack)
+            logger.debug(
+                "Discarding non-matching frame during subscribe: type=%s",
+                data.get("type"),
+            )
+
     async def subscribe(
         self,
         channel: str,
@@ -93,9 +124,8 @@ class SubscriptionManager:
         cmd = {"id": msg_id, "cmd": "subscribe", "params": sub.to_subscribe_params()}
         await self._connection.send(cmd)
 
-        # Read the subscribed response
-        raw = await self._connection.recv()
-        data = json.loads(raw)
+        # Read frames until we get our subscribe ack (by matching id)
+        data = await self._wait_for_response(msg_id)
         if data.get("type") == "error":
             from kalshi.errors import KalshiSubscriptionError
 
@@ -129,7 +159,7 @@ class SubscriptionManager:
         cmd = {"id": msg_id, "cmd": "unsubscribe", "params": {"sids": [sub.server_sid]}}
         await self._connection.send(cmd)
 
-        await self._connection.recv()
+        await self._wait_for_response(msg_id)
         # Clean up mappings
         self._sid_to_client.pop(sub.server_sid, None)
         del self._subscriptions[client_id]
@@ -163,7 +193,7 @@ class SubscriptionManager:
 
         cmd = {"id": msg_id, "cmd": "update_subscription", "params": params}
         await self._connection.send(cmd)
-        await self._connection.recv()
+        await self._wait_for_response(msg_id)
         logger.debug("Updated subscription client_id=%d action=%s", client_id, action)
 
     async def resubscribe_all(self) -> None:
@@ -185,8 +215,7 @@ class SubscriptionManager:
             cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
             await self._connection.send(cmd)
 
-            raw = await self._connection.recv()
-            data = json.loads(raw)
+            data = await self._wait_for_response(msg_id)
             new_sid = data.get("msg", {}).get("sid")
             if new_sid is not None:
                 sub.server_sid = new_sid

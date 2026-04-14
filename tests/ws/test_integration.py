@@ -405,10 +405,10 @@ class TestIntegrationSequenceGap:
                     "side": "yes",
                 },
             })
-            await asyncio.wait_for(stream.__anext__(), timeout=2.0)
 
-            # Give recv loop time to invoke the gap callback
-            await asyncio.sleep(0.1)
+            # Gap message is NOT dispatched (skipped by recv loop).
+            # Give recv loop time to invoke the gap callback.
+            await asyncio.sleep(0.3)
 
             assert len(gaps) == 1
             assert gaps[0].sid == 1

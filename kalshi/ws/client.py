@@ -10,6 +10,7 @@ from types import TracebackType
 from typing import Any
 
 from pydantic import BaseModel
+from websockets.exceptions import ConnectionClosed
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
@@ -142,7 +143,21 @@ class KalshiWebSocket:
                     msg_type = data.get("type", "")
 
                     if sid is not None and seq is not None and self._seq_tracker:
-                        await self._seq_tracker.track(sid, seq, msg_type)
+                        channel = ""
+                        sub = (
+                            self._sub_mgr.get_subscription_by_sid(sid)
+                            if self._sub_mgr
+                            else None
+                        )
+                        if sub:
+                            channel = sub.channel
+                        ok = await self._seq_tracker.track(
+                            sid, seq, msg_type if msg_type else channel
+                        )
+                        if not ok:
+                            # Gap detected — skip dispatching this message
+                            # The gap handler will trigger resync
+                            continue
 
                     # Check for orderbook messages
                     if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
@@ -151,17 +166,17 @@ class KalshiWebSocket:
                     elif msg_type == "orderbook_delta" and self._orderbook_mgr:
                         delta = OrderbookDeltaMessage.model_validate(data)
                         self._orderbook_mgr.apply_delta(delta)
-                except (json.JSONDecodeError, Exception):
+                except json.JSONDecodeError:
                     pass  # dispatch will handle parse errors
 
                 await self._dispatcher.dispatch(raw)
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except ConnectionClosed:
                 if not self._running:
                     break
-                logger.warning("Connection error in recv loop: %s", e)
+                logger.warning("Connection lost, attempting reconnect...")
                 # Attempt reconnect
                 try:
                     await self._connection.reconnect()
@@ -175,13 +190,26 @@ class KalshiWebSocket:
                 except Exception as reconnect_err:
                     logger.error("Reconnect failed: %s", reconnect_err)
                     break
+            except Exception as e:
+                # Application error (backpressure, callback, parse) — log, don't reconnect
+                logger.warning("Error processing message: %s", e)
+                continue
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
-        """Handle a sequence gap by logging. Resync happens on reconnect."""
+        """Handle a sequence gap by logging and triggering resync."""
         logger.warning(
-            "Sequence gap on sid %d: expected %d, got %d",
+            "Sequence gap on sid %d: expected %d, got %d. Triggering resync.",
             gap.sid, gap.expected, gap.received,
         )
+        if self._sub_mgr:
+            sub = self._sub_mgr.get_subscription_by_sid(gap.sid)
+            if sub and sub.channel == "orderbook_delta":
+                # Clear orderbook state for this ticker and reset sequence tracking
+                tickers = sub.params.get("market_tickers", [])
+                if tickers and self._orderbook_mgr:
+                    self._orderbook_mgr.remove(tickers[0])
+                if self._seq_tracker:
+                    self._seq_tracker.reset(gap.sid)
 
     # ------------------------------------------------------------------
     # Internal subscribe helper
@@ -197,10 +225,13 @@ class KalshiWebSocket:
         """Pause recv_loop, subscribe, resume recv_loop, return queue."""
         assert self._sub_mgr is not None
         await self._pause_recv_loop()
-        sub = await self._sub_mgr.subscribe(
-            channel, params=params, overflow=overflow, maxsize=maxsize,
-        )
-        self._ensure_recv_loop()
+        try:
+            sub = await self._sub_mgr.subscribe(
+                channel, params=params, overflow=overflow, maxsize=maxsize,
+            )
+        finally:
+            # Always restart recv loop, even if subscribe fails
+            self._ensure_recv_loop()
         return sub.queue
 
     # ------------------------------------------------------------------
