@@ -6,11 +6,16 @@ from kalshi.client import KalshiClient
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
     KalshiAuthError,
+    KalshiBackpressureError,
+    KalshiConnectionError,
     KalshiError,
     KalshiNotFoundError,
     KalshiRateLimitError,
+    KalshiSequenceGapError,
     KalshiServerError,
+    KalshiSubscriptionError,
     KalshiValidationError,
+    KalshiWebSocketError,
 )
 from kalshi.models import (
     BidAskDistribution,
@@ -33,13 +38,18 @@ __all__ = [
     "Fill",
     "KalshiAuth",
     "KalshiAuthError",
+    "KalshiBackpressureError",
     "KalshiClient",
     "KalshiConfig",
+    "KalshiConnectionError",
     "KalshiError",
     "KalshiNotFoundError",
     "KalshiRateLimitError",
+    "KalshiSequenceGapError",
     "KalshiServerError",
+    "KalshiSubscriptionError",
     "KalshiValidationError",
+    "KalshiWebSocketError",
     "Market",
     "Order",
     "Orderbook",
@@ -48,4 +58,4 @@ __all__ = [
     "PriceDistribution",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

@@ -47,3 +47,30 @@ class KalshiRateLimitError(KalshiError):
 
 class KalshiServerError(KalshiError):
     """Server-side error (5xx)."""
+
+
+class KalshiWebSocketError(KalshiError):
+    """Base exception for all WebSocket errors."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, status_code=None)
+
+
+class KalshiConnectionError(KalshiWebSocketError):
+    """Connection failed, handshake rejected, or max retries exceeded."""
+
+
+class KalshiSequenceGapError(KalshiWebSocketError):
+    """Sequence gap detected that could not be resolved via resync."""
+
+
+class KalshiBackpressureError(KalshiWebSocketError):
+    """Message queue overflow with ERROR strategy."""
+
+
+class KalshiSubscriptionError(KalshiWebSocketError):
+    """Subscribe/unsubscribe request rejected by server."""
+
+    def __init__(self, message: str, error_code: int | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)

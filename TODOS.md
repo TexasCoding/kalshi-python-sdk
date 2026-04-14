@@ -32,6 +32,14 @@
 **Depends on:** Issue #9 (spec drift pipeline) shipped first.
 **Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
 
+## P2: Extend spec drift pipeline to cover WebSocket models
+**What:** Add AsyncAPI spec validation for WS message models in the contract test suite (`tests/test_contracts.py`). Currently only REST models are verified against the OpenAPI spec.
+**Why:** Without it, Kalshi can change their WS message format and the SDK won't detect it until runtime. The WS models in `kalshi/ws/models/` ship outside the verification system.
+**Pros:** Catches WS schema drift automatically. Same pattern as existing REST contract tests.
+**Cons:** Requires AsyncAPI YAML parsing (different format than OpenAPI).
+**Depends on:** v0.3 shipped (WS models must exist first). Issue #9 spec drift pipeline.
+**Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
+
 ## Completed
 
 ### ~~Async test coverage~~
