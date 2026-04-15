@@ -211,8 +211,10 @@ class TestSignRequest:
         )
 
         # Both signatures must verify against the same canonical message
-        pub.verify(base64.b64decode(h1["KALSHI-ACCESS-SIGNATURE"]), canonical_msg, pss, hashes.SHA256())
-        pub.verify(base64.b64decode(h2["KALSHI-ACCESS-SIGNATURE"]), canonical_msg, pss, hashes.SHA256())
+        sig1 = base64.b64decode(h1["KALSHI-ACCESS-SIGNATURE"])
+        sig2 = base64.b64decode(h2["KALSHI-ACCESS-SIGNATURE"])
+        pub.verify(sig1, canonical_msg, pss, hashes.SHA256())
+        pub.verify(sig2, canonical_msg, pss, hashes.SHA256())
 
 
 class TestFromKeyPath:

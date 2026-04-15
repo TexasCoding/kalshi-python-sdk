@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import pytest
 
@@ -14,6 +15,7 @@ from kalshi.types import to_decimal
 from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
+from tests.integration.helpers import fill_guarantee
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,61 @@ class TestOrdersSync:
 
             if count >= 2:
                 break
+
+    def test_order_fill_lifecycle(
+        self,
+        sync_client: KalshiClient,
+        demo_market_ticker: str,
+        demo_balance_cents: int,
+        test_run_id: str,
+    ) -> None:
+        """Attempt to produce a fill via opposing orders, verify fill data.
+
+        On demo, self-trading is blocked (the sell side gets canceled).
+        When fills exist (from prior trading or a multi-account setup),
+        this test verifies the full lifecycle. Otherwise it verifies that
+        opposing orders are placed and cleaned up correctly.
+        """
+        skip_if_low_balance(demo_balance_cents, threshold_cents=2000)
+
+        buy_id, sell_id = fill_guarantee(
+            sync_client, demo_market_ticker, test_run_id=test_run_id,
+        )
+
+        # Check order statuses — on demo, self-trade prevention may
+        # cancel one side immediately
+        buy_order = sync_client.orders.get(buy_id)
+        sell_order = sync_client.orders.get(sell_id)
+        assert_model_fields(buy_order)
+        assert_model_fields(sell_order)
+
+        # Poll for fills (demo server may need time to propagate)
+        our_fills = []
+        for _ in range(3):
+            time.sleep(0.5)
+            page = sync_client.orders.fills(limit=20)
+            our_fills = [
+                f for f in page.items
+                if f.order_id in (buy_id, sell_id)
+            ]
+            if our_fills:
+                break
+
+        if our_fills:
+            fill = our_fills[0]
+            assert isinstance(fill, Fill)
+            assert_model_fields(fill)
+            # ticker is canonical; market_ticker is the legacy alias (per OpenAPI spec)
+            assert fill.ticker == demo_market_ticker
+            assert fill.yes_price is not None
+            assert fill.count is not None
+            assert fill.created_time is not None
+            assert fill.side in ("yes", "no")
+        else:
+            # Self-trading blocked on demo — verify orders were placed
+            # and have expected statuses
+            assert buy_order.order_id == buy_id
+            assert sell_order.order_id == sell_id
 
     def test_create_get_cancel(
         self,

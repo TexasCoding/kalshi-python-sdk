@@ -10,7 +10,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from tests.integration.assertions import assert_model_fields
 
@@ -41,7 +41,7 @@ class TestDecimalEnforcement:
         )
         # Manually set a float to simulate a parse failure
         object.__setattr__(m, "volume", 0.5)
-        with pytest.raises(AssertionError, match="float.*expected Decimal"):
+        with pytest.raises(AssertionError, match=r"float.*expected Decimal"):
             assert_model_fields(m)
 
 
@@ -52,7 +52,7 @@ class TestPriceRange:
 
     def test_fails_above_one(self) -> None:
         m = FakeMarket(ticker="T", yes_bid=Decimal("1.50"))
-        with pytest.raises(AssertionError, match="outside.*range"):
+        with pytest.raises(AssertionError, match=r"outside.*range"):
             assert_model_fields(m)
 
     def test_volume_not_range_checked(self) -> None:
@@ -71,7 +71,7 @@ class TestTimestampEnforcement:
             {"ticker": "T"}
         )
         object.__setattr__(m, "created_time", "2026-01-01T00:00:00Z")
-        with pytest.raises(AssertionError, match="raw string.*expected datetime"):
+        with pytest.raises(AssertionError, match=r"raw string.*expected datetime"):
             assert_model_fields(m)
 
 
@@ -88,7 +88,7 @@ class TestRequiredFields:
 class TestNestedRecursion:
     def test_recurses_into_nested_model(self) -> None:
         m = FakeMarket(ticker="T", nested=FakePrice(price=Decimal("1.50")))
-        with pytest.raises(AssertionError, match="price.*outside.*range"):
+        with pytest.raises(AssertionError, match=r"price.*outside.*range"):
             assert_model_fields(m)
 
     def test_recurses_into_list_of_models(self) -> None:
@@ -99,7 +99,7 @@ class TestNestedRecursion:
                 FakePrice(price=Decimal("2.00")),
             ],
         )
-        with pytest.raises(AssertionError, match="price.*outside.*range"):
+        with pytest.raises(AssertionError, match=r"price.*outside.*range"):
             assert_model_fields(m)
 
     def test_passes_valid_nested(self) -> None:
