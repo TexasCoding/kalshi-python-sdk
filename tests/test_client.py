@@ -17,7 +17,9 @@ from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
+    AuthRequiredError,
     KalshiAuthError,
+    KalshiError,
     KalshiNotFoundError,
     KalshiRateLimitError,
     KalshiServerError,
@@ -355,3 +357,55 @@ class TestKalshiClientFromEnv:
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
             KalshiClient.from_env()
+
+
+class TestAuthRequiredError:
+    def test_is_kalshi_auth_error(self) -> None:
+        err = AuthRequiredError("auth required")
+        assert isinstance(err, KalshiAuthError)
+        assert isinstance(err, KalshiError)
+
+    def test_default_message(self) -> None:
+        err = AuthRequiredError()
+        assert "authentication" in str(err).lower()
+
+    def test_custom_message(self) -> None:
+        err = AuthRequiredError("custom msg")
+        assert str(err) == "custom msg"
+
+
+class TestUnauthenticatedResourceGuards:
+    def test_orders_create_raises_auth_required(self) -> None:
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = SyncTransport(None, config)
+        from kalshi.resources.orders import OrdersResource
+        resource = OrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.create(ticker="TEST", side="yes")
+
+    def test_orders_list_raises_auth_required(self) -> None:
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = SyncTransport(None, config)
+        from kalshi.resources.orders import OrdersResource
+        resource = OrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.list()
+
+    def test_portfolio_balance_raises_auth_required(self) -> None:
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = SyncTransport(None, config)
+        from kalshi.resources.portfolio import PortfolioResource
+        resource = PortfolioResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.balance()
+
+    def test_markets_list_does_not_raise_auth_required(self) -> None:
+        """Public resources should NOT have auth guards."""
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = SyncTransport(None, config)
+        from kalshi.resources.markets import MarketsResource
+        resource = MarketsResource(transport)
+        # Should not raise AuthRequiredError (will fail with network/connection error)
+        with pytest.raises(Exception) as exc_info:
+            resource.list()
+        assert not isinstance(exc_info.value, AuthRequiredError)

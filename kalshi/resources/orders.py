@@ -28,6 +28,7 @@ class OrdersResource(SyncResource):
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
     ) -> Order:
+        self._require_auth()
         body: dict[str, Any] = {
             "ticker": ticker,
             "side": side,
@@ -49,11 +50,13 @@ class OrdersResource(SyncResource):
         return Order.model_validate(order_data)
 
     def get(self, order_id: str) -> Order:
+        self._require_auth()
         data = self._get(f"/portfolio/orders/{order_id}")
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
     def cancel(self, order_id: str) -> None:
+        self._require_auth()
         self._delete(f"/portfolio/orders/{order_id}")
 
     def list(
@@ -64,6 +67,7 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Order]:
+        self._require_auth()
         params: dict[str, Any] = {}
         if ticker:
             params["ticker"] = ticker
@@ -82,6 +86,7 @@ class OrdersResource(SyncResource):
         status: str | None = None,
         limit: int | None = None,
     ) -> Iterator[Order]:
+        self._require_auth()
         params: dict[str, Any] = {}
         if ticker:
             params["ticker"] = ticker
@@ -92,17 +97,20 @@ class OrdersResource(SyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
+        self._require_auth()
         body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
     def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+        self._require_auth()
         body = {"ids": order_ids}
         self._delete_with_body("/portfolio/orders/batched", json=body)
 
     def _delete_with_body(self, path: str, *, json: dict[str, Any]) -> None:
         """DELETE with a request body (batch cancel)."""
+        self._require_auth()
         self._transport.request("DELETE", path, json=json)
 
     def fills(
@@ -113,6 +121,7 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Fill]:
+        self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
         return self._list("/portfolio/fills", Fill, "fills", params=params)
 
@@ -123,6 +132,7 @@ class OrdersResource(SyncResource):
         order_id: str | None = None,
         limit: int | None = None,
     ) -> Iterator[Fill]:
+        self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit)
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
@@ -143,6 +153,7 @@ class AsyncOrdersResource(AsyncResource):
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
     ) -> Order:
+        self._require_auth()
         body: dict[str, Any] = {
             "ticker": ticker,
             "side": side,
@@ -164,11 +175,13 @@ class AsyncOrdersResource(AsyncResource):
         return Order.model_validate(order_data)
 
     async def get(self, order_id: str) -> Order:
+        self._require_auth()
         data = await self._get(f"/portfolio/orders/{order_id}")
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
     async def cancel(self, order_id: str) -> None:
+        self._require_auth()
         await self._delete(f"/portfolio/orders/{order_id}")
 
     async def list(
@@ -179,6 +192,7 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Order]:
+        self._require_auth()
         params: dict[str, Any] = {}
         if ticker:
             params["ticker"] = ticker
@@ -198,6 +212,7 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
     ) -> AsyncIterator[Order]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
+        self._require_auth()
         params: dict[str, Any] = {}
         if ticker:
             params["ticker"] = ticker
@@ -210,12 +225,14 @@ class AsyncOrdersResource(AsyncResource):
     async def batch_create(
         self, orders: builtins.list[CreateOrderRequest]
     ) -> builtins.list[Order]:
+        self._require_auth()
         body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
     async def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+        self._require_auth()
         body = {"ids": order_ids}
         await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
 
@@ -227,6 +244,7 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Fill]:
+        self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
         return await self._list("/portfolio/fills", Fill, "fills", params=params)
 
@@ -237,5 +255,6 @@ class AsyncOrdersResource(AsyncResource):
         order_id: str | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Fill]:
+        self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit)
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)

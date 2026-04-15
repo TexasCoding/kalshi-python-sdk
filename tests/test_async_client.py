@@ -17,6 +17,7 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
+    AuthRequiredError,
     KalshiAuthError,
     KalshiServerError,
     KalshiValidationError,
@@ -295,3 +296,30 @@ class TestAsyncKalshiClientFromEnv:
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
             AsyncKalshiClient.from_env()
+
+
+class TestAsyncUnauthenticatedResourceGuards:
+    @pytest.mark.asyncio
+    async def test_orders_create_raises_auth_required(self) -> None:
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = AsyncTransport(None, config)
+        from kalshi.resources.orders import AsyncOrdersResource
+        resource = AsyncOrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            await resource.create(ticker="TEST", side="yes")
+
+    @pytest.mark.asyncio
+    async def test_portfolio_balance_raises_auth_required(self) -> None:
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        transport = AsyncTransport(None, config)
+        from kalshi.resources.portfolio import AsyncPortfolioResource
+        resource = AsyncPortfolioResource(transport)
+        with pytest.raises(AuthRequiredError):
+            await resource.balance()
+
+    def test_ws_property_raises_auth_required(self) -> None:
+        client = AsyncKalshiClient.__new__(AsyncKalshiClient)
+        client._auth = None
+        client._config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0)
+        with pytest.raises(AuthRequiredError):
+            _ = client.ws

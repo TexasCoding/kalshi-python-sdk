@@ -92,6 +92,12 @@ class AsyncKalshiClient:
                 async for msg in session.subscribe_ticker(tickers=["ECON-GDP-25Q1"]):
                     print(msg.msg.yes_bid)
         """
+        if self._auth is None:
+            from kalshi.errors import AuthRequiredError
+            raise AuthRequiredError(
+                "WebSocket connections require authentication. "
+                "Provide key_id + private_key_path, or use AsyncKalshiClient.from_env()."
+            )
         from kalshi.ws.client import KalshiWebSocket as _KalshiWebSocket
         return _KalshiWebSocket(auth=self._auth, config=self._config)
 

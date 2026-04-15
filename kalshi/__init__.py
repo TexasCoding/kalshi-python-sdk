@@ -5,6 +5,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
+    AuthRequiredError,
     KalshiAuthError,
     KalshiBackpressureError,
     KalshiConnectionError,
@@ -32,6 +33,7 @@ from kalshi.models import (
 
 __all__ = [
     "AsyncKalshiClient",
+    "AuthRequiredError",
     "BidAskDistribution",
     "Candlestick",
     "CreateOrderRequest",
