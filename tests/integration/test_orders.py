@@ -94,14 +94,17 @@ class TestOrdersSync:
         assert_model_fields(buy_order)
         assert_model_fields(sell_order)
 
-        # If either order filled, verify the fill data
-        time.sleep(1)  # Brief delay for fill to propagate
-
-        page = sync_client.orders.fills(limit=20)
-        our_fills = [
-            f for f in page.items
-            if f.order_id in (buy_id, sell_id)
-        ]
+        # Poll for fills (demo server may need time to propagate)
+        our_fills = []
+        for _ in range(3):
+            time.sleep(0.5)
+            page = sync_client.orders.fills(limit=20)
+            our_fills = [
+                f for f in page.items
+                if f.order_id in (buy_id, sell_id)
+            ]
+            if our_fills:
+                break
 
         if our_fills:
             fill = our_fills[0]

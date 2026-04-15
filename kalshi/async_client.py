@@ -66,7 +66,7 @@ class AsyncKalshiClient:
                 config_kwargs["base_url"] = base_url
             if demo:
                 config_kwargs.setdefault("base_url", DEMO_BASE_URL)
-                config_kwargs["ws_base_url"] = DEMO_WS_URL
+                config_kwargs.setdefault("ws_base_url", DEMO_WS_URL)
             if timeout is not None:
                 config_kwargs["timeout"] = timeout
             if max_retries is not None:
