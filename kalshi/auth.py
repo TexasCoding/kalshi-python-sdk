@@ -122,6 +122,28 @@ class KalshiAuth:
             "Set one of these environment variables with your RSA private key."
         )
 
+    @classmethod
+    def try_from_env(cls) -> KalshiAuth | None:
+        """Load auth from environment variables, returning None if not configured.
+
+        Unlike from_env(), this never raises on missing variables.
+        Returns None if KALSHI_KEY_ID is not set, or if neither
+        KALSHI_PRIVATE_KEY nor KALSHI_PRIVATE_KEY_PATH is set.
+        """
+        key_id = os.environ.get("KALSHI_KEY_ID")
+        if not key_id:
+            return None
+
+        pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
+        if pem_string:
+            return cls.from_pem(key_id, pem_string)
+
+        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
+        if key_path:
+            return cls.from_key_path(key_id, key_path)
+
+        return None
+
     @property
     def key_id(self) -> str:
         return self._key_id

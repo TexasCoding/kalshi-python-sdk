@@ -216,9 +216,9 @@ class TestAsyncKalshiClientConstructor:
             assert client._auth.key_id == "test-key"
         os.unlink(f.name)
 
-    def test_raises_without_auth(self) -> None:
-        with pytest.raises(ValueError, match="Provide auth"):
-            AsyncKalshiClient()
+    def test_no_auth_constructs_unauthenticated(self) -> None:
+        client = AsyncKalshiClient()
+        assert client._auth is None
 
     def test_demo_flag(self, test_auth: KalshiAuth) -> None:
         client = AsyncKalshiClient(auth=test_auth, demo=True)
@@ -281,21 +281,27 @@ class TestAsyncKalshiClientFromEnv:
         client = AsyncKalshiClient.from_env()
         assert client._config.base_url == custom
 
-    def test_from_env_missing_key_id(
+    def test_from_env_missing_key_id_returns_unauthenticated(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_KEY_ID"):
-            AsyncKalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env()
+        assert client._auth is None
 
-    def test_from_env_missing_keys(
+    def test_from_env_missing_keys_returns_unauthenticated(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "test")
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
-            AsyncKalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env()
+        assert client._auth is None
 
 
 class TestAsyncUnauthenticatedResourceGuards:
@@ -321,5 +327,27 @@ class TestAsyncUnauthenticatedResourceGuards:
         client = AsyncKalshiClient.__new__(AsyncKalshiClient)
         client._auth = None
         client._config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0)
+        with pytest.raises(AuthRequiredError):
+            _ = client.ws
+
+
+class TestAsyncKalshiClientUnauthenticated:
+    def test_no_auth_constructs(self) -> None:
+        client = AsyncKalshiClient()
+        assert client._auth is None
+
+    def test_demo_no_auth(self) -> None:
+        client = AsyncKalshiClient(demo=True)
+        assert client._auth is None
+        assert client._config.base_url == DEMO_BASE_URL
+
+    @pytest.mark.asyncio
+    async def test_private_endpoint_raises(self) -> None:
+        client = AsyncKalshiClient(demo=True)
+        with pytest.raises(AuthRequiredError):
+            await client.orders.list()
+
+    def test_ws_raises_without_auth(self) -> None:
+        client = AsyncKalshiClient(demo=True)
         with pytest.raises(AuthRequiredError):
             _ = client.ws
