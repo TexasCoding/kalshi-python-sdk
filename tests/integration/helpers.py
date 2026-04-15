@@ -13,7 +13,7 @@ import pytest
 from websockets.exceptions import ConnectionClosed
 
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiConnectionError
+from kalshi.errors import KalshiConnectionError, KalshiError
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,8 @@ def retry_transient(max_retries: int = 2, delay: float = 1.0) -> Callable[[F], F
                             await asyncio.sleep(delay)
                         continue
                     raise  # Non-retryable close code
-            raise last_exc  # type: ignore[misc]
+            assert last_exc is not None  # loop always sets last_exc before exhausting
+            raise last_exc
 
         return wrapper  # type: ignore[return-value]
 
@@ -115,7 +116,7 @@ def fill_guarantee(
             yes_price=price,
             client_order_id=f"{test_run_id}-fill-buy",
         )
-    except Exception as exc:
+    except KalshiError as exc:
         pytest.skip(f"Buy order rejected: {exc}")
 
     # Place sell order to match against the buy
@@ -129,11 +130,11 @@ def fill_guarantee(
             yes_price=price,
             client_order_id=f"{test_run_id}-fill-sell",
         )
-    except Exception as exc:
+    except KalshiError as exc:
         # Clean up the resting buy order
         try:
             client.orders.cancel(buy_order.order_id)
-        except Exception:
+        except KalshiError:
             logger.warning(
                 "Failed to cancel buy order %s during fill_guarantee cleanup",
                 buy_order.order_id,
