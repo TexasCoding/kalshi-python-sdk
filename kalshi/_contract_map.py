@@ -102,3 +102,80 @@ CONTRACT_MAP: list[ContractEntry] = [
     # - MarketMetadata, SettlementSource: Simple sub-schemas
     # - Page[T]: SDK-internal pagination wrapper
 ]
+
+# WS payload models → AsyncAPI schema components.
+# Same ContractEntry type as REST, but tested via _get_ws_msg_fields()
+# which navigates into the AsyncAPI msg.properties nesting.
+WS_CONTRACT_MAP: list[ContractEntry] = [
+    ContractEntry(
+        sdk_model="kalshi.ws.models.ticker.TickerPayload",
+        spec_schema="tickerPayload",
+        notes="Spec has price_dollars and time fields not in SDK (expected additive drift)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.fill.FillPayload",
+        spec_schema="fillPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.orderbook_delta.OrderbookSnapshotPayload",
+        spec_schema="orderbookSnapshotPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.orderbook_delta.OrderbookDeltaPayload",
+        spec_schema="orderbookDeltaPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.trade.TradePayload",
+        spec_schema="tradePayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.user_orders.UserOrdersPayload",
+        spec_schema="userOrderPayload",
+        notes="Spec uses 'userOrderPayload' (singular), SDK channel is 'user_orders' (plural)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.market_lifecycle.MarketLifecyclePayload",
+        spec_schema="marketLifecycleV2Payload",
+        notes="SDK conflates market lifecycle + event lifecycle fields. Spec has additional_metadata and price_level_structure not in SDK.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.market_positions.MarketPositionsPayload",
+        spec_schema="marketPositionPayload",
+        notes="Spec uses 'marketPositionPayload' (singular), SDK channel is 'market_positions' (plural)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",
+        spec_schema="multivariateLookupPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.order_group.OrderGroupPayload",
+        spec_schema="orderGroupUpdatesPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.communications.RfqCreatedPayload",
+        spec_schema="rfqCreatedPayload",
+        notes="Spec has mve_collection_ticker, mve_selected_legs not in SDK",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.communications.RfqDeletedPayload",
+        spec_schema="rfqDeletedPayload",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.communications.QuoteCreatedPayload",
+        spec_schema="quoteCreatedPayload",
+        notes="Spec has yes_contracts_offered_fp, no_contracts_offered_fp, rfq_target_cost_dollars, event_ticker not in SDK",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.communications.QuoteAcceptedPayload",
+        spec_schema="quoteAcceptedPayload",
+        notes="Spec has yes_contracts_offered_fp, no_contracts_offered_fp, rfq_target_cost_dollars, event_ticker not in SDK",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.communications.QuoteExecutedPayload",
+        spec_schema="quoteExecutedPayload",
+    ),
+    # Intentionally excluded:
+    # - eventLifecyclePayload: SDK reuses MarketLifecyclePayload for both channels
+    # - multivariateMarketLifecyclePayload: allOf with marketLifecycleV2Payload, covered by base
+    # - Control messages (ErrorPayload, SubscriptionInfo, OkMessage): structural, low drift risk
+]
