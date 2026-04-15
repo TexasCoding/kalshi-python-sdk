@@ -14,10 +14,13 @@ Three headers per request:
 from __future__ import annotations
 
 import base64
+import logging
 import os
 import re
 import time
 from pathlib import Path
+
+logger = logging.getLogger("kalshi")
 
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
@@ -126,9 +129,12 @@ class KalshiAuth:
     def try_from_env(cls) -> KalshiAuth | None:
         """Load auth from environment variables, returning None if not configured.
 
-        Unlike from_env(), this never raises on missing variables.
         Returns None if KALSHI_KEY_ID is not set, or if neither
         KALSHI_PRIVATE_KEY nor KALSHI_PRIVATE_KEY_PATH is set.
+
+        Note: Does not raise on *missing* variables, but may still raise
+        KalshiAuthError if variables are set with invalid data (e.g.,
+        malformed PEM content or nonexistent key file path).
         """
         key_id = os.environ.get("KALSHI_KEY_ID")
         if not key_id:
@@ -142,6 +148,11 @@ class KalshiAuth:
         if key_path:
             return cls.from_key_path(key_id, key_path)
 
+        logger.warning(
+            "KALSHI_KEY_ID is set but neither KALSHI_PRIVATE_KEY nor "
+            "KALSHI_PRIVATE_KEY_PATH is configured. Returning unauthenticated "
+            "client. Set one of these variables to authenticate."
+        )
         return None
 
     @property

@@ -45,6 +45,9 @@ class AsyncKalshiClient:
         max_retries: int | None = None,
     ) -> None:
         # Build auth (optional — None means unauthenticated)
+        # Reject empty strings that look like misconfigured credentials
+        if key_id is not None and not key_id.strip():
+            raise ValueError("key_id must not be empty. Omit it for unauthenticated access.")
         self._auth: KalshiAuth | None
         if auth is not None:
             self._auth = auth

@@ -110,7 +110,6 @@ class OrdersResource(SyncResource):
 
     def _delete_with_body(self, path: str, *, json: dict[str, Any]) -> None:
         """DELETE with a request body (batch cancel)."""
-        self._require_auth()
         self._transport.request("DELETE", path, json=json)
 
     def fills(
