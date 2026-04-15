@@ -2,6 +2,21 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.4.0] - 2026-04-14
+
+### Added
+- Unauthenticated client access for public endpoints: `KalshiClient(demo=True)` works without RSA credentials
+- `KalshiAuth.try_from_env()` classmethod that returns `None` instead of raising when credentials are missing
+- `AuthRequiredError` exception (extends `KalshiAuthError`) raised when unauthenticated clients call private endpoints
+- `is_authenticated` property on `SyncTransport` and `AsyncTransport`
+- Auth guards on all private resource methods (orders, portfolio, historical fills/orders) and `.ws` property
+- Empty-string `key_id` validation in client constructors (raises `ValueError` instead of silently degrading)
+- Warning log when `KALSHI_KEY_ID` is set but no private key is configured
+
+### Changed
+- `KalshiClient()` and `AsyncKalshiClient()` no longer raise `ValueError` without credentials (they create unauthenticated clients)
+- `KalshiClient.from_env()` and `AsyncKalshiClient.from_env()` return unauthenticated clients when no env vars are set (previously raised `KalshiAuthError`)
+
 ## [0.3.0] - 2026-04-14
 
 ### Added

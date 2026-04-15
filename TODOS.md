@@ -47,6 +47,12 @@
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
+## P3: Verify public resource endpoint auth requirements
+**What:** Check the OpenAPI spec for which GET endpoints in public resources (MarketsResource, EventsResource, ExchangeResource, HistoricalResource) actually require auth headers. If any public resource method routes to an auth-requiring endpoint, add a per-method `_require_auth()` guard to that specific method.
+**Why:** The unauthenticated client guards private resources (orders, portfolio) at the resource level, but some public resource endpoints might require auth (e.g., if Kalshi adds a `/markets/{ticker}/my-position` endpoint). Without guards on those specific methods, users get a confusing 401 from Kalshi instead of a clear `AuthRequiredError`.
+**Depends on:** Unauthenticated client path shipped.
+**Added:** 2026-04-14 via /plan-eng-review (Codex outside voice identified the gap)
+
 ## Completed
 
 ### ~~Verify Kalshi price format (cents vs dollars)~~
