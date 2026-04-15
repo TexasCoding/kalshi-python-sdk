@@ -1,12 +1,6 @@
 # TODOS
 
 
-## P2: Unauthenticated client path for public endpoints
-**What:** Allow SDK usage without RSA auth credentials for public endpoints (exchange status, events list, historical data, market data). Either `KalshiClient()` with no auth, or a separate `KalshiPublicClient`.
-**Why:** Researchers and data consumers who never trade shouldn't need RSA keys to read market data. Currently KalshiClient.__init__ raises ValueError without credentials.
-**Depends on:** v0.2 shipped.
-**Added:** 2026-04-12 via /plan-eng-review (Codex outside voice identified the gap)
-
 ## P2: Extend spec drift pipeline to cover WebSocket models
 **What:** Add AsyncAPI spec validation for WS message models in the contract test suite (`tests/test_contracts.py`). Currently only REST models are verified against the OpenAPI spec.
 **Why:** Without it, Kalshi can change their WS message format and the SDK won't detect it until runtime. The WS models in `kalshi/ws/models/` ship outside the verification system.
@@ -90,3 +84,6 @@
 
 ### ~~Integration test — pagination correctness~~
 **Completed:** 2026-04-14 (PR #24). Added 3 tests to `test_markets.py`: `test_pagination_no_overlap` (cursor returns disjoint pages), `test_pagination_cursor_terminates` (cursor becomes None or safety cap at 20 pages), `test_list_all_no_duplicates` (SDK abstraction produces unique tickers). All tests skip gracefully on insufficient demo data.
+
+### ~~Unauthenticated client path for public endpoints~~
+**Completed:** v0.4.0 (2026-04-14, PR #25). `KalshiClient(demo=True)` works without RSA credentials. Optional auth in transport, `AuthRequiredError` guards on all private resources (orders, portfolio, historical fills/orders, WS), `try_from_env()`, `is_authenticated` property on clients. 30+ new tests.
