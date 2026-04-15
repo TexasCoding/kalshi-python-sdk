@@ -1,7 +1,7 @@
 """Communications channel message models (RFQ and quote notifications)."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class RfqCreatedPayload(BaseModel):
@@ -12,8 +12,14 @@ class RfqCreatedPayload(BaseModel):
     market_ticker: str | None = None
     created_ts: int | None = None
     event_ticker: str | None = None
-    contracts: str | None = None  # _fp format
-    target_cost: str | None = None  # dollar string
+    contracts: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("contracts_fp", "contracts"),
+    )  # _fp format
+    target_cost: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
+    )  # dollar string
     model_config = {"extra": "allow"}
 
 
@@ -34,8 +40,14 @@ class QuoteCreatedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = None  # dollar string
-    no_bid: str | None = None  # dollar string
+    yes_bid: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
+    )  # dollar string
+    no_bid: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
+    )  # dollar string
     created_ts: int | None = None
     model_config = {"extra": "allow"}
 
@@ -47,10 +59,19 @@ class QuoteAcceptedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = None
-    no_bid: str | None = None
+    yes_bid: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
+    )
+    no_bid: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
+    )
     accepted_side: str | None = None
-    contracts_accepted: str | None = None  # _fp format
+    contracts_accepted: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("contracts_accepted_fp", "contracts_accepted"),
+    )  # _fp format
     model_config = {"extra": "allow"}
 
 

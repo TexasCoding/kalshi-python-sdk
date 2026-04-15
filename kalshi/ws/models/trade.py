@@ -1,7 +1,7 @@
 """Trade channel message models."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class TradePayload(BaseModel):
@@ -9,9 +9,18 @@ class TradePayload(BaseModel):
 
     trade_id: str
     market_ticker: str
-    yes_price: int | None = None  # cents
-    no_price: int | None = None  # cents
-    count: str | None = None  # _fp format
+    yes_price: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
+    )  # cents
+    no_price: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_price_dollars", "no_price"),
+    )  # cents
+    count: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("count_fp", "count"),
+    )  # _fp format
     taker_side: str | None = None
     ts: int | None = None
     model_config = {"extra": "allow"}

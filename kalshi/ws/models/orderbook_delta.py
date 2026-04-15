@@ -1,23 +1,37 @@
 """Orderbook delta and snapshot message models."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class OrderbookSnapshotPayload(BaseModel):
     """Payload for orderbook_snapshot messages."""
+    model_config = {"extra": "allow"}
+
     market_ticker: str
     market_id: str
-    yes: list[list[int]] = []
-    no: list[list[int]] = []
+    yes: list[list[int]] = Field(
+        default=[],
+        validation_alias=AliasChoices("yes_dollars_fp", "yes"),
+    )
+    no: list[list[int]] = Field(
+        default=[],
+        validation_alias=AliasChoices("no_dollars_fp", "no"),
+    )
 
 
 class OrderbookDeltaPayload(BaseModel):
     """Payload for orderbook_delta messages."""
+    model_config = {"extra": "allow"}
+
     market_ticker: str
     market_id: str
-    price: int
-    delta: int
+    price: int = Field(
+        validation_alias=AliasChoices("price_dollars", "price"),
+    )
+    delta: int = Field(
+        validation_alias=AliasChoices("delta_fp", "delta"),
+    )
     side: str
     client_order_id: str | None = None
     subaccount: int | None = None

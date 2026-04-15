@@ -1,7 +1,7 @@
 """Order group updates channel message models."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class OrderGroupPayload(BaseModel):
@@ -9,7 +9,10 @@ class OrderGroupPayload(BaseModel):
 
     event_type: str  # created/triggered/reset/deleted/limit_updated
     order_group_id: str
-    contracts_limit: str | None = None  # _fp format
+    contracts_limit: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
+    )  # _fp format
     model_config = {"extra": "allow"}
 
 
