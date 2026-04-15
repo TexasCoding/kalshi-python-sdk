@@ -85,6 +85,11 @@ class AsyncKalshiClient:
         self.portfolio = AsyncPortfolioResource(self._transport)
 
     @property
+    def is_authenticated(self) -> bool:
+        """Whether this client has auth credentials configured."""
+        return self._auth is not None
+
+    @property
     def ws(self) -> KalshiWebSocket:
         """WebSocket client for real-time streaming.
 

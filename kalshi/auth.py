@@ -20,13 +20,13 @@ import re
 import time
 from pathlib import Path
 
-logger = logging.getLogger("kalshi")
-
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from kalshi.errors import KalshiAuthError
+
+logger = logging.getLogger("kalshi")
 
 
 def _normalize_percent_encoding(path: str) -> str:

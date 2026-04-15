@@ -5,6 +5,7 @@
 *.key
 
 test.py
+docs/superpowers/plans/
 
 # Python-generated files
 __pycache__/

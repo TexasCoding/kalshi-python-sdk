@@ -90,7 +90,10 @@ class AsyncResource:
         self._transport = transport
 
     def _require_auth(self) -> None:
-        """Raise AuthRequiredError if transport has no auth credentials."""
+        """Raise AuthRequiredError if transport has no auth credentials.
+
+        Intentionally sync — only checks a bool property, no async I/O needed.
+        """
         if not self._transport.is_authenticated:
             raise AuthRequiredError()
 

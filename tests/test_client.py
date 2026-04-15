@@ -424,6 +424,7 @@ class TestUnauthenticatedResourceGuards:
         with pytest.raises(AuthRequiredError):
             resource.balance()
 
+    @respx.mock
     def test_markets_list_does_not_raise_auth_required(self) -> None:
         """Public resources should NOT have auth guards."""
         config = KalshiConfig(
@@ -431,13 +432,15 @@ class TestUnauthenticatedResourceGuards:
             timeout=5.0,
             max_retries=0,
         )
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
+        )
         transport = SyncTransport(None, config)
         from kalshi.resources.markets import MarketsResource
         resource = MarketsResource(transport)
-        # Should not raise AuthRequiredError (will fail with network/connection error)
-        with pytest.raises(Exception) as exc_info:
-            resource.list()
-        assert not isinstance(exc_info.value, AuthRequiredError)
+        # Should succeed without raising AuthRequiredError
+        page = resource.list()
+        assert page.items == []
 
 
 class TestKalshiClientUnauthenticated:

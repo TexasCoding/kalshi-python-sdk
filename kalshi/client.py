@@ -86,6 +86,11 @@ class KalshiClient:
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)
 
+    @property
+    def is_authenticated(self) -> bool:
+        """Whether this client has auth credentials configured."""
+        return self._auth is not None
+
     @classmethod
     def from_env(cls, **kwargs: object) -> KalshiClient:
         """Create client from environment variables.

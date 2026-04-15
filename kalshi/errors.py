@@ -22,7 +22,8 @@ class AuthRequiredError(KalshiAuthError):
         super().__init__(
             message
             or "This endpoint requires authentication. "
-            "Provide key_id + private_key_path, or use KalshiClient.from_env().",
+            "Provide key_id + private_key_path when constructing the client, "
+            "or set KALSHI_KEY_ID + KALSHI_PRIVATE_KEY environment variables.",
             status_code=None,
         )
 

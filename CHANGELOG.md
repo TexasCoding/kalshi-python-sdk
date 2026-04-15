@@ -14,8 +14,24 @@ All notable changes to kalshi-sdk will be documented in this file.
 - Warning log when `KALSHI_KEY_ID` is set but no private key is configured
 
 ### Changed
-- `KalshiClient()` and `AsyncKalshiClient()` no longer raise `ValueError` without credentials (they create unauthenticated clients)
-- `KalshiClient.from_env()` and `AsyncKalshiClient.from_env()` return unauthenticated clients when no env vars are set (previously raised `KalshiAuthError`)
+- **Breaking:** `KalshiClient()` and `AsyncKalshiClient()` no longer raise `ValueError` without credentials (they create unauthenticated clients)
+- **Breaking:** `KalshiClient.from_env()` and `AsyncKalshiClient.from_env()` return unauthenticated clients when no env vars are set (previously raised `KalshiAuthError`)
+
+### Migration
+If you relied on `from_env()` raising as a startup check, use `KalshiAuth.from_env()` directly:
+```python
+# Before (raises at startup if no credentials):
+client = KalshiClient.from_env()
+
+# After (raises only when a private endpoint is called):
+client = KalshiClient.from_env()
+client.orders.list()  # AuthRequiredError here
+
+# Migration — if you need fast-fail behavior:
+from kalshi import KalshiAuth
+auth = KalshiAuth.from_env()   # still raises if missing
+client = KalshiClient(auth=auth)
+```
 
 ## [0.3.0] - 2026-04-14
 
