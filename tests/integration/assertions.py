@@ -15,7 +15,6 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-
 # Exhaustive set of field names that must be in [0, 1] when non-None.
 # Covers Market, OrderbookLevel, BidAskDistribution, PriceDistribution,
 # Order, Fill, and Trade models.
@@ -75,11 +74,14 @@ def assert_model_fields(model: BaseModel, *, _path: str = "") -> None:
             )
 
         # 2. Price range validation for inclusion-set fields
-        if field_name in PRICE_RANGE_FIELDS and isinstance(val, Decimal):
-            if not (Decimal("0") <= val <= Decimal("1")):
-                raise AssertionError(
-                    f"{full_name} = {val} is outside [0, 1] range for a price field"
-                )
+        if (
+            field_name in PRICE_RANGE_FIELDS
+            and isinstance(val, Decimal)
+            and not (Decimal("0") <= val <= Decimal("1"))
+        ):
+            raise AssertionError(
+                f"{full_name} = {val} is outside [0, 1] range for a price field"
+            )
 
         # 3. Timestamp type enforcement
         #    If the field annotation resolves to datetime (or datetime | None),

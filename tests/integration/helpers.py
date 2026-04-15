@@ -104,8 +104,6 @@ def fill_guarantee(
         if Decimal("0.01") <= midpoint <= Decimal("0.99"):
             price = str(midpoint)
 
-    price_str = price
-
     # Place buy order
     try:
         buy_order = client.orders.create(
@@ -114,7 +112,7 @@ def fill_guarantee(
             type="limit",
             action="buy",
             count=1,
-            yes_price=price_str,
+            yes_price=price,
             client_order_id=f"{test_run_id}-fill-buy",
         )
     except Exception as exc:
@@ -128,7 +126,7 @@ def fill_guarantee(
             type="limit",
             action="sell",
             count=1,
-            yes_price=price_str,
+            yes_price=price,
             client_order_id=f"{test_run_id}-fill-sell",
         )
     except Exception as exc:

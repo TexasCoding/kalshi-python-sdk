@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import pytest
 
@@ -94,7 +95,6 @@ class TestOrdersSync:
         assert_model_fields(sell_order)
 
         # If either order filled, verify the fill data
-        import time
         time.sleep(1)  # Brief delay for fill to propagate
 
         page = sync_client.orders.fills(limit=20)

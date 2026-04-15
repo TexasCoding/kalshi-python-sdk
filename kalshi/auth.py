@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import base64
 import os
-import time
 import re
+import time
 from pathlib import Path
 
 from cryptography.exceptions import UnsupportedAlgorithm

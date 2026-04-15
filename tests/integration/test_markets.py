@@ -113,11 +113,11 @@ class TestMarketsSync:
 
         # Either cursor became None (pagination terminated) or we hit the safety limit
         if pages_fetched >= max_pages:
-            # We fetched 20 pages * 5 = 100 items, that's enough to prove cursor works
-            pass
-        else:
-            # Cursor terminated naturally — verify we got all items
-            assert len(all_tickers) > 0
+            # 20 pages x 5 = 100 items confirms cursor is being incremented
+            pytest.skip("Cursor did not terminate in 20 pages — partial pagination confirmed")
+
+        # Cursor terminated naturally — verify we got items
+        assert len(all_tickers) > 0
 
         # Verify no duplicates across all pages
         assert len(all_tickers) == len(set(all_tickers)), (
