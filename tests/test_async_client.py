@@ -157,6 +157,41 @@ class TestAsyncTransportContextManager:
         await transport.close()  # should not raise
 
 
+class TestAsyncTransportUnauthenticated:
+    """Tests for AsyncTransport with auth=None (unauthenticated mode)."""
+
+    @pytest.fixture
+    def unauth_config(self) -> KalshiConfig:
+        return KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+
+    def test_transport_accepts_none_auth(self, unauth_config: KalshiConfig) -> None:
+        transport = AsyncTransport(None, unauth_config)
+        assert transport.is_authenticated is False
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_unauthenticated_request_sends_no_auth_headers(
+        self, unauth_config: KalshiConfig
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        transport = AsyncTransport(None, unauth_config)
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+
+        # Verify no auth headers were sent
+        request = route.calls[0].request
+        assert "KALSHI-ACCESS-KEY" not in request.headers
+        assert "KALSHI-ACCESS-SIGNATURE" not in request.headers
+        assert "KALSHI-ACCESS-TIMESTAMP" not in request.headers
+        await transport.close()
+
+
 class TestAsyncKalshiClientConstructor:
     def test_auth_passthrough(self, test_auth: KalshiAuth) -> None:
         client = AsyncKalshiClient(auth=test_auth)

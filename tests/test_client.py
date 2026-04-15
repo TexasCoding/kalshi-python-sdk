@@ -247,6 +247,48 @@ class TestKalshiClientConstructor:
         client.close()
 
 
+class TestSyncTransportUnauthenticated:
+    """Tests for SyncTransport with auth=None (unauthenticated mode)."""
+
+    @pytest.fixture
+    def unauth_config(self) -> KalshiConfig:
+        return KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+
+    def test_transport_accepts_none_auth(self, unauth_config: KalshiConfig) -> None:
+        transport = SyncTransport(None, unauth_config)
+        assert transport.is_authenticated is False
+        transport.close()
+
+    def test_transport_is_authenticated_true(
+        self, test_auth: KalshiAuth, unauth_config: KalshiConfig
+    ) -> None:
+        transport = SyncTransport(test_auth, unauth_config)
+        assert transport.is_authenticated is True
+        transport.close()
+
+    @respx.mock
+    def test_unauthenticated_request_sends_no_auth_headers(
+        self, unauth_config: KalshiConfig
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        transport = SyncTransport(None, unauth_config)
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+
+        # Verify no auth headers were sent
+        request = route.calls[0].request
+        assert "KALSHI-ACCESS-KEY" not in request.headers
+        assert "KALSHI-ACCESS-SIGNATURE" not in request.headers
+        assert "KALSHI-ACCESS-TIMESTAMP" not in request.headers
+        transport.close()
+
+
 class TestKalshiClientFromEnv:
     """Tests for KalshiClient.from_env() with various env var combinations."""
 
