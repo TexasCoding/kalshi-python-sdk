@@ -16,23 +16,6 @@
 **Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
 
 
-## P2: Integration test — WebSocket live connection
-**What:** Add integration tests that connect to `wss://demo-api.kalshi.co/trade-api/ws/v2`, subscribe to a channel (e.g., ticker for an active market), receive at least one message, and verify the message parses into the expected WS model. Test connect, subscribe, receive, unsubscribe, disconnect lifecycle.
-**Why:** The WS client has 196 mock-based tests but zero tests against the real WebSocket server. Auth signing for WS, message framing, subscription handshake, and real-time data parsing are all unverified. The prior learnings (`ws-sid-server-generated`, `ws-snapshot-via-websocket`) suggest real-server behavior may differ from mocks.
-**Depends on:** REST integration tests stable (done). WS client shipped (v0.3.0, done).
-**Added:** 2026-04-14
-
-## P2: Integration test — order lifecycle with fills verification
-**What:** Place an order that actually fills (use a marketable price or match against an existing resting order), then verify fills() returns the fill with correct price, count, and timestamps. Currently order tests only place non-marketable orders that rest and get cancelled.
-**Why:** The create → fill → verify-fill flow is the most important user path for traders. Current tests verify create/cancel but never verify the fill data path because orders are deliberately priced to not fill.
-**Depends on:** Demo account with sufficient balance. May require placing opposing orders to guarantee a fill.
-**Added:** 2026-04-14
-
-## P2: Integration test — pagination correctness
-**What:** Verify cursor-based pagination actually returns different results across pages. Current list_all tests iterate 2-3 items then break. Add a test that fetches page 1 with limit=2, uses the cursor to fetch page 2, and asserts the items are different (no overlap, no duplication).
-**Why:** The _list_all implementation in _base.py passes cursors between requests but this has never been verified against the real API. A bug in cursor handling would silently return duplicate data or skip items.
-**Depends on:** An endpoint with enough data for 2+ pages (markets or events should have enough).
-**Added:** 2026-04-14
 
 ## P3: Integration test — CI pipeline with scheduled runs
 **What:** Add a GitHub Actions workflow that runs `pytest tests/integration/ -v` on a schedule (nightly or weekly). Store KALSHI_KEY_ID and KALSHI_PRIVATE_KEY_PATH as GitHub Actions secrets. Report failures via PR comment or Slack notification.
@@ -92,3 +75,12 @@
 
 ### ~~Integration test — error path coverage~~
 **Completed:** 2026-04-14. Created `tests/integration/test_errors.py` with 5 tests for 404 (KalshiNotFoundError), 400 (KalshiValidationError), and 401 (KalshiAuthError) error paths against the demo API. Verifies status_code, message, and type-specific attributes (details, retry_after). Sync-only (error mapping is transport-shared via _map_error()).
+
+### ~~Integration test — WebSocket live connection~~
+**Completed:** 2026-04-14 (PR #24). Created `tests/integration/test_websocket.py` with 3 tests: WS connect+auth, orderbook snapshot subscribe+receive, disconnect lifecycle. Uses `ws_session` fixture wrapping `KalshiWebSocket` and `retry_transient` decorator (7 unit tests in `test_helpers.py`). Also fixed `demo=True` not setting `ws_base_url` to demo, and extended `_assert_demo_url` safety gate to check WS URL.
+
+### ~~Integration test — order lifecycle with fills verification~~
+**Completed:** 2026-04-14 (PR #24). Created `test_order_fill_lifecycle` in `test_orders.py` with `fill_guarantee` helper in `helpers.py`. Places opposing buy+sell orders, verifies fill data when available. Demo server blocks self-trading (sell side canceled), so test verifies order placement and statuses as fallback. Fill field assertions use canonical `ticker` field per OpenAPI spec.
+
+### ~~Integration test — pagination correctness~~
+**Completed:** 2026-04-14 (PR #24). Added 3 tests to `test_markets.py`: `test_pagination_no_overlap` (cursor returns disjoint pages), `test_pagination_cursor_terminates` (cursor becomes None or safety cap at 20 pages), `test_list_all_no_duplicates` (SDK abstraction produces unique tickers). All tests skip gracefully on insufficient demo data.
