@@ -79,7 +79,7 @@ def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
 class SyncTransport:
     """Synchronous HTTP transport using httpx.Client."""
 
-    def __init__(self, auth: KalshiAuth, config: KalshiConfig) -> None:
+    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
         self._auth = auth
         self._config = config
         self._client = httpx.Client(
@@ -87,6 +87,11 @@ class SyncTransport:
             timeout=config.timeout,
             headers=config.extra_headers,
         )
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Whether this transport has auth credentials configured."""
+        return self._auth is not None
 
     def request(
         self,
@@ -102,7 +107,7 @@ class SyncTransport:
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), sign_path)
+            auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -178,7 +183,7 @@ class SyncTransport:
 class AsyncTransport:
     """Asynchronous HTTP transport using httpx.AsyncClient."""
 
-    def __init__(self, auth: KalshiAuth, config: KalshiConfig) -> None:
+    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
         self._auth = auth
         self._config = config
         self._client = httpx.AsyncClient(
@@ -186,6 +191,11 @@ class AsyncTransport:
             timeout=config.timeout,
             headers=config.extra_headers,
         )
+
+    @property
+    def is_authenticated(self) -> bool:
+        """Whether this transport has auth credentials configured."""
+        return self._auth is not None
 
     async def request(
         self,
@@ -203,7 +213,7 @@ class AsyncTransport:
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), sign_path)
+            auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",

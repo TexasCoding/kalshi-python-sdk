@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.4.0] - 2026-04-14
+
+### Added
+- Unauthenticated client access for public endpoints: `KalshiClient(demo=True)` works without RSA credentials
+- `KalshiAuth.try_from_env()` classmethod that returns `None` instead of raising when credentials are missing
+- `AuthRequiredError` exception (extends `KalshiAuthError`) raised when unauthenticated clients call private endpoints
+- `is_authenticated` property on `SyncTransport` and `AsyncTransport`
+- Auth guards on all private resource methods (orders, portfolio, historical fills/orders) and `.ws` property
+- Empty-string `key_id` validation in client constructors (raises `ValueError` instead of silently degrading)
+- Warning log when `KALSHI_KEY_ID` is set but no private key is configured
+
+### Changed
+- **Breaking:** `KalshiClient()` and `AsyncKalshiClient()` no longer raise `ValueError` without credentials (they create unauthenticated clients)
+- **Breaking:** `KalshiClient.from_env()` and `AsyncKalshiClient.from_env()` return unauthenticated clients when no env vars are set (previously raised `KalshiAuthError`)
+
+### Migration
+If you relied on `from_env()` raising as a startup check, use `KalshiAuth.from_env()` directly:
+```python
+# Before (raises at startup if no credentials):
+client = KalshiClient.from_env()
+
+# After (raises only when a private endpoint is called):
+client = KalshiClient.from_env()
+client.orders.list()  # AuthRequiredError here
+
+# Migration — if you need fast-fail behavior:
+from kalshi import KalshiAuth
+auth = KalshiAuth.from_env()   # still raises if missing
+client = KalshiClient(auth=auth)
+```
+
 ## [0.3.0] - 2026-04-14
 
 ### Added

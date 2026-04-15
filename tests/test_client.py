@@ -17,7 +17,9 @@ from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
+    AuthRequiredError,
     KalshiAuthError,
+    KalshiError,
     KalshiNotFoundError,
     KalshiRateLimitError,
     KalshiServerError,
@@ -209,9 +211,10 @@ class TestKalshiClientConstructor:
         assert client._auth.key_id == "test-key"
         client.close()
 
-    def test_raises_without_auth(self) -> None:
-        with pytest.raises(ValueError, match="Provide auth"):
-            KalshiClient()
+    def test_no_auth_constructs_unauthenticated(self) -> None:
+        client = KalshiClient()
+        assert client._auth is None
+        client.close()
 
     def test_demo_flag(self, test_auth: KalshiAuth) -> None:
         client = KalshiClient(auth=test_auth, demo=True)
@@ -245,6 +248,48 @@ class TestKalshiClientConstructor:
         assert hasattr(client, "markets")
         assert hasattr(client, "orders")
         client.close()
+
+
+class TestSyncTransportUnauthenticated:
+    """Tests for SyncTransport with auth=None (unauthenticated mode)."""
+
+    @pytest.fixture
+    def unauth_config(self) -> KalshiConfig:
+        return KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+
+    def test_transport_accepts_none_auth(self, unauth_config: KalshiConfig) -> None:
+        transport = SyncTransport(None, unauth_config)
+        assert transport.is_authenticated is False
+        transport.close()
+
+    def test_transport_is_authenticated_true(
+        self, test_auth: KalshiAuth, unauth_config: KalshiConfig
+    ) -> None:
+        transport = SyncTransport(test_auth, unauth_config)
+        assert transport.is_authenticated is True
+        transport.close()
+
+    @respx.mock
+    def test_unauthenticated_request_sends_no_auth_headers(
+        self, unauth_config: KalshiConfig
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        transport = SyncTransport(None, unauth_config)
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+
+        # Verify no auth headers were sent
+        request = route.calls[0].request
+        assert "KALSHI-ACCESS-KEY" not in request.headers
+        assert "KALSHI-ACCESS-SIGNATURE" not in request.headers
+        assert "KALSHI-ACCESS-TIMESTAMP" not in request.headers
+        transport.close()
 
 
 class TestKalshiClientFromEnv:
@@ -302,14 +347,153 @@ class TestKalshiClientFromEnv:
         assert client._config.base_url == custom
         client.close()
 
-    def test_from_env_missing_key_id(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_from_env_missing_key_id_returns_unauthenticated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_KEY_ID"):
-            KalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth is None
+        client.close()
 
-    def test_from_env_missing_keys(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_from_env_missing_keys_returns_unauthenticated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "test")
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
-            KalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth is None
+        client.close()
+
+
+class TestAuthRequiredError:
+    def test_is_kalshi_auth_error(self) -> None:
+        err = AuthRequiredError("auth required")
+        assert isinstance(err, KalshiAuthError)
+        assert isinstance(err, KalshiError)
+
+    def test_default_message(self) -> None:
+        err = AuthRequiredError()
+        assert "authentication" in str(err).lower()
+
+    def test_custom_message(self) -> None:
+        err = AuthRequiredError("custom msg")
+        assert str(err) == "custom msg"
+
+
+class TestUnauthenticatedResourceGuards:
+    def test_orders_create_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = SyncTransport(None, config)
+        from kalshi.resources.orders import OrdersResource
+        resource = OrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.create(ticker="TEST", side="yes")
+
+    def test_orders_list_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = SyncTransport(None, config)
+        from kalshi.resources.orders import OrdersResource
+        resource = OrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.list()
+
+    def test_portfolio_balance_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = SyncTransport(None, config)
+        from kalshi.resources.portfolio import PortfolioResource
+        resource = PortfolioResource(transport)
+        with pytest.raises(AuthRequiredError):
+            resource.balance()
+
+    @respx.mock
+    def test_markets_list_does_not_raise_auth_required(self) -> None:
+        """Public resources should NOT have auth guards."""
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
+        )
+        transport = SyncTransport(None, config)
+        from kalshi.resources.markets import MarketsResource
+        resource = MarketsResource(transport)
+        # Should succeed without raising AuthRequiredError
+        page = resource.list()
+        assert page.items == []
+
+
+class TestKalshiClientUnauthenticated:
+    def test_no_auth_constructs(self) -> None:
+        client = KalshiClient()
+        assert client._auth is None
+        client.close()
+
+    def test_demo_no_auth(self) -> None:
+        client = KalshiClient(demo=True)
+        assert client._auth is None
+        assert client._config.base_url == DEMO_BASE_URL
+        client.close()
+
+    def test_has_all_resources(self) -> None:
+        client = KalshiClient(demo=True)
+        assert hasattr(client, "markets")
+        assert hasattr(client, "orders")
+        assert hasattr(client, "exchange")
+        assert hasattr(client, "events")
+        assert hasattr(client, "historical")
+        assert hasattr(client, "portfolio")
+        client.close()
+
+    @respx.mock
+    def test_public_endpoint_works(self) -> None:
+        respx.get("https://demo-api.kalshi.co/trade-api/v2/exchange/status").mock(
+            return_value=httpx.Response(200, json={
+                "exchange_active": True,
+                "trading_active": True,
+            })
+        )
+        client = KalshiClient(demo=True)
+        status = client.exchange.status()
+        assert status.exchange_active is True
+        client.close()
+
+    def test_private_endpoint_raises(self) -> None:
+        client = KalshiClient(demo=True)
+        with pytest.raises(AuthRequiredError):
+            client.orders.list()
+        client.close()
+
+
+class TestKalshiClientFromEnvUnauthenticated:
+    def test_from_env_no_credentials_returns_unauthenticated(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth is None
+        client.close()

@@ -8,6 +8,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from kalshi._base_client import AsyncTransport, SyncTransport
+from kalshi.errors import AuthRequiredError
 from kalshi.models.common import Page
 
 T = TypeVar("T", bound=BaseModel)
@@ -23,6 +24,11 @@ class SyncResource:
 
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
+
+    def _require_auth(self) -> None:
+        """Raise AuthRequiredError if transport has no auth credentials."""
+        if not self._transport.is_authenticated:
+            raise AuthRequiredError()
 
     def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
         response = self._transport.request("GET", path, params=params)
@@ -82,6 +88,14 @@ class AsyncResource:
 
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    def _require_auth(self) -> None:
+        """Raise AuthRequiredError if transport has no auth credentials.
+
+        Intentionally sync — only checks a bool property, no async I/O needed.
+        """
+        if not self._transport.is_authenticated:
+            raise AuthRequiredError()
 
     async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
         response = await self._transport.request("GET", path, params=params)

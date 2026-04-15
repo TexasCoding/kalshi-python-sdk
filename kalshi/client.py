@@ -47,7 +47,11 @@ class KalshiClient:
         timeout: float | None = None,
         max_retries: int | None = None,
     ) -> None:
-        # Build auth
+        # Build auth (optional — None means unauthenticated)
+        # Reject empty strings that look like misconfigured credentials
+        if key_id is not None and not key_id.strip():
+            raise ValueError("key_id must not be empty. Omit it for unauthenticated access.")
+        self._auth: KalshiAuth | None
         if auth is not None:
             self._auth = auth
         elif key_id and private_key_path:
@@ -55,10 +59,7 @@ class KalshiClient:
         elif key_id and private_key:
             self._auth = KalshiAuth.from_pem(key_id, private_key)
         else:
-            raise ValueError(
-                "Provide auth, or key_id + private_key_path, or key_id + private_key. "
-                "Or use KalshiClient.from_env()."
-            )
+            self._auth = None
 
         # Build config
         if config is not None:
@@ -85,17 +86,24 @@ class KalshiClient:
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)
 
+    @property
+    def is_authenticated(self) -> bool:
+        """Whether this client has auth credentials configured."""
+        return self._auth is not None
+
     @classmethod
     def from_env(cls, **kwargs: object) -> KalshiClient:
         """Create client from environment variables.
 
         Reads:
-            KALSHI_KEY_ID (required)
-            KALSHI_PRIVATE_KEY or KALSHI_PRIVATE_KEY_PATH (one required)
+            KALSHI_KEY_ID (optional — omit for unauthenticated access)
+            KALSHI_PRIVATE_KEY (PEM string) or KALSHI_PRIVATE_KEY_PATH (file path)
             KALSHI_API_BASE_URL (optional, overrides base_url)
             KALSHI_DEMO (optional, "true" for demo environment)
+
+        Returns an unauthenticated client if no credentials are configured.
         """
-        auth = KalshiAuth.from_env()
+        auth = KalshiAuth.try_from_env()
         demo = os.environ.get("KALSHI_DEMO", "").lower() == "true"
         base_url = os.environ.get("KALSHI_API_BASE_URL")
         return cls(auth=auth, demo=demo, base_url=base_url, **kwargs)  # type: ignore[arg-type]

@@ -311,3 +311,33 @@ class TestFromEnv:
             auth = KalshiAuth.from_env()
             assert auth.key_id == "path-key"
         os.unlink(f.name)
+
+
+class TestTryFromEnv:
+    def test_returns_auth_when_env_vars_set(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "test-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        auth = KalshiAuth.try_from_env()
+        assert auth is not None
+        assert auth.key_id == "test-key"
+
+    def test_returns_none_when_key_id_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        auth = KalshiAuth.try_from_env()
+        assert auth is None
+
+    def test_returns_none_when_key_id_set_but_no_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "test-key")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        auth = KalshiAuth.try_from_env()
+        assert auth is None

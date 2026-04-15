@@ -17,6 +17,7 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
+    AuthRequiredError,
     KalshiAuthError,
     KalshiServerError,
     KalshiValidationError,
@@ -157,6 +158,41 @@ class TestAsyncTransportContextManager:
         await transport.close()  # should not raise
 
 
+class TestAsyncTransportUnauthenticated:
+    """Tests for AsyncTransport with auth=None (unauthenticated mode)."""
+
+    @pytest.fixture
+    def unauth_config(self) -> KalshiConfig:
+        return KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+
+    def test_transport_accepts_none_auth(self, unauth_config: KalshiConfig) -> None:
+        transport = AsyncTransport(None, unauth_config)
+        assert transport.is_authenticated is False
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_unauthenticated_request_sends_no_auth_headers(
+        self, unauth_config: KalshiConfig
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        transport = AsyncTransport(None, unauth_config)
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+
+        # Verify no auth headers were sent
+        request = route.calls[0].request
+        assert "KALSHI-ACCESS-KEY" not in request.headers
+        assert "KALSHI-ACCESS-SIGNATURE" not in request.headers
+        assert "KALSHI-ACCESS-TIMESTAMP" not in request.headers
+        await transport.close()
+
+
 class TestAsyncKalshiClientConstructor:
     def test_auth_passthrough(self, test_auth: KalshiAuth) -> None:
         client = AsyncKalshiClient(auth=test_auth)
@@ -180,9 +216,9 @@ class TestAsyncKalshiClientConstructor:
             assert client._auth.key_id == "test-key"
         os.unlink(f.name)
 
-    def test_raises_without_auth(self) -> None:
-        with pytest.raises(ValueError, match="Provide auth"):
-            AsyncKalshiClient()
+    def test_no_auth_constructs_unauthenticated(self) -> None:
+        client = AsyncKalshiClient()
+        assert client._auth is None
 
     def test_demo_flag(self, test_auth: KalshiAuth) -> None:
         client = AsyncKalshiClient(auth=test_auth, demo=True)
@@ -245,18 +281,81 @@ class TestAsyncKalshiClientFromEnv:
         client = AsyncKalshiClient.from_env()
         assert client._config.base_url == custom
 
-    def test_from_env_missing_key_id(
+    def test_from_env_missing_key_id_returns_unauthenticated(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_KEY_ID"):
-            AsyncKalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env()
+        assert client._auth is None
 
-    def test_from_env_missing_keys(
+    def test_from_env_missing_keys_returns_unauthenticated(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "test")
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
-        with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
-            AsyncKalshiClient.from_env()
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env()
+        assert client._auth is None
+
+
+class TestAsyncUnauthenticatedResourceGuards:
+    @pytest.mark.asyncio
+    async def test_orders_create_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = AsyncTransport(None, config)
+        from kalshi.resources.orders import AsyncOrdersResource
+        resource = AsyncOrdersResource(transport)
+        with pytest.raises(AuthRequiredError):
+            await resource.create(ticker="TEST", side="yes")
+
+    @pytest.mark.asyncio
+    async def test_portfolio_balance_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = AsyncTransport(None, config)
+        from kalshi.resources.portfolio import AsyncPortfolioResource
+        resource = AsyncPortfolioResource(transport)
+        with pytest.raises(AuthRequiredError):
+            await resource.balance()
+
+    def test_ws_property_raises_auth_required(self) -> None:
+        client = AsyncKalshiClient.__new__(AsyncKalshiClient)
+        client._auth = None
+        client._config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0)
+        with pytest.raises(AuthRequiredError):
+            _ = client.ws
+
+
+class TestAsyncKalshiClientUnauthenticated:
+    def test_no_auth_constructs(self) -> None:
+        client = AsyncKalshiClient()
+        assert client._auth is None
+
+    def test_demo_no_auth(self) -> None:
+        client = AsyncKalshiClient(demo=True)
+        assert client._auth is None
+        assert client._config.base_url == DEMO_BASE_URL
+
+    @pytest.mark.asyncio
+    async def test_private_endpoint_raises(self) -> None:
+        client = AsyncKalshiClient(demo=True)
+        with pytest.raises(AuthRequiredError):
+            await client.orders.list()
+
+    def test_ws_raises_without_auth(self) -> None:
+        client = AsyncKalshiClient(demo=True)
+        with pytest.raises(AuthRequiredError):
+            _ = client.ws

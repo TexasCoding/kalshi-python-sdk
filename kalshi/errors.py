@@ -15,6 +15,19 @@ class KalshiAuthError(KalshiError):
     """Authentication or authorization failure (401/403)."""
 
 
+class AuthRequiredError(KalshiAuthError):
+    """Raised when an unauthenticated client calls a private endpoint."""
+
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(
+            message
+            or "This endpoint requires authentication. "
+            "Provide key_id + private_key_path when constructing the client, "
+            "or set KALSHI_KEY_ID + KALSHI_PRIVATE_KEY environment variables.",
+            status_code=None,
+        )
+
+
 class KalshiNotFoundError(KalshiError):
     """Resource not found (404)."""
 

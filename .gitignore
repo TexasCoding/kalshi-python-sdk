@@ -4,6 +4,9 @@
 *.pem
 *.key
 
+test.py
+docs/superpowers/plans/
+
 # Python-generated files
 __pycache__/
 *.py[oc]

@@ -85,6 +85,7 @@ class HistoricalResource(SyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
     ) -> Page[Fill]:
+        self._require_auth()
         params = _params(limit=limit, cursor=cursor, ticker=ticker)
         return self._list("/historical/fills", Fill, "fills", params=params)
 
@@ -94,6 +95,7 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         ticker: str | None = None,
     ) -> Iterator[Fill]:
+        self._require_auth()
         params = _params(limit=limit, ticker=ticker)
         return self._list_all("/historical/fills", Fill, "fills", params=params)
 
@@ -104,6 +106,7 @@ class HistoricalResource(SyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
     ) -> Page[Order]:
+        self._require_auth()
         params = _params(limit=limit, cursor=cursor, ticker=ticker)
         return self._list("/historical/orders", Order, "orders", params=params)
 
@@ -113,6 +116,7 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         ticker: str | None = None,
     ) -> Iterator[Order]:
+        self._require_auth()
         params = _params(limit=limit, ticker=ticker)
         return self._list_all("/historical/orders", Order, "orders", params=params)
 
@@ -208,6 +212,7 @@ class AsyncHistoricalResource(AsyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
     ) -> Page[Fill]:
+        self._require_auth()
         params = _params(limit=limit, cursor=cursor, ticker=ticker)
         return await self._list("/historical/fills", Fill, "fills", params=params)
 
@@ -217,6 +222,7 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         ticker: str | None = None,
     ) -> AsyncIterator[Fill]:
+        self._require_auth()
         params = _params(limit=limit, ticker=ticker)
         return self._list_all("/historical/fills", Fill, "fills", params=params)
 
@@ -227,6 +233,7 @@ class AsyncHistoricalResource(AsyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
     ) -> Page[Order]:
+        self._require_auth()
         params = _params(limit=limit, cursor=cursor, ticker=ticker)
         return await self._list("/historical/orders", Order, "orders", params=params)
 
@@ -236,6 +243,7 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         ticker: str | None = None,
     ) -> AsyncIterator[Order]:
+        self._require_auth()
         params = _params(limit=limit, ticker=ticker)
         return self._list_all("/historical/orders", Order, "orders", params=params)
 

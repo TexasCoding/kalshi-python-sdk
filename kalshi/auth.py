@@ -14,6 +14,7 @@ Three headers per request:
 from __future__ import annotations
 
 import base64
+import logging
 import os
 import re
 import time
@@ -24,6 +25,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from kalshi.errors import KalshiAuthError
+
+logger = logging.getLogger("kalshi")
 
 
 def _normalize_percent_encoding(path: str) -> str:
@@ -121,6 +124,36 @@ class KalshiAuth:
             "Neither KALSHI_PRIVATE_KEY nor KALSHI_PRIVATE_KEY_PATH is set. "
             "Set one of these environment variables with your RSA private key."
         )
+
+    @classmethod
+    def try_from_env(cls) -> KalshiAuth | None:
+        """Load auth from environment variables, returning None if not configured.
+
+        Returns None if KALSHI_KEY_ID is not set, or if neither
+        KALSHI_PRIVATE_KEY nor KALSHI_PRIVATE_KEY_PATH is set.
+
+        Note: Does not raise on *missing* variables, but may still raise
+        KalshiAuthError if variables are set with invalid data (e.g.,
+        malformed PEM content or nonexistent key file path).
+        """
+        key_id = os.environ.get("KALSHI_KEY_ID")
+        if not key_id:
+            return None
+
+        pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
+        if pem_string:
+            return cls.from_pem(key_id, pem_string)
+
+        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
+        if key_path:
+            return cls.from_key_path(key_id, key_path)
+
+        logger.warning(
+            "KALSHI_KEY_ID is set but neither KALSHI_PRIVATE_KEY nor "
+            "KALSHI_PRIVATE_KEY_PATH is configured. Returning unauthenticated "
+            "client. Set one of these variables to authenticate."
+        )
+        return None
 
     @property
     def key_id(self) -> str:
