@@ -389,7 +389,11 @@ class TestAuthRequiredError:
 
 class TestUnauthenticatedResourceGuards:
     def test_orders_create_raises_auth_required(self) -> None:
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = SyncTransport(None, config)
         from kalshi.resources.orders import OrdersResource
         resource = OrdersResource(transport)
@@ -397,7 +401,11 @@ class TestUnauthenticatedResourceGuards:
             resource.create(ticker="TEST", side="yes")
 
     def test_orders_list_raises_auth_required(self) -> None:
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = SyncTransport(None, config)
         from kalshi.resources.orders import OrdersResource
         resource = OrdersResource(transport)
@@ -405,7 +413,11 @@ class TestUnauthenticatedResourceGuards:
             resource.list()
 
     def test_portfolio_balance_raises_auth_required(self) -> None:
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = SyncTransport(None, config)
         from kalshi.resources.portfolio import PortfolioResource
         resource = PortfolioResource(transport)
@@ -414,7 +426,11 @@ class TestUnauthenticatedResourceGuards:
 
     def test_markets_list_does_not_raise_auth_required(self) -> None:
         """Public resources should NOT have auth guards."""
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = SyncTransport(None, config)
         from kalshi.resources.markets import MarketsResource
         resource = MarketsResource(transport)

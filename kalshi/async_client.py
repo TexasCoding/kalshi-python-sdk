@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
+from kalshi.errors import AuthRequiredError
 from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
 from kalshi.resources.historical import AsyncHistoricalResource
@@ -94,7 +95,6 @@ class AsyncKalshiClient:
                     print(msg.msg.yes_bid)
         """
         if self._auth is None:
-            from kalshi.errors import AuthRequiredError
             raise AuthRequiredError(
                 "WebSocket connections require authentication. "
                 "Provide key_id + private_key_path, or use AsyncKalshiClient.from_env()."

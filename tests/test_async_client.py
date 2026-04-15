@@ -307,7 +307,11 @@ class TestAsyncKalshiClientFromEnv:
 class TestAsyncUnauthenticatedResourceGuards:
     @pytest.mark.asyncio
     async def test_orders_create_raises_auth_required(self) -> None:
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = AsyncTransport(None, config)
         from kalshi.resources.orders import AsyncOrdersResource
         resource = AsyncOrdersResource(transport)
@@ -316,7 +320,11 @@ class TestAsyncUnauthenticatedResourceGuards:
 
     @pytest.mark.asyncio
     async def test_portfolio_balance_raises_auth_required(self) -> None:
-        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0, max_retries=0)
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
         transport = AsyncTransport(None, config)
         from kalshi.resources.portfolio import AsyncPortfolioResource
         resource = AsyncPortfolioResource(transport)
