@@ -12,6 +12,7 @@ from tests.integration.helpers import retry_transient
 
 
 @pytest.mark.integration
+@pytest.mark.asyncio
 class TestWebSocketLive:
     @retry_transient(max_retries=2, delay=1.0)
     async def test_ws_connect_and_auth(
@@ -24,6 +25,8 @@ class TestWebSocketLive:
         """
         # Connection is established by the fixture.
         # If auth failed, KalshiConnectionError would have been raised.
+        # Using private _connection because KalshiWebSocket has no public
+        # is_connected property yet (tracked as a future improvement).
         assert ws_session._connection is not None
 
     @retry_transient(max_retries=2, delay=1.0)
