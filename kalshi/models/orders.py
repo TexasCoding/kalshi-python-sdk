@@ -134,3 +134,24 @@ class CreateOrderRequest(BaseModel):
     buy_max_cost: DollarDecimal | None = None
 
     model_config = {"extra": "forbid"}
+
+
+class AmendOrderResponse(BaseModel):
+    """Response from amending an order — contains both pre and post-amendment orders."""
+
+    old_order: Order
+    order: Order
+
+    model_config = {"extra": "allow"}
+
+
+class OrderQueuePosition(BaseModel):
+    """Queue position for a single resting order."""
+
+    order_id: str
+    market_ticker: str
+    queue_position: FixedPointCount = Field(
+        validation_alias=AliasChoices("queue_position_fp", "queue_position"),
+    )
+
+    model_config = {"extra": "allow", "populate_by_name": True}

@@ -182,3 +182,43 @@ class TestErrorHierarchy:
 
         err = KalshiValidationError("bad input", details={"field": "required"})
         assert err.details == {"field": "required"}
+
+
+class TestAmendOrderResponse:
+    def test_parses_old_and_new_order(self) -> None:
+        from kalshi.models.orders import AmendOrderResponse
+
+        data = {
+            "old_order": {
+                "order_id": "ord-old",
+                "ticker": "MKT-A",
+                "yes_price_dollars": "0.5000",
+                "count": 5,
+            },
+            "order": {
+                "order_id": "ord-new",
+                "ticker": "MKT-A",
+                "yes_price_dollars": "0.6500",
+                "count": 5,
+            },
+        }
+        result = AmendOrderResponse.model_validate(data)
+        assert result.old_order.order_id == "ord-old"
+        assert result.order.order_id == "ord-new"
+        assert result.old_order.yes_price == Decimal("0.5000")
+        assert result.order.yes_price == Decimal("0.6500")
+
+
+class TestOrderQueuePosition:
+    def test_parses_queue_position(self) -> None:
+        from kalshi.models.orders import OrderQueuePosition
+
+        data = {
+            "order_id": "ord-123",
+            "market_ticker": "MKT-A",
+            "queue_position_fp": "42.00",
+        }
+        result = OrderQueuePosition.model_validate(data)
+        assert result.order_id == "ord-123"
+        assert result.market_ticker == "MKT-A"
+        assert result.queue_position == Decimal("42.00")
