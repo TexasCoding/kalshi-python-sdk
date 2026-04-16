@@ -338,7 +338,13 @@ def _resolve_ref(
             f"_resolve_ref exceeded max_depth={max_depth} resolving {ref!r}; "
             "check spec for circular $ref"
         )
-    parts = ref.lstrip("#/").split("/")
+    if not ref.startswith("#/"):
+        raise ValueError(
+            f"_resolve_ref only supports local refs starting with '#/', got {ref!r}"
+        )
+    # JSON Pointer escape decoding: ~1 → /, ~0 → ~ (RFC 6901 §4).
+    # Order matters: decode ~1 first, then ~0.
+    parts = [p.replace("~1", "/").replace("~0", "~") for p in ref.lstrip("#/").split("/")]
     node: Any = spec
     for part in parts:
         node = node[part]
@@ -358,11 +364,16 @@ def _resolve_path_params(
 
     Walks BOTH path-level ``parameters`` (shared across operations on that path)
     AND operation-level ``parameters`` (specific to the given HTTP method).
-    Operation-level entries override path-level by the ``name`` field.
+    Operation-level entries override path-level by the ``(name, in)`` key —
+    OpenAPI permits the same parameter name in different locations (e.g., a
+    path param and a query param both named ``ticker``), so dedup must consider
+    both dimensions.
     Any ``$ref`` entries are resolved via ``_resolve_ref``.
 
-    Returns an empty list if the path has no parameters. Raises ``KeyError`` if the
-    path does not exist in the spec (fail loud — do NOT silently return []).
+    Raises ``KeyError`` if the path does not exist in the spec, or if the
+    operation (HTTP method) does not exist on that path. Fail loud: a
+    mismatched ``METHOD_ENDPOINT_MAP`` entry should surface at test time, not
+    silently return partial data.
     """
     paths = spec.get("paths", {})
     if path_template not in paths:
@@ -370,6 +381,13 @@ def _resolve_path_params(
 
     path_entry = paths[path_template]
     op_key = http_method.lower()
+
+    if op_key not in path_entry:
+        raise KeyError(
+            f"operation {http_method!r} not defined on path {path_template!r}; "
+            f"available ops: "
+            f"{sorted(k for k in path_entry if k in {'get', 'post', 'put', 'delete', 'patch'})}"
+        )
 
     def _collect(parameters_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         resolved: list[dict[str, Any]] = []
@@ -381,13 +399,14 @@ def _resolve_path_params(
         return resolved
 
     path_level = _collect(path_entry.get("parameters", []))
-    op_level: list[dict[str, Any]] = []
-    if op_key in path_entry:
-        op_entry = path_entry[op_key]
-        op_level = _collect(op_entry.get("parameters", []))
+    op_entry = path_entry[op_key]
+    op_level = _collect(op_entry.get("parameters", []))
 
-    # Merge with op-level overriding path-level by name.
-    merged: dict[str, dict[str, Any]] = {p["name"]: p for p in path_level}
+    # Merge with op-level overriding path-level by (name, in) — OpenAPI allows
+    # the same param name in different locations (path vs query vs header).
+    merged: dict[tuple[str, str], dict[str, Any]] = {
+        (p["name"], p.get("in", "")): p for p in path_level
+    }
     for p in op_level:
-        merged[p["name"]] = p
+        merged[(p["name"], p.get("in", ""))] = p
     return list(merged.values())

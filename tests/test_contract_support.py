@@ -67,6 +67,30 @@ class TestResolveRef:
         with pytest.raises(RuntimeError, match="circular"):
             _resolve_ref(spec, "#/components/parameters/A", max_depth=4)
 
+    def test_missing_ref_raises_keyerror(self) -> None:
+        spec: dict[str, Any] = {"components": {"parameters": {}}}
+        with pytest.raises(KeyError):
+            _resolve_ref(spec, "#/components/parameters/DoesNotExist")
+
+    def test_non_local_ref_raises(self) -> None:
+        """External refs (e.g., 'other.yaml#/X') aren't supported. Fail loud
+        rather than silently mis-parse."""
+        spec: dict[str, Any] = {}
+        with pytest.raises(ValueError, match="local refs"):
+            _resolve_ref(spec, "other.yaml#/components/parameters/X")
+
+    def test_json_pointer_escapes_decoded(self) -> None:
+        """Per RFC 6901 §4, ~1 decodes to / and ~0 decodes to ~. This matters
+        for OpenAPI refs pointing to paths with literal slashes like
+        '/markets/{ticker}' which show up as '~1markets~1{ticker}'."""
+        spec: dict[str, Any] = {
+            "paths": {
+                "/markets/{ticker}": {"description": "a path entry"},
+            }
+        }
+        result = _resolve_ref(spec, "#/paths/~1markets~1{ticker}")
+        assert result == {"description": "a path entry"}
+
 
 class TestResolvePathParams:
     def _base_spec(self) -> dict[str, Any]:
@@ -140,6 +164,32 @@ class TestResolvePathParams:
         names = {p["name"] for p in result}
         assert names == {"p1", "p2", "p3"}
 
+    def test_missing_op_raises(self) -> None:
+        """If the path exists but the HTTP method doesn't, raise — don't
+        silently return partial data. Guards against wrong MAP entries like
+        GET /portfolio/orders/{id}/amend (actually POST)."""
+        spec = self._base_spec()
+        spec["paths"]["/x"] = {"post": {"parameters": []}}  # POST only
+        with pytest.raises(KeyError, match="GET"):
+            _resolve_path_params(spec, "/x", "GET")
+
+    def test_same_name_different_in_both_kept(self) -> None:
+        """OpenAPI allows the same param name in different locations. The
+        merge key must be (name, in) — not just name — or we silently drop
+        one of them. Uses a realistic path+query scenario."""
+        spec = self._base_spec()
+        spec["paths"]["/x"] = {
+            "get": {
+                "parameters": [
+                    {"name": "ticker", "in": "path"},
+                    {"name": "ticker", "in": "query"},
+                ]
+            }
+        }
+        result = _resolve_path_params(spec, "/x", "GET")
+        locations = {(p["name"], p["in"]) for p in result}
+        assert locations == {("ticker", "path"), ("ticker", "query")}
+
 
 class TestMethodEndpointMap:
     def test_map_is_list(self) -> None:
@@ -183,24 +233,43 @@ class TestMethodEndpointMap:
             assert parts[1] == "resources"
 
     def test_every_public_method_has_entry(self) -> None:
-        """Completeness: iterate every sync Resource class across 8 resource
-        modules; assert each public method has a METHOD_ENDPOINT_MAP entry."""
+        """Completeness: enumerate every resource module in kalshi/resources/
+        dynamically, then assert each sync public method has a
+        METHOD_ENDPOINT_MAP entry.
+
+        Dynamic enumeration guards against 'added a 9th resource file and
+        forgot to update the hardcoded list' drift.
+        """
         import importlib
         import inspect
+        from pathlib import Path
 
-        resource_modules = [
-            "kalshi.resources.markets",
-            "kalshi.resources.events",
-            "kalshi.resources.exchange",
-            "kalshi.resources.historical",
-            "kalshi.resources.orders",
-            "kalshi.resources.portfolio",
-            "kalshi.resources.series",
-            "kalshi.resources.multivariate",
-        ]
+        resources_dir = (
+            Path(__file__).parent.parent / "kalshi" / "resources"
+        )
+        assert resources_dir.is_dir(), (
+            f"Expected kalshi/resources/ at {resources_dir}, not found"
+        )
+
+        # Discover modules: every *.py file in resources/ except __init__ and
+        # _base (private base classes — no wire-hitting methods).
+        skip = {"__init__", "_base"}
+        resource_modules = sorted(
+            f"kalshi.resources.{p.stem}"
+            for p in resources_dir.glob("*.py")
+            if p.stem not in skip
+        )
+
+        # Floor check: if enumeration misses everything (e.g., path resolution
+        # breaks), the test shouldn't tautologically pass.
+        assert len(resource_modules) >= 8, (
+            f"Expected >=8 resource modules in kalshi/resources/, found "
+            f"{len(resource_modules)}: {resource_modules}"
+        )
 
         mapped = {entry.sdk_method for entry in METHOD_ENDPOINT_MAP}
         missing: list[str] = []
+        discovered: list[str] = []
 
         for mod_path in resource_modules:
             module = importlib.import_module(mod_path)
@@ -225,10 +294,49 @@ class TestMethodEndpointMap:
                     if method_name not in cls.__dict__:
                         continue
                     fqn = f"{mod_path}.{cls_name}.{method_name}"
+                    discovered.append(fqn)
                     if fqn not in mapped:
                         missing.append(fqn)
 
+        # Guard against tautological pass: if discovery silently returns zero
+        # methods (e.g., a refactor removes the Resource suffix), the test
+        # would incorrectly pass with an empty missing list. Require a floor.
+        assert len(discovered) >= 50, (
+            f"Expected >=50 public methods across {len(resource_modules)} "
+            f"resources; discovered only {len(discovered)}. "
+            "Check resource class naming (must end in 'Resource' and not start "
+            "with 'Async')."
+        )
         assert not missing, (
             f"METHOD_ENDPOINT_MAP missing {len(missing)} public method(s):\n  "
             + "\n  ".join(missing)
+        )
+
+    def test_every_mapped_path_resolves_in_spec(self) -> None:
+        """Reverse completeness: every path_template in METHOD_ENDPOINT_MAP
+        must exist in specs/openapi.yaml. Catches typos before Session 1b
+        applies dispositions against the wrong paths."""
+        from pathlib import Path
+
+        import yaml
+
+        spec_path = Path(__file__).parent.parent / "specs" / "openapi.yaml"
+        if not spec_path.exists():
+            pytest.skip("specs/openapi.yaml not found")
+
+        with open(spec_path) as f:
+            spec = yaml.safe_load(f)
+
+        unresolved: list[str] = []
+        for entry in METHOD_ENDPOINT_MAP:
+            try:
+                _resolve_path_params(spec, entry.path_template, entry.http_method)
+            except KeyError:
+                unresolved.append(
+                    f"{entry.sdk_method} → {entry.http_method} {entry.path_template}"
+                )
+
+        assert not unresolved, (
+            f"{len(unresolved)} METHOD_ENDPOINT_MAP entries have path_templates "
+            "not in specs/openapi.yaml:\n  " + "\n  ".join(unresolved)
         )
