@@ -25,7 +25,7 @@ from pydantic import AliasChoices
 from pydantic import BaseModel as PydanticBase
 from pydantic.fields import FieldInfo
 
-from kalshi._contract_map import CONTRACT_MAP, ContractEntry
+from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
 
 SPEC_FILE = Path(__file__).parent.parent / "specs" / "openapi.yaml"
 
@@ -207,6 +207,70 @@ def _classify_drift(
 
 
 # ---------------------------------------------------------------------------
+# AsyncAPI spec helpers (WebSocket models)
+# ---------------------------------------------------------------------------
+
+ASYNCAPI_FILE = Path(__file__).parent.parent / "specs" / "asyncapi.yaml"
+
+
+def _load_asyncapi_spec() -> dict[str, Any]:
+    """Load and return the AsyncAPI spec."""
+    if yaml is None:
+        pytest.skip("pyyaml not installed. Run: uv sync --dev")
+    if not ASYNCAPI_FILE.exists():
+        pytest.skip("AsyncAPI spec not found. Run: uv run python scripts/sync_spec.py")
+    with open(ASYNCAPI_FILE) as f:
+        return yaml.safe_load(f)
+
+
+def _get_ws_msg_fields(spec: dict[str, Any], schema_name: str) -> dict[str, dict[str, Any]]:
+    """Extract msg sub-object fields from an AsyncAPI payload schema.
+
+    AsyncAPI payloads nest data fields under .properties.msg.properties,
+    unlike OpenAPI which uses .properties directly.
+    """
+    schemas = spec.get("components", {}).get("schemas", {})
+    schema = schemas.get(schema_name)
+    if schema is None:
+        pytest.fail(f"Schema '{schema_name}' not found in AsyncAPI spec")
+
+    # Handle allOf (e.g., multivariateMarketLifecyclePayload)
+    if "allOf" in schema:
+        merged: dict[str, dict[str, Any]] = {}
+        for sub in schema["allOf"]:
+            if "$ref" in sub:
+                sub = _resolve_ref(spec, sub["$ref"])
+            msg = sub.get("properties", {}).get("msg", {})
+            merged.update(msg.get("properties", {}))
+        return merged
+
+    msg = schema.get("properties", {}).get("msg", {})
+    return msg.get("properties", {})
+
+
+def _get_ws_required_fields(spec: dict[str, Any], schema_name: str) -> set[str]:
+    """Extract required fields from the msg sub-object.
+
+    Handles allOf composition by merging required sets from all sub-schemas.
+    """
+    schemas = spec.get("components", {}).get("schemas", {})
+    schema = schemas.get(schema_name, {})
+
+    # Handle allOf
+    if "allOf" in schema:
+        required: set[str] = set()
+        for sub in schema["allOf"]:
+            if "$ref" in sub:
+                sub = _resolve_ref(spec, sub["$ref"])
+            msg = sub.get("properties", {}).get("msg", {})
+            required.update(msg.get("required", []))
+        return required
+
+    msg = schema.get("properties", {}).get("msg", {})
+    return set(msg.get("required", []))
+
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
@@ -296,6 +360,119 @@ class TestSpecDrift:
 
             warnings.warn(
                 "SDK models without contract map entries:\n"
+                + "\n".join(f"  - {m}" for m in unmapped),
+                stacklevel=1,
+            )
+
+
+# ---------------------------------------------------------------------------
+# WS Spec Drift Tests
+# ---------------------------------------------------------------------------
+
+
+class TestWsSpecDrift:
+    """Verify WS payload models match the AsyncAPI spec."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_asyncapi_spec()
+
+    @pytest.mark.parametrize(
+        "entry",
+        WS_CONTRACT_MAP,
+        ids=[e.sdk_model.rsplit(".", 1)[1] for e in WS_CONTRACT_MAP],
+    )
+    def test_ws_additive_drift(self, entry: ContractEntry) -> None:
+        """Warn about AsyncAPI fields not present in SDK WS models."""
+        spec_fields = _get_ws_msg_fields(self.spec, entry.spec_schema)
+        model_class = _get_sdk_model_class(entry.sdk_model)
+        additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
+        if additive:
+            import warnings
+
+            warnings.warn(
+                f"WS additive drift in {entry.sdk_model}:\n"
+                + "\n".join(f"  - {a}" for a in additive),
+                stacklevel=1,
+            )
+
+    @pytest.mark.parametrize(
+        "entry",
+        WS_CONTRACT_MAP,
+        ids=[e.sdk_model.rsplit(".", 1)[1] for e in WS_CONTRACT_MAP],
+    )
+    def test_ws_required_drift(self, entry: ContractEntry) -> None:
+        """Warn about required mismatches in WS models."""
+        spec_fields = _get_ws_msg_fields(self.spec, entry.spec_schema)
+        model_class = _get_sdk_model_class(entry.sdk_model)
+        # Use WS-specific required extractor instead of REST _get_required_fields
+        ws_required = _get_ws_required_fields(self.spec, entry.spec_schema)
+        reverse_map = _build_spec_to_sdk_map(model_class)
+        required_issues: list[str] = []
+        for req_field in ws_required:
+            if req_field in entry.ignored_fields:
+                continue
+            sdk_name = reverse_map.get(req_field)
+            if sdk_name and sdk_name in model_class.model_fields:
+                field_info = model_class.model_fields[sdk_name]
+                if not field_info.is_required():
+                    required_issues.append(
+                        f"Spec requires '{req_field}' but SDK field '{sdk_name}' is optional"
+                    )
+        if required_issues:
+            import warnings
+
+            warnings.warn(
+                f"WS required drift in {entry.sdk_model}:\n"
+                + "\n".join(f"  - {r}" for r in required_issues),
+                stacklevel=1,
+            )
+
+    def test_ws_schema_coverage(self) -> None:
+        """Every mapped WS schema must exist in the AsyncAPI spec."""
+        schemas = self.spec.get("components", {}).get("schemas", {})
+        for entry in WS_CONTRACT_MAP:
+            assert entry.spec_schema in schemas, (
+                f"WS contract map references '{entry.spec_schema}' "
+                f"but it doesn't exist in the AsyncAPI spec"
+            )
+
+    def test_ws_contract_map_completeness(self) -> None:
+        """Warn if WS payload models exist without contract map entries."""
+        mapped_models = {e.sdk_model for e in WS_CONTRACT_MAP}
+        unmapped: list[str] = []
+
+        for module_name in (
+            "ticker",
+            "fill",
+            "orderbook_delta",
+            "trade",
+            "user_orders",
+            "market_lifecycle",
+            "market_positions",
+            "multivariate",
+            "order_group",
+            "communications",
+        ):
+            module = importlib.import_module(f"kalshi.ws.models.{module_name}")
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if (
+                    issubclass(obj, PydanticBase)
+                    and obj is not PydanticBase
+                    and obj.__module__ == module.__name__
+                    and name.endswith("Payload")
+                ):
+                    fqn = f"kalshi.ws.models.{module_name}.{name}"
+                    if fqn not in mapped_models:
+                        unmapped.append(fqn)
+
+        if unmapped:
+            import warnings
+
+            warnings.warn(
+                "WS payload models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),
                 stacklevel=1,
             )
