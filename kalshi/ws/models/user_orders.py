@@ -16,7 +16,7 @@ class UserOrdersPayload(BaseModel):
     yes_price: int | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
-    )  # cents
+    )  # int cents; alias serves contract pipeline
     fill_count: str | None = Field(
         default=None,
         validation_alias=AliasChoices("fill_count_fp", "fill_count"),

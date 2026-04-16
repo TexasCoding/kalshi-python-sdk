@@ -12,11 +12,11 @@ class TradePayload(BaseModel):
     yes_price: int | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
-    )  # cents
+    )  # int cents; alias serves contract pipeline
     no_price: int | None = Field(
         default=None,
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
-    )  # cents
+    )  # int cents; alias serves contract pipeline
     count: str | None = Field(
         default=None,
         validation_alias=AliasChoices("count_fp", "count"),

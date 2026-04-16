@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -295,8 +296,6 @@ class TestSpecDrift:
         model_class = _get_sdk_model_class(entry.sdk_model)
         additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
         if additive:
-            import warnings
-
             warnings.warn(
                 f"Additive drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {a}" for a in additive),
@@ -314,8 +313,6 @@ class TestSpecDrift:
         model_class = _get_sdk_model_class(entry.sdk_model)
         _, required_issues = _classify_drift(entry, self.spec, spec_fields, model_class)
         if required_issues:
-            import warnings
-
             warnings.warn(
                 f"Required drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {r}" for r in required_issues),
@@ -356,8 +353,6 @@ class TestSpecDrift:
                         unmapped.append(fqn)
 
         if unmapped:
-            import warnings
-
             warnings.warn(
                 "SDK models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),
@@ -390,8 +385,6 @@ class TestWsSpecDrift:
         model_class = _get_sdk_model_class(entry.sdk_model)
         additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
         if additive:
-            import warnings
-
             warnings.warn(
                 f"WS additive drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {a}" for a in additive),
@@ -421,8 +414,6 @@ class TestWsSpecDrift:
                         f"Spec requires '{req_field}' but SDK field '{sdk_name}' is optional"
                     )
         if required_issues:
-            import warnings
-
             warnings.warn(
                 f"WS required drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {r}" for r in required_issues),
@@ -484,8 +475,6 @@ class TestWsSpecDrift:
                             )
 
         if mismatches:
-            import warnings
-
             warnings.warn(
                 "WS envelope type drift:\n"
                 + "\n".join(f"  - {m}" for m in mismatches),
@@ -497,19 +486,14 @@ class TestWsSpecDrift:
         mapped_models = {e.sdk_model for e in WS_CONTRACT_MAP}
         unmapped: list[str] = []
 
-        for module_name in (
-            "ticker",
-            "fill",
-            "orderbook_delta",
-            "trade",
-            "user_orders",
-            "market_lifecycle",
-            "market_positions",
-            "multivariate",
-            "order_group",
-            "communications",
-        ):
-            module = importlib.import_module(f"kalshi.ws.models.{module_name}")
+        import pkgutil
+
+        import kalshi.ws.models as ws_pkg
+
+        for mod_info in pkgutil.iter_modules(ws_pkg.__path__):
+            if mod_info.name.startswith("_"):
+                continue
+            module = importlib.import_module(f"kalshi.ws.models.{mod_info.name}")
             for name, obj in inspect.getmembers(module, inspect.isclass):
                 if (
                     issubclass(obj, PydanticBase)
@@ -517,13 +501,11 @@ class TestWsSpecDrift:
                     and obj.__module__ == module.__name__
                     and name.endswith("Payload")
                 ):
-                    fqn = f"kalshi.ws.models.{module_name}.{name}"
+                    fqn = f"kalshi.ws.models.{mod_info.name}.{name}"
                     if fqn not in mapped_models:
                         unmapped.append(fqn)
 
         if unmapped:
-            import warnings
-
             warnings.warn(
                 "WS payload models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),

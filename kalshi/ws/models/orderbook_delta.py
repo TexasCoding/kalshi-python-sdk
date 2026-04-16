@@ -6,7 +6,6 @@ from pydantic import AliasChoices, BaseModel, Field
 
 class OrderbookSnapshotPayload(BaseModel):
     """Payload for orderbook_snapshot messages."""
-    model_config = {"extra": "allow"}
 
     market_ticker: str
     market_id: str
@@ -18,11 +17,11 @@ class OrderbookSnapshotPayload(BaseModel):
         default=[],
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )
+    model_config = {"extra": "allow"}
 
 
 class OrderbookDeltaPayload(BaseModel):
     """Payload for orderbook_delta messages."""
-    model_config = {"extra": "allow"}
 
     market_ticker: str
     market_id: str
@@ -36,6 +35,7 @@ class OrderbookDeltaPayload(BaseModel):
     client_order_id: str | None = None
     subaccount: int | None = None
     ts: int | None = None
+    model_config = {"extra": "allow"}
 
 
 class OrderbookSnapshotMessage(BaseModel):
