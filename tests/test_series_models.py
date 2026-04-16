@@ -7,7 +7,6 @@ from decimal import Decimal
 from kalshi.models.series import (
     EventCandlesticks,
     ForecastPercentilesPoint,
-    PercentilePoint,
     Series,
     SeriesFeeChange,
 )
