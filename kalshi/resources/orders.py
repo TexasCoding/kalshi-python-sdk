@@ -158,6 +158,8 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
+        if yes_price is None and no_price is None and count is None:
+            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
         body: dict[str, Any] = {
             "ticker": ticker,
             "side": side,
@@ -212,7 +214,10 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        tickers_str = ",".join(market_tickers) if isinstance(market_tickers, list) else market_tickers
+        if isinstance(market_tickers, list):
+            tickers_str: str | None = ",".join(market_tickers)
+        else:
+            tickers_str = market_tickers
         params = _params(
             market_tickers=tickers_str,
             event_ticker=event_ticker,
@@ -225,7 +230,9 @@ class OrdersResource(SyncResource):
     def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = self._get(f"/portfolio/orders/{order_id}/queue_position")
-        raw = data.get("queue_position_fp") or data.get("queue_position")
+        raw = data.get("queue_position_fp")
+        if raw is None:
+            raw = data.get("queue_position")
         if raw is None:
             raise KalshiError(
                 f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"
@@ -370,6 +377,8 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
+        if yes_price is None and no_price is None and count is None:
+            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
         body: dict[str, Any] = {
             "ticker": ticker,
             "side": side,
@@ -424,7 +433,10 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        tickers_str = ",".join(market_tickers) if isinstance(market_tickers, list) else market_tickers
+        if isinstance(market_tickers, list):
+            tickers_str: str | None = ",".join(market_tickers)
+        else:
+            tickers_str = market_tickers
         params = _params(
             market_tickers=tickers_str,
             event_ticker=event_ticker,
@@ -437,7 +449,9 @@ class AsyncOrdersResource(AsyncResource):
     async def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
-        raw = data.get("queue_position_fp") or data.get("queue_position")
+        raw = data.get("queue_position_fp")
+        if raw is None:
+            raw = data.get("queue_position")
         if raw is None:
             raise KalshiError(
                 f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"

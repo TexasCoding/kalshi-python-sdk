@@ -308,7 +308,7 @@ class TestOrdersAmend:
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/amend"
         ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
         with pytest.raises(KalshiNotFoundError):
-            orders.amend("fake", ticker="T", side="yes", action="buy")
+            orders.amend("fake", ticker="T", side="yes", action="buy", yes_price=0.50)
 
     @respx.mock
     def test_amend_validation_error(self, orders: OrdersResource) -> None:
@@ -316,7 +316,11 @@ class TestOrdersAmend:
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-300/amend"
         ).mock(return_value=httpx.Response(400, json={"message": "invalid side"}))
         with pytest.raises(KalshiValidationError):
-            orders.amend("ord-300", ticker="T", side="invalid", action="buy")
+            orders.amend("ord-300", ticker="T", side="invalid", action="buy", yes_price=0.50)
+
+    def test_amend_requires_price_or_count(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match="requires at least one"):
+            orders.amend("ord-123", ticker="T", side="yes", action="buy")
 
 
 class TestOrdersDecrease:
@@ -439,6 +443,17 @@ class TestOrdersQueuePositions:
         assert positions == []
 
     @respx.mock
+    def test_queue_positions_with_list_tickers(self, orders: OrdersResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
+        ).mock(
+            return_value=httpx.Response(200, json={"queue_positions": []})
+        )
+        orders.queue_positions(market_tickers=["MKT-A", "MKT-B"])
+        params = dict(route.calls[0].request.url.params)
+        assert params["market_tickers"] == "MKT-A,MKT-B"
+
+    @respx.mock
     def test_queue_position_single(self, orders: OrdersResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-800/queue_position"
@@ -449,6 +464,18 @@ class TestOrdersQueuePositions:
         )
         pos = orders.queue_position("ord-800")
         assert pos == Decimal("5")
+
+    @respx.mock
+    def test_queue_position_fallback_key(self, orders: OrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-900/queue_position"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"queue_position": "12"}
+            )
+        )
+        pos = orders.queue_position("ord-900")
+        assert pos == Decimal("12")
 
     @respx.mock
     def test_queue_position_not_found(self, orders: OrdersResource) -> None:
