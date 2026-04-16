@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import AsyncIterator, Iterator
+from decimal import Decimal
 from typing import Any
 
 from kalshi.models.common import Page
-from kalshi.models.orders import CreateOrderRequest, Fill, Order
+from kalshi.models.orders import (
+    AmendOrderResponse,
+    CreateOrderRequest,
+    Fill,
+    Order,
+    OrderQueuePosition,
+)
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 from kalshi.types import to_decimal
 
@@ -134,6 +141,85 @@ class OrdersResource(SyncResource):
         self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit)
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
+
+    def amend(
+        self,
+        order_id: str,
+        *,
+        ticker: str,
+        side: str,
+        action: str,
+        yes_price: float | str | int | None = None,
+        no_price: float | str | int | None = None,
+        count: int | None = None,
+        client_order_id: str | None = None,
+        updated_client_order_id: str | None = None,
+        subaccount: int | None = None,
+    ) -> AmendOrderResponse:
+        self._require_auth()
+        body: dict[str, Any] = {
+            "ticker": ticker,
+            "side": side,
+            "action": action,
+        }
+        if yes_price is not None:
+            body["yes_price_dollars"] = str(to_decimal(yes_price))
+        if no_price is not None:
+            body["no_price_dollars"] = str(to_decimal(no_price))
+        if count is not None:
+            body["count_fp"] = str(to_decimal(count))
+        if client_order_id is not None:
+            body["client_order_id"] = client_order_id
+        if updated_client_order_id is not None:
+            body["updated_client_order_id"] = updated_client_order_id
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
+        return AmendOrderResponse.model_validate(data)
+
+    def decrease(
+        self,
+        order_id: str,
+        *,
+        reduce_by: int | None = None,
+        reduce_to: int | None = None,
+        subaccount: int | None = None,
+    ) -> Order:
+        self._require_auth()
+        body: dict[str, Any] = {}
+        if reduce_by is not None:
+            body["reduce_by"] = reduce_by
+        if reduce_to is not None:
+            body["reduce_to"] = reduce_to
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
+        order_data = data.get("order", data)
+        return Order.model_validate(order_data)
+
+    def queue_positions(
+        self,
+        *,
+        market_tickers: str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int | None = None,
+    ) -> builtins.list[OrderQueuePosition]:
+        self._require_auth()
+        params = _params(
+            market_tickers=market_tickers,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
+        )
+        data = self._get("/portfolio/orders/queue_positions", params=params)
+        raw = data.get("queue_positions", [])
+        return [OrderQueuePosition.model_validate(item) for item in raw]
+
+    def queue_position(self, order_id: str) -> Decimal:
+        self._require_auth()
+        data = self._get(f"/portfolio/orders/{order_id}/queue_position")
+        return to_decimal(data["queue_position_fp"])
 
 
 class AsyncOrdersResource(AsyncResource):

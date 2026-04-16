@@ -226,3 +226,221 @@ class TestOrdersFillsAll:
         )
         ids = [f.trade_id for f in orders.fills_all()]
         assert ids == ["a", "b"]
+
+
+class TestOrdersAmend:
+    @respx.mock
+    def test_amend_price(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-100/amend"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": {
+                        "order_id": "ord-100",
+                        "ticker": "MKT-A",
+                        "side": "yes",
+                        "status": "resting",
+                        "yes_price_dollars": "0.5000",
+                        "count": 10,
+                    },
+                    "order": {
+                        "order_id": "ord-100",
+                        "ticker": "MKT-A",
+                        "side": "yes",
+                        "status": "resting",
+                        "yes_price_dollars": "0.6000",
+                        "count": 10,
+                    },
+                },
+            )
+        )
+        result = orders.amend(
+            "ord-100",
+            ticker="MKT-A",
+            side="yes",
+            action="buy",
+            yes_price=0.60,
+        )
+        assert result.old_order.yes_price == Decimal("0.5000")
+        assert result.order.yes_price == Decimal("0.6000")
+        assert result.order.order_id == "ord-100"
+
+    @respx.mock
+    def test_amend_serializes_dollars_and_count(self, orders: OrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-200/amend"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": {"order_id": "ord-200", "ticker": "T"},
+                    "order": {"order_id": "ord-200", "ticker": "T"},
+                },
+            )
+        )
+        orders.amend(
+            "ord-200",
+            ticker="T",
+            side="yes",
+            action="buy",
+            yes_price=0.55,
+            count=20,
+        )
+
+        import json
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["yes_price_dollars"] == "0.55"
+        assert body["count_fp"] == "20"
+        assert "yes_price" not in body
+        assert "count" not in body
+
+    @respx.mock
+    def test_amend_not_found(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/amend"
+        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            orders.amend("fake", ticker="T", side="yes", action="buy")
+
+    @respx.mock
+    def test_amend_validation_error(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-300/amend"
+        ).mock(return_value=httpx.Response(400, json={"message": "invalid side"}))
+        with pytest.raises(KalshiValidationError):
+            orders.amend("ord-300", ticker="T", side="invalid", action="buy")
+
+
+class TestOrdersDecrease:
+    @respx.mock
+    def test_decrease_by(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-400/decrease"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": {
+                        "order_id": "ord-400",
+                        "ticker": "MKT-B",
+                        "status": "resting",
+                        "remaining_count_fp": "5",
+                    }
+                },
+            )
+        )
+        order = orders.decrease("ord-400", reduce_by=5)
+        assert order.order_id == "ord-400"
+        assert order.remaining_count == Decimal("5")
+
+    @respx.mock
+    def test_decrease_to(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-500/decrease"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": {
+                        "order_id": "ord-500",
+                        "ticker": "MKT-C",
+                        "status": "cancelled",
+                        "remaining_count_fp": "0",
+                    }
+                },
+            )
+        )
+        order = orders.decrease("ord-500", reduce_to=0)
+        assert order.order_id == "ord-500"
+        assert order.remaining_count == Decimal("0")
+
+    @respx.mock
+    def test_decrease_not_found(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease"
+        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            orders.decrease("fake", reduce_by=1)
+
+    @respx.mock
+    def test_decrease_validation_error(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-600/decrease"
+        ).mock(
+            return_value=httpx.Response(400, json={"message": "reduce_by must be > 0"})
+        )
+        with pytest.raises(KalshiValidationError):
+            orders.decrease("ord-600", reduce_by=-1)
+
+
+class TestOrdersQueuePositions:
+    @respx.mock
+    def test_queue_positions(self, orders: OrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "queue_positions": [
+                        {
+                            "order_id": "ord-700",
+                            "market_ticker": "MKT-D",
+                            "queue_position_fp": "3",
+                        },
+                        {
+                            "order_id": "ord-701",
+                            "market_ticker": "MKT-D",
+                            "queue_position_fp": "7",
+                        },
+                    ]
+                },
+            )
+        )
+        positions = orders.queue_positions()
+        assert len(positions) == 2
+        assert positions[0].order_id == "ord-700"
+        assert positions[0].queue_position == Decimal("3")
+        assert positions[1].queue_position == Decimal("7")
+
+    @respx.mock
+    def test_queue_positions_with_filter(self, orders: OrdersResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
+        ).mock(
+            return_value=httpx.Response(200, json={"queue_positions": []})
+        )
+        orders.queue_positions(event_ticker="EVT-1")
+        params = dict(route.calls[0].request.url.params)
+        assert params["event_ticker"] == "EVT-1"
+
+    @respx.mock
+    def test_queue_positions_empty(self, orders: OrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
+        ).mock(return_value=httpx.Response(200, json={"queue_positions": []}))
+        positions = orders.queue_positions()
+        assert positions == []
+
+    @respx.mock
+    def test_queue_position_single(self, orders: OrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-800/queue_position"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"queue_position_fp": "5"}
+            )
+        )
+        pos = orders.queue_position("ord-800")
+        assert pos == Decimal("5")
+
+    @respx.mock
+    def test_queue_position_not_found(self, orders: OrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position"
+        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            orders.queue_position("fake")
