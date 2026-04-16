@@ -460,6 +460,29 @@ class TestAsyncOrdersDecrease:
         with pytest.raises(KalshiValidationError):
             await orders.decrease("ord-123", reduce_by=-1)
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_decrease_to(self, orders: AsyncOrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order": {"order_id": "ord-123", "remaining_count_fp": "0"}},
+            )
+        )
+        order = await orders.decrease("ord-123", reduce_to=0)
+        assert order.remaining_count == Decimal("0")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_decrease_not_found(self, orders: AsyncOrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease"
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            await orders.decrease("fake", reduce_by=1)
+
     @pytest.mark.asyncio
     async def test_decrease_requires_reduce_arg(self, orders: AsyncOrdersResource) -> None:
         with pytest.raises(ValueError, match="requires either reduce_by or reduce_to"):
@@ -495,6 +518,34 @@ class TestAsyncOrdersQueuePositions:
         )
         position = await orders.queue_position("ord-123")
         assert position == Decimal("15.00")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_positions_with_list_tickers(self, orders: AsyncOrdersResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
+        ).mock(return_value=httpx.Response(200, json={"queue_positions": []}))
+        await orders.queue_positions(market_tickers=["MKT-A", "MKT-B"])
+        params = dict(route.calls[0].request.url.params)
+        assert params["market_tickers"] == "MKT-A,MKT-B"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_position_fallback_key(self, orders: AsyncOrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-900/queue_position"
+        ).mock(return_value=httpx.Response(200, json={"queue_position": "12"}))
+        pos = await orders.queue_position("ord-900")
+        assert pos == Decimal("12")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_position_not_found(self, orders: AsyncOrdersResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position"
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            await orders.queue_position("fake")
 
     @respx.mock
     @pytest.mark.asyncio
