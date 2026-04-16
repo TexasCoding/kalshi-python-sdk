@@ -22,15 +22,19 @@ logger = logging.getLogger(__name__)
 register(
     "OrdersResource",
     [
+        "amend",
         "batch_cancel",
         "batch_create",
         "cancel",
         "create",
+        "decrease",
         "fills",
         "fills_all",
         "get",
         "list",
         "list_all",
+        "queue_position",
+        "queue_positions",
     ],
 )
 

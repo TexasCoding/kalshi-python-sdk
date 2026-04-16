@@ -44,6 +44,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="Uses serialization_alias (outbound), not validation_alias (inbound)",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.orders.AmendOrderResponse",
+        spec_schema="AmendOrderResponse",
+        notes="Response wrapper with old_order + order, both are Order instances",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.events.Event",
         spec_schema="EventData",
         notes="Spec uses 'EventData', not 'Event'",
