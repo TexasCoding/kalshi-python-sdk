@@ -235,7 +235,8 @@ class OrdersResource(SyncResource):
             raw = data.get("queue_position")
         if raw is None:
             raise KalshiError(
-                f"Unexpected response for queue_position: missing 'queue_position_fp' and 'queue_position' in {data!r}"
+                "Unexpected response for queue_position: "
+                f"missing 'queue_position_fp' and 'queue_position' in {data!r}"
             )
         return to_decimal(raw)
 
@@ -454,6 +455,7 @@ class AsyncOrdersResource(AsyncResource):
             raw = data.get("queue_position")
         if raw is None:
             raise KalshiError(
-                f"Unexpected response for queue_position: missing 'queue_position_fp' and 'queue_position' in {data!r}"
+                "Unexpected response for queue_position: "
+                f"missing 'queue_position_fp' and 'queue_position' in {data!r}"
             )
         return to_decimal(raw)
