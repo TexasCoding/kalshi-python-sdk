@@ -30,6 +30,11 @@ def orders(test_auth: KalshiAuth, config: KalshiConfig) -> OrdersResource:
     return OrdersResource(SyncTransport(test_auth, config))
 
 
+@pytest.fixture
+def unauth_orders(config: KalshiConfig) -> OrdersResource:
+    return OrdersResource(SyncTransport(None, config))
+
+
 class TestOrdersCreate:
     @respx.mock
     def test_create_limit_order(self, orders: OrdersResource) -> None:
@@ -444,3 +449,25 @@ class TestOrdersQueuePositions:
         ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
         with pytest.raises(KalshiNotFoundError):
             orders.queue_position("fake")
+
+
+class TestOrdersAuthGuards:
+    def test_amend_requires_auth(self, unauth_orders: OrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.amend("ord-123", ticker="T", side="yes", action="buy")
+
+    def test_decrease_requires_auth(self, unauth_orders: OrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.decrease("ord-123", reduce_by=1)
+
+    def test_queue_positions_requires_auth(self, unauth_orders: OrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.queue_positions()
+
+    def test_queue_position_requires_auth(self, unauth_orders: OrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.queue_position("ord-123")
