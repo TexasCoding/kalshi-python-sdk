@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
 from typing import Any
 
+from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
     AmendOrderResponse,
@@ -219,7 +220,12 @@ class OrdersResource(SyncResource):
     def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = self._get(f"/portfolio/orders/{order_id}/queue_position")
-        return to_decimal(data["queue_position_fp"])
+        try:
+            return to_decimal(data["queue_position_fp"])
+        except KeyError:
+            raise KalshiError(
+                f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"
+            ) from None
 
 
 class AsyncOrdersResource(AsyncResource):
@@ -421,4 +427,9 @@ class AsyncOrdersResource(AsyncResource):
     async def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
-        return to_decimal(data["queue_position_fp"])
+        try:
+            return to_decimal(data["queue_position_fp"])
+        except KeyError:
+            raise KalshiError(
+                f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"
+            ) from None

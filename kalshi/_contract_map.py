@@ -49,6 +49,10 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="Response wrapper with old_order + order, both are Order instances",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.orders.OrderQueuePosition",
+        spec_schema="OrderQueuePosition",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.events.Event",
         spec_schema="EventData",
         notes="Spec uses 'EventData', not 'Event'",
