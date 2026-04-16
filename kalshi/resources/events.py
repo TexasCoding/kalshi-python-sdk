@@ -18,6 +18,9 @@ class EventsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
+        with_milestones: bool | None = None,
+        min_close_ts: int | None = None,
+        min_updated_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Event]:
@@ -25,6 +28,9 @@ class EventsResource(SyncResource):
             status=status,
             series_ticker=series_ticker,
             with_nested_markets="true" if with_nested_markets else None,
+            with_milestones="true" if with_milestones else None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
             limit=limit,
             cursor=cursor,
         )
@@ -36,15 +42,55 @@ class EventsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
+        with_milestones: bool | None = None,
+        min_close_ts: int | None = None,
+        min_updated_ts: int | None = None,
         limit: int | None = None,
     ) -> Iterator[Event]:
         params = _params(
             status=status,
             series_ticker=series_ticker,
             with_nested_markets="true" if with_nested_markets else None,
+            with_milestones="true" if with_milestones else None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
             limit=limit,
         )
         return self._list_all("/events", Event, "events", params=params)
+
+    def list_multivariate(
+        self,
+        *,
+        series_ticker: str | None = None,
+        collection_ticker: str | None = None,
+        with_nested_markets: bool | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Event]:
+        params = _params(
+            series_ticker=series_ticker,
+            collection_ticker=collection_ticker,
+            with_nested_markets="true" if with_nested_markets else None,
+            limit=limit,
+            cursor=cursor,
+        )
+        return self._list("/events/multivariate", Event, "events", params=params)
+
+    def list_all_multivariate(
+        self,
+        *,
+        series_ticker: str | None = None,
+        collection_ticker: str | None = None,
+        with_nested_markets: bool | None = None,
+        limit: int | None = None,
+    ) -> Iterator[Event]:
+        params = _params(
+            series_ticker=series_ticker,
+            collection_ticker=collection_ticker,
+            with_nested_markets="true" if with_nested_markets else None,
+            limit=limit,
+        )
+        return self._list_all("/events/multivariate", Event, "events", params=params)
 
     def get(
         self,
@@ -72,6 +118,9 @@ class AsyncEventsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
+        with_milestones: bool | None = None,
+        min_close_ts: int | None = None,
+        min_updated_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Event]:
@@ -79,6 +128,9 @@ class AsyncEventsResource(AsyncResource):
             status=status,
             series_ticker=series_ticker,
             with_nested_markets="true" if with_nested_markets else None,
+            with_milestones="true" if with_milestones else None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
             limit=limit,
             cursor=cursor,
         )
@@ -90,15 +142,55 @@ class AsyncEventsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
+        with_milestones: bool | None = None,
+        min_close_ts: int | None = None,
+        min_updated_ts: int | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Event]:
         params = _params(
             status=status,
             series_ticker=series_ticker,
             with_nested_markets="true" if with_nested_markets else None,
+            with_milestones="true" if with_milestones else None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
             limit=limit,
         )
         return self._list_all("/events", Event, "events", params=params)
+
+    async def list_multivariate(
+        self,
+        *,
+        series_ticker: str | None = None,
+        collection_ticker: str | None = None,
+        with_nested_markets: bool | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Event]:
+        params = _params(
+            series_ticker=series_ticker,
+            collection_ticker=collection_ticker,
+            with_nested_markets="true" if with_nested_markets else None,
+            limit=limit,
+            cursor=cursor,
+        )
+        return await self._list("/events/multivariate", Event, "events", params=params)
+
+    def list_all_multivariate(
+        self,
+        *,
+        series_ticker: str | None = None,
+        collection_ticker: str | None = None,
+        with_nested_markets: bool | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[Event]:
+        params = _params(
+            series_ticker=series_ticker,
+            collection_ticker=collection_ticker,
+            with_nested_markets="true" if with_nested_markets else None,
+            limit=limit,
+        )
+        return self._list_all("/events/multivariate", Event, "events", params=params)
 
     async def get(
         self,
