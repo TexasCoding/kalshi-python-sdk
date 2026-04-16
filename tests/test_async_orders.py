@@ -401,6 +401,42 @@ class TestAsyncOrdersAmend:
         with pytest.raises(KalshiNotFoundError):
             await orders.amend("fake", ticker="T", side="yes", action="buy", yes_price=0.50)
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_amend_serializes_dollars_and_count(self, orders: AsyncOrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend"
+        ).mock(
+            return_value=httpx.Response(200, json={
+                "old_order": {"order_id": "ord-123", "ticker": "T"},
+                "order": {"order_id": "ord-123", "ticker": "T"},
+            })
+        )
+        await orders.amend(
+            "ord-123", ticker="T", side="yes", action="buy", yes_price=0.55, count=20
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["yes_price_dollars"] == "0.55"
+        assert body["count_fp"] == "20"
+        assert "yes_price" not in body
+        assert "count" not in body
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_amend_validation_error(self, orders: AsyncOrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend"
+        ).mock(return_value=httpx.Response(400, json={"message": "invalid"}))
+        with pytest.raises(KalshiValidationError):
+            await orders.amend("ord-123", ticker="T", side="bad", action="buy", yes_price=0.50)
+
+    @pytest.mark.asyncio
+    async def test_amend_requires_price_or_count(self, orders: AsyncOrdersResource) -> None:
+        with pytest.raises(ValueError, match="requires at least one"):
+            await orders.amend("ord-123", ticker="T", side="yes", action="buy")
+
 
 class TestAsyncOrdersDecrease:
     @respx.mock
