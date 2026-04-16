@@ -2,6 +2,19 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.5.0] - 2026-04-15
+
+### Added
+- `amend()` method on OrdersResource and AsyncOrdersResource for amending order price and/or quantity. Returns `AmendOrderResponse` with both pre and post-amendment order state.
+- `decrease()` method on OrdersResource and AsyncOrdersResource for reducing order quantity by amount (`reduce_by`) or to amount (`reduce_to`)
+- `queue_positions()` method for bulk queue position lookup across all resting orders, with optional `market_tickers` and `event_ticker` filters
+- `queue_position()` method for single-order queue position lookup, returns `Decimal`
+- `AmendOrderResponse` model containing `old_order` and `order` fields
+- `OrderQueuePosition` model with `order_id`, `market_ticker`, and `queue_position` (FixedPointCount)
+- Contract map entries for `AmendOrderResponse` and `OrderQueuePosition` for spec drift detection
+- 29 new tests: sync/async happy paths, error paths, serialization verification, and auth guards for all 4 new methods
+- Integration coverage harness registration for amend, decrease, queue_position, queue_positions
+
 ## [0.4.1] - 2026-04-15
 
 ### Added

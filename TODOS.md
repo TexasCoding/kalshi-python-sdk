@@ -29,11 +29,8 @@
 **Depends on:** New resource classes need to be added to the SDK first.
 **Added:** 2026-04-14
 
-## P3: Integration test — order amendments and decrease
-**What:** Add SDK resource methods and integration tests for `POST /portfolio/orders/{order_id}/amend` and `POST /portfolio/orders/{order_id}/decrease`. These order modification endpoints exist in the spec but aren't in the SDK.
-**Why:** Amending orders (changing price) and decreasing quantity are core trading operations. Traders who can't amend must cancel and recreate, which loses queue priority.
-**Depends on:** New resource methods need to be added to OrdersResource.
-**Added:** 2026-04-14
+## ~~P3: Integration test — order amendments and decrease~~
+**Completed:** v0.5.0 (2026-04-15). Added `amend()`, `decrease()`, `queue_positions()`, and `queue_position()` to OrdersResource and AsyncOrdersResource. AmendOrderResponse and OrderQueuePosition models. 29 new tests (sync/async happy paths, error paths, serialization, auth guards). Contract map entries for spec drift coverage. Also added queue position endpoints (GET /portfolio/orders/queue_positions, GET /portfolio/orders/{order_id}/queue_position) as natural companion to amend.
 
 ## P3: Integration test — handle transient 500 errors from demo API
 **What:** `TestOrdersSync::test_list_all` intermittently fails with `KalshiServerError: HTTP 500` when paginating orders on the demo server. Investigate whether this is a known demo server issue or a bug in cursor handling. Consider adding a retry wrapper or `pytest.mark.flaky` for demo-specific transient failures.
