@@ -15,8 +15,10 @@ from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
 from kalshi.resources.historical import AsyncHistoricalResource
 from kalshi.resources.markets import AsyncMarketsResource
+from kalshi.resources.multivariate import AsyncMultivariateCollectionsResource
 from kalshi.resources.orders import AsyncOrdersResource
 from kalshi.resources.portfolio import AsyncPortfolioResource
+from kalshi.resources.series import AsyncSeriesResource
 
 if TYPE_CHECKING:
     from kalshi.ws.client import KalshiWebSocket
@@ -83,6 +85,8 @@ class AsyncKalshiClient:
         self.markets = AsyncMarketsResource(self._transport)
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
+        self.series = AsyncSeriesResource(self._transport)
+        self.multivariate_collections = AsyncMultivariateCollectionsResource(self._transport)
 
     @property
     def is_authenticated(self) -> bool:

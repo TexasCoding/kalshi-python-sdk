@@ -23,14 +23,19 @@ from kalshi.models import (
     BidAskDistribution,
     Candlestick,
     CreateOrderRequest,
+    EventCandlesticks,
     Fill,
     Market,
+    MultivariateEventCollection,
     Order,
     Orderbook,
     OrderbookLevel,
     OrderQueuePosition,
     Page,
     PriceDistribution,
+    Series,
+    SeriesFeeChange,
+    TickerPair,
 )
 
 __all__ = [
@@ -40,6 +45,7 @@ __all__ = [
     "BidAskDistribution",
     "Candlestick",
     "CreateOrderRequest",
+    "EventCandlesticks",
     "Fill",
     "KalshiAuth",
     "KalshiAuthError",
@@ -56,12 +62,16 @@ __all__ = [
     "KalshiValidationError",
     "KalshiWebSocketError",
     "Market",
+    "MultivariateEventCollection",
     "Order",
     "OrderQueuePosition",
     "Orderbook",
     "OrderbookLevel",
     "Page",
     "PriceDistribution",
+    "Series",
+    "SeriesFeeChange",
+    "TickerPair",
 ]
 
 __version__ = "0.5.0"
