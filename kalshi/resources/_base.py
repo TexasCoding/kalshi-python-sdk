@@ -42,6 +42,13 @@ class SyncResource:
         result: dict[str, Any] = response.json()
         return result
 
+    def _put(
+        self, path: str, *, json: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        response = self._transport.request("PUT", path, json=json)
+        result: dict[str, Any] = response.json()
+        return result
+
     def _delete(self, path: str) -> dict[str, Any] | None:
         response = self._transport.request("DELETE", path)
         if response.status_code == 204:
@@ -106,6 +113,13 @@ class AsyncResource:
         self, path: str, *, json: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         response = await self._transport.request("POST", path, json=json)
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def _put(
+        self, path: str, *, json: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        response = await self._transport.request("PUT", path, json=json)
         result: dict[str, Any] = response.json()
         return result
 

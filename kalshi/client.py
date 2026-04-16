@@ -13,8 +13,10 @@ from kalshi.resources.events import EventsResource
 from kalshi.resources.exchange import ExchangeResource
 from kalshi.resources.historical import HistoricalResource
 from kalshi.resources.markets import MarketsResource
+from kalshi.resources.multivariate import MultivariateCollectionsResource
 from kalshi.resources.orders import OrdersResource
 from kalshi.resources.portfolio import PortfolioResource
+from kalshi.resources.series import SeriesResource
 
 
 class KalshiClient:
@@ -85,6 +87,8 @@ class KalshiClient:
         self.markets = MarketsResource(self._transport)
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)
+        self.series = SeriesResource(self._transport)
+        self.multivariate_collections = MultivariateCollectionsResource(self._transport)
 
     @property
     def is_authenticated(self) -> bool:

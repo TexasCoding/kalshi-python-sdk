@@ -245,6 +245,8 @@ class TestAsyncKalshiClientConstructor:
         client = AsyncKalshiClient(auth=test_auth)
         assert hasattr(client, "markets")
         assert hasattr(client, "orders")
+        assert hasattr(client, "series")
+        assert hasattr(client, "multivariate_collections")
 
 
 class TestAsyncKalshiClientFromEnv:

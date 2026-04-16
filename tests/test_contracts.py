@@ -340,6 +340,8 @@ class TestSpecDrift:
             "exchange",
             "portfolio",
             "historical",
+            "series",
+            "multivariate",
         ):
             module = importlib.import_module(f"kalshi.models.{module_name}")
             for name, obj in inspect.getmembers(module, inspect.isclass):

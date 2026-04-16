@@ -23,11 +23,8 @@
 **Depends on:** Integration test suite shipped (done).
 **Added:** 2026-04-14
 
-## P3: Integration test — series and multivariate event endpoints
-**What:** Add SDK resource methods and integration tests for `/series`, `/series/{series_ticker}`, `/events/multivariate`, and `/series/{series_ticker}/events/{ticker}/candlesticks`. These endpoints exist in the OpenAPI spec (77 total endpoints) but the SDK only covers 24.
-**Why:** The SDK covers 24 of 77 API endpoints. Series data and multivariate events are commonly used by researchers and traders building screeners.
-**Depends on:** New resource classes need to be added to the SDK first.
-**Added:** 2026-04-14
+## ~~P3: Integration test — series and multivariate event endpoints~~
+**Completed:** v0.6.0 (2026-04-16). Added SeriesResource (5 methods: list, get, fee_changes, event_candlesticks, forecast_percentile_history) and MultivariateCollectionsResource (5 methods: list, get, create_market, lookup_tickers, lookup_history). Added list_multivariate/list_all_multivariate to EventsResource. Fixed EventsResource.list() param drift (added with_milestones, min_close_ts, min_updated_ts). 11 new endpoints, 50+ new tests, 4 contract map entries. Auth guards on forecast_percentile_history, create_market, lookup_tickers.
 
 ## ~~P3: Integration test — order amendments and decrease~~
 **Completed:** v0.5.0 (2026-04-15). Added `amend()`, `decrease()`, `queue_positions()`, and `queue_position()` to OrdersResource and AsyncOrdersResource. AmendOrderResponse and OrderQueuePosition models. 29 new tests (sync/async happy paths, error paths, serialization, auth guards). Contract map entries for spec drift coverage. Also added queue position endpoints (GET /portfolio/orders/queue_positions, GET /portfolio/orders/{order_id}/queue_position) as natural companion to amend.
@@ -37,6 +34,14 @@
 **Why:** Transient 500s on demo cause false test failures, making CI unreliable. The SDK's retry logic already handles 500s for GET requests, but `list_all()` re-raises after exhausting retries. Either the retry count is too low for demo, or the demo server has a known instability on the orders list endpoint with cursors.
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
+
+## P3: Audit all resource methods for missing OpenAPI spec params
+**What:** Check every existing resource method (markets, events, exchange, historical, orders, portfolio) for query/path params that exist in the OpenAPI spec but are missing from the SDK method signature.
+**Why:** Codex review of Session 2 found EventsResource.list() was missing with_milestones, min_close_ts, min_updated_ts. If one resource drifted, others likely did too.
+**Pros:** Uniform param surface across all resources. Users can use all API filters the spec supports.
+**Cons:** Could be significant scope if many params are missing.
+**Depends on:** Session 2 series/multivariate ships (establishes full-param convention).
+**Added:** 2026-04-16 via /plan-eng-review (Codex outside voice identified the gap)
 
 ## P3: Verify public resource endpoint auth requirements
 **What:** Check the OpenAPI spec for which GET endpoints in public resources (MarketsResource, EventsResource, ExchangeResource, HistoricalResource) actually require auth headers. If any public resource method routes to an auth-requiring endpoint, add a per-method `_require_auth()` guard to that specific method.
