@@ -375,9 +375,9 @@ class TestWsSpecDrift:
 
     spec: dict[str, Any]
 
-    @pytest.fixture(autouse=True)
-    def _load(self) -> None:
-        self.spec = _load_asyncapi_spec()
+    @pytest.fixture(autouse=True, scope="class")
+    def _load(self, request: pytest.FixtureRequest) -> None:
+        request.cls.spec = _load_asyncapi_spec()
 
     @pytest.mark.parametrize(
         "entry",
@@ -445,8 +445,21 @@ class TestWsSpecDrift:
 
         for entry in WS_CONTRACT_MAP:
             schema = schemas.get(entry.spec_schema, {})
-            type_prop = schema.get("properties", {}).get("type", {})
-            spec_type = type_prop.get("const")
+
+            # Extract type const, handling allOf composition
+            spec_type: str | None = None
+            if "allOf" in schema:
+                for sub in schema["allOf"]:
+                    if "$ref" in sub:
+                        sub = _resolve_ref(self.spec, sub["$ref"])
+                    type_prop = sub.get("properties", {}).get("type", {})
+                    if "const" in type_prop:
+                        spec_type = type_prop["const"]
+                        break
+            else:
+                type_prop = schema.get("properties", {}).get("type", {})
+                spec_type = type_prop.get("const")
+
             if spec_type is None:
                 continue
 
@@ -462,7 +475,7 @@ class TestWsSpecDrift:
                     and "msg" in obj.model_fields
                 ):
                     msg_field = obj.model_fields["msg"]
-                    if msg_field.annotation is model_class:
+                    if msg_field.annotation == model_class:
                         sdk_type_field = obj.model_fields.get("type")
                         if sdk_type_field and sdk_type_field.default != spec_type:
                             mismatches.append(
