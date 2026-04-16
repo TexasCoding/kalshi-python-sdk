@@ -13,7 +13,7 @@ from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError, KalshiValidationError
-from kalshi.models.orders import CreateOrderRequest
+from kalshi.models.orders import AmendOrderResponse, CreateOrderRequest
 from kalshi.resources.orders import AsyncOrdersResource
 
 
@@ -31,6 +31,11 @@ def orders(
     test_auth: KalshiAuth, config: KalshiConfig
 ) -> AsyncOrdersResource:
     return AsyncOrdersResource(AsyncTransport(test_auth, config))
+
+
+@pytest.fixture
+def unauth_orders_async(config: KalshiConfig) -> AsyncOrdersResource:
+    return AsyncOrdersResource(AsyncTransport(None, config))
 
 
 class TestAsyncOrdersCreate:
@@ -371,3 +376,106 @@ class TestAsyncOrdersFillsAll:
         )
         ids = [f.trade_id async for f in orders.fills_all()]
         assert ids == ["a", "b"]
+
+
+class TestAsyncOrdersAmend:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_amend_price(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend").mock(
+            return_value=httpx.Response(200, json={
+                "old_order": {"order_id": "ord-123", "ticker": "T", "yes_price_dollars": "0.5000"},
+                "order": {"order_id": "ord-456", "ticker": "T", "yes_price_dollars": "0.6500"},
+            })
+        )
+        result = await orders.amend("ord-123", ticker="T", side="yes", action="buy", yes_price=0.65)
+        assert isinstance(result, AmendOrderResponse)
+        assert result.order.yes_price == Decimal("0.6500")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_amend_not_found(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/amend").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            await orders.amend("fake", ticker="T", side="yes", action="buy", yes_price=0.50)
+
+
+class TestAsyncOrdersDecrease:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_decrease_by(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease").mock(
+            return_value=httpx.Response(
+                200,
+                json={"order": {"order_id": "ord-123", "remaining_count_fp": "5"}},
+            )
+        )
+        order = await orders.decrease("ord-123", reduce_by=5)
+        assert order.remaining_count == Decimal("5")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_decrease_validation_error(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease").mock(
+            return_value=httpx.Response(400, json={"message": "invalid"})
+        )
+        with pytest.raises(KalshiValidationError):
+            await orders.decrease("ord-123")
+
+
+class TestAsyncOrdersQueuePositions:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_positions(self, orders: AsyncOrdersResource) -> None:
+        from kalshi.models.orders import OrderQueuePosition
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions").mock(
+            return_value=httpx.Response(200, json={
+                "queue_positions": [
+                    {"order_id": "ord-1", "market_ticker": "MKT-A", "queue_position_fp": "42.00"},
+                ],
+            })
+        )
+        positions = await orders.queue_positions()
+        assert len(positions) == 1
+        assert isinstance(positions[0], OrderQueuePosition)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_position_single(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/queue_position").mock(
+            return_value=httpx.Response(200, json={"queue_position_fp": "15.00"})
+        )
+        position = await orders.queue_position("ord-123")
+        assert position == Decimal("15.00")
+
+
+class TestAsyncOrdersAuthGuards:
+    @pytest.mark.asyncio
+    async def test_amend_requires_auth(self, unauth_orders_async: AsyncOrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.amend("ord-123", ticker="T", side="yes", action="buy")
+
+    @pytest.mark.asyncio
+    async def test_decrease_requires_auth(self, unauth_orders_async: AsyncOrdersResource) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.decrease("ord-123", reduce_by=1)
+
+    @pytest.mark.asyncio
+    async def test_queue_positions_requires_auth(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.queue_positions()
+
+    @pytest.mark.asyncio
+    async def test_queue_position_requires_auth(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        from kalshi.errors import AuthRequiredError
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.queue_position("ord-123")
