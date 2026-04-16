@@ -439,6 +439,47 @@ class TestWsSpecDrift:
                 f"but it doesn't exist in the AsyncAPI spec"
             )
 
+    def test_ws_envelope_type_drift(self) -> None:
+        """Warn if spec type const values differ from SDK message envelope type defaults."""
+        schemas = self.spec.get("components", {}).get("schemas", {})
+        mismatches: list[str] = []
+
+        for entry in WS_CONTRACT_MAP:
+            schema = schemas.get(entry.spec_schema, {})
+            type_prop = schema.get("properties", {}).get("type", {})
+            spec_type = type_prop.get("const")
+            if spec_type is None:
+                continue
+
+            # Find the Message class that wraps this Payload as its msg field
+            model_class = _get_sdk_model_class(entry.sdk_model)
+            module_path = entry.sdk_model.rsplit(".", 1)[0]
+            module = importlib.import_module(module_path)
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if (
+                    issubclass(obj, PydanticBase)
+                    and obj is not PydanticBase
+                    and name.endswith("Message")
+                    and "msg" in obj.model_fields
+                ):
+                    msg_field = obj.model_fields["msg"]
+                    if msg_field.annotation is model_class:
+                        sdk_type_field = obj.model_fields.get("type")
+                        if sdk_type_field and sdk_type_field.default != spec_type:
+                            mismatches.append(
+                                f"{entry.spec_schema}: spec type='{spec_type}', "
+                                f"SDK {name}.type='{sdk_type_field.default}'"
+                            )
+
+        if mismatches:
+            import warnings
+
+            warnings.warn(
+                "WS envelope type drift:\n"
+                + "\n".join(f"  - {m}" for m in mismatches),
+                stacklevel=1,
+            )
+
     def test_ws_contract_map_completeness(self) -> None:
         """Warn if WS payload models exist without contract map entries."""
         mapped_models = {e.sdk_model for e in WS_CONTRACT_MAP}
