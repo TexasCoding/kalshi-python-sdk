@@ -106,6 +106,14 @@ CONTRACT_MAP: list[ContractEntry] = [
 # WS payload models → AsyncAPI schema components.
 # Same ContractEntry type as REST, but tested via _get_ws_msg_fields()
 # which navigates into the AsyncAPI msg.properties nesting.
+#
+# NOTE: WS models use AliasChoices(spec_name, sdk_name) so the contract
+# test pipeline can auto-discover spec-to-SDK field mappings. The aliases
+# serve the TEST PIPELINE, not runtime parsing. The real Kalshi WS API
+# sends the SDK field names (e.g., "yes_bid": 56), not the spec field
+# names (e.g., "yes_bid_dollars": "0.5600"). If Kalshi changes their wire
+# format to match the spec, the int-typed fields would reject dollar
+# strings — the spec drift pipeline is designed to detect that change.
 WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.ticker.TickerPayload",
