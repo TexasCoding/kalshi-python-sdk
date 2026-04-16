@@ -35,13 +35,14 @@
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
-## P3: Audit all resource methods for missing OpenAPI spec params
-**What:** Check every existing resource method (markets, events, exchange, historical, orders, portfolio) for query/path params that exist in the OpenAPI spec but are missing from the SDK method signature.
-**Why:** Codex review of Session 2 found EventsResource.list() was missing with_milestones, min_close_ts, min_updated_ts. If one resource drifted, others likely did too.
-**Pros:** Uniform param surface across all resources. Users can use all API filters the spec supports.
-**Cons:** Could be significant scope if many params are missing.
-**Depends on:** Session 2 series/multivariate ships (establishes full-param convention).
-**Added:** 2026-04-16 via /plan-eng-review (Codex outside voice identified the gap)
+## P3: Normalize resource methods against OpenAPI spec surface (v0.7.0 major)
+**What:** Audit every public resource method (markets, events, exchange, historical, orders, portfolio, series, multivariate) against `specs/openapi.yaml` for FOUR drift categories: (1) missing — spec has param, SDK doesn't (ADD); (2) extras — SDK has phantom param not in spec (REMOVE, breaking); (3) translations — SDK uses wrong name (RENAME, breaking); (4) serialization — SDK comma-joins where spec says `explode: true` or vice versa (RESERIALIZE). Verified concrete examples: `MarketsResource.list()` exposes phantom `market_type` (tested at `test_markets.py:63`); `HistoricalResource.markets()` uses singular `ticker` but spec expects plural `tickers`; `SeriesResource.forecast_percentile_history().percentiles` needs `explode: true` per `openapi.yaml:1832`.
+**Why:** Missing-only audit (prior framing) misses ~50% of drift and blesses the wrong API surface. Codex plan review (2026-04-16) verified examples in-repo. Design: `~/.gstack/projects/kalshi-python-sdk/jeffreywest-main-design-20260416-175449.md`.
+**Pros:** SDK request surface matches Kalshi API. No phantom kwargs. `explode: true` list params work correctly. Piece 2 (follow-up) can then detect regression via automated contract test.
+**Cons:** Major-version bump (v0.7.0). Breaking changes for RENAME and REMOVE dispositions; migration guide required in CHANGELOG.
+**Plan:** Session 1a produces `tests/_contract_support.py` + `docs/AUDIT-resource-params.md` (infra PR, no behavior change). Session 1b applies dispositions per-resource. Split threshold: >40 rows OR >800 net LOC triggers v0.7.0 + v0.7.1 split.
+**Depends on:** v0.6.0 series/multivariate shipped (done).
+**Added:** 2026-04-16 via /plan-eng-review (Codex outside voice identified the gap); revised 2026-04-16 (expanded scope after second Codex review).
 
 ## P3: Verify public resource endpoint auth requirements
 **What:** Check the OpenAPI spec for which GET endpoints in public resources (MarketsResource, EventsResource, ExchangeResource, HistoricalResource) actually require auth headers. If any public resource method routes to an auth-requiring endpoint, add a per-method `_require_auth()` guard to that specific method.
