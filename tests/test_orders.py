@@ -380,6 +380,14 @@ class TestOrdersDecrease:
         with pytest.raises(KalshiValidationError):
             orders.decrease("ord-600", reduce_by=-1)
 
+    def test_decrease_requires_reduce_arg(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match="requires either reduce_by or reduce_to"):
+            orders.decrease("ord-123")
+
+    def test_decrease_rejects_both_reduce_args(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            orders.decrease("ord-123", reduce_by=5, reduce_to=3)
+
 
 class TestOrdersQueuePositions:
     @respx.mock

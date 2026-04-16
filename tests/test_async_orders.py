@@ -422,7 +422,17 @@ class TestAsyncOrdersDecrease:
             return_value=httpx.Response(400, json={"message": "invalid"})
         )
         with pytest.raises(KalshiValidationError):
+            await orders.decrease("ord-123", reduce_by=-1)
+
+    @pytest.mark.asyncio
+    async def test_decrease_requires_reduce_arg(self, orders: AsyncOrdersResource) -> None:
+        with pytest.raises(ValueError, match="requires either reduce_by or reduce_to"):
             await orders.decrease("ord-123")
+
+    @pytest.mark.asyncio
+    async def test_decrease_rejects_both_reduce_args(self, orders: AsyncOrdersResource) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            await orders.decrease("ord-123", reduce_by=5, reduce_to=3)
 
 
 class TestAsyncOrdersQueuePositions:

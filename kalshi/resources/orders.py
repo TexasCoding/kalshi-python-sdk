@@ -188,6 +188,10 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        if reduce_by is None and reduce_to is None:
+            raise ValueError("decrease() requires either reduce_by or reduce_to")
+        if reduce_by is not None and reduce_to is not None:
+            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
         body: dict[str, Any] = {}
         if reduce_by is not None:
             body["reduce_by"] = reduce_by
@@ -203,13 +207,14 @@ class OrdersResource(SyncResource):
     def queue_positions(
         self,
         *,
-        market_tickers: str | None = None,
+        market_tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
+        tickers_str = ",".join(market_tickers) if isinstance(market_tickers, list) else market_tickers
         params = _params(
-            market_tickers=market_tickers,
+            market_tickers=tickers_str,
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
@@ -220,12 +225,12 @@ class OrdersResource(SyncResource):
     def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = self._get(f"/portfolio/orders/{order_id}/queue_position")
-        try:
-            return to_decimal(data["queue_position_fp"])
-        except KeyError:
+        raw = data.get("queue_position_fp") or data.get("queue_position")
+        if raw is None:
             raise KalshiError(
                 f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"
-            ) from None
+            )
+        return to_decimal(raw)
 
 
 class AsyncOrdersResource(AsyncResource):
@@ -395,6 +400,10 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        if reduce_by is None and reduce_to is None:
+            raise ValueError("decrease() requires either reduce_by or reduce_to")
+        if reduce_by is not None and reduce_to is not None:
+            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
         body: dict[str, Any] = {}
         if reduce_by is not None:
             body["reduce_by"] = reduce_by
@@ -410,13 +419,14 @@ class AsyncOrdersResource(AsyncResource):
     async def queue_positions(
         self,
         *,
-        market_tickers: str | None = None,
+        market_tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
+        tickers_str = ",".join(market_tickers) if isinstance(market_tickers, list) else market_tickers
         params = _params(
-            market_tickers=market_tickers,
+            market_tickers=tickers_str,
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
@@ -427,9 +437,9 @@ class AsyncOrdersResource(AsyncResource):
     async def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
         data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
-        try:
-            return to_decimal(data["queue_position_fp"])
-        except KeyError:
+        raw = data.get("queue_position_fp") or data.get("queue_position")
+        if raw is None:
             raise KalshiError(
                 f"Unexpected response for queue_position: missing 'queue_position_fp' in {data!r}"
-            ) from None
+            )
+        return to_decimal(raw)
