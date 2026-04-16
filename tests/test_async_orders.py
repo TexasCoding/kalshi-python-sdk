@@ -460,6 +460,17 @@ class TestAsyncOrdersQueuePositions:
         position = await orders.queue_position("ord-123")
         assert position == Decimal("15.00")
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_queue_position_missing_key_raises(self, orders: AsyncOrdersResource) -> None:
+        from kalshi.errors import KalshiError
+
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-999/queue_position"
+        ).mock(return_value=httpx.Response(200, json={"unexpected_field": "value"}))
+        with pytest.raises(KalshiError, match="missing 'queue_position_fp'"):
+            await orders.queue_position("ord-999")
+
 
 class TestAsyncOrdersAuthGuards:
     @pytest.mark.asyncio

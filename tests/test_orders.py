@@ -478,6 +478,16 @@ class TestOrdersQueuePositions:
         assert pos == Decimal("12")
 
     @respx.mock
+    def test_queue_position_missing_key_raises(self, orders: OrdersResource) -> None:
+        from kalshi.errors import KalshiError
+
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-999/queue_position"
+        ).mock(return_value=httpx.Response(200, json={"unexpected_field": "value"}))
+        with pytest.raises(KalshiError, match="missing 'queue_position_fp'"):
+            orders.queue_position("ord-999")
+
+    @respx.mock
     def test_queue_position_not_found(self, orders: OrdersResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position"
