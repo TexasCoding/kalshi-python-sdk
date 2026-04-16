@@ -1,15 +1,15 @@
 # TODOS
 
 
-## P2: Extend spec drift pipeline to cover WebSocket models
-**What:** Add AsyncAPI spec validation for WS message models in the contract test suite (`tests/test_contracts.py`). Currently only REST models are verified against the OpenAPI spec.
-**Why:** Without it, Kalshi can change their WS message format and the SDK won't detect it until runtime. The WS models in `kalshi/ws/models/` ship outside the verification system.
-**Pros:** Catches WS schema drift automatically. Same pattern as existing REST contract tests.
-**Cons:** Requires AsyncAPI YAML parsing (different format than OpenAPI).
-**Depends on:** v0.3 shipped (WS models must exist first). Issue #9 spec drift pipeline.
-**Added:** 2026-04-13 via /plan-eng-review (Codex outside voice identified the gap)
 
 
+## P3: Investigate WS dispatch type mismatch (spec vs SDK)
+**What:** The SDK dispatches WS messages on `type = "user_orders"` (plural) and `type = "market_positions"` (plural), but the AsyncAPI spec defines `type const = "user_order"` (singular) and `type const = "market_position"` (singular). Investigate whether the real API sends plural or singular by capturing live WS frames and comparing to the spec's `type` const values.
+**Why:** If the real API sends singular (matching spec), the SDK silently drops these messages as "unknown type." If the real API sends plural (matching SDK), the spec is wrong. Either way, the mismatch should be resolved.
+**Pros:** Prevents silent message drops if Kalshi aligns their API to their spec.
+**Cons:** May be a spec-only bug with no runtime impact. Requires live WS session to verify.
+**Depends on:** WS integration tests (done). WS spec drift pipeline (in progress).
+**Added:** 2026-04-15 via /plan-eng-review (Codex outside voice identified the gap)
 
 ## P3: Integration test — CI pipeline with scheduled runs
 **What:** Add a GitHub Actions workflow that runs `pytest tests/integration/ -v` on a schedule (nightly or weekly). Store KALSHI_KEY_ID and KALSHI_PRIVATE_KEY_PATH as GitHub Actions secrets. Report failures via PR comment or Slack notification.
@@ -48,6 +48,9 @@
 **Added:** 2026-04-14 via /plan-eng-review (Codex outside voice identified the gap)
 
 ## Completed
+
+### ~~Extend spec drift pipeline to cover WebSocket models~~
+**Completed:** 2026-04-15. Added AliasChoices to all 15 WS payload models matching AsyncAPI spec field naming (e.g., `yes_bid_dollars` -> `yes_bid`). Added `WS_CONTRACT_MAP` with 15 entries reusing existing `ContractEntry` dataclass. Added `TestWsSpecDrift` class with additive drift, required drift, schema coverage, completeness, and envelope type drift tests. Added `extra="allow"` to OrderbookSnapshotPayload and OrderbookDeltaPayload. Pipeline catches additive drift for TickerPayload (missing `price_dollars`, `time`) and several other models. Envelope type test detects 3 mismatches: `user_order` vs `user_orders`, `market_position` vs `market_positions`, `multivariate_lookup` vs `multivariate`.
 
 ### ~~Verify Kalshi price format (cents vs dollars)~~
 **Completed:** 2026-04-14. Integration tests confirm DollarDecimal fields parse correctly from real API responses. Price fields use `_dollars` suffix and return decimal dollar values (e.g., "0.5600"), not integer cents. Verified across markets, orders, portfolio, and historical endpoints.

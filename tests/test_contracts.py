@@ -405,7 +405,6 @@ class TestWsSpecDrift:
     )
     def test_ws_required_drift(self, entry: ContractEntry) -> None:
         """Warn about required mismatches in WS models."""
-        spec_fields = _get_ws_msg_fields(self.spec, entry.spec_schema)
         model_class = _get_sdk_model_class(entry.sdk_model)
         # Use WS-specific required extractor instead of REST _get_required_fields
         ws_required = _get_ws_required_fields(self.spec, entry.spec_schema)

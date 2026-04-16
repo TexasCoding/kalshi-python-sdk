@@ -136,12 +136,14 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.market_lifecycle.MarketLifecyclePayload",
         spec_schema="marketLifecycleV2Payload",
-        notes="SDK conflates market lifecycle + event lifecycle fields. Spec has additional_metadata and price_level_structure not in SDK.",
+        notes="SDK conflates lifecycle + event fields. "
+        "Spec has additional_metadata, price_level_structure not in SDK.",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.market_positions.MarketPositionsPayload",
         spec_schema="marketPositionPayload",
-        notes="Spec uses 'marketPositionPayload' (singular), SDK channel is 'market_positions' (plural)",
+        notes="Spec uses singular 'marketPositionPayload', "
+        "SDK channel is 'market_positions' (plural)",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",
@@ -163,12 +165,12 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.communications.QuoteCreatedPayload",
         spec_schema="quoteCreatedPayload",
-        notes="Spec has yes_contracts_offered_fp, no_contracts_offered_fp, rfq_target_cost_dollars, event_ticker not in SDK",
+        notes="Spec has extra _fp/_dollars fields + event_ticker not in SDK",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.communications.QuoteAcceptedPayload",
         spec_schema="quoteAcceptedPayload",
-        notes="Spec has yes_contracts_offered_fp, no_contracts_offered_fp, rfq_target_cost_dollars, event_ticker not in SDK",
+        notes="Spec has extra _fp/_dollars fields + event_ticker not in SDK",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.communications.QuoteExecutedPayload",
