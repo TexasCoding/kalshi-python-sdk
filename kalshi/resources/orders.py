@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import AsyncIterator, Iterator
+from decimal import Decimal
 from typing import Any
 
+from kalshi.errors import KalshiError
 from kalshi.models.common import Page
-from kalshi.models.orders import CreateOrderRequest, Fill, Order
+from kalshi.models.orders import (
+    AmendOrderResponse,
+    CreateOrderRequest,
+    Fill,
+    Order,
+    OrderQueuePosition,
+)
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 from kalshi.types import to_decimal
 
@@ -135,6 +143,103 @@ class OrdersResource(SyncResource):
         params = _params(ticker=ticker, order_id=order_id, limit=limit)
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
+    def amend(
+        self,
+        order_id: str,
+        *,
+        ticker: str,
+        side: str,
+        action: str,
+        yes_price: float | str | int | None = None,
+        no_price: float | str | int | None = None,
+        count: int | None = None,
+        client_order_id: str | None = None,
+        updated_client_order_id: str | None = None,
+        subaccount: int | None = None,
+    ) -> AmendOrderResponse:
+        self._require_auth()
+        if yes_price is None and no_price is None and count is None:
+            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
+        body: dict[str, Any] = {
+            "ticker": ticker,
+            "side": side,
+            "action": action,
+        }
+        if yes_price is not None:
+            body["yes_price_dollars"] = str(to_decimal(yes_price))
+        if no_price is not None:
+            body["no_price_dollars"] = str(to_decimal(no_price))
+        if count is not None:
+            body["count_fp"] = str(to_decimal(count))
+        if client_order_id is not None:
+            body["client_order_id"] = client_order_id
+        if updated_client_order_id is not None:
+            body["updated_client_order_id"] = updated_client_order_id
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
+        return AmendOrderResponse.model_validate(data)
+
+    def decrease(
+        self,
+        order_id: str,
+        *,
+        reduce_by: int | None = None,
+        reduce_to: int | None = None,
+        subaccount: int | None = None,
+    ) -> Order:
+        self._require_auth()
+        if reduce_by is None and reduce_to is None:
+            raise ValueError("decrease() requires either reduce_by or reduce_to")
+        if reduce_by is not None and reduce_to is not None:
+            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
+        body: dict[str, Any] = {}
+        if reduce_by is not None:
+            body["reduce_by"] = reduce_by
+        if reduce_to is not None:
+            body["reduce_to"] = reduce_to
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
+        order_data = data.get("order", data)
+        return Order.model_validate(order_data)
+
+    def queue_positions(
+        self,
+        *,
+        market_tickers: builtins.list[str] | str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int | None = None,
+    ) -> builtins.list[OrderQueuePosition]:
+        self._require_auth()
+        if isinstance(market_tickers, list):
+            tickers_str: str | None = ",".join(market_tickers)
+        else:
+            tickers_str = market_tickers
+        params = _params(
+            market_tickers=tickers_str,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
+        )
+        data = self._get("/portfolio/orders/queue_positions", params=params)
+        raw = data.get("queue_positions", [])
+        return [OrderQueuePosition.model_validate(item) for item in raw]
+
+    def queue_position(self, order_id: str) -> Decimal:
+        self._require_auth()
+        data = self._get(f"/portfolio/orders/{order_id}/queue_position")
+        raw = data.get("queue_position_fp")
+        if raw is None:
+            raw = data.get("queue_position")
+        if raw is None:
+            raise KalshiError(
+                "Unexpected response for queue_position: "
+                f"missing 'queue_position_fp' and 'queue_position' in {data!r}"
+            )
+        return to_decimal(raw)
+
 
 class AsyncOrdersResource(AsyncResource):
     """Async orders API."""
@@ -257,3 +362,100 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         params = _params(ticker=ticker, order_id=order_id, limit=limit)
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
+
+    async def amend(
+        self,
+        order_id: str,
+        *,
+        ticker: str,
+        side: str,
+        action: str,
+        yes_price: float | str | int | None = None,
+        no_price: float | str | int | None = None,
+        count: int | None = None,
+        client_order_id: str | None = None,
+        updated_client_order_id: str | None = None,
+        subaccount: int | None = None,
+    ) -> AmendOrderResponse:
+        self._require_auth()
+        if yes_price is None and no_price is None and count is None:
+            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
+        body: dict[str, Any] = {
+            "ticker": ticker,
+            "side": side,
+            "action": action,
+        }
+        if yes_price is not None:
+            body["yes_price_dollars"] = str(to_decimal(yes_price))
+        if no_price is not None:
+            body["no_price_dollars"] = str(to_decimal(no_price))
+        if count is not None:
+            body["count_fp"] = str(to_decimal(count))
+        if client_order_id is not None:
+            body["client_order_id"] = client_order_id
+        if updated_client_order_id is not None:
+            body["updated_client_order_id"] = updated_client_order_id
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
+        return AmendOrderResponse.model_validate(data)
+
+    async def decrease(
+        self,
+        order_id: str,
+        *,
+        reduce_by: int | None = None,
+        reduce_to: int | None = None,
+        subaccount: int | None = None,
+    ) -> Order:
+        self._require_auth()
+        if reduce_by is None and reduce_to is None:
+            raise ValueError("decrease() requires either reduce_by or reduce_to")
+        if reduce_by is not None and reduce_to is not None:
+            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
+        body: dict[str, Any] = {}
+        if reduce_by is not None:
+            body["reduce_by"] = reduce_by
+        if reduce_to is not None:
+            body["reduce_to"] = reduce_to
+        if subaccount is not None:
+            body["subaccount"] = subaccount
+
+        data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
+        order_data = data.get("order", data)
+        return Order.model_validate(order_data)
+
+    async def queue_positions(
+        self,
+        *,
+        market_tickers: builtins.list[str] | str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int | None = None,
+    ) -> builtins.list[OrderQueuePosition]:
+        self._require_auth()
+        if isinstance(market_tickers, list):
+            tickers_str: str | None = ",".join(market_tickers)
+        else:
+            tickers_str = market_tickers
+        params = _params(
+            market_tickers=tickers_str,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
+        )
+        data = await self._get("/portfolio/orders/queue_positions", params=params)
+        raw = data.get("queue_positions", [])
+        return [OrderQueuePosition.model_validate(item) for item in raw]
+
+    async def queue_position(self, order_id: str) -> Decimal:
+        self._require_auth()
+        data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
+        raw = data.get("queue_position_fp")
+        if raw is None:
+            raw = data.get("queue_position")
+        if raw is None:
+            raise KalshiError(
+                "Unexpected response for queue_position: "
+                f"missing 'queue_position_fp' and 'queue_position' in {data!r}"
+            )
+        return to_decimal(raw)

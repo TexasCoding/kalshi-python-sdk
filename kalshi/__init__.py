@@ -19,6 +19,7 @@ from kalshi.errors import (
     KalshiWebSocketError,
 )
 from kalshi.models import (
+    AmendOrderResponse,
     BidAskDistribution,
     Candlestick,
     CreateOrderRequest,
@@ -27,11 +28,13 @@ from kalshi.models import (
     Order,
     Orderbook,
     OrderbookLevel,
+    OrderQueuePosition,
     Page,
     PriceDistribution,
 )
 
 __all__ = [
+    "AmendOrderResponse",
     "AsyncKalshiClient",
     "AuthRequiredError",
     "BidAskDistribution",
@@ -54,10 +57,11 @@ __all__ = [
     "KalshiWebSocketError",
     "Market",
     "Order",
+    "OrderQueuePosition",
     "Orderbook",
     "OrderbookLevel",
     "Page",
     "PriceDistribution",
 ]
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"

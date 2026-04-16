@@ -19,7 +19,13 @@ from kalshi.models.markets import (
     OrderbookLevel,
     PriceDistribution,
 )
-from kalshi.models.orders import CreateOrderRequest, Fill, Order
+from kalshi.models.orders import (
+    AmendOrderResponse,
+    CreateOrderRequest,
+    Fill,
+    Order,
+    OrderQueuePosition,
+)
 from kalshi.models.portfolio import (
     Balance,
     EventPosition,
@@ -29,6 +35,7 @@ from kalshi.models.portfolio import (
 )
 
 __all__ = [
+    "AmendOrderResponse",
     "Announcement",
     "Balance",
     "BidAskDistribution",
@@ -46,6 +53,7 @@ __all__ = [
     "MarketMetadata",
     "MarketPosition",
     "Order",
+    "OrderQueuePosition",
     "Orderbook",
     "OrderbookLevel",
     "Page",
