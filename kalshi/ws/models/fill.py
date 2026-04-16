@@ -1,7 +1,7 @@
 """Fill channel message models."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class FillPayload(BaseModel):
@@ -12,12 +12,21 @@ class FillPayload(BaseModel):
     market_ticker: str | None = None
     is_taker: bool | None = None
     side: str | None = None
-    yes_price: int | None = None  # cents
-    count: str | None = None  # _fp format
+    yes_price: int | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
+    )  # int cents; alias serves contract pipeline
+    count: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("count_fp", "count"),
+    )  # _fp format
     fee_cost: str | None = None  # dollar string
     action: str | None = None  # buy/sell
     ts: int | None = None
-    post_position: str | None = None  # _fp format
+    post_position: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("post_position_fp", "post_position"),
+    )  # _fp format
     purchased_side: str | None = None
     client_order_id: str | None = None
     subaccount: int | None = None

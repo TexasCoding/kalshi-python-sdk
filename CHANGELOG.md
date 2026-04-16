@@ -2,6 +2,20 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.4.1] - 2026-04-15
+
+### Added
+- WS spec drift pipeline: contract tests verify all 15 WebSocket payload models against the AsyncAPI spec
+- `AliasChoices` on all WS payload fields where AsyncAPI spec names differ from SDK names (26 fields across 8 model files)
+- `WS_CONTRACT_MAP` with 15 entries in `_contract_map.py`, reusing the existing `ContractEntry` dataclass
+- `TestWsSpecDrift` class with 5 tests: additive drift, required drift, schema coverage, contract map completeness, and envelope type drift
+- Envelope type drift test that detects dispatch key mismatches between spec and SDK (found 3: `user_order` vs `user_orders`, `market_position` vs `market_positions`, `multivariate_lookup` vs `multivariate`)
+- `extra = "allow"` on `OrderbookSnapshotPayload` and `OrderbookDeltaPayload` (the only two WS models missing it)
+- P3 TODO for investigating WS dispatch type mismatch (spec vs SDK)
+
+### Changed
+- WS payload models now accept both spec-named fields (e.g., `yes_bid_dollars`) and SDK-named fields (e.g., `yes_bid`) via Pydantic `AliasChoices`
+
 ## [0.4.0] - 2026-04-14
 
 ### Added
