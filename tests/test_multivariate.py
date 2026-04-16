@@ -11,10 +11,6 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError
 from kalshi.models.multivariate import (
-    CreateMarketResponse,
-    LookupPoint,
-    LookupTickersResponse,
-    MultivariateEventCollection,
     TickerPair,
 )
 from kalshi.resources.multivariate import (
@@ -88,7 +84,9 @@ class TestMultivariateList:
                     "cursor": "page2",
                 }),
                 httpx.Response(200, json={
-                    "multivariate_contracts": [{**COLLECTION_PAYLOAD, "collection_ticker": "MVC-2"}],
+                    "multivariate_contracts": [
+                        {**COLLECTION_PAYLOAD, "collection_ticker": "MVC-2"},
+                    ],
                     "cursor": "",
                 }),
             ]
@@ -166,8 +164,12 @@ class TestMultivariateLookupHistory:
 
 class TestAsyncMultivariateCollectionsResource:
     @pytest.fixture
-    def async_mv(self, test_auth: KalshiAuth, config: KalshiConfig) -> AsyncMultivariateCollectionsResource:
-        return AsyncMultivariateCollectionsResource(AsyncTransport(test_auth, config))
+    def async_mv(
+        self, test_auth: KalshiAuth, config: KalshiConfig,
+    ) -> AsyncMultivariateCollectionsResource:
+        return AsyncMultivariateCollectionsResource(
+            AsyncTransport(test_auth, config),
+        )
 
     @pytest.fixture
     def unauth_async_mv(self, config: KalshiConfig) -> AsyncMultivariateCollectionsResource:
@@ -177,7 +179,9 @@ class TestAsyncMultivariateCollectionsResource:
     @pytest.mark.asyncio
     async def test_list(self, async_mv: AsyncMultivariateCollectionsResource) -> None:
         respx.get(f"{BASE}/multivariate_event_collections").mock(
-            return_value=httpx.Response(200, json={"multivariate_contracts": [COLLECTION_PAYLOAD], "cursor": ""})
+            return_value=httpx.Response(200, json={
+                "multivariate_contracts": [COLLECTION_PAYLOAD], "cursor": "",
+            })
         )
         page = await async_mv.list()
         assert len(page.items) == 1
@@ -201,7 +205,9 @@ class TestAsyncMultivariateCollectionsResource:
         assert result.market_ticker == "M"
 
     @pytest.mark.asyncio
-    async def test_create_market_auth_guard(self, unauth_async_mv: AsyncMultivariateCollectionsResource) -> None:
+    async def test_create_market_auth_guard(
+        self, unauth_async_mv: AsyncMultivariateCollectionsResource,
+    ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.create_market("MVC-1", selected_markets=[])
 
@@ -215,7 +221,9 @@ class TestAsyncMultivariateCollectionsResource:
         assert result.event_ticker == "E"
 
     @pytest.mark.asyncio
-    async def test_lookup_tickers_auth_guard(self, unauth_async_mv: AsyncMultivariateCollectionsResource) -> None:
+    async def test_lookup_tickers_auth_guard(
+        self, unauth_async_mv: AsyncMultivariateCollectionsResource,
+    ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.lookup_tickers("MVC-1", selected_markets=[])
 

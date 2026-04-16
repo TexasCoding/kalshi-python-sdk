@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import builtins
-
 import httpx
 import pytest
 import respx
@@ -12,12 +10,6 @@ from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError
-from kalshi.models.series import (
-    EventCandlesticks,
-    ForecastPercentilesPoint,
-    Series,
-    SeriesFeeChange,
-)
 from kalshi.resources.series import AsyncSeriesResource, SeriesResource
 
 
@@ -146,7 +138,9 @@ class TestSeriesEventCandlesticks:
                 "adjusted_end_ts": 2000,
             })
         )
-        ec = series_resource.event_candlesticks("SER", "EVT", start_ts=100, end_ts=200, period_interval=60)
+        ec = series_resource.event_candlesticks(
+            "SER", "EVT", start_ts=100, end_ts=200, period_interval=60,
+        )
         assert ec.market_tickers == ["MKT-A"]
         assert len(ec.market_candlesticks) == 1
 
@@ -228,7 +222,9 @@ class TestAsyncSeriesResource:
                 "adjusted_end_ts": 0,
             })
         )
-        ec = await async_series.event_candlesticks("SER", "EVT", start_ts=0, end_ts=1, period_interval=1)
+        ec = await async_series.event_candlesticks(
+            "SER", "EVT", start_ts=0, end_ts=1, period_interval=1,
+        )
         assert ec.market_tickers == []
 
     @respx.mock

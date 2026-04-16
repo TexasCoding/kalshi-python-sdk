@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from kalshi.models.multivariate import (
-    AssociatedEvent,
     CreateMarketResponse,
     LookupPoint,
     LookupTickersResponse,
@@ -22,8 +21,14 @@ class TestMultivariateEventCollectionModel:
             "open_date": "2026-01-01T00:00:00Z",
             "close_date": "2026-12-31T23:59:59Z",
             "associated_events": [
-                {"ticker": "EVT-A", "is_yes_only": True, "size_max": 10, "size_min": 2, "active_quoters": ["q1"]},
-                {"ticker": "EVT-B", "is_yes_only": False, "size_max": None, "size_min": None, "active_quoters": []},
+                {
+                    "ticker": "EVT-A", "is_yes_only": True,
+                    "size_max": 10, "size_min": 2, "active_quoters": ["q1"],
+                },
+                {
+                    "ticker": "EVT-B", "is_yes_only": False,
+                    "size_max": None, "size_min": None, "active_quoters": [],
+                },
             ],
             "associated_event_tickers": ["EVT-A", "EVT-B"],
             "is_ordered": True,

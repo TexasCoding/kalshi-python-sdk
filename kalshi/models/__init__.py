@@ -19,13 +19,6 @@ from kalshi.models.markets import (
     OrderbookLevel,
     PriceDistribution,
 )
-from kalshi.models.orders import (
-    AmendOrderResponse,
-    CreateOrderRequest,
-    Fill,
-    Order,
-    OrderQueuePosition,
-)
 from kalshi.models.multivariate import (
     AssociatedEvent,
     CreateMarketResponse,
@@ -33,6 +26,13 @@ from kalshi.models.multivariate import (
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
+)
+from kalshi.models.orders import (
+    AmendOrderResponse,
+    CreateOrderRequest,
+    Fill,
+    Order,
+    OrderQueuePosition,
 )
 from kalshi.models.portfolio import (
     Balance,
