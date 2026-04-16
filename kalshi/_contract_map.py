@@ -102,6 +102,23 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetEventMetadataResponse",
         notes="Spec wraps in GetEventMetadataResponse, not standalone",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.series.Series",
+        spec_schema="Series",
+        notes="volume uses DollarDecimal with _fp alias",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.series.SeriesFeeChange",
+        spec_schema="SeriesFeeChange",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.MultivariateEventCollection",
+        spec_schema="MultivariateEventCollection",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.TickerPair",
+        spec_schema="TickerPair",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

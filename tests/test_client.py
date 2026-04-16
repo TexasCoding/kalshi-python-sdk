@@ -247,6 +247,8 @@ class TestKalshiClientConstructor:
         client = KalshiClient(auth=test_auth)
         assert hasattr(client, "markets")
         assert hasattr(client, "orders")
+        assert hasattr(client, "series")
+        assert hasattr(client, "multivariate_collections")
         client.close()
 
 
@@ -424,6 +426,38 @@ class TestUnauthenticatedResourceGuards:
         with pytest.raises(AuthRequiredError):
             resource.balance()
 
+    def test_series_forecast_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+        )
+        client = KalshiClient(config=config, demo=True)
+        with pytest.raises(AuthRequiredError):
+            client.series.forecast_percentile_history(
+                "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
+            )
+        client.close()
+
+    def test_multivariate_create_market_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+        )
+        client = KalshiClient(config=config, demo=True)
+        with pytest.raises(AuthRequiredError):
+            client.multivariate_collections.create_market("MVC-1", selected_markets=[])
+        client.close()
+
+    def test_multivariate_lookup_tickers_raises_auth_required(self) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+        )
+        client = KalshiClient(config=config, demo=True)
+        with pytest.raises(AuthRequiredError):
+            client.multivariate_collections.lookup_tickers("MVC-1", selected_markets=[])
+        client.close()
+
     @respx.mock
     def test_markets_list_does_not_raise_auth_required(self) -> None:
         """Public resources should NOT have auth guards."""
@@ -463,6 +497,8 @@ class TestKalshiClientUnauthenticated:
         assert hasattr(client, "events")
         assert hasattr(client, "historical")
         assert hasattr(client, "portfolio")
+        assert hasattr(client, "series")
+        assert hasattr(client, "multivariate_collections")
         client.close()
 
     @respx.mock
