@@ -77,6 +77,17 @@ class TestPortfolioBalance:
         with pytest.raises(KalshiAuthError):
             portfolio.balance()
 
+    @respx.mock
+    def test_balance_with_subaccount(self, portfolio: PortfolioResource) -> None:
+        """v0.7.0 ADD: subaccount kwarg reaches the wire."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
+            return_value=httpx.Response(
+                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+            )
+        )
+        portfolio.balance(subaccount=42)
+        assert route.calls[0].request.url.params["subaccount"] == "42"
+
 
 class TestPortfolioPositions:
     @respx.mock
@@ -157,6 +168,43 @@ class TestPortfolioPositions:
         assert route.calls[0].request.url.params["cursor"] == "abc"
         assert route.calls[0].request.url.params["limit"] == "10"
         assert resp.has_next is False  # empty cursor string
+
+    def test_settlement_status_kwarg_removed(self, portfolio: PortfolioResource) -> None:
+        """Regression: v0.7.0 dropped phantom settlement_status kwarg.
+
+        It is NOT a valid /portfolio/positions param per spec lines 1055-1090
+        (only /fcm/positions has it). NO direct replacement: count_filter is
+        a different filter (non-zero numeric fields, not settlement state).
+        Migration: filter client-side, OR use /fcm/positions if FCM member.
+        """
+        with pytest.raises(TypeError, match="settlement_status"):
+            portfolio.positions(settlement_status="unsettled")  # type: ignore[call-arg]
+
+    @respx.mock
+    def test_positions_with_all_new_filters(self, portfolio: PortfolioResource) -> None:
+        """v0.7.0 ADDs: count_filter, ticker, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/positions"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        portfolio.positions(
+            limit=50,
+            cursor="abc",
+            count_filter="position",
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["count_filter"] == "position"
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["subaccount"] == "7"
 
 
 class TestPortfolioSettlements:
@@ -277,6 +325,56 @@ class TestPortfolioSettlements:
         tickers = [s.ticker for s in portfolio.settlements_all()]
         assert tickers == ["A", "B"]
 
+    @respx.mock
+    def test_settlements_with_all_new_filters(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        """v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
+        ).mock(return_value=httpx.Response(200, json={"settlements": []}))
+        portfolio.settlements(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["subaccount"] == "7"
+
+    @respx.mock
+    def test_settlements_all_with_all_new_filters(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        """v0.7.0 ADDs on settlements_all match settlements (no cursor)."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"settlements": [], "cursor": ""}
+            )
+        )
+        list(
+            portfolio.settlements_all(
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                subaccount=7,
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["subaccount"] == "7"
+
 
 # ── Async tests ─────────────────────────────────────────────
 
@@ -296,6 +394,22 @@ class TestAsyncPortfolioBalance:
         balance = await async_portfolio.balance()
         assert balance.balance == 50000
         assert balance.portfolio_value == 75000
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_balance_with_subaccount(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        """v0.7.0 ADD: subaccount kwarg reaches the wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/balance"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+            )
+        )
+        await async_portfolio.balance(subaccount=42)
+        assert route.calls[0].request.url.params["subaccount"] == "42"
 
 
 class TestAsyncPortfolioPositions:
@@ -342,6 +456,43 @@ class TestAsyncPortfolioPositions:
         resp = await async_portfolio.positions()
         assert resp.market_positions == []
         assert resp.has_next is False
+
+    @pytest.mark.asyncio
+    async def test_settlement_status_kwarg_removed(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        """Regression: v0.7.0 dropped phantom settlement_status kwarg."""
+        with pytest.raises(TypeError, match="settlement_status"):
+            await async_portfolio.positions(settlement_status="unsettled")  # type: ignore[call-arg]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_positions_with_all_new_filters(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        """v0.7.0 ADDs: count_filter, ticker, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/positions"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        await async_portfolio.positions(
+            limit=50,
+            cursor="abc",
+            count_filter="position",
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["count_filter"] == "position"
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["subaccount"] == "7"
 
 
 class TestAsyncPortfolioSettlements:
@@ -424,3 +575,53 @@ class TestAsyncPortfolioSettlements:
         )
         tickers = [s.ticker async for s in async_portfolio.settlements_all()]
         assert tickers == ["A", "B"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_settlements_with_all_new_filters(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        """v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
+        ).mock(return_value=httpx.Response(200, json={"settlements": []}))
+        await async_portfolio.settlements(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["subaccount"] == "7"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_settlements_all_with_all_new_filters(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        """v0.7.0 ADDs on settlements_all match settlements (no cursor)."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"settlements": [], "cursor": ""}
+            )
+        )
+        _ = [s async for s in async_portfolio.settlements_all(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            subaccount=7,
+        )]
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["subaccount"] == "7"

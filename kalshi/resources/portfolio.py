@@ -12,9 +12,10 @@ from kalshi.resources._base import AsyncResource, SyncResource, _params
 class PortfolioResource(SyncResource):
     """Sync portfolio API."""
 
-    def balance(self) -> Balance:
+    def balance(self, *, subaccount: int | None = None) -> Balance:
         self._require_auth()
-        data = self._get("/portfolio/balance")
+        params = _params(subaccount=subaccount)
+        data = self._get("/portfolio/balance", params=params)
         return Balance.model_validate(data)
 
     def positions(
@@ -22,15 +23,19 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
-        settlement_status: str | None = None,
+        count_filter: str | None = None,
+        ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _params(
             limit=limit,
             cursor=cursor,
-            settlement_status=settlement_status,
+            count_filter=count_filter,
+            ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         data = self._get("/portfolio/positions", params=params)
         return PositionsResponse.model_validate(data)
@@ -41,9 +46,21 @@ class PortfolioResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        event_ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        subaccount: int | None = None,
     ) -> Page[Settlement]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            subaccount=subaccount,
+        )
         return self._list("/portfolio/settlements", Settlement, "settlements", params=params)
 
     def settlements_all(
@@ -51,18 +68,30 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        event_ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        subaccount: int | None = None,
     ) -> Iterator[Settlement]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(
+            limit=limit,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            subaccount=subaccount,
+        )
         return self._list_all("/portfolio/settlements", Settlement, "settlements", params=params)
 
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
 
-    async def balance(self) -> Balance:
+    async def balance(self, *, subaccount: int | None = None) -> Balance:
         self._require_auth()
-        data = await self._get("/portfolio/balance")
+        params = _params(subaccount=subaccount)
+        data = await self._get("/portfolio/balance", params=params)
         return Balance.model_validate(data)
 
     async def positions(
@@ -70,15 +99,19 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
-        settlement_status: str | None = None,
+        count_filter: str | None = None,
+        ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _params(
             limit=limit,
             cursor=cursor,
-            settlement_status=settlement_status,
+            count_filter=count_filter,
+            ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         data = await self._get("/portfolio/positions", params=params)
         return PositionsResponse.model_validate(data)
@@ -89,9 +122,21 @@ class AsyncPortfolioResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        event_ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        subaccount: int | None = None,
     ) -> Page[Settlement]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            subaccount=subaccount,
+        )
         return await self._list(
             "/portfolio/settlements", Settlement, "settlements", params=params
         )
@@ -101,9 +146,20 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        event_ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        subaccount: int | None = None,
     ) -> AsyncIterator[Settlement]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(
+            limit=limit,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            subaccount=subaccount,
+        )
         return self._list_all(
             "/portfolio/settlements", Settlement, "settlements", params=params
         )
