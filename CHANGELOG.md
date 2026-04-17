@@ -2,6 +2,64 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.7.0] - 2026-04-16
+
+**Major release.** Resource method query/path parameter surface aligned to OpenAPI spec v3.13.0. 5 BREAKING changes (2 phantom kwargs removed, 3 renamed) and 32 new query params added across 6 resources.
+
+### Added (32 new kwargs)
+
+#### markets
+- `MarketsResource.list` / `list_all`: `tickers` (`list[str] | str`, comma-joined per `TickersQuery` spec), `mve_filter`, `min_created_ts`, `max_created_ts`, `min_updated_ts`, `min_close_ts`, `max_close_ts`, `min_settled_ts`, `max_settled_ts`
+- `MarketsResource.orderbook`: `depth`
+- `MarketsResource.candlesticks`: `include_latest_before_start` (bool, "true or omit" rule)
+
+#### historical
+- `HistoricalResource.markets` / `markets_all`: `mve_filter`
+- `HistoricalResource.fills` / `fills_all`: `max_ts`
+- `HistoricalResource.orders` / `orders_all`: `max_ts`
+- `HistoricalResource.trades` / `trades_all`: `min_ts`, `max_ts`
+
+#### orders
+- `OrdersResource.cancel`: `subaccount`
+- `OrdersResource.list` / `list_all`: `event_ticker`, `min_ts`, `max_ts`, `subaccount`
+- `OrdersResource.fills` / `fills_all`: `min_ts`, `max_ts`, `subaccount`
+
+#### portfolio
+- `PortfolioResource.balance`: `subaccount`
+- `PortfolioResource.positions`: `count_filter` (filters by which numeric fields are non-zero — NOT a `settlement_status` replacement), `ticker`, `subaccount`
+- `PortfolioResource.settlements` / `settlements_all`: `event_ticker`, `min_ts`, `max_ts`, `subaccount`
+
+### Changed
+
+- `OrdersResource.list` / `list_all` (sync + async) standardized to use `_params()` helper. **Behavior change:** empty-string `ticker=""` and `status=""` now reach the wire (previously dropped silently by truthiness check). Same for `list_all`.
+- `_join_tickers()` helper lifted from `markets.py` to `_base.py` for cross-resource reuse.
+- `_delete()` (sync + async) extended to accept optional `params=` kwarg (needed for `OrdersResource.cancel(subaccount=...)`). Backward compatible: defaults to `None`.
+
+### BREAKING
+
+#### REMOVE — phantom kwargs (not in spec)
+
+- `MarketsResource.list` / `list_all`: `market_type` removed. Migration: drop the kwarg from caller code.
+- `PortfolioResource.positions`: `settlement_status` removed. **NO direct replacement.** The kwarg was not a valid `/portfolio/positions` query param per spec lines 1055-1090 (only `/fcm/positions` accepts it). The spec param `count_filter` is unrelated semantically (filters by non-zero numeric fields, not by settlement state — verified spec lines 2206-2221). Migration: filter by settlement state client-side, OR use `/fcm/positions` if you are an FCM member.
+
+#### RENAME — kwarg renamed to match spec
+
+- `HistoricalResource.markets` / `markets_all`: `ticker` → `tickers`. Spec uses `TickersQuery` ($ref'd, type:string, comma-separated). Migration: `historical.markets(ticker="X")` → `historical.markets(tickers="X")` OR `historical.markets(tickers=["X", "Y"])`.
+
+#### RENAME — positional arg renamed to match spec path template
+
+- `SeriesResource.event_candlesticks(series_ticker, event_ticker, ...)` → `event_candlesticks(series_ticker, ticker, ...)`. Spec path: `/series/{series_ticker}/events/{ticker}/candlesticks` (verified `specs/openapi.yaml:1486`). Migration: positional callers (`X, Y, ...`) work unchanged. Kwarg callers (`event_ticker=...`) must switch to `ticker=...`.
+- `SeriesResource.forecast_percentile_history(series_ticker, event_ticker, ...)` → `forecast_percentile_history(series_ticker, ticker, ...)`. Same migration as above.
+
+### Tests
+
+- 60+ new unit tests across `tests/test_orders.py`, `tests/test_async_orders.py`, `tests/test_markets.py`, `tests/test_async_markets.py`, `tests/test_historical.py`, `tests/test_portfolio.py`, `tests/test_series.py`.
+- 5 BREAKING regression tests assert `TypeError` on the removed/renamed kwargs.
+- 4 dedicated `tickers` comma-join serialization tests (markets + historical, sync + async).
+- 2 dedicated `percentiles` `explode:true` serialization tests verify wire format `?percentiles=25&percentiles=50` (NOT comma-joined per spec line 1832).
+- 4 regression tests for the `_params()` standardization on `orders.list` (empty-string `ticker` and `status` for both sync and async).
+- 2 dedicated `markets.candlesticks(include_latest_before_start=True)` "true or omit" bool serialization tests.
+
 ## [0.6.1] - 2026-04-16
 
 ### Added

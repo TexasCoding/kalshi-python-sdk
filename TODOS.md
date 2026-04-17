@@ -35,14 +35,30 @@
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
-## P3: Normalize resource methods against OpenAPI spec surface (v0.7.0 major)
-**What:** Audit every public resource method (markets, events, exchange, historical, orders, portfolio, series, multivariate) against `specs/openapi.yaml` for FOUR drift categories: (1) missing — spec has param, SDK doesn't (ADD); (2) extras — SDK has phantom param not in spec (REMOVE, breaking); (3) translations — SDK uses wrong name (RENAME, breaking); (4) serialization — SDK comma-joins where spec says `explode: true` or vice versa (RESERIALIZE). Verified concrete examples: `MarketsResource.list()` exposes phantom `market_type` (tested at `test_markets.py:63`); `HistoricalResource.markets()` uses singular `ticker` but spec expects plural `tickers`; `SeriesResource.forecast_percentile_history().percentiles` needs `explode: true` per `openapi.yaml:1832`.
-**Why:** Missing-only audit (prior framing) misses ~50% of drift and blesses the wrong API surface. Codex plan review (2026-04-16) verified examples in-repo. Design: `~/.gstack/projects/kalshi-python-sdk/jeffreywest-main-design-20260416-175449.md`.
-**Pros:** SDK request surface matches Kalshi API. No phantom kwargs. `explode: true` list params work correctly. Piece 2 (follow-up) can then detect regression via automated contract test.
-**Cons:** Major-version bump (v0.7.0). Breaking changes for RENAME and REMOVE dispositions; migration guide required in CHANGELOG.
-**Plan:** Session 1a produces `tests/_contract_support.py` + `docs/AUDIT-resource-params.md` (infra PR, no behavior change). Session 1b applies dispositions per-resource. Split threshold: >40 rows OR >800 net LOC triggers v0.7.0 + v0.7.1 split.
-**Depends on:** v0.6.0 series/multivariate shipped (done).
-**Added:** 2026-04-16 via /plan-eng-review (Codex outside voice identified the gap); revised 2026-04-16 (expanded scope after second Codex review).
+## P3: Piece 2 — automated contract test for request-param drift (v0.8.0+)
+**What:** Build a new `TestRequestParamDrift` class that, for each `MethodEndpointEntry`, pulls endpoint spec via `_resolve_path_params`, inspects the mapped SDK method via `inspect.signature`, diffs param sets, and fails the test if SDK is missing a non-excluded param or has an unexpected extra. Allowlist format for intentional exclusions to be designed.
+**Why:** Without this, AUDIT.md becomes a snapshot that drifts. Manual re-audits are expensive. Pipeline catches all four drift categories (ADD, REMOVE, RENAME, RESERIALIZE) automatically going forward.
+**Fixtures already shipped:** `MethodEndpointEntry`, `METHOD_ENDPOINT_MAP` (54 entries), `_resolve_path_params()` in `tests/_contract_support.py`. AUDIT.md exclusion table becomes the allowlist source.
+**Pros:** Locks in v0.7.0 normalization. Future spec drift surfaces as test failures in CI.
+**Cons:** Needs allowlist design (YAML? Python decorator? in-code dict?). Edge cases: naming normalization, paginator-handled excludes.
+**Depends on:** v0.7.0 normalization shipped (done).
+**Added:** 2026-04-16 (deferred follow-up after v0.7.0).
+
+## P3: Audit inline body dicts (orders.amend/decrease/create, multivariate.create_market/lookup_tickers)
+**What:** Body schemas (POST/PUT request payloads built as inline dicts) are NOT covered by Session 1a/1b's request-param audit. The relevant call sites: `orders.create` (body keys: `ticker`, `side`, `type`, `action`, `count`, `yes_price_dollars`, `no_price_dollars`, `client_order_id`, `expiration_ts`), `orders.amend`, `orders.decrease`, `orders.batch_create`, `multivariate.create_market`, `multivariate.lookup_tickers`. Audit each against `components.schemas` in `openapi.yaml`.
+**Why:** Body field drift would cause silent API rejections or data loss. Different drift class than query/path params (hardcoded dict keys vs spec schemas).
+**Pros:** Closes the body-side spec drift gap.
+**Cons:** Body schemas have nested objects; harder than flat query param diff. Some kwargs use Pydantic `_dollars`/`_fp` translation that needs preservation.
+**Depends on:** v0.7.0 query param normalization shipped (done).
+**Added:** 2026-04-16 (deferred follow-up after v0.7.0).
+
+## P3: Reduce sync/async duplication tax (v0.8+)
+**What:** Every resource file has near-identical sync and async classes (~95% duplication of method bodies). Each new kwarg must be added in two places; mismatch is a real risk. Possible approaches: (a) shared params-builder helpers, (b) sync-wrapping-async architecture, (c) code-gen from a single source. Out of scope for v0.7.0 because the audit alone added ~32 kwargs × 2 = ~64 method signatures touched.
+**Why:** Maintenance tax keeps growing as the SDK adds resources. v0.7.0 doubled the kwarg surface; future additions get more painful.
+**Pros:** Single source of truth. Half the maintenance.
+**Cons:** Potentially big architectural change. Risk of breaking the `async for` ergonomics that `list_all` enables.
+**Depends on:** v0.7.0 shipped (done).
+**Added:** 2026-04-16 via /plan-eng-review round 2 (flagged but not bundled).
 
 ## P3: Verify public resource endpoint auth requirements
 **What:** Check the OpenAPI spec for which GET endpoints in public resources (MarketsResource, EventsResource, ExchangeResource, HistoricalResource) actually require auth headers. If any public resource method routes to an auth-requiring endpoint, add a per-method `_require_auth()` guard to that specific method.
@@ -51,6 +67,9 @@
 **Added:** 2026-04-14 via /plan-eng-review (Codex outside voice identified the gap)
 
 ## Completed
+
+### ~~Normalize resource methods against OpenAPI spec surface (v0.7.0 major)~~
+**Completed:** v0.7.0 (2026-04-16). Resource method query/path parameter surface aligned to spec across markets, historical, orders, portfolio, series. 5 BREAKING (2 phantom REMOVE: `markets.list.market_type`, `portfolio.positions.settlement_status`; 3 RENAME: `historical.markets.ticker`→`tickers`, series positional `event_ticker`→`ticker` on `event_candlesticks` + `forecast_percentile_history`). 32 ADD across the 5 resources (subaccount, *_ts ranges, mve_filter, count_filter, depth, include_latest_before_start, etc). Plus `_params()` standardization on `orders.list`/`list_all` (fixes pre-existing empty-string truthiness drop on `ticker` AND `status`), `_join_tickers` helper lifted to `_base.py`, `_delete()` extended to accept `params=`. 60+ new unit tests including 5 BREAKING regression tests, 4 dedicated tickers comma-join tests, 2 dedicated percentiles explode:true tests, 2 dedicated bool "true or omit" tests, 4 _params standardization regression tests. Migration guide in CHANGELOG. AUDIT.md `settlement_status` migration text corrected during /plan-eng-review round 2 (count_filter is NOT a semantic replacement — verified spec lines 2206-2221).
 
 ### ~~Extend spec drift pipeline to cover WebSocket models~~
 **Completed:** 2026-04-15. Added AliasChoices to all 15 WS payload models matching AsyncAPI spec field naming (e.g., `yes_bid_dollars` -> `yes_bid`). Added `WS_CONTRACT_MAP` with 15 entries reusing existing `ContractEntry` dataclass. Added `TestWsSpecDrift` class with additive drift, required drift, schema coverage, completeness, and envelope type drift tests. Added `extra="allow"` to OrderbookSnapshotPayload and OrderbookDeltaPayload. Pipeline catches additive drift for TickerPayload (missing `price_dollars`, `time`) and several other models. Envelope type test detects 3 mismatches: `user_order` vs `user_orders`, `market_position` vs `market_positions`, `multivariate_lookup` vs `multivariate`.
