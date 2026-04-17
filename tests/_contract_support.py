@@ -332,7 +332,12 @@ def _resolve_ref(
     max_depth: int = 8,
 ) -> dict[str, Any]:
     """Resolve a ``$ref`` pointer. Caps recursion depth to avoid silent infinite
-    loops if the spec ever introduces a circular reference."""
+    loops if the spec ever introduces a circular reference.
+
+    Condition is ``depth > max_depth``, so with the default ``max_depth=8``
+    the function permits up to 9 total calls (depths 0-8 inclusive) before
+    raising on the 10th.
+    """
     if depth > max_depth:
         raise RuntimeError(
             f"_resolve_ref exceeded max_depth={max_depth} resolving {ref!r}; "

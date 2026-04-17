@@ -214,7 +214,9 @@ class TestMethodEndpointMap:
         for entry in METHOD_ENDPOINT_MAP:
             assert "Async" not in entry.sdk_method, (
                 f"Entry {entry.sdk_method!r} looks async; map is sync-only. "
-                "See tests/_contract_support.py module docstring."
+                "Async siblings are derived via Async<ClassName> substitution "
+                "at test time — see the METHOD_ENDPOINT_MAP block comment in "
+                "tests/_contract_support.py."
             )
 
     def test_http_method_is_valid(self) -> None:
@@ -265,6 +267,8 @@ class TestMethodEndpointMap:
 
         # Floor check: if enumeration misses everything (e.g., path resolution
         # breaks), the test shouldn't tautologically pass.
+        # Floor is 8 resource files as of v0.6.1; raise it when adding a new
+        # resource module so this guard keeps detecting silent discovery loss.
         assert len(resource_modules) >= 8, (
             f"Expected >=8 resource modules in kalshi/resources/, found "
             f"{len(resource_modules)}: {resource_modules}"
@@ -304,6 +308,8 @@ class TestMethodEndpointMap:
         # Guard against tautological pass: if discovery silently returns zero
         # methods (e.g., a refactor removes the Resource suffix), the test
         # would incorrectly pass with an empty missing list. Require a floor.
+        # Floor is ~53 public methods as of v0.6.1; raise it as the surface
+        # grows so accidental discovery regressions still fail.
         assert len(discovered) >= 50, (
             f"Expected >=50 public methods across {len(resource_modules)} "
             f"resources; discovered only {len(discovered)}. "
@@ -328,7 +334,7 @@ class TestMethodEndpointMap:
             "Commit the spec or restore it; this test must always run."
         )
 
-        with open(spec_path) as f:
+        with open(spec_path, encoding="utf-8") as f:
             spec = yaml.safe_load(f)
 
         unresolved: list[str] = []
