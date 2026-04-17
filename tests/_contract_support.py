@@ -344,7 +344,9 @@ def _resolve_ref(
         )
     # JSON Pointer escape decoding: ~1 → /, ~0 → ~ (RFC 6901 §4).
     # Order matters: decode ~1 first, then ~0.
-    parts = [p.replace("~1", "/").replace("~0", "~") for p in ref.lstrip("#/").split("/")]
+    # Use [2:] not lstrip("#/"): lstrip treats arg as a char set, so "#///foo"
+    # would strip to "foo" instead of "//foo". Prefix already validated above.
+    parts = [p.replace("~1", "/").replace("~0", "~") for p in ref[2:].split("/")]
     node: Any = spec
     for part in parts:
         node = node[part]

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
+import inspect
+from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from tests._contract_support import (
     METHOD_ENDPOINT_MAP,
@@ -214,6 +218,9 @@ class TestMethodEndpointMap:
             )
 
     def test_http_method_is_valid(self) -> None:
+        # PATCH intentionally excluded: Kalshi's OpenAPI spec (v3.13.0) has
+        # no PATCH endpoints. If a future spec version adds PATCH, add it
+        # here alongside a MAP entry.
         valid = {"GET", "POST", "DELETE", "PUT"}
         for entry in METHOD_ENDPOINT_MAP:
             assert entry.http_method in valid, (
@@ -240,10 +247,6 @@ class TestMethodEndpointMap:
         Dynamic enumeration guards against 'added a 9th resource file and
         forgot to update the hardcoded list' drift.
         """
-        import importlib
-        import inspect
-        from pathlib import Path
-
         resources_dir = (
             Path(__file__).parent.parent / "kalshi" / "resources"
         )
@@ -316,13 +319,14 @@ class TestMethodEndpointMap:
         """Reverse completeness: every path_template in METHOD_ENDPOINT_MAP
         must exist in specs/openapi.yaml. Catches typos before Session 1b
         applies dispositions against the wrong paths."""
-        from pathlib import Path
-
-        import yaml
-
         spec_path = Path(__file__).parent.parent / "specs" / "openapi.yaml"
-        if not spec_path.exists():
-            pytest.skip("specs/openapi.yaml not found")
+        # Fail loud, not skip: the spec IS committed to this repo. Silent skip
+        # would turn this reverse-completeness test into a no-op in any CI or
+        # clone that loses the spec — exactly when we need it to catch drift.
+        assert spec_path.exists(), (
+            f"specs/openapi.yaml missing at {spec_path}. "
+            "Commit the spec or restore it; this test must always run."
+        )
 
         with open(spec_path) as f:
             spec = yaml.safe_load(f)

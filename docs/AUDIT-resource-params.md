@@ -26,8 +26,8 @@ scope** for this audit; covered by the separate inline-body-dict TODO.
 
 ## Summary
 
-- **38 actionable rows** across 6 resources (events, exchange, multivariate have no findings).
-- **3 REMOVE** (breaking): phantom kwargs `market_type` on markets.list, `settlement_status` on portfolio.positions.
+- **37 actionable rows** across 6 resources (events, exchange, multivariate have no findings).
+- **2 REMOVE** (breaking): phantom kwargs `market_type` on markets.list, `settlement_status` on portfolio.positions.
 - **2 RENAME** (breaking): path arg `event_ticker` → `ticker` on series.event_candlesticks and forecast_percentile_history.
 - **1 QUERY RENAME** (breaking): historical.markets `ticker` → `tickers`.
 - **32 ADD** (non-breaking).
