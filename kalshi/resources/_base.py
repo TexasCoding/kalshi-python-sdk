@@ -49,8 +49,10 @@ class SyncResource:
         result: dict[str, Any] = response.json()
         return result
 
-    def _delete(self, path: str) -> dict[str, Any] | None:
-        response = self._transport.request("DELETE", path)
+    def _delete(
+        self, path: str, *, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        response = self._transport.request("DELETE", path, params=params)
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()
@@ -123,8 +125,10 @@ class AsyncResource:
         result: dict[str, Any] = response.json()
         return result
 
-    async def _delete(self, path: str) -> dict[str, Any] | None:
-        response = await self._transport.request("DELETE", path)
+    async def _delete(
+        self, path: str, *, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        response = await self._transport.request("DELETE", path, params=params)
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()
