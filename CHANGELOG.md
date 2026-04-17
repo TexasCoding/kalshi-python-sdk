@@ -2,6 +2,16 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.6.1] - 2026-04-16
+
+### Added
+- Internal test infrastructure for upcoming v0.7.0 resource/spec alignment work: `tests/_contract_support.py` introduces `MethodEndpointEntry`, `METHOD_ENDPOINT_MAP` (53 sync methods across 8 resources), `_resolve_ref` with recursion cap, and `_resolve_path_params` helper that walks path-level and operation-level OpenAPI parameters with `$ref` and JSON Pointer escape (`~0`/`~1`) resolution.
+- `docs/AUDIT-resource-params.md` cataloging 37 actionable rows of SDK↔spec drift: 2 phantom kwargs flagged for removal (`market_type` on `markets.list`, `settlement_status` on `portfolio.positions`), 3 breaking renames (`historical.markets.ticker` → `tickers`, series path `event_ticker` → `ticker` on 2 methods), and 32 missing params to add (subaccount, timestamp filters, `depth`, `mve_filter`, `count_filter`, etc.).
+- 25 unit tests covering the new contract helpers, including reverse-completeness (every mapped path must resolve in `specs/openapi.yaml`) and tautological-pass guards.
+
+### Changed
+- No user-facing behavior changes. This is an infrastructure release preparing for v0.7.0.
+
 ## [0.5.0] - 2026-04-15
 
 ### Added
