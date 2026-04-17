@@ -16,7 +16,7 @@ from kalshi.models.orders import (
     Order,
     OrderQueuePosition,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
 from kalshi.types import to_decimal
 
 
@@ -247,12 +247,8 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        if isinstance(market_tickers, list):
-            tickers_str: str | None = ",".join(market_tickers)
-        else:
-            tickers_str = market_tickers
         params = _params(
-            market_tickers=tickers_str,
+            market_tickers=_join_tickers(market_tickers),
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
@@ -500,12 +496,8 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        if isinstance(market_tickers, list):
-            tickers_str: str | None = ",".join(market_tickers)
-        else:
-            tickers_str = market_tickers
         params = _params(
-            market_tickers=tickers_str,
+            market_tickers=_join_tickers(market_tickers),
             event_ticker=event_ticker,
             subaccount=subaccount,
         )

@@ -31,8 +31,8 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ### Changed
 
-- `OrdersResource.list` / `list_all` (sync + async) standardized to use `_params()` helper. **Behavior change:** empty-string `ticker=""` and `status=""` now reach the wire (previously dropped silently by truthiness check). Same for `list_all`.
-- `_join_tickers()` helper lifted from `markets.py` to `_base.py` for cross-resource reuse.
+- `OrdersResource.list` / `list_all` (sync + async) standardized to use `_params()` helper. **Behavior change:** empty-string values for `ticker=""`, `status=""`, AND `cursor=""` now reach the wire (previously dropped silently by truthiness check). If your code constructs the cursor via expressions like `page.cursor or ""`, you may now get a 400 from Kalshi where the previous version silently swallowed it; pass `cursor=None` (or omit) to drop the param.
+- `_join_tickers()` helper lifted from `markets.py` to `_base.py` for cross-resource reuse. Now accepts list, tuple, or pre-joined string. Empty list/tuple/string returns `None` so `_params()` drops the key entirely (sending `?tickers=` has undefined server semantics). `OrdersResource.queue_positions` (sync + async) refactored to use the shared helper instead of duplicating the join logic inline.
 - `_delete()` (sync + async) extended to accept optional `params=` kwarg (needed for `OrdersResource.cancel(subaccount=...)`). Backward compatible: defaults to `None`.
 
 ### BREAKING

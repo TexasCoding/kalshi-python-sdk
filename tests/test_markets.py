@@ -133,6 +133,42 @@ class TestMarketsList:
         assert params["tickers"] == "A,B,C"
 
     @respx.mock
+    def test_tickers_empty_list_drops_param(self, markets: MarketsResource) -> None:
+        """Regression: tickers=[] must drop the param (sending ?tickers= is undefined)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers=[])
+        params = dict(route.calls[0].request.url.params)
+        assert "tickers" not in params
+
+    @respx.mock
+    def test_tickers_empty_string_drops_param(self, markets: MarketsResource) -> None:
+        """Regression: tickers='' must drop the param."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers="")
+        params = dict(route.calls[0].request.url.params)
+        assert "tickers" not in params
+
+    @respx.mock
+    def test_tickers_tuple_input_joins_correctly(self, markets: MarketsResource) -> None:
+        """Tuples (a natural Python sequence type) must be joined the same as lists.
+
+        Regression: pre-fix, isinstance(value, list) check let tuples bypass the
+        join, getting passed to httpx as a tuple and serialized explode-style
+        (?tickers=A&tickers=B), which is the wrong wire format.
+        """
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers=("A", "B"))  # type: ignore[arg-type]
+        url = str(route.calls[0].request.url)
+        assert url.count("tickers=") == 1
+        assert "tickers=A%2CB" in url or "tickers=A,B" in url
+
+    @respx.mock
     def test_empty_result(self, markets: MarketsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(200, json={"markets": []})
