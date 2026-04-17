@@ -19,6 +19,22 @@ def _params(**kwargs: Any) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
+def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
+    """Serialize the `tickers` query param.
+
+    Spec (``TickersQuery``) says ``type: string``, comma-separated — NOT
+    ``style: form, explode: true``. Accept a list, tuple, or pre-joined
+    string. ``None``, empty list, empty tuple, and empty string all return
+    ``None`` so ``_params()`` drops the key entirely (sending ``?tickers=``
+    has undefined server semantics).
+    """
+    if not value:
+        return None
+    if isinstance(value, (list, tuple)):
+        return ",".join(value)
+    return value
+
+
 class SyncResource:
     """Base class for sync resource modules."""
 
@@ -49,8 +65,10 @@ class SyncResource:
         result: dict[str, Any] = response.json()
         return result
 
-    def _delete(self, path: str) -> dict[str, Any] | None:
-        response = self._transport.request("DELETE", path)
+    def _delete(
+        self, path: str, *, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        response = self._transport.request("DELETE", path, params=params)
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()
@@ -123,8 +141,10 @@ class AsyncResource:
         result: dict[str, Any] = response.json()
         return result
 
-    async def _delete(self, path: str) -> dict[str, Any] | None:
-        response = await self._transport.request("DELETE", path)
+    async def _delete(
+        self, path: str, *, params: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        response = await self._transport.request("DELETE", path, params=params)
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()

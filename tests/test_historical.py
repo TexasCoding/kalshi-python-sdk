@@ -108,6 +108,65 @@ class TestHistoricalMarkets:
         page = historical.markets()
         assert len(page) == 0
 
+    def test_ticker_kwarg_removed(self, historical: HistoricalResource) -> None:
+        """Regression: v0.7.0 renamed `ticker` -> `tickers` (BREAKING).
+
+        Spec uses plural `tickers` (TickersQuery, comma-separated string).
+        Migration: historical.markets(ticker="X") -> historical.markets(tickers="X")
+        OR historical.markets(tickers=["X", "Y"]).
+        """
+        with pytest.raises(TypeError, match="ticker"):
+            historical.markets(ticker="X")  # type: ignore[call-arg]
+
+    @respx.mock
+    def test_markets_with_all_new_filters(
+        self, historical: HistoricalResource
+    ) -> None:
+        """v0.7.0: tickers RENAME (list form) + mve_filter ADD."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": ""})
+        )
+        historical.markets(
+            limit=50,
+            cursor="abc",
+            tickers=["MKT-A", "MKT-B"],
+            event_ticker="EVT-X",
+            series_ticker="SER-Y",
+            mve_filter="filter-z",
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["series_ticker"] == "SER-Y"
+        assert params["mve_filter"] == "filter-z"
+
+    @respx.mock
+    def test_tickers_serialized_as_comma_join_list(
+        self, historical: HistoricalResource
+    ) -> None:
+        """Spec says tickers is type:string (comma-separated), NOT explode:true."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        historical.markets(tickers=["A", "B", "C"])
+        url = str(route.calls[0].request.url)
+        assert "tickers=A%2CB%2CC" in url or "tickers=A,B,C" in url
+        assert url.count("tickers=") == 1
+
+    @respx.mock
+    def test_tickers_serialized_as_comma_join_string(
+        self, historical: HistoricalResource
+    ) -> None:
+        """Pre-joined string passes through unchanged."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        historical.markets(tickers="A,B,C")
+        params = dict(route.calls[0].request.url.params)
+        assert params["tickers"] == "A,B,C"
+
 
 class TestHistoricalMarket:
     @respx.mock
@@ -232,6 +291,17 @@ class TestHistoricalFills:
         ids = [f.trade_id for f in historical.fills_all()]
         assert ids == ["a", "b"]
 
+    @respx.mock
+    def test_fills_with_max_ts(self, historical: HistoricalResource) -> None:
+        """v0.7.0 ADD: max_ts kwarg reaches the wire."""
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        historical.fills(ticker="MKT-A", max_ts=1700099999)
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["max_ts"] == "1700099999"
+
 
 class TestHistoricalOrders:
     @respx.mock
@@ -261,6 +331,17 @@ class TestHistoricalOrders:
         )
         ids = [o.order_id for o in historical.orders_all()]
         assert ids == ["a", "b"]
+
+    @respx.mock
+    def test_orders_with_max_ts(self, historical: HistoricalResource) -> None:
+        """v0.7.0 ADD: max_ts kwarg reaches the wire."""
+        route = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        historical.orders(ticker="MKT-A", max_ts=1700099999)
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["max_ts"] == "1700099999"
 
 
 class TestHistoricalTrades:
@@ -332,6 +413,20 @@ class TestHistoricalTrades:
         ids = [t.trade_id for t in historical.trades_all()]
         assert ids == ["a", "b"]
 
+    @respx.mock
+    def test_trades_with_min_max_ts(self, historical: HistoricalResource) -> None:
+        """v0.7.0 ADDs: min_ts AND max_ts kwargs reach the wire."""
+        route = respx.get(f"{BASE}/historical/trades").mock(
+            return_value=httpx.Response(200, json={"trades": []})
+        )
+        historical.trades(
+            ticker="MKT-A", min_ts=1700000000, max_ts=1700099999
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+
 
 # ── Async tests ─────────────────────────────────────────────
 
@@ -382,6 +477,66 @@ class TestAsyncHistoricalMarkets:
         )
         tickers = [m.ticker async for m in async_historical.markets_all()]
         assert tickers == ["A", "B"]
+
+    @pytest.mark.asyncio
+    async def test_ticker_kwarg_removed(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """Regression: v0.7.0 renamed `ticker` -> `tickers` (BREAKING)."""
+        with pytest.raises(TypeError, match="ticker"):
+            await async_historical.markets(ticker="X")  # type: ignore[call-arg]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_markets_with_all_new_filters(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """v0.7.0: tickers RENAME (list form) + mve_filter ADD."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": ""})
+        )
+        await async_historical.markets(
+            limit=50,
+            cursor="abc",
+            tickers=["MKT-A", "MKT-B"],
+            event_ticker="EVT-X",
+            series_ticker="SER-Y",
+            mve_filter="filter-z",
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["series_ticker"] == "SER-Y"
+        assert params["mve_filter"] == "filter-z"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_tickers_serialized_as_comma_join_list(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """Spec says tickers is type:string (comma-separated), NOT explode:true."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        await async_historical.markets(tickers=["A", "B", "C"])
+        url = str(route.calls[0].request.url)
+        assert "tickers=A%2CB%2CC" in url or "tickers=A,B,C" in url
+        assert url.count("tickers=") == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_tickers_serialized_as_comma_join_string(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """Pre-joined string passes through unchanged."""
+        route = respx.get(f"{BASE}/historical/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        await async_historical.markets(tickers="A,B,C")
+        params = dict(route.calls[0].request.url.params)
+        assert params["tickers"] == "A,B,C"
 
 
 class TestAsyncHistoricalTrades:
@@ -450,6 +605,23 @@ class TestAsyncHistoricalTrades:
         ids = [t.trade_id async for t in async_historical.trades_all()]
         assert ids == ["a", "b"]
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_trades_with_min_max_ts(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """v0.7.0 ADDs: min_ts AND max_ts kwargs reach the wire."""
+        route = respx.get(f"{BASE}/historical/trades").mock(
+            return_value=httpx.Response(200, json={"trades": []})
+        )
+        await async_historical.trades(
+            ticker="MKT-A", min_ts=1700000000, max_ts=1700099999
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+
 
 class TestAsyncHistoricalFills:
     @respx.mock
@@ -499,6 +671,20 @@ class TestAsyncHistoricalFills:
         )
         ids = [f.trade_id async for f in async_historical.fills_all()]
         assert ids == ["a", "b"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fills_with_max_ts(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """v0.7.0 ADD: max_ts kwarg reaches the wire."""
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        await async_historical.fills(ticker="MKT-A", max_ts=1700099999)
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["max_ts"] == "1700099999"
 
 
 class TestAsyncHistoricalMarket:
@@ -589,3 +775,17 @@ class TestAsyncHistoricalOrders:
         )
         ids = [o.order_id async for o in async_historical.orders_all()]
         assert ids == ["a", "b"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_orders_with_max_ts(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        """v0.7.0 ADD: max_ts kwarg reaches the wire."""
+        route = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        await async_historical.orders(ticker="MKT-A", max_ts=1700099999)
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["max_ts"] == "1700099999"

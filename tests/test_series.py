@@ -144,6 +144,40 @@ class TestSeriesEventCandlesticks:
         assert ec.market_tickers == ["MKT-A"]
         assert len(ec.market_candlesticks) == 1
 
+    @respx.mock
+    def test_event_candlesticks_kwarg_uses_ticker_name(
+        self, series_resource: SeriesResource
+    ) -> None:
+        """v0.7.0: positional arg renamed event_ticker -> ticker. Kwarg form
+        must use the new name."""
+        respx.get(f"{BASE}/series/SER/events/EVT/candlesticks").mock(
+            return_value=httpx.Response(
+                200,
+                json={"market_tickers": [], "market_candlesticks": [], "adjusted_end_ts": 0},
+            )
+        )
+        # New name works:
+        series_resource.event_candlesticks(
+            "SER", ticker="EVT", start_ts=100, end_ts=200, period_interval=60,
+        )
+
+    def test_event_candlesticks_event_ticker_kwarg_removed(
+        self, series_resource: SeriesResource
+    ) -> None:
+        """Regression: v0.7.0 renamed positional event_ticker -> ticker.
+
+        Migration: positional callers (X, Y, ...) work unchanged. Kwarg
+        callers (event_ticker=...) must switch to ticker=...
+        """
+        with pytest.raises(TypeError, match="event_ticker"):
+            series_resource.event_candlesticks(
+                "SER",
+                event_ticker="EVT",  # type: ignore[call-arg]
+                start_ts=100,
+                end_ts=200,
+                period_interval=60,
+            )
+
 
 class TestSeriesForecastPercentileHistory:
     @respx.mock
@@ -174,6 +208,51 @@ class TestSeriesForecastPercentileHistory:
             unauth_series.forecast_percentile_history(
                 "SER", "EVT", percentiles=[5000], start_ts=100, end_ts=200, period_interval=60,
             )
+
+    def test_event_ticker_kwarg_removed(self, series_resource: SeriesResource) -> None:
+        """Regression: v0.7.0 renamed positional event_ticker -> ticker."""
+        with pytest.raises(TypeError, match="event_ticker"):
+            series_resource.forecast_percentile_history(
+                "SER",
+                event_ticker="EVT",  # type: ignore[call-arg]
+                percentiles=[5000],
+                start_ts=100,
+                end_ts=200,
+                period_interval=60,
+            )
+
+    @respx.mock
+    def test_percentiles_serialized_as_explode_true(
+        self, series_resource: SeriesResource
+    ) -> None:
+        """Spec at openapi.yaml:1832 says style:form, explode:true.
+
+        Wire must be ?percentiles=25&percentiles=50 (NOT comma-joined).
+        Prevents future regression if someone "simplifies" to a comma-join.
+        """
+        route = respx.get(
+            f"{BASE}/series/SER/events/EVT/forecast_percentile_history"
+        ).mock(
+            return_value=httpx.Response(200, json={"forecast_history": []})
+        )
+        series_resource.forecast_percentile_history(
+            "SER",
+            "EVT",
+            percentiles=[25, 50, 75],
+            start_ts=100,
+            end_ts=200,
+            period_interval=60,
+        )
+        url = str(route.calls[0].request.url)
+        # explode:true means each value is its own param entry
+        assert url.count("percentiles=") == 3
+        # extract the values
+        values = sorted(
+            v
+            for k, v in route.calls[0].request.url.params.multi_items()
+            if k == "percentiles"
+        )
+        assert values == ["25", "50", "75"]
 
 
 class TestAsyncSeriesResource:
@@ -237,6 +316,61 @@ class TestAsyncSeriesResource:
             "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
         )
         assert result == []
+
+    @pytest.mark.asyncio
+    async def test_event_candlesticks_event_ticker_kwarg_removed(
+        self, async_series: AsyncSeriesResource
+    ) -> None:
+        """Regression: v0.7.0 renamed positional event_ticker -> ticker."""
+        with pytest.raises(TypeError, match="event_ticker"):
+            await async_series.event_candlesticks(
+                "SER",
+                event_ticker="EVT",  # type: ignore[call-arg]
+                start_ts=0,
+                end_ts=1,
+                period_interval=1,
+            )
+
+    @pytest.mark.asyncio
+    async def test_forecast_event_ticker_kwarg_removed(
+        self, async_series: AsyncSeriesResource
+    ) -> None:
+        """Regression: v0.7.0 renamed positional event_ticker -> ticker."""
+        with pytest.raises(TypeError, match="event_ticker"):
+            await async_series.forecast_percentile_history(
+                "SER",
+                event_ticker="EVT",  # type: ignore[call-arg]
+                percentiles=[5000],
+                start_ts=0,
+                end_ts=1,
+                period_interval=60,
+            )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_percentiles_serialized_as_explode_true(
+        self, async_series: AsyncSeriesResource
+    ) -> None:
+        """Spec at openapi.yaml:1832 says style:form, explode:true."""
+        route = respx.get(
+            f"{BASE}/series/SER/events/EVT/forecast_percentile_history"
+        ).mock(return_value=httpx.Response(200, json={"forecast_history": []}))
+        await async_series.forecast_percentile_history(
+            "SER",
+            "EVT",
+            percentiles=[25, 50, 75],
+            start_ts=100,
+            end_ts=200,
+            period_interval=60,
+        )
+        url = str(route.calls[0].request.url)
+        assert url.count("percentiles=") == 3
+        values = sorted(
+            v
+            for k, v in route.calls[0].request.url.params.multi_items()
+            if k == "percentiles"
+        )
+        assert values == ["25", "50", "75"]
 
     @pytest.mark.asyncio
     async def test_forecast_auth_guard(self, unauth_async_series: AsyncSeriesResource) -> None:

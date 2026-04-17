@@ -180,6 +180,18 @@ class TestAsyncOrdersCancel:
         ).mock(return_value=httpx.Response(200, json={}))
         await orders.cancel("ord-123")  # should not raise
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_cancel_with_subaccount(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456"
+        ).mock(return_value=httpx.Response(200, json={}))
+        await orders.cancel("ord-456", subaccount=42)
+        params = dict(route.calls[0].request.url.params)
+        assert params["subaccount"] == "42"
+
 
 class TestAsyncOrdersList:
     @respx.mock
@@ -223,6 +235,61 @@ class TestAsyncOrdersList:
         assert params["status"] == "resting"
         assert params["ticker"] == "MKT-A"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_list_with_all_new_filters(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Consolidated coverage for v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        await orders.list(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            status="resting",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["status"] == "resting"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_empty_string_ticker_passes_through(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Regression: empty-string ticker reaches the wire after _params() standardization."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        await orders.list(ticker="")
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == ""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_empty_string_status_passes_through(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Regression: same fix as ticker — empty string status now reaches wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        await orders.list(status="")
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == ""
+
 
 class TestAsyncOrdersListAll:
     @respx.mock
@@ -259,6 +326,38 @@ class TestAsyncOrdersListAll:
         ]
         assert order_ids == ["o1", "o2"]
         assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_list_all_with_all_new_filters(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """v0.7.0 ADDs on list_all: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"orders": [{"order_id": "ord-x", "ticker": "MKT-A"}], "cursor": ""},
+            )
+        )
+        _ = [o async for o in orders.list_all(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            status="resting",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            subaccount=7,
+        )]
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["status"] == "resting"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["subaccount"] == "7"
 
 
 class TestAsyncOrdersBatch:
@@ -351,6 +450,33 @@ class TestAsyncOrdersFills:
         assert params["ticker"] == "MKT-A"
         assert params["order_id"] == "ord-1"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fills_with_all_new_filters(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Consolidated coverage for v0.7.0 ADDs: min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
+        ).mock(return_value=httpx.Response(200, json={"fills": []}))
+        await orders.fills(
+            ticker="MKT-A",
+            order_id="ord-1",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
 
 class TestAsyncOrdersFillsAll:
     @respx.mock
@@ -376,6 +502,36 @@ class TestAsyncOrdersFillsAll:
         )
         ids = [f.trade_id async for f in orders.fills_all()]
         assert ids == ["a", "b"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fills_all_with_all_new_filters(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Consolidated coverage for v0.7.0 ADDs on fills_all: min_ts, max_ts, subaccount."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"fills": [{"trade_id": "x", "yes_price_dollars": "0.5"}], "cursor": ""},
+            )
+        )
+        _ = [f async for f in orders.fills_all(
+            ticker="MKT-A",
+            order_id="ord-1",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            subaccount=7,
+        )]
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["subaccount"] == "7"
 
 
 class TestAsyncOrdersAmend:

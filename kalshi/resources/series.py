@@ -65,7 +65,7 @@ class SeriesResource(SyncResource):
     def event_candlesticks(
         self,
         series_ticker: str,
-        event_ticker: str,
+        ticker: str,
         *,
         start_ts: int,
         end_ts: int,
@@ -77,7 +77,7 @@ class SeriesResource(SyncResource):
             period_interval=period_interval,
         )
         data = self._get(
-            f"/series/{series_ticker}/events/{event_ticker}/candlesticks",
+            f"/series/{series_ticker}/events/{ticker}/candlesticks",
             params=params,
         )
         return EventCandlesticks.model_validate(data)
@@ -85,7 +85,7 @@ class SeriesResource(SyncResource):
     def forecast_percentile_history(
         self,
         series_ticker: str,
-        event_ticker: str,
+        ticker: str,
         *,
         percentiles: builtins.list[int],
         start_ts: int,
@@ -100,7 +100,7 @@ class SeriesResource(SyncResource):
             period_interval=period_interval,
         )
         data = self._get(
-            f"/series/{series_ticker}/events/{event_ticker}/forecast_percentile_history",
+            f"/series/{series_ticker}/events/{ticker}/forecast_percentile_history",
             params=params,
         )
         raw = data.get("forecast_history", [])
@@ -159,7 +159,7 @@ class AsyncSeriesResource(AsyncResource):
     async def event_candlesticks(
         self,
         series_ticker: str,
-        event_ticker: str,
+        ticker: str,
         *,
         start_ts: int,
         end_ts: int,
@@ -171,7 +171,7 @@ class AsyncSeriesResource(AsyncResource):
             period_interval=period_interval,
         )
         data = await self._get(
-            f"/series/{series_ticker}/events/{event_ticker}/candlesticks",
+            f"/series/{series_ticker}/events/{ticker}/candlesticks",
             params=params,
         )
         return EventCandlesticks.model_validate(data)
@@ -179,7 +179,7 @@ class AsyncSeriesResource(AsyncResource):
     async def forecast_percentile_history(
         self,
         series_ticker: str,
-        event_ticker: str,
+        ticker: str,
         *,
         percentiles: builtins.list[int],
         start_ts: int,
@@ -194,7 +194,7 @@ class AsyncSeriesResource(AsyncResource):
             period_interval=period_interval,
         )
         data = await self._get(
-            f"/series/{series_ticker}/events/{event_ticker}/forecast_percentile_history",
+            f"/series/{series_ticker}/events/{ticker}/forecast_percentile_history",
             params=params,
         )
         raw = data.get("forecast_history", [])

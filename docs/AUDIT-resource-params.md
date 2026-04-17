@@ -199,8 +199,8 @@ All OK.
 
 | SDK Param | Spec Param | Spec Type | Style | Disposition | Notes |
 |-----------|------------|-----------|-------|-------------|-------|
-| `settlement_status` | — | — | — | **REMOVE** | Phantom. Spec has `count_filter` instead (different semantic). **BREAKING.** Migration note: users passing `settlement_status` must switch to `count_filter`. |
-| — | `count_filter` | string | query | **ADD** | Replaces phantom `settlement_status` semantically. |
+| `settlement_status` | — | — | — | **REMOVE** | Not a valid query param on `/portfolio/positions` per spec lines 1055-1090. **BREAKING.** Migration note: NO direct replacement. The spec param `count_filter` is unrelated (filters by which numeric fields are non-zero, not by settlement state — verified spec lines 2206-2221). To filter by settlement state, fetch all positions and filter client-side, OR use `/fcm/positions` if you are an FCM member. |
+| — | `count_filter` | string | query | **ADD** | New filter: restricts to positions with non-zero values in the specified fields (`position`, `total_traded`), comma-separated. NOT a `settlement_status` replacement — different semantic. |
 | — | `ticker` | string | query | **ADD** | |
 | — | `subaccount` | int | query | **ADD** | |
 | `limit` | `limit` | int | query | OK | |
@@ -259,8 +259,8 @@ out of scope for this audit (inline body dict TODO).
 ## Session 1b Checklist (derived from dispositions above)
 
 **Breaking changes (must be in CHANGELOG with migration):**
-- `markets.list` / `list_all` — drop `market_type` kwarg
-- `portfolio.positions` — drop `settlement_status` kwarg (users switch to `count_filter`)
+- `markets.list` / `list_all` — drop `market_type` kwarg (phantom; not in spec)
+- `portfolio.positions` — drop `settlement_status` kwarg (NOT a valid `/portfolio/positions` param; no direct replacement — `count_filter` is unrelated semantics; filter client-side or use `/fcm/positions`)
 - `historical.markets` / `markets_all` — rename `ticker` kwarg to `tickers`
 - `series.event_candlesticks` — rename `event_ticker` positional arg to `ticker`
 - `series.forecast_percentile_history` — rename `event_ticker` positional arg to `ticker`
@@ -281,11 +281,13 @@ out of scope for this audit (inline body dict TODO).
 - `portfolio.settlements` / `settlements_all`: +`event_ticker`, +`min_ts`, +`max_ts`, +`subaccount`
 
 **Refactor while touching (per design doc):**
-- `orders.list` — standardize from manual dict + truthiness (`if ticker:`) to `_params()` helper. Fixes empty-string-drop behavior. Add regression test `test_empty_string_ticker_passes_through`.
-- `orders.list_all` — same standardization.
-- `orders.create` — manual dict building; standardize for consistency when touching.
+- `orders.list` — standardize from manual dict + truthiness (`if ticker:`, `if status:`) to `_params()` helper. Fixes empty-string-drop behavior for BOTH `ticker` AND `status`. Add regression tests `test_empty_string_ticker_passes_through` AND `test_empty_string_status_passes_through`.
+- `orders.list_all` — same standardization (sync + async).
+- ~~`orders.create`~~ — OUT of scope. Body dicts are covered by the separate inline-body-dict TODO; `_params()` does not apply to JSON bodies. (Removed per /plan-eng-review round 2.)
 
 **Tests (one per method, sync + async):**
 - Consolidated test per method that calls with ALL new/renamed kwargs and asserts they reach the wire (per design doc test density decision).
 - Dedicated regression tests for each REMOVE and RENAME (documents the breaking change).
 - Dedicated test for `percentiles` explode:true serialization (prevents accidental future regression).
+- Dedicated test for `tickers` comma-join serialization on `markets.list` AND `historical.markets` (sync + async = 4 tests). Asserts wire is `?tickers=A,B` for both list and string inputs (NOT `?tickers=A&tickers=B`). Mirror to the `percentiles` explode:true test. (Added per /plan-eng-review round 2.)
+- Dedicated test for `markets.candlesticks(include_latest_before_start=True)` "true or omit" bool serialization (sync + async).

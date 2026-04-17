@@ -9,7 +9,7 @@ from kalshi.models.common import Page
 from kalshi.models.historical import HistoricalCutoff, Trade
 from kalshi.models.markets import Candlestick, Market
 from kalshi.models.orders import Fill, Order
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
 
 
 class HistoricalResource(SyncResource):
@@ -24,16 +24,18 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
-        ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
+        mve_filter: str | None = None,
     ) -> Page[Market]:
         params = _params(
             limit=limit,
             cursor=cursor,
-            ticker=ticker,
+            tickers=_join_tickers(tickers),
             event_ticker=event_ticker,
             series_ticker=series_ticker,
+            mve_filter=mve_filter,
         )
         return self._list("/historical/markets", Market, "markets", params=params)
 
@@ -41,15 +43,17 @@ class HistoricalResource(SyncResource):
         self,
         *,
         limit: int | None = None,
-        ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
+        mve_filter: str | None = None,
     ) -> Iterator[Market]:
         params = _params(
             limit=limit,
-            ticker=ticker,
+            tickers=_join_tickers(tickers),
             event_ticker=event_ticker,
             series_ticker=series_ticker,
+            mve_filter=mve_filter,
         )
         return self._list_all("/historical/markets", Market, "markets", params=params)
 
@@ -84,9 +88,10 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Page[Fill]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
         return self._list("/historical/fills", Fill, "fills", params=params)
 
     def fills_all(
@@ -94,9 +99,10 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Iterator[Fill]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, max_ts=max_ts)
         return self._list_all("/historical/fills", Fill, "fills", params=params)
 
     def orders(
@@ -105,9 +111,10 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
         return self._list("/historical/orders", Order, "orders", params=params)
 
     def orders_all(
@@ -115,9 +122,10 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, max_ts=max_ts)
         return self._list_all("/historical/orders", Order, "orders", params=params)
 
     def trades(
@@ -126,8 +134,12 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
     ) -> Page[Trade]:
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(
+            limit=limit, cursor=cursor, ticker=ticker, min_ts=min_ts, max_ts=max_ts
+        )
         return self._list("/historical/trades", Trade, "trades", params=params)
 
     def trades_all(
@@ -135,8 +147,10 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
     ) -> Iterator[Trade]:
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, min_ts=min_ts, max_ts=max_ts)
         return self._list_all("/historical/trades", Trade, "trades", params=params)
 
 class AsyncHistoricalResource(AsyncResource):
@@ -151,16 +165,18 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
-        ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
+        mve_filter: str | None = None,
     ) -> Page[Market]:
         params = _params(
             limit=limit,
             cursor=cursor,
-            ticker=ticker,
+            tickers=_join_tickers(tickers),
             event_ticker=event_ticker,
             series_ticker=series_ticker,
+            mve_filter=mve_filter,
         )
         return await self._list("/historical/markets", Market, "markets", params=params)
 
@@ -168,15 +184,17 @@ class AsyncHistoricalResource(AsyncResource):
         self,
         *,
         limit: int | None = None,
-        ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
+        mve_filter: str | None = None,
     ) -> AsyncIterator[Market]:
         params = _params(
             limit=limit,
-            ticker=ticker,
+            tickers=_join_tickers(tickers),
             event_ticker=event_ticker,
             series_ticker=series_ticker,
+            mve_filter=mve_filter,
         )
         return self._list_all("/historical/markets", Market, "markets", params=params)
 
@@ -211,9 +229,10 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Page[Fill]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
         return await self._list("/historical/fills", Fill, "fills", params=params)
 
     def fills_all(
@@ -221,9 +240,10 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> AsyncIterator[Fill]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, max_ts=max_ts)
         return self._list_all("/historical/fills", Fill, "fills", params=params)
 
     async def orders(
@@ -232,9 +252,10 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
         return await self._list("/historical/orders", Order, "orders", params=params)
 
     def orders_all(
@@ -242,9 +263,10 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        max_ts: int | None = None,
     ) -> AsyncIterator[Order]:
         self._require_auth()
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, max_ts=max_ts)
         return self._list_all("/historical/orders", Order, "orders", params=params)
 
     async def trades(
@@ -253,8 +275,12 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
     ) -> Page[Trade]:
-        params = _params(limit=limit, cursor=cursor, ticker=ticker)
+        params = _params(
+            limit=limit, cursor=cursor, ticker=ticker, min_ts=min_ts, max_ts=max_ts
+        )
         return await self._list("/historical/trades", Trade, "trades", params=params)
 
     def trades_all(
@@ -262,6 +288,8 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
     ) -> AsyncIterator[Trade]:
-        params = _params(limit=limit, ticker=ticker)
+        params = _params(limit=limit, ticker=ticker, min_ts=min_ts, max_ts=max_ts)
         return self._list_all("/historical/trades", Trade, "trades", params=params)

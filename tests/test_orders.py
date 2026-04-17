@@ -129,6 +129,15 @@ class TestOrdersCancel:
         )
         orders.cancel("ord-123")  # should not raise
 
+    @respx.mock
+    def test_cancel_with_subaccount(self, orders: OrdersResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456"
+        ).mock(return_value=httpx.Response(200, json={}))
+        orders.cancel("ord-456", subaccount=42)
+        params = dict(route.calls[0].request.url.params)
+        assert params["subaccount"] == "42"
+
 
 class TestOrdersList:
     @respx.mock
@@ -159,6 +168,84 @@ class TestOrdersList:
         params = dict(route.calls[0].request.url.params)
         assert params["status"] == "resting"
         assert params["ticker"] == "MKT-A"
+
+    @respx.mock
+    def test_list_with_all_new_filters(self, orders: OrdersResource) -> None:
+        """Consolidated coverage for v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        orders.list(
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+            status="resting",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["status"] == "resting"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
+    @respx.mock
+    def test_empty_string_ticker_passes_through(self, orders: OrdersResource) -> None:
+        """Regression: pre-v0.7.0 the `if ticker:` truthiness check silently dropped
+        empty strings. After _params() standardization, empty string reaches the wire."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        orders.list(ticker="")
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == ""
+
+    @respx.mock
+    def test_empty_string_status_passes_through(self, orders: OrdersResource) -> None:
+        """Regression: same fix as ticker — empty string status now reaches wire."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        orders.list(status="")
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == ""
+
+
+class TestOrdersListAll:
+    @respx.mock
+    def test_list_all_with_all_new_filters(self, orders: OrdersResource) -> None:
+        """v0.7.0 ADDs on list_all: event_ticker, min_ts, max_ts, subaccount."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(
+                200,
+                json={"orders": [{"order_id": "ord-x", "ticker": "MKT-A"}], "cursor": ""},
+            )
+        )
+        list(
+            orders.list_all(
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                status="resting",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                limit=50,
+                subaccount=7,
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["status"] == "resting"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["subaccount"] == "7"
 
 
 class TestOrdersBatch:
@@ -207,6 +294,30 @@ class TestOrdersFills:
         assert page.items[0].trade_id == "t1"
         assert page.items[0].yes_price == Decimal("0.5000")
 
+    @respx.mock
+    def test_fills_with_all_new_filters(self, orders: OrdersResource) -> None:
+        """Consolidated coverage for v0.7.0 ADDs: min_ts, max_ts, subaccount."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        orders.fills(
+            ticker="MKT-A",
+            order_id="ord-1",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
 
 class TestOrdersFillsAll:
     @respx.mock
@@ -231,6 +342,32 @@ class TestOrdersFillsAll:
         )
         ids = [f.trade_id for f in orders.fills_all()]
         assert ids == ["a", "b"]
+
+    @respx.mock
+    def test_fills_all_with_all_new_filters(self, orders: OrdersResource) -> None:
+        """Consolidated coverage for v0.7.0 ADDs on fills_all: min_ts, max_ts, subaccount."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200, json={"fills": [{"trade_id": "x", "yes_price_dollars": "0.5"}], "cursor": ""}
+            )
+        )
+        list(
+            orders.fills_all(
+                ticker="MKT-A",
+                order_id="ord-1",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                limit=50,
+                subaccount=7,
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["subaccount"] == "7"
 
 
 class TestOrdersAmend:

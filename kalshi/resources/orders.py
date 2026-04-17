@@ -16,7 +16,7 @@ from kalshi.models.orders import (
     Order,
     OrderQueuePosition,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
 from kalshi.types import to_decimal
 
 
@@ -63,45 +63,57 @@ class OrdersResource(SyncResource):
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    def cancel(self, order_id: str) -> None:
+    def cancel(self, order_id: str, *, subaccount: int | None = None) -> None:
         self._require_auth()
-        self._delete(f"/portfolio/orders/{order_id}")
+        params = _params(subaccount=subaccount)
+        self._delete(f"/portfolio/orders/{order_id}", params=params)
 
     def list(
         self,
         *,
         ticker: str | None = None,
+        event_ticker: str | None = None,
         status: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        subaccount: int | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if status:
-            params["status"] = status
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
+        params = _params(
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
         return self._list("/portfolio/orders", Order, "orders", params=params)
 
     def list_all(
         self,
         *,
         ticker: str | None = None,
+        event_ticker: str | None = None,
         status: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
+        subaccount: int | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if status:
-            params["status"] = status
-        if limit is not None:
-            params["limit"] = limit
+        params = _params(
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            subaccount=subaccount,
+        )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
@@ -125,11 +137,22 @@ class OrdersResource(SyncResource):
         *,
         ticker: str | None = None,
         order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        subaccount: int | None = None,
     ) -> Page[Fill]:
         self._require_auth()
-        params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
+        params = _params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
         return self._list("/portfolio/fills", Fill, "fills", params=params)
 
     def fills_all(
@@ -137,10 +160,20 @@ class OrdersResource(SyncResource):
         *,
         ticker: str | None = None,
         order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
+        subaccount: int | None = None,
     ) -> Iterator[Fill]:
         self._require_auth()
-        params = _params(ticker=ticker, order_id=order_id, limit=limit)
+        params = _params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            subaccount=subaccount,
+        )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
     def amend(
@@ -214,12 +247,8 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        if isinstance(market_tickers, list):
-            tickers_str: str | None = ",".join(market_tickers)
-        else:
-            tickers_str = market_tickers
         params = _params(
-            market_tickers=tickers_str,
+            market_tickers=_join_tickers(market_tickers),
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
@@ -284,46 +313,58 @@ class AsyncOrdersResource(AsyncResource):
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    async def cancel(self, order_id: str) -> None:
+    async def cancel(self, order_id: str, *, subaccount: int | None = None) -> None:
         self._require_auth()
-        await self._delete(f"/portfolio/orders/{order_id}")
+        params = _params(subaccount=subaccount)
+        await self._delete(f"/portfolio/orders/{order_id}", params=params)
 
     async def list(
         self,
         *,
         ticker: str | None = None,
+        event_ticker: str | None = None,
         status: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        subaccount: int | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if status:
-            params["status"] = status
-        if limit is not None:
-            params["limit"] = limit
-        if cursor:
-            params["cursor"] = cursor
+        params = _params(
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
         return await self._list("/portfolio/orders", Order, "orders", params=params)
 
     def list_all(
         self,
         *,
         ticker: str | None = None,
+        event_ticker: str | None = None,
         status: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
+        subaccount: int | None = None,
     ) -> AsyncIterator[Order]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
         self._require_auth()
-        params: dict[str, Any] = {}
-        if ticker:
-            params["ticker"] = ticker
-        if status:
-            params["status"] = status
-        if limit is not None:
-            params["limit"] = limit
+        params = _params(
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            subaccount=subaccount,
+        )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     async def batch_create(
@@ -345,11 +386,22 @@ class AsyncOrdersResource(AsyncResource):
         *,
         ticker: str | None = None,
         order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        subaccount: int | None = None,
     ) -> Page[Fill]:
         self._require_auth()
-        params = _params(ticker=ticker, order_id=order_id, limit=limit, cursor=cursor)
+        params = _params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
         return await self._list("/portfolio/fills", Fill, "fills", params=params)
 
     def fills_all(
@@ -357,10 +409,20 @@ class AsyncOrdersResource(AsyncResource):
         *,
         ticker: str | None = None,
         order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         limit: int | None = None,
+        subaccount: int | None = None,
     ) -> AsyncIterator[Fill]:
         self._require_auth()
-        params = _params(ticker=ticker, order_id=order_id, limit=limit)
+        params = _params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            subaccount=subaccount,
+        )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
     async def amend(
@@ -434,12 +496,8 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
-        if isinstance(market_tickers, list):
-            tickers_str: str | None = ",".join(market_tickers)
-        else:
-            tickers_str = market_tickers
         params = _params(
-            market_tickers=tickers_str,
+            market_tickers=_join_tickers(market_tickers),
             event_ticker=event_ticker,
             subaccount=subaccount,
         )

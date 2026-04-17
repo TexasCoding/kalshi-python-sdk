@@ -59,13 +59,114 @@ class TestMarketsList:
         markets.list(status="open")
         assert route.calls[0].request.url.params["status"] == "open"
 
+    def test_market_type_kwarg_removed(self, markets: MarketsResource) -> None:
+        """Regression: v0.7.0 dropped phantom `market_type` kwarg (not in spec).
+
+        Replaced the prior `test_with_market_type_filter` which asserted the
+        opposite. Migration: drop the kwarg from caller code.
+        """
+        with pytest.raises(TypeError, match="market_type"):
+            markets.list(market_type="binary")  # type: ignore[call-arg]
+
     @respx.mock
-    def test_with_market_type_filter(self, markets: MarketsResource) -> None:
+    def test_list_with_all_new_filters(self, markets: MarketsResource) -> None:
+        """v0.7.0 ADDs: tickers, mve_filter, 7 *_ts filters."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(200, json={"markets": [], "cursor": None})
         )
-        markets.list(market_type="binary")
-        assert route.calls[0].request.url.params["market_type"] == "binary"
+        markets.list(
+            status="open",
+            series_ticker="SER-X",
+            event_ticker="EVT-Y",
+            tickers=["MKT-A", "MKT-B"],
+            mve_filter="some_filter",
+            min_created_ts=1000,
+            max_created_ts=2000,
+            min_updated_ts=1500,
+            min_close_ts=3000,
+            max_close_ts=4000,
+            min_settled_ts=5000,
+            max_settled_ts=6000,
+            limit=50,
+            cursor="abc",
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == "open"
+        assert params["series_ticker"] == "SER-X"
+        assert params["event_ticker"] == "EVT-Y"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["mve_filter"] == "some_filter"
+        assert params["min_created_ts"] == "1000"
+        assert params["max_created_ts"] == "2000"
+        assert params["min_updated_ts"] == "1500"
+        assert params["min_close_ts"] == "3000"
+        assert params["max_close_ts"] == "4000"
+        assert params["min_settled_ts"] == "5000"
+        assert params["max_settled_ts"] == "6000"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+
+    @respx.mock
+    def test_tickers_serialized_as_comma_join_list(self, markets: MarketsResource) -> None:
+        """Spec says tickers is type:string (comma-separated), NOT explode:true.
+
+        Asserts wire is ?tickers=A,B (NOT ?tickers=A&tickers=B). Prevents future
+        regression if someone refactors `_join_tickers` to a pass-through.
+        """
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers=["A", "B", "C"])
+        # raw query string should have a single tickers= entry
+        url = str(route.calls[0].request.url)
+        assert "tickers=A%2CB%2CC" in url or "tickers=A,B,C" in url
+        assert url.count("tickers=") == 1
+
+    @respx.mock
+    def test_tickers_serialized_as_comma_join_string(self, markets: MarketsResource) -> None:
+        """Pre-joined string passes through unchanged."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers="A,B,C")
+        params = dict(route.calls[0].request.url.params)
+        assert params["tickers"] == "A,B,C"
+
+    @respx.mock
+    def test_tickers_empty_list_drops_param(self, markets: MarketsResource) -> None:
+        """Regression: tickers=[] must drop the param (sending ?tickers= is undefined)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers=[])
+        params = dict(route.calls[0].request.url.params)
+        assert "tickers" not in params
+
+    @respx.mock
+    def test_tickers_empty_string_drops_param(self, markets: MarketsResource) -> None:
+        """Regression: tickers='' must drop the param."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers="")
+        params = dict(route.calls[0].request.url.params)
+        assert "tickers" not in params
+
+    @respx.mock
+    def test_tickers_tuple_input_joins_correctly(self, markets: MarketsResource) -> None:
+        """Tuples (a natural Python sequence type) must be joined the same as lists.
+
+        Regression: pre-fix, isinstance(value, list) check let tuples bypass the
+        join, getting passed to httpx as a tuple and serialized explode-style
+        (?tickers=A&tickers=B), which is the wrong wire format.
+        """
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        markets.list(tickers=("A", "B"))  # type: ignore[arg-type]
+        url = str(route.calls[0].request.url)
+        assert url.count("tickers=") == 1
+        assert "tickers=A%2CB" in url or "tickers=A,B" in url
 
     @respx.mock
     def test_empty_result(self, markets: MarketsResource) -> None:
@@ -98,6 +199,30 @@ class TestMarketsListAll:
         tickers = [m.ticker for m in markets.list_all()]
         assert tickers == ["A", "B", "C"]
         assert route.call_count == 2
+
+    @respx.mock
+    def test_list_all_with_all_new_filters(self, markets: MarketsResource) -> None:
+        """v0.7.0 ADDs on list_all match list (no cursor)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [{"ticker": "A"}], "cursor": ""})
+        )
+        list(
+            markets.list_all(
+                status="open",
+                tickers=["MKT-A", "MKT-B"],
+                mve_filter="some_filter",
+                min_created_ts=1000,
+                max_close_ts=4000,
+                limit=50,
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == "open"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["mve_filter"] == "some_filter"
+        assert params["min_created_ts"] == "1000"
+        assert params["max_close_ts"] == "4000"
+        assert params["limit"] == "50"
 
 
 class TestMarketsGet:
@@ -148,6 +273,19 @@ class TestMarketsOrderbook:
         assert ob.yes[0].price == Decimal("0.4500")
         assert ob.yes[0].quantity == Decimal("100.00")
         assert len(ob.no) == 1
+
+    @respx.mock
+    def test_orderbook_with_depth(self, markets: MarketsResource) -> None:
+        """v0.7.0 ADD: depth kwarg reaches the wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"orderbook_fp": {"yes_dollars": [], "no_dollars": []}}
+            )
+        )
+        markets.orderbook("TEST-MKT", depth=10)
+        assert route.calls[0].request.url.params["depth"] == "10"
 
 
 class TestMarketsCandlesticks:
@@ -214,6 +352,44 @@ class TestMarketsCandlesticks:
             "SER", "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
         )
         assert candles == []
+
+    @respx.mock
+    def test_candlesticks_with_include_latest_before_start_true(
+        self, markets: MarketsResource
+    ) -> None:
+        """v0.7.0 ADD: include_latest_before_start=True sends 'true' on wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+            include_latest_before_start=True,
+        )
+        assert route.calls[0].request.url.params["include_latest_before_start"] == "true"
+
+    @respx.mock
+    def test_candlesticks_omits_include_latest_when_false(
+        self, markets: MarketsResource
+    ) -> None:
+        """Bool 'true or omit' rule: False/None drop the param entirely."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+            include_latest_before_start=False,
+        )
+        assert "include_latest_before_start" not in dict(
+            route.calls[0].request.url.params
+        )
 
 
 class TestMarketModel:
