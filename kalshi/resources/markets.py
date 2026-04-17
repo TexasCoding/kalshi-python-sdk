@@ -7,21 +7,7 @@ from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
 from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
-from kalshi.resources._base import AsyncResource, SyncResource, _params
-
-
-def _join_tickers(value: builtins.list[str] | str | None) -> str | None:
-    """Serialize the `tickers` query param.
-
-    Spec (`TickersQuery`) says `type: string`, comma-separated — NOT
-    `style: form, explode: true`. Accept either a list (we join) or a
-    pre-joined string (pass through). None → drop.
-    """
-    if value is None:
-        return None
-    if isinstance(value, list):
-        return ",".join(value)
-    return value
+from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
 
 
 class MarketsResource(SyncResource):

@@ -19,6 +19,20 @@ def _params(**kwargs: Any) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
+def _join_tickers(value: list[str] | str | None) -> str | None:
+    """Serialize the `tickers` query param.
+
+    Spec (`TickersQuery`) says `type: string`, comma-separated — NOT
+    `style: form, explode: true`. Accept either a list (we join) or a
+    pre-joined string (pass through). None → drop.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join(value)
+    return value
+
+
 class SyncResource:
     """Base class for sync resource modules."""
 
