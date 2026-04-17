@@ -10,6 +10,20 @@ from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
+def _join_tickers(value: builtins.list[str] | str | None) -> str | None:
+    """Serialize the `tickers` query param.
+
+    Spec (`TickersQuery`) says `type: string`, comma-separated — NOT
+    `style: form, explode: true`. Accept either a list (we join) or a
+    pre-joined string (pass through). None → drop.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join(value)
+    return value
+
+
 class MarketsResource(SyncResource):
     """Sync markets API."""
 
@@ -19,7 +33,15 @@ class MarketsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
-        market_type: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
+        mve_filter: str | None = None,
+        min_created_ts: int | None = None,
+        max_created_ts: int | None = None,
+        min_updated_ts: int | None = None,
+        min_close_ts: int | None = None,
+        max_close_ts: int | None = None,
+        min_settled_ts: int | None = None,
+        max_settled_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
@@ -27,7 +49,15 @@ class MarketsResource(SyncResource):
             status=status,
             series_ticker=series_ticker,
             event_ticker=event_ticker,
-            market_type=market_type,
+            tickers=_join_tickers(tickers),
+            mve_filter=mve_filter,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
+            min_updated_ts=min_updated_ts,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
             limit=limit,
             cursor=cursor,
         )
@@ -39,14 +69,30 @@ class MarketsResource(SyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
-        market_type: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
+        mve_filter: str | None = None,
+        min_created_ts: int | None = None,
+        max_created_ts: int | None = None,
+        min_updated_ts: int | None = None,
+        min_close_ts: int | None = None,
+        max_close_ts: int | None = None,
+        min_settled_ts: int | None = None,
+        max_settled_ts: int | None = None,
         limit: int | None = None,
     ) -> Iterator[Market]:
         params = _params(
             status=status,
             series_ticker=series_ticker,
             event_ticker=event_ticker,
-            market_type=market_type,
+            tickers=_join_tickers(tickers),
+            mve_filter=mve_filter,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
+            min_updated_ts=min_updated_ts,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
             limit=limit,
         )
         return self._list_all("/markets", Market, "markets", params=params)
@@ -56,8 +102,9 @@ class MarketsResource(SyncResource):
         market = data.get("market", data)
         return Market.model_validate(market)
 
-    def orderbook(self, ticker: str) -> Orderbook:
-        data = self._get(f"/markets/{ticker}/orderbook")
+    def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+        params = _params(depth=depth)
+        data = self._get(f"/markets/{ticker}/orderbook", params=params)
         # API returns {orderbook_fp: {yes_dollars: [...], no_dollars: [...]}}
         # Fall back to legacy keys for backward compatibility with tests/mocks
         ob = data.get("orderbook_fp") or data.get("orderbook", data)
@@ -86,11 +133,13 @@ class MarketsResource(SyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        include_latest_before_start: bool | None = None,
     ) -> builtins.list[Candlestick]:
         params = _params(
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
+            include_latest_before_start="true" if include_latest_before_start else None,
         )
         data = self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
@@ -109,7 +158,15 @@ class AsyncMarketsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
-        market_type: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
+        mve_filter: str | None = None,
+        min_created_ts: int | None = None,
+        max_created_ts: int | None = None,
+        min_updated_ts: int | None = None,
+        min_close_ts: int | None = None,
+        max_close_ts: int | None = None,
+        min_settled_ts: int | None = None,
+        max_settled_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
@@ -117,7 +174,15 @@ class AsyncMarketsResource(AsyncResource):
             status=status,
             series_ticker=series_ticker,
             event_ticker=event_ticker,
-            market_type=market_type,
+            tickers=_join_tickers(tickers),
+            mve_filter=mve_filter,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
+            min_updated_ts=min_updated_ts,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
             limit=limit,
             cursor=cursor,
         )
@@ -129,7 +194,15 @@ class AsyncMarketsResource(AsyncResource):
         status: str | None = None,
         series_ticker: str | None = None,
         event_ticker: str | None = None,
-        market_type: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
+        mve_filter: str | None = None,
+        min_created_ts: int | None = None,
+        max_created_ts: int | None = None,
+        min_updated_ts: int | None = None,
+        min_close_ts: int | None = None,
+        max_close_ts: int | None = None,
+        min_settled_ts: int | None = None,
+        max_settled_ts: int | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[Market]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
@@ -137,7 +210,15 @@ class AsyncMarketsResource(AsyncResource):
             status=status,
             series_ticker=series_ticker,
             event_ticker=event_ticker,
-            market_type=market_type,
+            tickers=_join_tickers(tickers),
+            mve_filter=mve_filter,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
+            min_updated_ts=min_updated_ts,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
             limit=limit,
         )
         return self._list_all("/markets", Market, "markets", params=params)
@@ -147,8 +228,9 @@ class AsyncMarketsResource(AsyncResource):
         market = data.get("market", data)
         return Market.model_validate(market)
 
-    async def orderbook(self, ticker: str) -> Orderbook:
-        data = await self._get(f"/markets/{ticker}/orderbook")
+    async def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+        params = _params(depth=depth)
+        data = await self._get(f"/markets/{ticker}/orderbook", params=params)
         ob = data.get("orderbook_fp") or data.get("orderbook", data)
 
         yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
@@ -175,11 +257,13 @@ class AsyncMarketsResource(AsyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        include_latest_before_start: bool | None = None,
     ) -> builtins.list[Candlestick]:
         params = _params(
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
+            include_latest_before_start="true" if include_latest_before_start else None,
         )
         data = await self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",

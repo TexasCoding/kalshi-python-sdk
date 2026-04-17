@@ -81,6 +81,81 @@ class TestAsyncMarketsList:
         await markets.list(status="open")
         assert route.calls[0].request.url.params["status"] == "open"
 
+    @pytest.mark.asyncio
+    async def test_market_type_kwarg_removed(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """Regression: v0.7.0 dropped phantom market_type kwarg (not in spec)."""
+        with pytest.raises(TypeError, match="market_type"):
+            await markets.list(market_type="binary")  # type: ignore[call-arg]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_list_with_all_new_filters(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """v0.7.0 ADDs: tickers, mve_filter, 7 *_ts filters."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
+        )
+        await markets.list(
+            status="open",
+            series_ticker="SER-X",
+            event_ticker="EVT-Y",
+            tickers=["MKT-A", "MKT-B"],
+            mve_filter="some_filter",
+            min_created_ts=1000,
+            max_created_ts=2000,
+            min_updated_ts=1500,
+            min_close_ts=3000,
+            max_close_ts=4000,
+            min_settled_ts=5000,
+            max_settled_ts=6000,
+            limit=50,
+            cursor="abc",
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == "open"
+        assert params["series_ticker"] == "SER-X"
+        assert params["event_ticker"] == "EVT-Y"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["mve_filter"] == "some_filter"
+        assert params["min_created_ts"] == "1000"
+        assert params["max_created_ts"] == "2000"
+        assert params["min_updated_ts"] == "1500"
+        assert params["min_close_ts"] == "3000"
+        assert params["max_close_ts"] == "4000"
+        assert params["min_settled_ts"] == "5000"
+        assert params["max_settled_ts"] == "6000"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_tickers_serialized_as_comma_join_list(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """Spec says tickers is type:string (comma-separated), NOT explode:true."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        await markets.list(tickers=["A", "B", "C"])
+        url = str(route.calls[0].request.url)
+        assert "tickers=A%2CB%2CC" in url or "tickers=A,B,C" in url
+        assert url.count("tickers=") == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_tickers_serialized_as_comma_join_string(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        await markets.list(tickers="A,B,C")
+        params = dict(route.calls[0].request.url.params)
+        assert params["tickers"] == "A,B,C"
+
     @respx.mock
     @pytest.mark.asyncio
     async def test_empty_result(
@@ -130,6 +205,31 @@ class TestAsyncMarketsListAll:
         tickers = [m.ticker async for m in markets.list_all()]
         assert tickers == ["A", "B", "C"]
         assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_list_all_with_all_new_filters(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """v0.7.0 ADDs on list_all match list (no cursor)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [{"ticker": "A"}], "cursor": ""})
+        )
+        _ = [m async for m in markets.list_all(
+            status="open",
+            tickers=["MKT-A", "MKT-B"],
+            mve_filter="some_filter",
+            min_created_ts=1000,
+            max_close_ts=4000,
+            limit=50,
+        )]
+        params = dict(route.calls[0].request.url.params)
+        assert params["status"] == "open"
+        assert params["tickers"] == "MKT-A,MKT-B"
+        assert params["mve_filter"] == "some_filter"
+        assert params["min_created_ts"] == "1000"
+        assert params["max_close_ts"] == "4000"
+        assert params["limit"] == "50"
 
 
 class TestAsyncMarketsGet:
@@ -201,6 +301,22 @@ class TestAsyncMarketsOrderbook:
         assert ob.yes[0].quantity == Decimal("100.00")
         assert len(ob.no) == 1
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_orderbook_with_depth(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """v0.7.0 ADD: depth kwarg reaches the wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"orderbook_fp": {"yes_dollars": [], "no_dollars": []}}
+            )
+        )
+        await markets.orderbook("TEST-MKT", depth=10)
+        assert route.calls[0].request.url.params["depth"] == "10"
+
 
 class TestAsyncMarketsCandlesticks:
     @respx.mock
@@ -255,3 +371,43 @@ class TestAsyncMarketsCandlesticks:
         assert c.price.close == Decimal("0.5000")
         assert c.volume == Decimal("1234.50")
         assert c.open_interest == Decimal("5000.00")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_candlesticks_with_include_latest_before_start_true(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """v0.7.0 ADD: include_latest_before_start=True sends 'true' on wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        await markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+            include_latest_before_start=True,
+        )
+        assert route.calls[0].request.url.params["include_latest_before_start"] == "true"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_candlesticks_omits_include_latest_when_false(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """Bool 'true or omit' rule: False/None drop the param."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        await markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+            include_latest_before_start=False,
+        )
+        assert "include_latest_before_start" not in dict(
+            route.calls[0].request.url.params
+        )
