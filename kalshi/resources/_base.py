@@ -64,8 +64,10 @@ class SyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         response = self._transport.request("PUT", path, params=params, json=json)
+        if response.status_code == 204:
+            return None
         result: dict[str, Any] = response.json()
         return result
 
@@ -144,8 +146,10 @@ class AsyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         response = await self._transport.request("PUT", path, params=params, json=json)
+        if response.status_code == 204:
+            return None
         result: dict[str, Any] = response.json()
         return result
 
