@@ -223,6 +223,26 @@ class AmendOrderRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class DecreaseOrderRequest(BaseModel):
+    """Parameters for decreasing an open order's size.
+
+    Matches spec ``components.schemas.DecreaseOrderRequest``. All fields
+    optional per spec; ``orders.decrease()`` enforces the XOR between
+    ``reduce_by`` and ``reduce_to`` at the method level, not the model
+    (spec permits either, neither, or — per the method's validation,
+    not both).
+
+    See ``kalshi.resources.orders.OrdersResource.decrease`` — v0.8.0
+    builds this model internally; method signature unchanged.
+    """
+
+    reduce_by: int | None = None
+    reduce_to: int | None = None
+    subaccount: int | None = None
+
+    model_config = {"extra": "forbid"}
+
+
 class AmendOrderResponse(BaseModel):
     """Response from amending an order — contains both pre and post-amendment orders."""
 

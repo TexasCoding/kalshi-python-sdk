@@ -464,3 +464,45 @@ class TestAmendOrderRequest:
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body["subaccount"] == 3
+
+
+class TestDecreaseOrderRequest:
+    def test_accepts_reduce_by(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_by=3)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"reduce_by": 3}
+
+    def test_accepts_reduce_to(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_to=2)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"reduce_to": 2}
+
+    def test_accepts_subaccount(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_by=1, subaccount=4)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["subaccount"] == 4
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError):
+            DecreaseOrderRequest(
+                reduce_by=1,
+                bogus_field=5,  # type: ignore[call-arg]
+            )
+
+    def test_all_optional(self) -> None:
+        """Spec has no required fields on this schema."""
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest()
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {}
