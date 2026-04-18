@@ -7,6 +7,7 @@ from decimal import Decimal
 import httpx  # noqa: F401
 import pytest
 import respx  # noqa: F401
+from pydantic import ValidationError
 
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.async_client import AsyncKalshiClient
@@ -19,9 +20,11 @@ from kalshi.errors import (  # noqa: F401
     KalshiValidationError,
 )
 from kalshi.models.order_groups import (
+    CreateOrderGroupRequest,
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
     OrderGroup,
+    UpdateOrderGroupLimitRequest,
 )
 from kalshi.resources.order_groups import (
     AsyncOrderGroupsResource,
@@ -101,3 +104,37 @@ class TestOrderGroupModels:
     def test_create_order_group_response_parses(self) -> None:
         resp = CreateOrderGroupResponse.model_validate({"order_group_id": "grp-new"})
         assert resp.order_group_id == "grp-new"
+
+
+class TestOrderGroupRequestModels:
+    def test_create_request_serializes_contracts_limit(self) -> None:
+        req = CreateOrderGroupRequest(contracts_limit=5)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {"contracts_limit": 5}
+
+    def test_create_request_with_subaccount(self) -> None:
+        req = CreateOrderGroupRequest(contracts_limit=10, subaccount=2)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {"contracts_limit": 10, "subaccount": 2}
+
+    def test_create_request_forbids_extra(self) -> None:
+        with pytest.raises(Exception) as exc:
+            CreateOrderGroupRequest(contracts_limit=1, phantom=True)  # type: ignore[call-arg]
+        assert "phantom" in str(exc.value).lower() or "extra" in str(exc.value).lower()
+
+    def test_create_request_rejects_zero_and_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderGroupRequest(contracts_limit=0)
+        with pytest.raises(ValidationError):
+            CreateOrderGroupRequest(contracts_limit=-1)
+
+    def test_update_limit_request_serializes(self) -> None:
+        req = UpdateOrderGroupLimitRequest(contracts_limit=20)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {"contracts_limit": 20}
+
+    def test_update_limit_request_forbids_extra(self) -> None:
+        with pytest.raises(Exception) as exc:
+            UpdateOrderGroupLimitRequest(contracts_limit=1, subaccount=0)  # type: ignore[call-arg]
+        # subaccount is NOT on this request per spec (no SubaccountQuery on /limit)
+        assert "subaccount" in str(exc.value).lower() or "extra" in str(exc.value).lower()

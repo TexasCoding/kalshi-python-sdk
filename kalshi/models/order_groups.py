@@ -57,3 +57,38 @@ class CreateOrderGroupResponse(BaseModel):
     order_group_id: str
 
     model_config = {"extra": "allow"}
+
+
+class CreateOrderGroupRequest(BaseModel):
+    """Request body for ``POST /portfolio/order_groups/create``.
+
+    Matches spec ``components.schemas.CreateOrderGroupRequest``. The spec
+    defines both ``contracts_limit`` (integer, whole contracts) and
+    ``contracts_limit_fp`` (FixedPointCount string, fractional allowed) as
+    mutually-compatible ways to express the same value; the SDK commits to
+    the integer form and sends ``contracts_limit`` on the wire.
+
+    ``subaccount`` defaults to ``None`` (omitted — server defaults to 0
+    per spec).
+    """
+
+    contracts_limit: int = Field(..., ge=1)
+    subaccount: int | None = Field(default=None, ge=0)
+
+    model_config = {"extra": "forbid"}
+
+
+class UpdateOrderGroupLimitRequest(BaseModel):
+    """Request body for ``PUT /portfolio/order_groups/{order_group_id}/limit``.
+
+    Spec ``components.schemas.UpdateOrderGroupLimitRequest``. Same
+    int-vs-fp tradeoff as ``CreateOrderGroupRequest`` — SDK sends
+    ``contracts_limit`` (integer).
+
+    Note the ``/limit`` endpoint takes NO ``SubaccountQuery`` per spec, so
+    ``subaccount`` is intentionally absent from this model.
+    """
+
+    contracts_limit: int = Field(..., ge=1)
+
+    model_config = {"extra": "forbid"}
