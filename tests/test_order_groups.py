@@ -435,3 +435,15 @@ class TestOrderGroupsAuthGuard:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_order_groups.update_limit("grp-1", contracts_limit=1)
+
+
+class TestClientWiring:
+    def test_sync_client_exposes_order_groups(
+        self, client: KalshiClient,
+    ) -> None:
+        assert isinstance(client.order_groups, OrderGroupsResource)
+
+    def test_async_client_exposes_order_groups(
+        self, async_client: AsyncKalshiClient,
+    ) -> None:
+        assert isinstance(async_client.order_groups, AsyncOrderGroupsResource)

@@ -14,6 +14,7 @@ from kalshi.resources.exchange import ExchangeResource
 from kalshi.resources.historical import HistoricalResource
 from kalshi.resources.markets import MarketsResource
 from kalshi.resources.multivariate import MultivariateCollectionsResource
+from kalshi.resources.order_groups import OrderGroupsResource
 from kalshi.resources.orders import OrdersResource
 from kalshi.resources.portfolio import PortfolioResource
 from kalshi.resources.series import SeriesResource
@@ -85,6 +86,7 @@ class KalshiClient:
         self.exchange = ExchangeResource(self._transport)
         self.historical = HistoricalResource(self._transport)
         self.markets = MarketsResource(self._transport)
+        self.order_groups = OrderGroupsResource(self._transport)
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)
         self.series = SeriesResource(self._transport)
