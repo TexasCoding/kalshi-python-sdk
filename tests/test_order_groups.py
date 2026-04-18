@@ -281,6 +281,8 @@ class TestOrderGroupsMutations:
         result = order_groups.reset("grp-1")
         assert result is None
         assert route.called
+        # Demo rejects PUTs without Content-Type: application/json; locking in json={}
+        assert route.calls[0].request.content == b"{}"
 
     @respx.mock
     def test_trigger_sends_put(self, order_groups: OrderGroupsResource) -> None:
@@ -290,6 +292,7 @@ class TestOrderGroupsMutations:
         result = order_groups.trigger("grp-1")
         assert result is None
         assert route.called
+        assert route.calls[0].request.content == b"{}"
 
     @respx.mock
     def test_update_limit_sends_put_with_body(
@@ -374,6 +377,7 @@ class TestAsyncOrderGroups:
         ).mock(return_value=httpx.Response(200, json={}))
         await async_order_groups.reset("grp-1")
         assert route.called
+        assert route.calls[0].request.content == b"{}"
 
     async def test_trigger(
         self, async_order_groups: AsyncOrderGroupsResource,
@@ -384,6 +388,7 @@ class TestAsyncOrderGroups:
         ).mock(return_value=httpx.Response(200, json={}))
         await async_order_groups.trigger("grp-1")
         assert route.called
+        assert route.calls[0].request.content == b"{}"
 
     async def test_update_limit(
         self, async_order_groups: AsyncOrderGroupsResource,
