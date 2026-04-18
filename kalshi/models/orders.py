@@ -156,6 +156,8 @@ class CreateOrderRequest(BaseModel):
     cancel_order_on_pause: bool | None = None
     subaccount: int | None = None
 
+    model_config = {"extra": "forbid"}
+
     @field_validator("buy_max_cost", mode="before")
     @classmethod
     def _reject_decimal_and_float_buy_max_cost(cls, v: object) -> object:
@@ -181,8 +183,6 @@ class CreateOrderRequest(BaseModel):
                 "Pass cents directly (e.g., 500 for $5.00)."
             )
         return v
-
-    model_config = {"extra": "forbid"}
 
 
 class AmendOrderRequest(BaseModel):

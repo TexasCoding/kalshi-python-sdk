@@ -892,7 +892,13 @@ def _get_model_class_from_fqn(fqn: str) -> type[PydanticBase]:
 def _model_aliases(model_cls: type[PydanticBase]) -> set[str]:
     """Return the set of WIRE names the model emits — serialization_alias if
     set, else the field name. Compared to spec schema property names by
-    ``TestRequestBodyDrift``."""
+    ``TestRequestBodyDrift``.
+
+    Known gap: iterates only top-level fields. Nested Pydantic models
+    (e.g., ``TickerPair`` inside ``selected_markets: list[TickerPair]``)
+    are not recursively checked. See TODOS.md — v0.9 nested-model drift
+    coverage.
+    """
     names: set[str] = set()
     for field_name, field in model_cls.model_fields.items():
         alias = field.serialization_alias or field_name

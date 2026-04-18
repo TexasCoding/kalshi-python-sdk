@@ -312,6 +312,39 @@ class TestCreateMarketWireShape:
         assert body["selected_markets"][0]["market_ticker"] == "M-A"
         assert "with_market_payload" not in body
 
+    @respx.mock
+    def test_ticker_pair_phantom_key_flows_to_wire(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        """Pin the carve-out: ``TickerPair.extra="allow"`` means phantom keys
+        inside a TickerPair bypass the outer model's ``extra="forbid"``.
+
+        This is a known gap tracked in TODOS.md for v0.9 (nested-model drift
+        coverage + typed `TickerPair.extra="forbid"` migration). If a future
+        Pydantic upgrade or code change tightens this behavior implicitly, this
+        test will fail and force the change to be deliberate.
+        """
+        import json
+
+        route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        pair = TickerPair(
+            market_ticker="M-A",
+            event_ticker="E-A",
+            side="yes",
+            ghost_field="should-not-be-here",  # type: ignore[call-arg]
+        )
+        mv.create_market("MVC-1", selected_markets=[pair])
+
+        body = json.loads(route.calls[0].request.content)
+        item = body["selected_markets"][0]
+        assert item["ghost_field"] == "should-not-be-here", (
+            "Phantom key inside TickerPair was filtered — the carve-out "
+            "closed. Update the v0.9 TODOS entry and the request model "
+            "docstrings to reflect the tightened behavior."
+        )
+
 
 class TestLookupTickersWireShape:
     """v0.8.0: lookup_tickers() builds LookupTickersForMarketInMultivariateEventCollectionRequest

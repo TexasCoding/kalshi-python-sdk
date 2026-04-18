@@ -144,7 +144,7 @@ class OrdersResource(SyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     def batch_create(
-        self, orders: builtins.list[CreateOrderRequest],
+        self, orders: Sequence[CreateOrderRequest],
     ) -> builtins.list[Order]:
         self._require_auth()
         req = BatchCreateOrdersRequest(orders=list(orders))
@@ -272,6 +272,9 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+        # by design: the model-first v0.9 API will rely on the model validator,
+        # but this path preserves nicer ValueError messages for current callers.
         if reduce_by is None and reduce_to is None:
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
@@ -437,7 +440,7 @@ class AsyncOrdersResource(AsyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     async def batch_create(
-        self, orders: builtins.list[CreateOrderRequest],
+        self, orders: Sequence[CreateOrderRequest],
     ) -> builtins.list[Order]:
         self._require_auth()
         req = BatchCreateOrdersRequest(orders=list(orders))
@@ -563,6 +566,9 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+        # by design: the model-first v0.9 API will rely on the model validator,
+        # but this path preserves nicer ValueError messages for current callers.
         if reduce_by is None and reduce_to is None:
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
