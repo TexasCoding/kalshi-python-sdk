@@ -886,6 +886,15 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/UpdateOrderGroupLimitRequest": (
         "kalshi.models.order_groups.UpdateOrderGroupLimitRequest"
     ),
+    "#/components/schemas/CreateRFQRequest": (
+        "kalshi.models.communications.CreateRFQRequest"
+    ),
+    "#/components/schemas/CreateQuoteRequest": (
+        "kalshi.models.communications.CreateQuoteRequest"
+    ),
+    "#/components/schemas/AcceptQuoteRequest": (
+        "kalshi.models.communications.AcceptQuoteRequest"
+    ),
 }
 
 

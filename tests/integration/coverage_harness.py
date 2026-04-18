@@ -18,6 +18,7 @@ SCENARIO_REGISTRY: dict[str, list[str]] = {}
 
 # Resource modules to introspect
 RESOURCE_MODULES = [
+    "kalshi.resources.communications",
     "kalshi.resources.markets",
     "kalshi.resources.multivariate",
     "kalshi.resources.order_groups",

@@ -9,6 +9,7 @@ from types import TracebackType
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
+from kalshi.resources.communications import CommunicationsResource
 from kalshi.resources.events import EventsResource
 from kalshi.resources.exchange import ExchangeResource
 from kalshi.resources.historical import HistoricalResource
@@ -82,6 +83,7 @@ class KalshiClient:
 
         # Build transport and resources
         self._transport = SyncTransport(self._auth, self._config)
+        self.communications = CommunicationsResource(self._transport)
         self.events = EventsResource(self._transport)
         self.exchange = ExchangeResource(self._transport)
         self.historical = HistoricalResource(self._transport)
