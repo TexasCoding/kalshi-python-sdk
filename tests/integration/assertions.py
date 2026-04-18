@@ -18,7 +18,14 @@ from pydantic import BaseModel
 
 
 def _annotation_contains(annotation: Any, target: type) -> bool:
-    """True if annotation resolves to target (handles Optional/Annotated/Union)."""
+    """True if annotation resolves to target.
+
+    Walks `__args__` recursively to handle Optional, Union (PEP 604),
+    list[T], and Annotated[T, ...] forms. The recursion also visits the
+    metadata args of ``Annotated`` (e.g. ``BeforeValidator(...)``), but
+    those objects have no ``__args__``, so the ``getattr(..., (), ())``
+    fallback terminates the walk safely on leaf types.
+    """
     if annotation is target:
         return True
     return any(

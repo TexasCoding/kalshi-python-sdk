@@ -8,6 +8,12 @@ See `TODOS.md` for the active coverage plan and the north-star definition.
 
 ## Code quality / architecture
 
+### P3: Standardize `test_list_all` iteration idiom across sync/async
+**What:** Sync list-all tests use `for count, x in enumerate(...)` + `if count >= N: break`; async variants use `count = 0; count += 1; if count >= N: break`. Same behavior, different style. Pick one idiom (likely `enumerate` for sync + manual counter for async, since `async for` doesn't combine with `enumerate()` cleanly) and sweep `tests/integration/test_series.py`, `test_multivariate.py`, and `test_events.py` to match.
+**Why:** Drive-by review nit. Readers flip between the two and wonder if the difference is intentional. No correctness impact.
+**Depends on:** v0.9.1 shipped (done).
+**Added:** 2026-04-18 via PR #32 claude[bot] review (finding n4).
+
 ### P3: Reduce sync/async duplication tax (v0.8+)
 **What:** Every resource file has near-identical sync and async classes (~95% duplication of method bodies). Each new kwarg must be added in two places; mismatch is a real risk. Possible approaches: (a) shared params-builder helpers, (b) sync-wrapping-async architecture, (c) code-gen from a single source. Out of scope for v0.7.0 because the audit alone added ~32 kwargs × 2 = ~64 method signatures touched.
 **Why:** Maintenance tax keeps growing as the SDK adds resources. v0.7.0 doubled the kwarg surface; future additions get more painful.

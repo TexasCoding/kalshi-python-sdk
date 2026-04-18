@@ -196,6 +196,8 @@ class TestMultivariateAsync:
         sync_client: KalshiClient,
         demo_collection: MultivariateEventCollection,
     ) -> None:
+        # sync_client is used only to build the fixture pairs — the
+        # endpoint-under-test is called via async_client below.
         pairs = _build_ticker_pairs(demo_collection, sync_client)
         if not pairs:
             pytest.skip("Demo collection has no associated events with markets")
@@ -216,6 +218,8 @@ class TestMultivariateAsync:
         sync_client: KalshiClient,
         demo_collection: MultivariateEventCollection,
     ) -> None:
+        # sync_client is used only to build the fixture pairs — the
+        # endpoint-under-test is called via async_client below.
         pairs = _build_ticker_pairs(demo_collection, sync_client)
         if not pairs:
             pytest.skip("Demo collection has no associated events with markets")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from kalshi.models.series import (
     EventCandlesticks,
@@ -91,7 +92,7 @@ class TestSeriesNullableList:
     declares them as required arrays. NullableList[T] coerces null -> [].
     """
 
-    def _base_payload(self) -> dict:
+    def _base_payload(self) -> dict[str, Any]:
         return {
             "ticker": "T",
             "frequency": "daily",
