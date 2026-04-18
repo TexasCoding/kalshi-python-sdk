@@ -141,7 +141,6 @@ class TestOrdersSync:
         order = sync_client.orders.create(
             ticker=demo_market_ticker,
             side="yes",
-            type="limit",
             action="buy",
             count=1,
             yes_price=non_marketable_price,
@@ -177,7 +176,6 @@ class TestOrdersSync:
             CreateOrderRequest(
                 ticker=demo_market_ticker,
                 side="yes",
-                type="limit",
                 action="buy",
                 count=to_decimal(1),
                 yes_price=to_decimal(non_marketable_price),
@@ -254,7 +252,6 @@ class TestOrdersAsync:
         order = await async_client.orders.create(
             ticker=demo_market_ticker,
             side="yes",
-            type="limit",
             action="buy",
             count=1,
             yes_price=non_marketable_price,
@@ -290,7 +287,6 @@ class TestOrdersAsync:
             CreateOrderRequest(
                 ticker=demo_market_ticker,
                 side="yes",
-                type="limit",
                 action="buy",
                 count=to_decimal(1),
                 yes_price=to_decimal(non_marketable_price),

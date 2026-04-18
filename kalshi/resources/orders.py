@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
 from typing import Any
 
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
+    AmendOrderRequest,
     AmendOrderResponse,
+    BatchCancelOrdersRequest,
+    BatchCancelOrdersRequestOrder,
+    BatchCreateOrdersRequest,
     CreateOrderRequest,
+    DecreaseOrderRequest,
     Fill,
     Order,
     OrderQueuePosition,
@@ -28,31 +33,53 @@ class OrdersResource(SyncResource):
         *,
         ticker: str,
         side: str,
-        type: str = "limit",
         action: str = "buy",
         count: int = 1,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
+        buy_max_cost: int | None = None,
+        time_in_force: str | None = None,
+        post_only: bool | None = None,
+        reduce_only: bool | None = None,
+        self_trade_prevention_type: str | None = None,
+        order_group_id: str | None = None,
+        cancel_order_on_pause: bool | None = None,
+        subaccount: int | None = None,
     ) -> Order:
-        self._require_auth()
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "type": type,
-            "action": action,
-            "count": count,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if expiration_ts is not None:
-            body["expiration_ts"] = expiration_ts
+        """Place a new order.
 
+        ``buy_max_cost`` is integer cents per OpenAPI spec (e.g., 500 for $5.00).
+
+        ``time_in_force`` accepts ``"fill_or_kill"``, ``"good_till_canceled"``,
+        ``"immediate_or_cancel"``. Passing ``None`` omits the field and lets
+        Kalshi apply its server-side default (``good_till_canceled``).
+
+        v0.8.0 removed the ``type`` kwarg: the field was never defined in
+        the OpenAPI spec. Callers passing ``type="limit"`` now get a
+        ``TypeError``.
+        """
+        self._require_auth()
+        req = CreateOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=to_decimal(count),
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
+            self_trade_prevention_type=self_trade_prevention_type,
+            order_group_id=order_group_id,
+            cancel_order_on_pause=cancel_order_on_pause,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -116,16 +143,44 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
-    def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
+    def batch_create(
+        self, orders: Sequence[CreateOrderRequest],
+    ) -> builtins.list[Order]:
         self._require_auth()
-        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
+        req = BatchCreateOrdersRequest(orders=list(orders))
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
-    def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+    def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None:
+        """Batch-cancel orders.
+
+        Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
+        entries (for per-order ``subaccount`` routing), plain order-id
+        strings (convenience shortcut — each is wrapped internally), or a
+        mix of both. String entries are wrapped as
+        ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
+
+        BREAKING in v0.8.0: previously the method signature was
+        ``batch_cancel(order_ids: list[str])`` and the wire body used the
+        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
+        ``orders`` field and renames the kwarg. Callers passing a plain
+        list of order-id strings still work without code changes via the
+        convenience shortcut.
+        """
         self._require_auth()
-        body = {"ids": order_ids}
+        normalized = [
+            (
+                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+            )
+            for o in orders
+        ]
+        req = BatchCancelOrdersRequest(orders=normalized)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._delete_with_body("/portfolio/orders/batched", json=body)
 
     def _delete_with_body(self, path: str, *, json: dict[str, Any]) -> None:
@@ -193,24 +248,18 @@ class OrdersResource(SyncResource):
         self._require_auth()
         if yes_price is None and no_price is None and count is None:
             raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "action": action,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if count is not None:
-            body["count_fp"] = str(to_decimal(count))
-        if client_order_id is not None:
-            body["client_order_id"] = client_order_id
-        if updated_client_order_id is not None:
-            body["updated_client_order_id"] = updated_client_order_id
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = AmendOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            count=to_decimal(count) if count is not None else None,
+            client_order_id=client_order_id,
+            updated_client_order_id=updated_client_order_id,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
@@ -223,18 +272,19 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+        # by design: the model-first v0.9 API will rely on the model validator,
+        # but this path preserves nicer ValueError messages for current callers.
         if reduce_by is None and reduce_to is None:
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
             raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        body: dict[str, Any] = {}
-        if reduce_by is not None:
-            body["reduce_by"] = reduce_by
-        if reduce_to is not None:
-            body["reduce_to"] = reduce_to
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = DecreaseOrderRequest(
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -278,31 +328,53 @@ class AsyncOrdersResource(AsyncResource):
         *,
         ticker: str,
         side: str,
-        type: str = "limit",
         action: str = "buy",
         count: int = 1,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
+        buy_max_cost: int | None = None,
+        time_in_force: str | None = None,
+        post_only: bool | None = None,
+        reduce_only: bool | None = None,
+        self_trade_prevention_type: str | None = None,
+        order_group_id: str | None = None,
+        cancel_order_on_pause: bool | None = None,
+        subaccount: int | None = None,
     ) -> Order:
-        self._require_auth()
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "type": type,
-            "action": action,
-            "count": count,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if expiration_ts is not None:
-            body["expiration_ts"] = expiration_ts
+        """Place a new order.
 
+        ``buy_max_cost`` is integer cents per OpenAPI spec (e.g., 500 for $5.00).
+
+        ``time_in_force`` accepts ``"fill_or_kill"``, ``"good_till_canceled"``,
+        ``"immediate_or_cancel"``. Passing ``None`` omits the field and lets
+        Kalshi apply its server-side default (``good_till_canceled``).
+
+        v0.8.0 removed the ``type`` kwarg: the field was never defined in
+        the OpenAPI spec. Callers passing ``type="limit"`` now get a
+        ``TypeError``.
+        """
+        self._require_auth()
+        req = CreateOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=to_decimal(count),
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
+            self_trade_prevention_type=self_trade_prevention_type,
+            order_group_id=order_group_id,
+            cancel_order_on_pause=cancel_order_on_pause,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -368,17 +440,45 @@ class AsyncOrdersResource(AsyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     async def batch_create(
-        self, orders: builtins.list[CreateOrderRequest]
+        self, orders: Sequence[CreateOrderRequest],
     ) -> builtins.list[Order]:
         self._require_auth()
-        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
+        req = BatchCreateOrdersRequest(orders=list(orders))
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
-    async def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+    async def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None:
+        """Batch-cancel orders.
+
+        Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
+        entries (for per-order ``subaccount`` routing), plain order-id
+        strings (convenience shortcut — each is wrapped internally), or a
+        mix of both. String entries are wrapped as
+        ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
+
+        BREAKING in v0.8.0: previously the method signature was
+        ``batch_cancel(order_ids: list[str])`` and the wire body used the
+        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
+        ``orders`` field and renames the kwarg. Callers passing a plain
+        list of order-id strings still work without code changes via the
+        convenience shortcut.
+        """
         self._require_auth()
-        body = {"ids": order_ids}
+        normalized = [
+            (
+                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+            )
+            for o in orders
+        ]
+        req = BatchCancelOrdersRequest(orders=normalized)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        # NOTE: keep in sync with OrdersResource.batch_cancel's
+        # _delete_with_body call; no async helper yet (tracked in TODOS.md).
         await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
 
     async def fills(
@@ -442,24 +542,18 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         if yes_price is None and no_price is None and count is None:
             raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "action": action,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if count is not None:
-            body["count_fp"] = str(to_decimal(count))
-        if client_order_id is not None:
-            body["client_order_id"] = client_order_id
-        if updated_client_order_id is not None:
-            body["updated_client_order_id"] = updated_client_order_id
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = AmendOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            count=to_decimal(count) if count is not None else None,
+            client_order_id=client_order_id,
+            updated_client_order_id=updated_client_order_id,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
@@ -472,18 +566,19 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
+        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+        # by design: the model-first v0.9 API will rely on the model validator,
+        # but this path preserves nicer ValueError messages for current callers.
         if reduce_by is None and reduce_to is None:
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
             raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        body: dict[str, Any] = {}
-        if reduce_by is not None:
-            body["reduce_by"] = reduce_by
-        if reduce_to is not None:
-            body["reduce_to"] = reduce_to
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = DecreaseOrderRequest(
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)

@@ -110,7 +110,6 @@ def fill_guarantee(
         buy_order = client.orders.create(
             ticker=ticker,
             side="yes",
-            type="limit",
             action="buy",
             count=1,
             yes_price=price,
@@ -124,7 +123,6 @@ def fill_guarantee(
         sell_order = client.orders.create(
             ticker=ticker,
             side="yes",
-            type="limit",
             action="sell",
             count=1,
             yes_price=price,

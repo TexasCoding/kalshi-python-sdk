@@ -21,15 +21,22 @@ from kalshi.models.markets import (
 )
 from kalshi.models.multivariate import (
     AssociatedEvent,
+    CreateMarketInMultivariateEventCollectionRequest,
     CreateMarketResponse,
     LookupPoint,
+    LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
 )
 from kalshi.models.orders import (
+    AmendOrderRequest,
     AmendOrderResponse,
+    BatchCancelOrdersRequest,
+    BatchCancelOrdersRequestOrder,
+    BatchCreateOrdersRequest,
     CreateOrderRequest,
+    DecreaseOrderRequest,
     Fill,
     Order,
     OrderQueuePosition,
@@ -50,15 +57,21 @@ from kalshi.models.series import (
 )
 
 __all__ = [
+    "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
     "AssociatedEvent",
     "Balance",
+    "BatchCancelOrdersRequest",
+    "BatchCancelOrdersRequestOrder",
+    "BatchCreateOrdersRequest",
     "BidAskDistribution",
     "Candlestick",
+    "CreateMarketInMultivariateEventCollectionRequest",
     "CreateMarketResponse",
     "CreateOrderRequest",
     "DailySchedule",
+    "DecreaseOrderRequest",
     "Event",
     "EventCandlesticks",
     "EventMetadata",
@@ -68,6 +81,7 @@ __all__ = [
     "ForecastPercentilesPoint",
     "HistoricalCutoff",
     "LookupPoint",
+    "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
     "Market",

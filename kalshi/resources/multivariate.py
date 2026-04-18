@@ -7,8 +7,10 @@ from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
 from kalshi.models.multivariate import (
+    CreateMarketInMultivariateEventCollectionRequest,
     CreateMarketResponse,
     LookupPoint,
+    LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
@@ -77,11 +79,11 @@ class MultivariateCollectionsResource(SyncResource):
         with_market_payload: bool | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
-        body: dict[str, object] = {
-            "selected_markets": [tp.model_dump() for tp in selected_markets],
-        }
-        if with_market_payload is not None:
-            body["with_market_payload"] = with_market_payload
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=list(selected_markets),
+            with_market_payload=with_market_payload,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
             f"/multivariate_event_collections/{collection_ticker}",
             json=body,
@@ -95,9 +97,10 @@ class MultivariateCollectionsResource(SyncResource):
         selected_markets: builtins.list[TickerPair],
     ) -> LookupTickersResponse:
         self._require_auth()
-        body: dict[str, object] = {
-            "selected_markets": [tp.model_dump() for tp in selected_markets],
-        }
+        req = LookupTickersForMarketInMultivariateEventCollectionRequest(
+            selected_markets=list(selected_markets),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._put(
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,
@@ -180,11 +183,11 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         with_market_payload: bool | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
-        body: dict[str, object] = {
-            "selected_markets": [tp.model_dump() for tp in selected_markets],
-        }
-        if with_market_payload is not None:
-            body["with_market_payload"] = with_market_payload
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=list(selected_markets),
+            with_market_payload=with_market_payload,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
             f"/multivariate_event_collections/{collection_ticker}",
             json=body,
@@ -198,9 +201,10 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         selected_markets: builtins.list[TickerPair],
     ) -> LookupTickersResponse:
         self._require_auth()
-        body: dict[str, object] = {
-            "selected_markets": [tp.model_dump() for tp in selected_markets],
-        }
+        req = LookupTickersForMarketInMultivariateEventCollectionRequest(
+            selected_markets=list(selected_markets),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._put(
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,

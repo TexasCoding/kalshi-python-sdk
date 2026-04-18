@@ -2,6 +2,33 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.8.0] — 2026-04-18
+
+### Breaking changes
+
+- **`orders.create()` — removed phantom `type` kwarg.** The `type` field was never in the OpenAPI spec; Kalshi silently ignored it. Callers passing `type="limit"` (or `"market"` etc.) now get a `TypeError` at call time. Remove the kwarg from your call sites.
+- **`orders.create()` — `buy_max_cost` type changed.** Now `int | None` representing **cents** (e.g., `buy_max_cost=500` for a $5.00 cap). Previously typed `DollarDecimal`. Spec says cents at `components.schemas.CreateOrderRequest`. Passing a `Decimal` or `float` raises `ValidationError` (via a `field_validator`). Passing a fractional string like `"5.5"` raises; integer strings like `"500"` coerce as before.
+- **`orders.batch_cancel()` — signature change.** Previously: `batch_cancel(order_ids: list[str])`. Now: `batch_cancel(orders: list[BatchCancelOrdersRequestOrder] | list[str])`. Callers passing a plain list of order-id strings still work via the convenience path — each string is wrapped internally as a `BatchCancelOrdersRequestOrder`. Callers passing `order_ids=[...]` as a kwarg must rename to `orders=[...]`.
+- **Wire body normalization — `count_fp` replaces `count`.** `orders.create()` and `orders.batch_create()` now emit `count_fp` (Decimal string) instead of `count` (int) on the wire, matching the convention already used by `orders.amend()`. Kalshi accepts both keys per spec; the SDK standardizes on `count_fp` for a single wire shape across methods. MITM proxy tests inspecting wire bytes need to update expectations.
+- **`orders.batch_cancel()` wire field flip.** Previously SDK sent `body={"ids": [...]}` — the spec-deprecated field. Now sends `body={"orders": [{"order_id": "..."}, ...]}` — the spec-preferred field that also supports per-order subaccount routing.
+- **Every POST/PUT/DELETE request body is now a Pydantic model with `extra="forbid"`.** `orders.create`, `orders.amend`, `orders.decrease`, `orders.batch_create`, `orders.batch_cancel`, `multivariate.create_market`, `multivariate.lookup_tickers` route body construction through `CreateOrderRequest`, `AmendOrderRequest`, `DecreaseOrderRequest`, `BatchCreateOrdersRequest`, `BatchCancelOrdersRequest`, `CreateMarketInMultivariateEventCollectionRequest`, `LookupTickersForMarketInMultivariateEventCollectionRequest` respectively. Existing method signatures are unchanged for all non-removed kwargs.
+  - **Exception type note:** unknown kwargs on the resource METHOD raise Python's built-in `TypeError` (e.g., `orders.create(foo='bar')` → `TypeError: ... unexpected keyword argument 'foo'`). Unknown kwargs when constructing a REQUEST MODEL directly (e.g., `CreateOrderRequest(foo='bar')`) raise `pydantic.ValidationError`. The latter is NOT wrapped in the SDK's `KalshiValidationError` (which is reserved for HTTP 400 responses). If you catch `KalshiError` broadly in your wrapper code and also construct request models directly, add `pydantic.ValidationError` to your except clause.
+
+### Added
+
+- **7 new kwargs on `orders.create()`**: `time_in_force` (`"fill_or_kill"` / `"good_till_canceled"` / `"immediate_or_cancel"`), `post_only`, `reduce_only`, `self_trade_prevention_type`, `order_group_id`, `cancel_order_on_pause`, `subaccount`. All match spec `components.schemas.CreateOrderRequest` properties that were previously unreachable from the SDK. `subaccount` was already supported on `cancel`/`amend`/`decrease`/`list`/`fills` — this closes the inconsistency.
+- **`buy_max_cost` now wired through `orders.create()`.** The field existed on the model since v0.1 but was never exposed on the method. Now accepted as an integer cents value.
+- **Per-order `subaccount` routing on `orders.batch_cancel()`.** The preferred spec field (`orders: list[BatchCancelOrdersRequestOrder]`) carries optional `subaccount` per entry; the SDK now exposes this capability.
+- **`TestRequestParamDrift` and `TestRequestBodyDrift`** in `tests/test_contracts.py`. Parametrized over `METHOD_ENDPOINT_MAP` entries (47 GET/DELETE + 7 POST/PUT/DELETE-with-body). Hard-fail on spec/SDK divergence not covered by the `EXCLUSIONS` allowlist. Complements the existing response-side `TestSpecDrift` (which warns rather than fails — intentional asymmetry: request drift is a user-facing capability gap).
+- **`test_exclusion_map_is_current`** lint test — flags `EXCLUSIONS` entries whose claimed deviation no longer exists.
+- **6 new Pydantic request models** exported from `kalshi.models` and `kalshi`: `AmendOrderRequest`, `DecreaseOrderRequest`, `BatchCreateOrdersRequest`, `BatchCancelOrdersRequest`, `BatchCancelOrdersRequestOrder`, `CreateMarketInMultivariateEventCollectionRequest`, `LookupTickersForMarketInMultivariateEventCollectionRequest`. Users can construct these directly for advanced use cases (e.g., passing `list[BatchCancelOrdersRequestOrder]` to `batch_cancel()` with per-order subaccount).
+
+### Changed
+
+- `CreateOrderRequest` — 7 field additions, 1 field removal (`type`), 1 type change (`buy_max_cost` → `int`). Added a `field_validator` that rejects `Decimal` and `float` inputs on `buy_max_cost` to prevent silent migration hazards.
+- `MethodEndpointEntry` (test infrastructure) gains optional `request_body_schema: str | None = None`.
+- `EXCLUSIONS` allowlist in `tests/_contract_support.py` — bootstrapped with 16 entries (5 model-side + 11 `cursor` paginator-handled). Task 3 appended 2 more (`AmendOrderRequest` cent-form). Task 7 scope expansion appended 1 more (`batch_cancel`'s `orders` body-param). Task 13 appended 6 more (`count` wire normalization on CreateOrderRequest + AmendOrderRequest, `reduce_by_fp`/`reduce_to_fp` deferred on DecreaseOrderRequest, deprecated `ids` on BatchCancelOrdersRequest). Total: 25.
+
 ## [0.7.0] - 2026-04-16
 
 **Major release.** Resource method query/path parameter surface aligned to OpenAPI spec v3.13.0. 5 BREAKING changes (2 phantom kwargs removed, 3 renamed) and 32 new query params added across 6 resources.

@@ -97,22 +97,26 @@ tests/
 - `Retry-After` header is capped at `retry_max_delay` (prevents server-controlled sleep).
 - Sync and async share logic via dual transport abstraction (not sync-wrapping-async).
 - Async `list_all()` returns `AsyncIterator` directly — `async for item in client.markets.list_all():` works.
+- **Request bodies are Pydantic models with `extra="forbid"` (v0.8.0+).** Every POST/PUT/DELETE-with-body method builds a request model internally and serializes via `model.model_dump(exclude_none=True, by_alias=True, mode="json")`. Don't build inline dict bodies in resource methods. Phantom keys fail at call time via the model's forbid.
+- **Drift tests hard-fail.** `TestRequestParamDrift` (query+path) and `TestRequestBodyDrift` (body) parametrize over `METHOD_ENDPOINT_MAP`. Adding a new kwarg the spec doesn't have, or missing one the spec has, reds CI. Intentional deviations go in `EXCLUSIONS` (`tests/_contract_support.py`) with a required `reason` string.
 
 ## Adding a new resource
 
 1. Create `kalshi/models/new_resource.py` with Pydantic models. Use `DollarDecimal` for
    prices, `validation_alias=AliasChoices("api_name_dollars", "short_name")` for API field mapping.
-2. Create `kalshi/resources/new_resource.py` with both `NewResource(SyncResource)` and
-   `AsyncNewResource(AsyncResource)`.
-3. Wire into `KalshiClient.__init__` and `AsyncKalshiClient.__init__`.
-4. Export from `kalshi/models/__init__.py` and `kalshi/__init__.py`.
-5. Add tests in `tests/test_new_resource.py` using `respx.mock`.
-6. Every public method needs at least: happy path, error path, edge case.
-7. If the resource has generated OpenAPI counterparts, register them in `_contract_map.py`.
+2. For POST/PUT/DELETE endpoints with a request body: create a request model (e.g. `CreateThingRequest`) with `model_config = {"extra": "forbid"}`. Set `serialization_alias="foo_dollars"` / `"count_fp"` for wire-format mismatches.
+3. Create `kalshi/resources/new_resource.py` with both `NewResource(SyncResource)` and
+   `AsyncNewResource(AsyncResource)`. POST/PUT/DELETE methods build their request model internally, then serialize via `model.model_dump(exclude_none=True, by_alias=True, mode="json")`.
+4. Wire into `KalshiClient.__init__` and `AsyncKalshiClient.__init__`.
+5. Export from `kalshi/models/__init__.py` and `kalshi/__init__.py`.
+6. Add tests in `tests/test_new_resource.py` using `respx.mock`.
+7. Every public method needs at least: happy path, error path, edge case.
+8. Register endpoints in `METHOD_ENDPOINT_MAP` (`tests/_contract_support.py`). POST/PUT/DELETE entries must set `request_body_schema` to the spec ref (e.g., `"#/components/schemas/CreateThingRequest"`). Add the spec-ref → model-FQN mapping to `BODY_MODEL_MAP` in `tests/test_contracts.py` so the body drift test can diff it.
+9. If the resource has generated OpenAPI counterparts, register them in `_contract_map.py`.
 
 ## Testing
 
-- pytest + pytest-asyncio + respx (httpx mock); 827 tests.
+- pytest + pytest-asyncio + respx (httpx mock); 917 tests.
 - Use `respx.mock` for HTTP mocking. Generate test RSA keys via conftest.py fixtures.
 - New function → write a test. Bug fix → write a regression test. New error path → write a test that triggers it.
 

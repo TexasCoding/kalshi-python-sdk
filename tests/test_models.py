@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from kalshi.models.markets import Market
 from kalshi.models.orders import Order
 from kalshi.types import to_decimal
@@ -222,3 +224,530 @@ class TestOrderQueuePosition:
         assert result.order_id == "ord-123"
         assert result.market_ticker == "MKT-A"
         assert result.queue_position == Decimal("42.00")
+
+
+class TestCreateOrderRequestExtended:
+    def test_accepts_time_in_force(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            time_in_force="fill_or_kill",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["time_in_force"] == "fill_or_kill"
+
+    def test_accepts_post_only_and_reduce_only(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            post_only=True, reduce_only=False,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["post_only"] is True
+        assert body["reduce_only"] is False
+
+    def test_accepts_self_trade_prevention_and_order_group(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            self_trade_prevention_type="maker",
+            order_group_id="grp-123",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["self_trade_prevention_type"] == "maker"
+        assert body["order_group_id"] == "grp-123"
+
+    def test_accepts_cancel_on_pause_and_subaccount(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            cancel_order_on_pause=True, subaccount=5,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["cancel_order_on_pause"] is True
+        assert body["subaccount"] == 5
+
+    def test_buy_max_cost_is_int_cents(self) -> None:
+        """Spec says integer cents; SDK must send int on the wire."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            buy_max_cost=500,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["buy_max_cost"] == 500
+        assert isinstance(body["buy_max_cost"], int)
+
+    def test_buy_max_cost_rejects_fractional_value(self) -> None:
+        """A caller passing a fractional string like '5.5' must raise.
+
+        Pydantic v2 int coercion rejects strings that are not whole numbers
+        (e.g. '5.5'), but accepts whole-number strings like '500' and even
+        '5.00' (coerced to 5). The field is int cents, so fractional values
+        are always invalid.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost="5.5",  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_rejects_decimal(self) -> None:
+        """Migration-hazard guard: Decimal inputs raise clearly, not silently coerce."""
+        from decimal import Decimal
+
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        # Both whole and fractional Decimal values must raise — the hazard is
+        # silent coercion to cents regardless of the numeric value.
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=Decimal("500"),  # type: ignore[arg-type]
+            )
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=Decimal("5.00"),  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_rejects_float(self) -> None:
+        """Float inputs (even whole-valued) must raise to prevent unit confusion."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=5.0,  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_accepts_int_string(self) -> None:
+        """Int-shaped strings are coerced normally (e.g., loading from env/config)."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            buy_max_cost="500",  # type: ignore[arg-type]
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["buy_max_cost"] == 500
+
+    def test_omits_none_fields_from_wire(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy")
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        # Core fields present
+        assert body["ticker"] == "MKT"
+        # Optional fields absent (defaults to None, stripped by exclude_none)
+        assert "time_in_force" not in body
+        assert "post_only" not in body
+        assert "buy_max_cost" not in body
+        assert "subaccount" not in body
+
+    def test_phantom_type_field_removed(self) -> None:
+        """v0.8.0 removed the phantom `type` field (spec has no such field)."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                type="limit",  # type: ignore[call-arg]
+            )
+
+    def test_forbid_extra_rejects_unknown_kwarg(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                bogus_field="x",  # type: ignore[call-arg]
+            )
+
+    def test_serializes_count_fp_not_count(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            count=Decimal("7"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert "count_fp" in body
+        assert "count" not in body
+
+
+class TestAmendOrderRequest:
+    def test_required_fields(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest()  # type: ignore[call-arg]
+
+        # ticker/side/action required per spec
+        req = AmendOrderRequest(ticker="MKT", side="yes", action="buy")
+        assert req.ticker == "MKT"
+
+    def test_serializes_yes_price_dollars(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            yes_price=Decimal("0.55"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["yes_price_dollars"] == "0.55"
+        assert "yes_price" not in body  # int cent form excluded
+
+    def test_serializes_no_price_dollars(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="no", action="sell",
+            no_price=Decimal("0.75"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["no_price_dollars"] == "0.75"
+        assert "no_price" not in body
+
+    def test_serializes_count_fp(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            count=Decimal("3"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "count_fp" in body
+        assert body["count_fp"] == "3"
+        assert "count" not in body
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                bogus_field="x",  # type: ignore[call-arg]
+            )
+
+    def test_accepts_client_order_ids(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            client_order_id="old-id",
+            updated_client_order_id="new-id",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["client_order_id"] == "old-id"
+        assert body["updated_client_order_id"] == "new-id"
+
+    def test_accepts_subaccount(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy", subaccount=3,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["subaccount"] == 3
+
+
+class TestDecreaseOrderRequest:
+    def test_accepts_reduce_by(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_by=3)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"reduce_by": 3}
+
+    def test_accepts_reduce_to(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_to=2)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"reduce_to": 2}
+
+    def test_accepts_subaccount(self) -> None:
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        req = DecreaseOrderRequest(reduce_by=1, subaccount=4)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["subaccount"] == 4
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError):
+            DecreaseOrderRequest(
+                reduce_by=1,
+                bogus_field=5,  # type: ignore[call-arg]
+            )
+
+    def test_rejects_both_reduce_by_and_reduce_to(self) -> None:
+        """Model rejects setting both fields — direct construction must match
+        the method-level guard in ``orders.decrease()``.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError, match="not both"):
+            DecreaseOrderRequest(reduce_by=3, reduce_to=2)
+
+    def test_rejects_neither_reduce_by_nor_reduce_to(self) -> None:
+        """Model rejects the all-None case too: sending an empty decrease body
+        is meaningless, so fail-fast at construction matches the method-level
+        guard and keeps the v0.9 model-first API honest.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError, match="reduce_by or reduce_to"):
+            DecreaseOrderRequest()
+
+
+class TestBatchCreateOrdersRequest:
+    def test_wraps_order_list(self) -> None:
+        from kalshi.models.orders import (
+            BatchCreateOrdersRequest,
+            CreateOrderRequest,
+        )
+
+        orders = [
+            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy"),
+            CreateOrderRequest(ticker="MKT-B", side="no", action="sell"),
+        ]
+        req = BatchCreateOrdersRequest(orders=orders)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+
+        assert "orders" in body
+        assert len(body["orders"]) == 2
+        assert body["orders"][0]["ticker"] == "MKT-A"
+        assert body["orders"][1]["ticker"] == "MKT-B"
+
+    def test_empty_list_allowed(self) -> None:
+        from kalshi.models.orders import BatchCreateOrdersRequest
+
+        req = BatchCreateOrdersRequest(orders=[])
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"orders": []}
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCreateOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCreateOrdersRequest(
+                orders=[],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+    def test_nested_create_order_phantom_rejected(self) -> None:
+        """Phantom key in a raw-dict nested order rejected via BatchCreateOrdersRequest.
+
+        Constructs BatchCreateOrdersRequest with a raw dict item — Pydantic
+        coerces into CreateOrderRequest and its extra='forbid' fires on the
+        phantom. This exercises the BatchCreateOrdersRequest -> nested item
+        path, not CreateOrderRequest's forbid in isolation (already covered
+        by TestCreateOrderRequestExtended.test_forbid_extra).
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCreateOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCreateOrdersRequest(
+                orders=[
+                    {
+                        "ticker": "MKT",
+                        "side": "yes",
+                        "action": "buy",
+                        "type": "limit",  # phantom
+                    },  # type: ignore[list-item]
+                ],
+            )
+
+
+class TestCreateMarketInMultivariateRequest:
+    def test_requires_selected_markets(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+        )
+
+        with pytest.raises(ValidationError):
+            CreateMarketInMultivariateEventCollectionRequest()  # type: ignore[call-arg]
+
+    def test_accepts_ticker_pair_items(self) -> None:
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=[pair],
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["selected_markets"][0]["event_ticker"] == "E1"
+
+    def test_with_market_payload_optional(self) -> None:
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=[pair],
+            with_market_payload=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["with_market_payload"] is True
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        with pytest.raises(ValidationError):
+            CreateMarketInMultivariateEventCollectionRequest(
+                selected_markets=[pair],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+
+class TestLookupTickersRequest:
+    def test_requires_selected_markets(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            LookupTickersForMarketInMultivariateEventCollectionRequest,
+        )
+
+        with pytest.raises(ValidationError):
+            LookupTickersForMarketInMultivariateEventCollectionRequest()  # type: ignore[call-arg]
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            LookupTickersForMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        with pytest.raises(ValidationError):
+            LookupTickersForMarketInMultivariateEventCollectionRequest(
+                selected_markets=[pair],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+
+class TestBatchCancelOrdersRequest:
+    def test_orders_field_required(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequest()  # type: ignore[call-arg]
+
+    def test_empty_orders_list_allowed(self) -> None:
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        req = BatchCancelOrdersRequest(orders=[])
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"orders": []}
+
+    def test_wraps_order_entries(self) -> None:
+        from kalshi.models.orders import (
+            BatchCancelOrdersRequest,
+            BatchCancelOrdersRequestOrder,
+        )
+
+        req = BatchCancelOrdersRequest(
+            orders=[
+                BatchCancelOrdersRequestOrder(order_id="ord-1"),
+                BatchCancelOrdersRequestOrder(order_id="ord-2", subaccount=3),
+            ],
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert len(body["orders"]) == 2
+        assert body["orders"][0] == {"order_id": "ord-1"}
+        assert body["orders"][1] == {"order_id": "ord-2", "subaccount": 3}
+
+    def test_forbid_extra_on_wrapper(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequest(
+                orders=[],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+
+class TestBatchCancelOrdersRequestOrder:
+    def test_order_id_required(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequestOrder()  # type: ignore[call-arg]
+
+    def test_subaccount_optional(self) -> None:
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        req = BatchCancelOrdersRequestOrder(order_id="ord-x")
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"order_id": "ord-x"}
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequestOrder(
+                order_id="x",
+                bogus=5,  # type: ignore[call-arg]
+            )

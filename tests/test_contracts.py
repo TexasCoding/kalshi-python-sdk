@@ -27,8 +27,201 @@ from pydantic import BaseModel as PydanticBase
 from pydantic.fields import FieldInfo
 
 from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
+from tests._contract_support import (
+    EXCLUSIONS,
+    METHOD_ENDPOINT_MAP,
+    Exclusion,
+    MethodEndpointEntry,
+    _resolve_path_params,
+    _resolve_request_body_schema,
+)
 
 SPEC_FILE = Path(__file__).parent.parent / "specs" / "openapi.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure tests
+# ---------------------------------------------------------------------------
+
+
+class TestContractSupportInfra:
+    def test_exclusion_requires_reason(self) -> None:
+        import dataclasses
+
+        with pytest.raises(TypeError):
+            Exclusion()  # type: ignore[call-arg]
+
+        e = Exclusion(reason="because")
+        assert e.reason == "because"
+        assert dataclasses.is_dataclass(e)
+
+    def test_exclusions_bootstrap_has_cursor_entries(self) -> None:
+        """Every paginator method must have a matching cursor exclusion.
+
+        Derives the expected set from METHOD_ENDPOINT_MAP so adding a new
+        ``*_all`` / ``list_all_*`` paginator method fails this test with a
+        pointed error rather than a stale hardcoded count mismatch.
+        """
+        cursor_keys = {k for k in EXCLUSIONS if k[1] == "cursor"}
+        paginator_methods = {
+            e.sdk_method for e in METHOD_ENDPOINT_MAP
+            if e.sdk_method.endswith("_all") or "list_all_" in e.sdk_method
+        }
+        covered = {k[0] for k in cursor_keys}
+        assert covered == paginator_methods, (
+            "Cursor exclusions out of sync with METHOD_ENDPOINT_MAP paginators. "
+            f"Missing exclusions for: {sorted(paginator_methods - covered)}. "
+            f"Orphaned cursor exclusions: {sorted(covered - paginator_methods)}."
+        )
+        for key in cursor_keys:
+            assert "paginator" in EXCLUSIONS[key].reason.lower()
+
+    def test_exclusions_bootstrap_has_create_order_request_entries(self) -> None:
+        create_keys = [
+            k for k in EXCLUSIONS
+            if k[0] == "kalshi.models.orders.CreateOrderRequest"
+        ]
+        field_names = {k[1] for k in create_keys}
+        assert {"yes_price", "no_price", "sell_position_floor"} <= field_names
+
+    def test_method_endpoint_entry_has_request_body_schema(self) -> None:
+        entry = MethodEndpointEntry(
+            sdk_method="x", http_method="GET", path_template="/y",
+        )
+        assert entry.request_body_schema is None
+
+        entry2 = MethodEndpointEntry(
+            sdk_method="x",
+            http_method="POST",
+            path_template="/y",
+            request_body_schema="#/components/schemas/Foo",
+        )
+        assert entry2.request_body_schema == "#/components/schemas/Foo"
+
+    def test_resolve_request_body_schema_returns_none_for_get(self) -> None:
+        spec: dict[str, Any] = {
+            "paths": {
+                "/markets": {
+                    "get": {"parameters": []},
+                },
+            },
+        }
+        assert _resolve_request_body_schema(spec, "/markets", "GET") is None
+
+    def test_resolve_request_body_schema_resolves_ref(self) -> None:
+        spec = {
+            "paths": {
+                "/portfolio/orders": {
+                    "post": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Foo",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "components": {
+                "schemas": {
+                    "Foo": {
+                        "type": "object",
+                        "properties": {"a": {"type": "string"}},
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(spec, "/portfolio/orders", "POST")
+        assert result is not None
+        assert "a" in result["properties"]
+
+    def test_resolve_request_body_schema_inline_schema(self) -> None:
+        spec = {
+            "paths": {
+                "/x": {
+                    "post": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {"b": {"type": "integer"}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(spec, "/x", "POST")
+        assert result is not None
+        assert "b" in result["properties"]
+
+    def test_resolve_request_body_schema_delete_with_body(self) -> None:
+        """DELETE operations with a requestBody (Kalshi's batch_cancel pattern)
+        must resolve just like POST/PUT. Locks in the HTTP-method-agnostic
+        behavior so ``TestRequestBodyDrift`` actually covers ``batch_cancel``.
+        """
+        spec = {
+            "paths": {
+                "/portfolio/orders/batched": {
+                    "delete": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Bar",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "components": {
+                "schemas": {
+                    "Bar": {
+                        "type": "object",
+                        "properties": {"orders": {"type": "array"}},
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(
+            spec, "/portfolio/orders/batched", "DELETE",
+        )
+        assert result is not None
+        assert "orders" in result["properties"]
+
+    def test_batch_cancel_body_drift_is_actually_exercised(self) -> None:
+        """Live check: ``batch_cancel`` is present in METHOD_ENDPOINT_MAP with
+        a body schema ref, and the real OpenAPI spec's DELETE operation
+        resolves to a non-empty schema. Without this, TestRequestBodyDrift
+        could silently vacuum up a None schema and skip drift checks.
+        """
+        entries = [
+            e for e in METHOD_ENDPOINT_MAP
+            if e.http_method == "DELETE" and e.request_body_schema is not None
+        ]
+        assert entries, "Expected at least one DELETE entry with a body schema"
+
+        spec = _load_spec()
+        for entry in entries:
+            resolved = _resolve_request_body_schema(
+                spec, entry.path_template, entry.http_method,
+            )
+            assert resolved is not None, (
+                f"DELETE {entry.path_template} has request_body_schema "
+                f"{entry.request_body_schema!r} registered but the spec "
+                f"resolves to None. Drift test would silently pass."
+            )
+            assert resolved.get("properties"), (
+                f"DELETE {entry.path_template} resolved to an empty schema."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -513,3 +706,369 @@ class TestWsSpecDrift:
                 + "\n".join(f"  - {m}" for m in unmapped),
                 stacklevel=1,
             )
+
+
+# ---------------------------------------------------------------------------
+# Request-side Drift Tests (v0.8.0)
+# ---------------------------------------------------------------------------
+
+
+def _signature_params(sdk_method_fqn: str) -> set[str]:
+    """Return the set of keyword parameter names for an SDK method, minus
+    ``self``. Resolves the dotted path ``module.Class.method``.
+
+    Uses the rightmost-two-dots split so that FQNs like
+    ``kalshi.resources.orders.OrdersResource.create`` resolve as
+    module=``kalshi.resources.orders``, class=``OrdersResource``, method=``create``.
+    """
+    parts = sdk_method_fqn.split(".")
+    method = parts[-1]
+    cls_name = parts[-2]
+    module_name = ".".join(parts[:-2])
+    module = importlib.import_module(module_name)
+    cls = getattr(module, cls_name)
+    func = getattr(cls, method)
+    sig = inspect.signature(func)
+    return {
+        name for name, param in sig.parameters.items()
+        if name != "self" and param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    }
+
+
+def _path_params_from_template(path_template: str) -> set[str]:
+    """Extract ``{name}`` placeholders from a path template."""
+    import re
+    return set(re.findall(r"\{([^}]+)\}", path_template))
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [e for e in METHOD_ENDPOINT_MAP if e.http_method in ("GET", "DELETE")],
+    ids=[
+        e.sdk_method.rsplit(".", 1)[1]
+        for e in METHOD_ENDPOINT_MAP
+        if e.http_method in ("GET", "DELETE")
+    ],
+)
+class TestRequestParamDrift:
+    """Verify resource method signatures match OpenAPI spec query/path params.
+
+    Parametrized over every GET/DELETE entry in ``METHOD_ENDPOINT_MAP``. For each,
+    compares the SDK method's kwarg set (sync + async) to the spec's ``parameters``
+    list, modulo the ``EXCLUSIONS`` allowlist.
+
+    Async sibling derived via ``Async<ClassName>`` substitution — one map entry
+    drives both sync and async tests. Asserts the async class exists; a missing
+    sibling is a bug we want to see immediately.
+
+    Hard-fails via ``pytest.fail`` (NOT ``warnings.warn``). Request-side drift
+    is a user-facing capability gap. See the docstring of
+    ``tests/_contract_support.py`` for the rationale on the asymmetry vs
+    ``TestSpecDrift`` (response-side, which warns rather than fails).
+    """
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_spec()
+
+    def test_sync_params_match_spec(self, entry: MethodEndpointEntry) -> None:
+        self._assert_params_match(entry, async_=False)
+
+    def test_async_params_match_spec(self, entry: MethodEndpointEntry) -> None:
+        self._assert_params_match(entry, async_=True)
+
+    def _assert_params_match(
+        self, entry: MethodEndpointEntry, *, async_: bool,
+    ) -> None:
+        sdk_fqn = entry.sdk_method
+        if async_:
+            parts = sdk_fqn.split(".")
+            parts[-2] = f"Async{parts[-2]}"
+            sdk_fqn = ".".join(parts)
+            # Assert sibling exists
+            module_name = ".".join(parts[:-2])
+            cls_name = parts[-2]
+            module = importlib.import_module(module_name)
+            assert hasattr(module, cls_name), (
+                f"Missing async sibling {cls_name} in {module_name}"
+            )
+
+        sdk_params = _signature_params(sdk_fqn)
+        spec_params_list = _resolve_path_params(
+            self.spec, entry.path_template, entry.http_method,
+        )
+        spec_params = {
+            p["name"] for p in spec_params_list
+            if p.get("in") in ("query", "path")
+        }
+        # Spec path params like ``{order_id}`` should appear in the path
+        # template placeholders too; union them in so the test catches
+        # cases where a spec operation declares a path param that the
+        # SDK method signature doesn't accept.
+        template_params = _path_params_from_template(entry.path_template)
+        spec_params |= template_params
+
+        # EXCLUSIONS is indexed by the SYNC method fqn; async tests reuse
+        # the same allowlist entries.
+        lookup_fqn = entry.sdk_method
+
+        # ADD drift: spec has it, SDK missing
+        missing = spec_params - sdk_params
+        missing_unallowed = {
+            p for p in missing
+            if (lookup_fqn, p) not in EXCLUSIONS
+        }
+        # REMOVE drift: SDK has it, spec doesn't
+        extra = sdk_params - spec_params
+        extra_unallowed = {
+            p for p in extra
+            if (lookup_fqn, p) not in EXCLUSIONS
+        }
+
+        errors: list[str] = []
+        if missing_unallowed:
+            errors.append(
+                f"[ADD drift] spec has params SDK missing: "
+                f"{sorted(missing_unallowed)}"
+            )
+        if extra_unallowed:
+            errors.append(
+                f"[REMOVE drift] SDK has params spec doesn't: "
+                f"{sorted(extra_unallowed)}"
+            )
+        if errors:
+            pytest.fail(
+                f"{sdk_fqn} <-> {entry.http_method} {entry.path_template}\n"
+                + "\n".join(errors)
+                + f"\n(Allowlist via EXCLUSIONS[({lookup_fqn!r}, '...')])"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Body Drift Tests (v0.8.0)
+# ---------------------------------------------------------------------------
+
+
+# Registry: spec $ref → SDK request model FQN.
+# Update whenever a new POST/PUT/DELETE-with-body endpoint gets a request model.
+BODY_MODEL_MAP: dict[str, str] = {
+    "#/components/schemas/CreateOrderRequest": (
+        "kalshi.models.orders.CreateOrderRequest"
+    ),
+    "#/components/schemas/AmendOrderRequest": (
+        "kalshi.models.orders.AmendOrderRequest"
+    ),
+    "#/components/schemas/DecreaseOrderRequest": (
+        "kalshi.models.orders.DecreaseOrderRequest"
+    ),
+    "#/components/schemas/BatchCreateOrdersRequest": (
+        "kalshi.models.orders.BatchCreateOrdersRequest"
+    ),
+    "#/components/schemas/BatchCancelOrdersRequest": (
+        "kalshi.models.orders.BatchCancelOrdersRequest"
+    ),
+    "#/components/schemas/CreateMarketInMultivariateEventCollectionRequest": (
+        "kalshi.models.multivariate."
+        "CreateMarketInMultivariateEventCollectionRequest"
+    ),
+    "#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest": (
+        "kalshi.models.multivariate."
+        "LookupTickersForMarketInMultivariateEventCollectionRequest"
+    ),
+}
+
+
+def _get_model_class_from_fqn(fqn: str) -> type[PydanticBase]:
+    module_name, _, cls_name = fqn.rpartition(".")
+    module = importlib.import_module(module_name)
+    return getattr(module, cls_name)  # type: ignore[no-any-return]
+
+
+def _model_aliases(model_cls: type[PydanticBase]) -> set[str]:
+    """Return the set of WIRE names the model emits — serialization_alias if
+    set, else the field name. Compared to spec schema property names by
+    ``TestRequestBodyDrift``.
+
+    Known gap: iterates only top-level fields. Nested Pydantic models
+    (e.g., ``TickerPair`` inside ``selected_markets: list[TickerPair]``)
+    are not recursively checked. See TODOS.md — v0.9 nested-model drift
+    coverage.
+    """
+    names: set[str] = set()
+    for field_name, field in model_cls.model_fields.items():
+        alias = field.serialization_alias or field_name
+        names.add(alias)
+    return names
+
+
+_BODY_ENTRIES = [
+    e for e in METHOD_ENDPOINT_MAP
+    if e.request_body_schema is not None
+]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    _BODY_ENTRIES,
+    ids=[e.sdk_method.rsplit(".", 1)[1] for e in _BODY_ENTRIES],
+)
+class TestRequestBodyDrift:
+    """Verify request body models match OpenAPI spec body schemas.
+
+    Parametrized over POST/PUT/DELETE entries with a ``request_body_schema``
+    ref. Compares WIRE NAMES (``serialization_alias`` if set, else field
+    name) of the SDK model against the spec body schema's ``properties``
+    keys, modulo EXCLUSIONS.
+
+    Hard-fails via ``pytest.fail`` on any drift not covered by the allowlist.
+    Runs alongside ``TestRequestParamDrift`` in CI.
+    """
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_spec()
+
+    def test_body_properties_match_spec(
+        self, entry: MethodEndpointEntry,
+    ) -> None:
+        assert entry.request_body_schema is not None
+        model_fqn = BODY_MODEL_MAP.get(entry.request_body_schema)
+        assert model_fqn is not None, (
+            f"No request model registered in BODY_MODEL_MAP for "
+            f"{entry.request_body_schema!r}. Add the mapping."
+        )
+        model_cls = _get_model_class_from_fqn(model_fqn)
+
+        schema = _resolve_request_body_schema(
+            self.spec, entry.path_template, entry.http_method,
+        )
+        assert schema is not None, (
+            f"Spec has no body schema for {entry.http_method} "
+            f"{entry.path_template}"
+        )
+        spec_props = set(schema.get("properties", {}).keys())
+        sdk_wire_names = _model_aliases(model_cls)
+
+        # ADD drift: spec has property SDK model doesn't emit
+        missing = spec_props - sdk_wire_names
+        missing_unallowed = {
+            p for p in missing if (model_fqn, p) not in EXCLUSIONS
+        }
+        # REMOVE drift: SDK emits wire name spec doesn't have
+        extra = sdk_wire_names - spec_props
+        extra_unallowed = {
+            p for p in extra if (model_fqn, p) not in EXCLUSIONS
+        }
+
+        errors: list[str] = []
+        if missing_unallowed:
+            errors.append(
+                f"[ADD drift] spec has properties SDK model missing: "
+                f"{sorted(missing_unallowed)}"
+            )
+        if extra_unallowed:
+            errors.append(
+                f"[REMOVE drift] SDK model emits wire names spec doesn't: "
+                f"{sorted(extra_unallowed)}"
+            )
+        if errors:
+            pytest.fail(
+                f"{model_fqn} <-> {entry.request_body_schema}\n"
+                + "\n".join(errors)
+            )
+
+
+def test_exclusion_map_is_current() -> None:
+    """Every EXCLUSIONS entry must describe real drift.
+
+    If an entry references a spec-side key that is no longer in the spec's
+    properties, or a SDK-side key the SDK now implements, the entry is
+    stale. Stale entries give false confidence that a deviation is
+    intentional — prevent that here.
+    """
+    spec = _load_spec()
+    stale: list[str] = []
+
+    for (fqn, name), excl in EXCLUSIONS.items():
+        # Case 1: spec-side exclusion keyed on a model FQN (kalshi.models.*)
+        if fqn.startswith("kalshi.models."):
+            spec_ref = next(
+                (ref for ref, m in BODY_MODEL_MAP.items() if m == fqn),
+                None,
+            )
+            if spec_ref is None:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references unknown model "
+                    f"{fqn} (not in BODY_MODEL_MAP); reason={excl.reason!r}"
+                )
+                continue
+            schema = None
+            for e in METHOD_ENDPOINT_MAP:
+                if e.request_body_schema == spec_ref:
+                    schema = _resolve_request_body_schema(
+                        spec, e.path_template, e.http_method,
+                    )
+                    break
+            if schema is None:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references schema {spec_ref} "
+                    f"not reachable via METHOD_ENDPOINT_MAP"
+                )
+                continue
+            if name not in schema.get("properties", {}):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims spec has {name!r} on "
+                    f"{spec_ref}, but spec does NOT — entry is stale. "
+                    f"reason={excl.reason!r}"
+                )
+            model_cls = _get_model_class_from_fqn(fqn)
+            if name in _model_aliases(model_cls):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims SDK excludes {name!r} "
+                    f"from {fqn}, but the model DOES emit it — entry is stale."
+                )
+
+        # Case 2: resource-method exclusion keyed on resource FQN
+        elif fqn.startswith("kalshi.resources."):
+            try:
+                sdk_params = _signature_params(fqn)
+            except (ImportError, AttributeError):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references unknown method "
+                    f"{fqn}; reason={excl.reason!r}"
+                )
+                continue
+            # For resource-method exclusions, 'name' is the param name the SDK
+            # should NOT have. If sdk_params DOES contain it, the entry is
+            # stale — UNLESS it's a body-param exclusion (like batch_cancel's
+            # 'orders'), in which case the kwarg legitimately exists in the
+            # signature. Distinguish by checking whether the entry's reason
+            # references a body parameter.
+            reason_lower = excl.reason.lower()
+            is_body_param_exclusion = (
+                "body param" in reason_lower
+                or "body param," in reason_lower
+                or "not query/path" in reason_lower
+            )
+            if name in sdk_params and not is_body_param_exclusion:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims SDK omits {name!r} from "
+                    f"{fqn}, but the method DOES accept it as a kwarg — "
+                    f"entry is stale. reason={excl.reason!r}"
+                )
+
+        else:
+            stale.append(
+                f"EXCLUSIONS[{(fqn, name)}] has unexpected FQN prefix; "
+                f"expected kalshi.models.* or kalshi.resources.*"
+            )
+
+    if stale:
+        pytest.fail("\n".join(stale))
