@@ -73,6 +73,14 @@
 **Depends on:** v0.8.0 shipped (done). Activation trigger: first spec update that introduces a nested `$ref` in a POST/PUT/DELETE body schema.
 **Added:** 2026-04-18 via /plan-eng-review.
 
+## P3: TestRequestBodyDrift should cover nested Pydantic models (v0.9)
+**What:** `_model_aliases()` in `tests/test_contracts.py` iterates one level deep only. Nested models like `TickerPair` (inside `CreateMarketInMultivariateEventCollectionRequest.selected_markets`) have no `BODY_MODEL_MAP` entry and are not checked for drift. `TickerPair` has `extra="allow"` so phantom fields flow to the wire silently.
+**Why:** False confidence in drift coverage. Not a production bug today (TickerPair fields are correct) but a future schema change to the nested type would silently bypass the drift test.
+**Pros:** Closes a genuine gap in the scanner; surfaces any drift on nested models.
+**Cons:** Requires deciding whether TickerPair should gain `extra="forbid"` (could be breaking for callers who pass extra keys). Design decision + test expansion.
+**Depends on:** v0.8.0 shipped (done).
+**Added:** 2026-04-18 via /review adversarial pass (Finding INFORMATIONAL-3).
+
 ## Completed
 
 ### ~~Normalize resource methods against OpenAPI spec surface (v0.7.0 major)~~
