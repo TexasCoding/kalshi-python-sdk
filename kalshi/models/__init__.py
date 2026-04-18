@@ -1,6 +1,21 @@
 """Kalshi SDK data models."""
 
 from kalshi.models.common import Page
+from kalshi.models.communications import (
+    RFQ,
+    AcceptQuoteRequest,
+    CreateQuoteRequest,
+    CreateQuoteResponse,
+    CreateRFQRequest,
+    CreateRFQResponse,
+    GetCommunicationsIDResponse,
+    GetQuoteResponse,
+    GetQuotesResponse,
+    GetRFQResponse,
+    GetRFQsResponse,
+    MveSelectedLeg,
+    Quote,
+)
 from kalshi.models.events import Event, EventMetadata, MarketMetadata, SettlementSource
 from kalshi.models.exchange import (
     Announcement,
@@ -64,6 +79,8 @@ from kalshi.models.series import (
 )
 
 __all__ = [
+    "RFQ",
+    "AcceptQuoteRequest",
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
@@ -79,6 +96,10 @@ __all__ = [
     "CreateOrderGroupRequest",
     "CreateOrderGroupResponse",
     "CreateOrderRequest",
+    "CreateQuoteRequest",
+    "CreateQuoteResponse",
+    "CreateRFQRequest",
+    "CreateRFQResponse",
     "DailySchedule",
     "DecreaseOrderRequest",
     "Event",
@@ -88,7 +109,12 @@ __all__ = [
     "ExchangeStatus",
     "Fill",
     "ForecastPercentilesPoint",
+    "GetCommunicationsIDResponse",
     "GetOrderGroupResponse",
+    "GetQuoteResponse",
+    "GetQuotesResponse",
+    "GetRFQResponse",
+    "GetRFQsResponse",
     "HistoricalCutoff",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
@@ -98,6 +124,7 @@ __all__ = [
     "MarketMetadata",
     "MarketPosition",
     "MultivariateEventCollection",
+    "MveSelectedLeg",
     "Order",
     "OrderGroup",
     "OrderQueuePosition",
@@ -107,6 +134,7 @@ __all__ = [
     "PercentilePoint",
     "PositionsResponse",
     "PriceDistribution",
+    "Quote",
     "Schedule",
     "Series",
     "SeriesFeeChange",
