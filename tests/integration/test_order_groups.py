@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterator
 
@@ -111,7 +112,6 @@ class TestOrderGroupsAsync:
     async def test_create_get_delete(
         self, async_client: AsyncKalshiClient, demo_balance_cents: int,
     ) -> None:
-        import asyncio
 
         skip_if_low_balance(demo_balance_cents, threshold_cents=100)
         resp = await async_client.order_groups.create(contracts_limit=1)

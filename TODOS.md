@@ -107,6 +107,16 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
+### P3: Register Order Groups response models in `_contract_map.py`
+**What:** Add `OrderGroup`, `GetOrderGroupResponse`, and `CreateOrderGroupResponse` to `kalshi/_contract_map.py` so response-side spec drift is caught by contract tests. Currently drift on new fields (e.g., if Kalshi adds `is_suspended: bool` to `OrderGroup`) would silently go unnoticed.
+**Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.
+**Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
+
+### P3: Harden `_put()` against 204 No Content responses
+**What:** `kalshi/resources/_base.py::_put()` unconditionally calls `response.json()`. If a Kalshi endpoint ever returns 204 (empty body) on a PUT, `_put` will raise `JSONDecodeError`. Mirror the `_delete()` pattern (`if response.status_code == 204: return None`).
+**Why:** `_delete()` already handles this. `_put()` is inconsistent and brittle. The risk is currently latent — spec defines 200 responses with empty-object bodies, but spec can change. `OrderGroupsResource.update_limit` is the first `_put()` caller where a spec change could surface this.
+**Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
+
 ---
 
 ## Completed

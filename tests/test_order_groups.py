@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 import httpx
@@ -215,7 +216,6 @@ class TestOrderGroupsGet:
 class TestOrderGroupsCreate:
     @respx.mock
     def test_create_sends_correct_body(self, order_groups: OrderGroupsResource) -> None:
-        import json
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
@@ -232,7 +232,6 @@ class TestOrderGroupsCreate:
     def test_create_omits_subaccount_when_none(
         self, order_groups: OrderGroupsResource,
     ) -> None:
-        import json
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
@@ -298,7 +297,6 @@ class TestOrderGroupsMutations:
     def test_update_limit_sends_put_with_body(
         self, order_groups: OrderGroupsResource,
     ) -> None:
-        import json
 
         route = respx.put(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/limit"
@@ -394,7 +392,6 @@ class TestAsyncOrderGroups:
         self, async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
-        import json
 
         route = respx_mock.put(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/limit"
