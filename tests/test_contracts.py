@@ -772,3 +772,222 @@ class TestRequestParamDrift:
                 + "\n".join(errors)
                 + f"\n(Allowlist via EXCLUSIONS[({lookup_fqn!r}, '...')])"
             )
+
+
+# ---------------------------------------------------------------------------
+# Body Drift Tests (v0.8.0)
+# ---------------------------------------------------------------------------
+
+
+# Registry: spec $ref → SDK request model FQN.
+# Update whenever a new POST/PUT/DELETE-with-body endpoint gets a request model.
+BODY_MODEL_MAP: dict[str, str] = {
+    "#/components/schemas/CreateOrderRequest": (
+        "kalshi.models.orders.CreateOrderRequest"
+    ),
+    "#/components/schemas/AmendOrderRequest": (
+        "kalshi.models.orders.AmendOrderRequest"
+    ),
+    "#/components/schemas/DecreaseOrderRequest": (
+        "kalshi.models.orders.DecreaseOrderRequest"
+    ),
+    "#/components/schemas/BatchCreateOrdersRequest": (
+        "kalshi.models.orders.BatchCreateOrdersRequest"
+    ),
+    "#/components/schemas/BatchCancelOrdersRequest": (
+        "kalshi.models.orders.BatchCancelOrdersRequest"
+    ),
+    "#/components/schemas/CreateMarketInMultivariateEventCollectionRequest": (
+        "kalshi.models.multivariate."
+        "CreateMarketInMultivariateEventCollectionRequest"
+    ),
+    "#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest": (
+        "kalshi.models.multivariate."
+        "LookupTickersForMarketInMultivariateEventCollectionRequest"
+    ),
+}
+
+
+def _get_model_class_from_fqn(fqn: str) -> type[PydanticBase]:
+    module_name, _, cls_name = fqn.rpartition(".")
+    module = importlib.import_module(module_name)
+    return getattr(module, cls_name)  # type: ignore[no-any-return]
+
+
+def _model_aliases(model_cls: type[PydanticBase]) -> set[str]:
+    """Return the set of WIRE names the model emits — serialization_alias if
+    set, else the field name. Compared to spec schema property names by
+    ``TestRequestBodyDrift``."""
+    names: set[str] = set()
+    for field_name, field in model_cls.model_fields.items():
+        alias = field.serialization_alias or field_name
+        names.add(alias)
+    return names
+
+
+_BODY_ENTRIES = [
+    e for e in METHOD_ENDPOINT_MAP
+    if e.request_body_schema is not None
+]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    _BODY_ENTRIES,
+    ids=[e.sdk_method.rsplit(".", 1)[1] for e in _BODY_ENTRIES],
+)
+class TestRequestBodyDrift:
+    """Verify request body models match OpenAPI spec body schemas.
+
+    Parametrized over POST/PUT/DELETE entries with a ``request_body_schema``
+    ref. Compares WIRE NAMES (``serialization_alias`` if set, else field
+    name) of the SDK model against the spec body schema's ``properties``
+    keys, modulo EXCLUSIONS.
+
+    Hard-fails via ``pytest.fail`` on any drift not covered by the allowlist.
+    Runs alongside ``TestRequestParamDrift`` in CI.
+    """
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_spec()
+
+    def test_body_properties_match_spec(
+        self, entry: MethodEndpointEntry,
+    ) -> None:
+        assert entry.request_body_schema is not None
+        model_fqn = BODY_MODEL_MAP.get(entry.request_body_schema)
+        assert model_fqn is not None, (
+            f"No request model registered in BODY_MODEL_MAP for "
+            f"{entry.request_body_schema!r}. Add the mapping."
+        )
+        model_cls = _get_model_class_from_fqn(model_fqn)
+
+        schema = _resolve_request_body_schema(
+            self.spec, entry.path_template, entry.http_method,
+        )
+        assert schema is not None, (
+            f"Spec has no body schema for {entry.http_method} "
+            f"{entry.path_template}"
+        )
+        spec_props = set(schema.get("properties", {}).keys())
+        sdk_wire_names = _model_aliases(model_cls)
+
+        # ADD drift: spec has property SDK model doesn't emit
+        missing = spec_props - sdk_wire_names
+        missing_unallowed = {
+            p for p in missing if (model_fqn, p) not in EXCLUSIONS
+        }
+        # REMOVE drift: SDK emits wire name spec doesn't have
+        extra = sdk_wire_names - spec_props
+        extra_unallowed = {
+            p for p in extra if (model_fqn, p) not in EXCLUSIONS
+        }
+
+        errors: list[str] = []
+        if missing_unallowed:
+            errors.append(
+                f"[ADD drift] spec has properties SDK model missing: "
+                f"{sorted(missing_unallowed)}"
+            )
+        if extra_unallowed:
+            errors.append(
+                f"[REMOVE drift] SDK model emits wire names spec doesn't: "
+                f"{sorted(extra_unallowed)}"
+            )
+        if errors:
+            pytest.fail(
+                f"{model_fqn} <-> {entry.request_body_schema}\n"
+                + "\n".join(errors)
+            )
+
+
+def test_exclusion_map_is_current() -> None:
+    """Every EXCLUSIONS entry must describe real drift.
+
+    If an entry references a spec-side key that is no longer in the spec's
+    properties, or a SDK-side key the SDK now implements, the entry is
+    stale. Stale entries give false confidence that a deviation is
+    intentional — prevent that here.
+    """
+    spec = _load_spec()
+    stale: list[str] = []
+
+    for (fqn, name), excl in EXCLUSIONS.items():
+        # Case 1: spec-side exclusion keyed on a model FQN (kalshi.models.*)
+        if fqn.startswith("kalshi.models."):
+            spec_ref = next(
+                (ref for ref, m in BODY_MODEL_MAP.items() if m == fqn),
+                None,
+            )
+            if spec_ref is None:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references unknown model "
+                    f"{fqn} (not in BODY_MODEL_MAP); reason={excl.reason!r}"
+                )
+                continue
+            schema = None
+            for e in METHOD_ENDPOINT_MAP:
+                if e.request_body_schema == spec_ref:
+                    schema = _resolve_request_body_schema(
+                        spec, e.path_template, e.http_method,
+                    )
+                    break
+            if schema is None:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references schema {spec_ref} "
+                    f"not reachable via METHOD_ENDPOINT_MAP"
+                )
+                continue
+            if name not in schema.get("properties", {}):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims spec has {name!r} on "
+                    f"{spec_ref}, but spec does NOT — entry is stale. "
+                    f"reason={excl.reason!r}"
+                )
+            model_cls = _get_model_class_from_fqn(fqn)
+            if name in _model_aliases(model_cls):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims SDK excludes {name!r} "
+                    f"from {fqn}, but the model DOES emit it — entry is stale."
+                )
+
+        # Case 2: resource-method exclusion keyed on resource FQN
+        elif fqn.startswith("kalshi.resources."):
+            try:
+                sdk_params = _signature_params(fqn)
+            except (ImportError, AttributeError):
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] references unknown method "
+                    f"{fqn}; reason={excl.reason!r}"
+                )
+                continue
+            # For resource-method exclusions, 'name' is the param name the SDK
+            # should NOT have. If sdk_params DOES contain it, the entry is
+            # stale — UNLESS it's a body-param exclusion (like batch_cancel's
+            # 'orders'), in which case the kwarg legitimately exists in the
+            # signature. Distinguish by checking whether the entry's reason
+            # references a body parameter.
+            reason_lower = excl.reason.lower()
+            is_body_param_exclusion = (
+                "body param" in reason_lower
+                or "body param," in reason_lower
+                or "not query/path" in reason_lower
+            )
+            if name in sdk_params and not is_body_param_exclusion:
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims SDK omits {name!r} from "
+                    f"{fqn}, but the method DOES accept it as a kwarg — "
+                    f"entry is stale. reason={excl.reason!r}"
+                )
+
+        else:
+            stale.append(
+                f"EXCLUSIONS[{(fqn, name)}] has unexpected FQN prefix; "
+                f"expected kalshi.models.* or kalshi.resources.*"
+            )
+
+    if stale:
+        pytest.fail("\n".join(stale))

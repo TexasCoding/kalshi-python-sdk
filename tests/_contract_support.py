@@ -439,6 +439,51 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "wire carries dollars"
         ),
     ),
+    # --- count wire normalization (v0.8.0) ---
+    # Spec has both count (int) and count_fp (FixedPointCount); SDK commits to
+    # emitting count_fp only (serialization_alias="count_fp"). Kalshi accepts
+    # either key per spec description. Documented in CHANGELOG as "count wire
+    # key normalized to count_fp".
+    ("kalshi.models.orders.CreateOrderRequest", "count"): Exclusion(
+        reason=(
+            "SDK emits count_fp (serialization_alias) instead of count; "
+            "Kalshi accepts either; normalized to count_fp per v0.8.0 wire shape decision"
+        ),
+    ),
+    ("kalshi.models.orders.AmendOrderRequest", "count"): Exclusion(
+        reason=(
+            "SDK emits count_fp (serialization_alias) instead of count; "
+            "Kalshi accepts either; amend() used count_fp pre-v0.8.0 already"
+        ),
+    ),
+    # --- DecreaseOrderRequest _fp variants not implemented ---
+    # Spec has reduce_by_fp and reduce_to_fp (FixedPointCount string) as
+    # alternatives to reduce_by/reduce_to (int). SDK only emits the integer
+    # forms. Spec says "if both provided they must match" — sending only
+    # integer form is valid. v0.8.0 deferred _fp variants (fractional
+    # contracts not yet relevant for decrease operations).
+    ("kalshi.models.orders.DecreaseOrderRequest", "reduce_by_fp"): Exclusion(
+        reason=(
+            "FixedPointCount variant of reduce_by; SDK emits integer reduce_by only; "
+            "spec accepts either form; _fp variant deferred post-v0.8.0"
+        ),
+    ),
+    ("kalshi.models.orders.DecreaseOrderRequest", "reduce_to_fp"): Exclusion(
+        reason=(
+            "FixedPointCount variant of reduce_to; SDK emits integer reduce_to only; "
+            "spec accepts either form; _fp variant deferred post-v0.8.0"
+        ),
+    ),
+    # --- BatchCancelOrdersRequest deprecated ids field ---
+    # Spec has ids (array of strings, marked deprecated) as an alternative to
+    # the preferred orders field. SDK v0.8.0 migrated from ids to orders and
+    # does not emit ids. Documented in CHANGELOG as BREAKING wire field flip.
+    ("kalshi.models.orders.BatchCancelOrdersRequest", "ids"): Exclusion(
+        reason=(
+            "deprecated spec field; SDK v0.8.0 migrated to preferred 'orders' field; "
+            "intentional REMOVE drift documented in CHANGELOG"
+        ),
+    ),
 }
 
 
