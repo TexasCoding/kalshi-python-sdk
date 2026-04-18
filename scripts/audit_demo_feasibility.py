@@ -63,7 +63,6 @@ from kalshi.errors import (  # noqa: E402
     KalshiValidationError,
 )
 
-
 PLACEHOLDER = "AUDIT-NONEXISTENT-ID"
 
 

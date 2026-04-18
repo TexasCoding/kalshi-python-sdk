@@ -16,11 +16,10 @@ import tests.integration.test_exchange as _exchange  # noqa: F401
 import tests.integration.test_historical as _historical  # noqa: F401
 import tests.integration.test_markets as _markets  # noqa: F401
 import tests.integration.test_multivariate as _multivariate  # noqa: F401
+import tests.integration.test_order_groups as _order_groups  # noqa: F401
 import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
-
-import tests.integration.test_order_groups as _order_groups  # noqa: F401
 from tests.integration.coverage_harness import SCENARIO_REGISTRY, discover_public_methods
 
 
