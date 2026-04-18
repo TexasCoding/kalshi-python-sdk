@@ -355,6 +355,44 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="PUT",
         path_template="/communications/quotes/{quote_id}/confirm",
     ),
+    # ── subaccounts ─────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.create",
+        http_method="POST",
+        path_template="/portfolio/subaccounts",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer",
+        http_method="POST",
+        path_template="/portfolio/subaccounts/transfer",
+        request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_balances",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/balances",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_transfers",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.update_netting",
+        http_method="PUT",
+        path_template="/portfolio/subaccounts/netting",
+        request_body_schema="#/components/schemas/UpdateSubaccountNettingRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.get_netting",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/netting",
+    ),
     # ── portfolio ───────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.portfolio.PortfolioResource.balance",
@@ -628,6 +666,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "deprecated in spec; superseded by target_cost_dollars which SDK ships as "
             "target_cost (serialization_alias='target_cost_dollars')"
         ),
+    ),
+    # --- list_all cursor exclusions for subaccounts paginator ---
+    ("kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }
 

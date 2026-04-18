@@ -895,6 +895,12 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/AcceptQuoteRequest": (
         "kalshi.models.communications.AcceptQuoteRequest"
     ),
+    "#/components/schemas/ApplySubaccountTransferRequest": (
+        "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
+    ),
+    "#/components/schemas/UpdateSubaccountNettingRequest": (
+        "kalshi.models.subaccounts.UpdateSubaccountNettingRequest"
+    ),
 }
 
 

@@ -28,6 +28,7 @@ RESOURCE_MODULES = [
     "kalshi.resources.historical",
     "kalshi.resources.portfolio",
     "kalshi.resources.series",
+    "kalshi.resources.subaccounts",
 ]
 
 

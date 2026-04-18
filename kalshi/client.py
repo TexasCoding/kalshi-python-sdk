@@ -19,6 +19,7 @@ from kalshi.resources.order_groups import OrderGroupsResource
 from kalshi.resources.orders import OrdersResource
 from kalshi.resources.portfolio import PortfolioResource
 from kalshi.resources.series import SeriesResource
+from kalshi.resources.subaccounts import SubaccountsResource
 
 
 class KalshiClient:
@@ -92,6 +93,7 @@ class KalshiClient:
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)
         self.series = SeriesResource(self._transport)
+        self.subaccounts = SubaccountsResource(self._transport)
         self.multivariate_collections = MultivariateCollectionsResource(self._transport)
 
     @property

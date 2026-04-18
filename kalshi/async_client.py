@@ -21,6 +21,7 @@ from kalshi.resources.order_groups import AsyncOrderGroupsResource
 from kalshi.resources.orders import AsyncOrdersResource
 from kalshi.resources.portfolio import AsyncPortfolioResource
 from kalshi.resources.series import AsyncSeriesResource
+from kalshi.resources.subaccounts import AsyncSubaccountsResource
 
 if TYPE_CHECKING:
     from kalshi.ws.client import KalshiWebSocket
@@ -90,6 +91,7 @@ class AsyncKalshiClient:
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
         self.series = AsyncSeriesResource(self._transport)
+        self.subaccounts = AsyncSubaccountsResource(self._transport)
         self.multivariate_collections = AsyncMultivariateCollectionsResource(self._transport)
 
     @property

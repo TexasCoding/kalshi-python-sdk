@@ -143,6 +143,27 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.communications.AcceptQuoteRequest",
         spec_schema="AcceptQuoteRequest",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountBalance",
+        spec_schema="SubaccountBalance",
+        notes="balance uses DollarDecimal; updated_ts is Unix int",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountTransfer",
+        spec_schema="SubaccountTransfer",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountNettingConfig",
+        spec_schema="SubaccountNettingConfig",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountTransferRequest",
+        spec_schema="ApplySubaccountTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.UpdateSubaccountNettingRequest",
+        spec_schema="UpdateSubaccountNettingRequest",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match
