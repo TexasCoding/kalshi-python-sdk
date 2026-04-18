@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import httpx  # noqa: F401
+import httpx
 import pytest
-import respx  # noqa: F401
+import respx
 from pydantic import ValidationError
 
 from kalshi._base_client import AsyncTransport, SyncTransport
@@ -138,3 +138,118 @@ class TestOrderGroupRequestModels:
             UpdateOrderGroupLimitRequest(contracts_limit=1, subaccount=0)  # type: ignore[call-arg]
         # subaccount is NOT on this request per spec (no SubaccountQuery on /limit)
         assert "subaccount" in str(exc.value).lower() or "extra" in str(exc.value).lower()
+
+
+_MINIMAL_OG = {"id": "grp-1", "contracts_limit_fp": "5", "is_auto_cancel_enabled": True}
+
+
+class TestOrderGroupsList:
+    @respx.mock
+    def test_list_returns_typed_order_groups(
+        self, order_groups: OrderGroupsResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order_groups": [_MINIMAL_OG, {"id": "grp-2", "is_auto_cancel_enabled": False}]
+                },
+            )
+        )
+        result = order_groups.list()
+        assert len(result) == 2
+        assert all(isinstance(og, OrderGroup) for og in result)
+        assert result[0].id == "grp-1"
+        assert result[0].contracts_limit == Decimal("5")
+
+    @respx.mock
+    def test_list_sends_subaccount_query(
+        self, order_groups: OrderGroupsResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
+        ).mock(return_value=httpx.Response(200, json={"order_groups": []}))
+        order_groups.list(subaccount=3)
+        assert route.calls[0].request.url.params["subaccount"] == "3"
+
+    @respx.mock
+    def test_list_empty_response(self, order_groups: OrderGroupsResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
+        ).mock(return_value=httpx.Response(200, json={"order_groups": []}))
+        assert order_groups.list() == []
+
+
+class TestOrderGroupsGet:
+    @respx.mock
+    def test_get_returns_full_response(self, order_groups: OrderGroupsResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "is_auto_cancel_enabled": True,
+                    "orders": ["ord-a"],
+                    "contracts_limit_fp": "5",
+                },
+            )
+        )
+        resp = order_groups.get("grp-1")
+        assert isinstance(resp, GetOrderGroupResponse)
+        assert resp.orders == ["ord-a"]
+
+    @respx.mock
+    def test_get_404_maps_to_not_found(self, order_groups: OrderGroupsResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/missing"
+        ).mock(
+            return_value=httpx.Response(404, json={"message": "order group not found"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            order_groups.get("missing")
+
+
+class TestOrderGroupsCreate:
+    @respx.mock
+    def test_create_sends_correct_body(self, order_groups: OrderGroupsResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
+        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-new"}))
+
+        resp = order_groups.create(contracts_limit=5, subaccount=1)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"contracts_limit": 5, "subaccount": 1}
+        assert isinstance(resp, CreateOrderGroupResponse)
+        assert resp.order_group_id == "grp-new"
+
+    @respx.mock
+    def test_create_omits_subaccount_when_none(
+        self, order_groups: OrderGroupsResource,
+    ) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
+        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-new"}))
+
+        order_groups.create(contracts_limit=5)
+
+        body = json.loads(route.calls[0].request.content)
+        assert "subaccount" not in body
+
+    @respx.mock
+    def test_create_400_maps_to_validation_error(
+        self, order_groups: OrderGroupsResource,
+    ) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
+        ).mock(return_value=httpx.Response(400, json={"message": "bad limit"}))
+
+        with pytest.raises(KalshiValidationError):
+            order_groups.create(contracts_limit=5)
