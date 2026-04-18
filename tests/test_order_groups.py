@@ -19,11 +19,9 @@ from kalshi.errors import (  # noqa: F401
     KalshiValidationError,
 )
 from kalshi.models.order_groups import (
-    CreateOrderGroupRequest,  # noqa: F401
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
     OrderGroup,
-    UpdateOrderGroupLimitRequest,  # noqa: F401
 )
 from kalshi.resources.order_groups import (
     AsyncOrderGroupsResource,

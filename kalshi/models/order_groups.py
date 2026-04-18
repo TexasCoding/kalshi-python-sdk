@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import FixedPointCount
+from kalshi.types import FixedPointCount, NullableList
 
 
 class OrderGroup(BaseModel):
@@ -42,7 +42,7 @@ class GetOrderGroupResponse(BaseModel):
     """
 
     is_auto_cancel_enabled: bool
-    orders: list[str] = Field(default_factory=list)
+    orders: NullableList[str] = []
     contracts_limit: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
@@ -57,19 +57,3 @@ class CreateOrderGroupResponse(BaseModel):
     order_group_id: str
 
     model_config = {"extra": "allow"}
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# Task 2 placeholders — replaced in Task 2 with real request models. Keeping
-# them importable now so tests/test_order_groups.py import block stays stable.
-# ────────────────────────────────────────────────────────────────────────────
-class CreateOrderGroupRequest(BaseModel):
-    """Placeholder — real model lands in Task 2."""
-
-    model_config = {"extra": "forbid"}
-
-
-class UpdateOrderGroupLimitRequest(BaseModel):
-    """Placeholder — real model lands in Task 2."""
-
-    model_config = {"extra": "forbid"}
