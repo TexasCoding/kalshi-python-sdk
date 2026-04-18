@@ -14,7 +14,7 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import DEMO_BASE_URL, KalshiConfig
-from kalshi.errors import (  # noqa: F401
+from kalshi.errors import (
     AuthRequiredError,
     KalshiNotFoundError,
     KalshiValidationError,
@@ -397,3 +397,41 @@ class TestAsyncOrderGroups:
         await async_order_groups.update_limit("grp-1", contracts_limit=10)
         body = json.loads(route.calls[0].request.content)
         assert body == {"contracts_limit": 10}
+
+
+class TestOrderGroupsAuthGuard:
+    def test_list_requires_auth(self, unauth_order_groups: OrderGroupsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.list()
+
+    def test_get_requires_auth(self, unauth_order_groups: OrderGroupsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.get("grp-1")
+
+    def test_create_requires_auth(
+        self, unauth_order_groups: OrderGroupsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.create(contracts_limit=1)
+
+    def test_delete_requires_auth(
+        self, unauth_order_groups: OrderGroupsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.delete("grp-1")
+
+    def test_reset_requires_auth(self, unauth_order_groups: OrderGroupsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.reset("grp-1")
+
+    def test_trigger_requires_auth(
+        self, unauth_order_groups: OrderGroupsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.trigger("grp-1")
+
+    def test_update_limit_requires_auth(
+        self, unauth_order_groups: OrderGroupsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_order_groups.update_limit("grp-1", contracts_limit=1)
