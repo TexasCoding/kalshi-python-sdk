@@ -24,6 +24,8 @@ RESOURCE_MODULES = [
     "kalshi.resources.exchange",
     "kalshi.resources.historical",
     "kalshi.resources.portfolio",
+    "kalshi.resources.series",
+    "kalshi.resources.multivariate",
 ]
 
 

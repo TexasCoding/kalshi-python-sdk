@@ -9,32 +9,24 @@
 
 No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-### Current state (audit 2026-04-18)
+### Current state (audit 2026-04-18, updated post-v0.9.0)
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 13 | 14% |
-| SDK + unit, no integration | 23 | 26% |
-| Not implemented | 53 | 59% |
+| FULL (SDK + unit + integration) | 24 | 27% |
+| SDK + unit, no integration | 12 | 13% |
+| Not implemented | 53 | 60% |
 | **Total** | **89** | |
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
 
-`tests/integration/test_coverage.py` is currently red because Series (5 methods) and Multivariate Collections (6 methods) shipped without registration in `SCENARIO_REGISTRY`.
+Meta-coverage test green as of v0.9.0.
+
+**Next up — Path B demo-feasibility audit:** Before diving into v0.10.0, run a 1h audit hitting each v0.10–v0.13 endpoint against demo to classify as `demo-supported` / `demo-501` / `auth-gated`. Anything demo can't test gets tagged `@pytest.mark.integration_real_api_only` up front so we don't write integration tests that will forever skip.
 
 ---
 
 ## Active phases
-
-### v0.9.0 — Close Series + Multivariate integration gap (IMMEDIATE)
-**What:** Register SeriesResource (5 methods) and MultivariateCollectionsResource (6 methods) in `SCENARIO_REGISTRY` (`tests/integration/coverage_harness.py`). Add real integration tests against the demo server. Also cover `EventsResource.list_multivariate` / `list_all_multivariate`.
-**Why:** v0.6.0 and v0.7.0 shipped these resources with unit tests but skipped integration. Meta-coverage test is red on main. Smallest, highest-leverage move.
-**Endpoints (11):**
-- `GET /series`, `GET /series/{series_ticker}`, `GET /series/{series_ticker}/fee_changes`, `GET /series/{series_ticker}/events/{event_ticker}/candlesticks`, `GET /series/{series_ticker}/forecast_percentile_history`
-- `GET /multivariate_event_collections`, `GET /multivariate_event_collections/{collection_ticker}`, `POST /multivariate_event_collections/{collection_ticker}/markets`, `GET /multivariate_event_collections/{collection_ticker}/lookup`, `GET /multivariate_event_collections/{collection_ticker}/lookup_history`
-- `GET /events` with multivariate variant
-**Impact:** NO_INT drops 23 → 12. Meta-coverage test goes green.
-**Estimate:** ~3h.
 
 ### v0.10.0 — Order Groups resource
 **What:** Implement `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints. Pydantic models (request models with `extra="forbid"`), sync+async resources, unit tests (happy/error/auth-guard), integration tests, `METHOD_ENDPOINT_MAP` registration, `BODY_MODEL_MAP` entries for POST bodies.
@@ -89,9 +81,12 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 
 ## Completed
 
+### ~~v0.9.0 — Close Series + Multivariate integration gap~~
+**Completed:** 2026-04-18. Added `kalshi.resources.series` and `kalshi.resources.multivariate` to `RESOURCE_MODULES` (made 11 silently-absent methods visible to the meta-coverage test). Created `tests/integration/test_series.py` (5 methods × sync+async = 10 tests) and `tests/integration/test_multivariate.py` (6 methods × sync+async = 12 tests). Extended `tests/integration/test_events.py` with `list_multivariate` + `list_all_multivariate` coverage (4 new tests). Bumped discovery expectation from 6 → 8 resource classes. **Integration tests surfaced two real issues:** (1) `Series.tags` was typed `list[str]` but demo returns `null` for some series — fixed via `@field_validator(mode="before")` coercing None→[] on `tags`, `settlement_sources`, `additional_prohibitions`; (2) the semantic oracle in `tests/integration/assertions.py` rejected ALL floats as DollarDecimal failures, misfiring on `Series.fee_multiplier: float` — now uses an annotation-aware `_annotation_contains(Decimal)` check so it only flags floats where the field is actually typed Decimal. Coverage result: 40 passed, 5 skipped (destructive create_market + lookup_tickers skip when demo collection lacks associated events with markets; forecast skip when no history). FULL-covered endpoints 13 → 24; NO_INT 23 → 12; meta-coverage test green.
+
 ### ~~P3: Integration test — series and multivariate event endpoints~~
 **Completed:** v0.6.0 (2026-04-16). Added SeriesResource (5 methods: list, get, fee_changes, event_candlesticks, forecast_percentile_history) and MultivariateCollectionsResource (5 methods: list, get, create_market, lookup_tickers, lookup_history). Added list_multivariate/list_all_multivariate to EventsResource. Fixed EventsResource.list() param drift (added with_milestones, min_close_ts, min_updated_ts). 11 new endpoints, 50+ new tests, 4 contract map entries. Auth guards on forecast_percentile_history, create_market, lookup_tickers.
-**Note:** v0.6.0 shipped the SDK + unit tests but **integration tests and `SCENARIO_REGISTRY` registration were not done** — see v0.9.0 phase above to close the gap.
+**Note:** v0.6.0 shipped the SDK + unit tests but integration tests and `SCENARIO_REGISTRY` registration landed later in v0.9.0 (2026-04-18).
 
 ### ~~P3: Integration test — order amendments and decrease~~
 **Completed:** v0.5.0 (2026-04-15). Added `amend()`, `decrease()`, `queue_positions()`, and `queue_position()` to OrdersResource and AsyncOrdersResource. AmendOrderResponse and OrderQueuePosition models. 29 new tests (sync/async happy paths, error paths, serialization, auth guards). Contract map entries for spec drift coverage. Also added queue position endpoints (GET /portfolio/orders/queue_positions, GET /portfolio/orders/{order_id}/queue_position) as natural companion to amend.

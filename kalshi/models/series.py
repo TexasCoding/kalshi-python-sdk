@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from kalshi.models.markets import Candlestick
 from kalshi.types import DollarDecimal
@@ -38,6 +38,12 @@ class Series(BaseModel):
     last_updated_ts: datetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+    @field_validator("tags", "settlement_sources", "additional_prohibitions", mode="before")
+    @classmethod
+    def _none_to_empty_list(cls, v: Any) -> Any:
+        """Demo API returns null for optional list fields; coerce to []."""
+        return [] if v is None else v
 
 
 class SeriesFeeChange(BaseModel):
