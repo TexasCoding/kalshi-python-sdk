@@ -89,4 +89,65 @@ class OrderGroupsResource(SyncResource):
 
 
 class AsyncOrderGroupsResource(AsyncResource):
-    """Async order groups API — methods added in Task 5."""
+    """Async order groups API."""
+
+    async def list(self, *, subaccount: int | None = None) -> builtins.list[OrderGroup]:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        data = await self._get("/portfolio/order_groups", params=params)
+        raw = data.get("order_groups", [])
+        return [OrderGroup.model_validate(item) for item in raw]
+
+    async def get(
+        self, order_group_id: str, *, subaccount: int | None = None,
+    ) -> GetOrderGroupResponse:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        data = await self._get(
+            f"/portfolio/order_groups/{order_group_id}", params=params,
+        )
+        return GetOrderGroupResponse.model_validate(data)
+
+    async def create(
+        self, *, contracts_limit: int, subaccount: int | None = None,
+    ) -> CreateOrderGroupResponse:
+        self._require_auth()
+        req = CreateOrderGroupRequest(
+            contracts_limit=contracts_limit, subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post("/portfolio/order_groups/create", json=body)
+        return CreateOrderGroupResponse.model_validate(data)
+
+    async def delete(
+        self, order_group_id: str, *, subaccount: int | None = None,
+    ) -> None:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        await self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
+
+    async def reset(
+        self, order_group_id: str, *, subaccount: int | None = None,
+    ) -> None:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        await self._transport.request(
+            "PUT", f"/portfolio/order_groups/{order_group_id}/reset", params=params,
+        )
+
+    async def trigger(
+        self, order_group_id: str, *, subaccount: int | None = None,
+    ) -> None:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        await self._transport.request(
+            "PUT", f"/portfolio/order_groups/{order_group_id}/trigger", params=params,
+        )
+
+    async def update_limit(
+        self, order_group_id: str, *, contracts_limit: int,
+    ) -> None:
+        self._require_auth()
+        req = UpdateOrderGroupLimitRequest(contracts_limit=contracts_limit)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        await self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)

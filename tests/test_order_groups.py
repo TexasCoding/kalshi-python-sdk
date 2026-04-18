@@ -313,3 +313,87 @@ class TestOrderGroupsMutations:
         ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
         with pytest.raises(KalshiNotFoundError):
             order_groups.update_limit("gone", contracts_limit=5)
+
+
+@pytest.mark.asyncio
+class TestAsyncOrderGroups:
+    async def test_list(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
+        ).mock(
+            return_value=httpx.Response(200, json={"order_groups": [_MINIMAL_OG]})
+        )
+        result = await async_order_groups.list()
+        assert len(result) == 1
+        assert isinstance(result[0], OrderGroup)
+
+    async def test_get(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"is_auto_cancel_enabled": True, "orders": []}
+            )
+        )
+        resp = await async_order_groups.get("grp-1")
+        assert isinstance(resp, GetOrderGroupResponse)
+
+    async def test_create(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
+        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-x"}))
+        resp = await async_order_groups.create(contracts_limit=3)
+        assert resp.order_group_id == "grp-x"
+        assert route.called
+
+    async def test_delete(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
+        ).mock(return_value=httpx.Response(200, json={}))
+        await async_order_groups.delete("grp-1")
+        assert route.called
+
+    async def test_reset(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/reset"
+        ).mock(return_value=httpx.Response(200, json={}))
+        await async_order_groups.reset("grp-1")
+        assert route.called
+
+    async def test_trigger(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/trigger"
+        ).mock(return_value=httpx.Response(200, json={}))
+        await async_order_groups.trigger("grp-1")
+        assert route.called
+
+    async def test_update_limit(
+        self, async_order_groups: AsyncOrderGroupsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/limit"
+        ).mock(return_value=httpx.Response(200, json={}))
+        await async_order_groups.update_limit("grp-1", contracts_limit=10)
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"contracts_limit": 10}
