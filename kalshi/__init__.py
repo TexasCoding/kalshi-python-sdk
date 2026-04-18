@@ -27,22 +27,27 @@ from kalshi.models import (
     BidAskDistribution,
     Candlestick,
     CreateMarketInMultivariateEventCollectionRequest,
+    CreateOrderGroupRequest,
+    CreateOrderGroupResponse,
     CreateOrderRequest,
     DecreaseOrderRequest,
     EventCandlesticks,
     Fill,
+    GetOrderGroupResponse,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     Market,
     MultivariateEventCollection,
     Order,
     Orderbook,
     OrderbookLevel,
+    OrderGroup,
     OrderQueuePosition,
     Page,
     PriceDistribution,
     Series,
     SeriesFeeChange,
     TickerPair,
+    UpdateOrderGroupLimitRequest,
 )
 from kalshi.types import NullableList
 
@@ -57,10 +62,13 @@ __all__ = [
     "BidAskDistribution",
     "Candlestick",
     "CreateMarketInMultivariateEventCollectionRequest",
+    "CreateOrderGroupRequest",
+    "CreateOrderGroupResponse",
     "CreateOrderRequest",
     "DecreaseOrderRequest",
     "EventCandlesticks",
     "Fill",
+    "GetOrderGroupResponse",
     "KalshiAuth",
     "KalshiAuthError",
     "KalshiBackpressureError",
@@ -80,6 +88,7 @@ __all__ = [
     "MultivariateEventCollection",
     "NullableList",
     "Order",
+    "OrderGroup",
     "OrderQueuePosition",
     "Orderbook",
     "OrderbookLevel",
@@ -88,6 +97,7 @@ __all__ = [
     "Series",
     "SeriesFeeChange",
     "TickerPair",
+    "UpdateOrderGroupLimitRequest",
 ]
 
-__version__ = "0.9.1"
+__version__ = "0.10.0"

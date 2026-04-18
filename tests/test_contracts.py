@@ -880,6 +880,12 @@ BODY_MODEL_MAP: dict[str, str] = {
         "kalshi.models.multivariate."
         "LookupTickersForMarketInMultivariateEventCollectionRequest"
     ),
+    "#/components/schemas/CreateOrderGroupRequest": (
+        "kalshi.models.order_groups.CreateOrderGroupRequest"
+    ),
+    "#/components/schemas/UpdateOrderGroupLimitRequest": (
+        "kalshi.models.order_groups.UpdateOrderGroupLimitRequest"
+    ),
 }
 
 

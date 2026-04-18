@@ -13,55 +13,85 @@ No new features, no publishing, no polish sweeps until this is closed. Side ques
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 24 | 27% |
+| FULL (SDK + unit + integration) | 31 | 35% |
 | SDK + unit, no integration | 12 | 13% |
-| Not implemented | 53 | 60% |
+| Not implemented | 46 | 52% |
 | **Total** | **89** | |
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
 
 Meta-coverage test green as of v0.9.0.
 
-**Next up — Path B demo-feasibility audit:** Before diving into v0.10.0, run a 1h audit hitting each v0.10–v0.13 endpoint against demo to classify as `demo-supported` / `demo-501` / `auth-gated`. Anything demo can't test gets tagged `@pytest.mark.integration_real_api_only` up front so we don't write integration tests that will forever skip.
+**Path B demo-feasibility audit — completed 2026-04-18.** Ran `scripts/audit_demo_feasibility.py` against demo, probing all 47 uncovered endpoints with minimal payloads (empty body on POST/PUT, placeholder IDs on path params). Results:
+
+| Classification | Count | Notes |
+|---|---:|---|
+| `demo-supported` | 44 | Route exists — 2xx on happy probes, 4xx validation on minimal-body probes, 404 on placeholder-ID probes. Safe to write full integration tests. |
+| `auth-gated` | 2 | `GET /communications/quotes` (403), `GET /portfolio/summary/total_resting_order_value` (403). Demo account lacks permission. Mark `@pytest.mark.integration_real_api_only`. |
+| `demo-broken` | 1 | `GET /portfolio/subaccounts/netting` returns 500 `{service:"users", code:"internal_server_error"}` on demo regardless of input. Mark `@pytest.mark.integration_real_api_only` (or xfail) with a link to this audit line. |
+| `demo-501` | 0 | No endpoint responded 501. Every uncovered endpoint is wired up on demo. |
+
+**Side findings worth capturing before v0.11.0:**
+- Endpoint count drifted: audit found 47 uncovered (not 53 as pre-v0.9.0 snapshot indicated) — multivariate/forecast/series endpoints covered since last count.
+- `POST /portfolio/subaccounts` returned **201 on empty body** — demo appears to create a subaccount from thin air. Worth probing behavior more carefully when implementing v0.11.0 (do we need a cleanup fixture? does it tie to the parent account?).
+- TODOS previously listed `POST /portfolio/order_groups` but spec is `POST /portfolio/order_groups/create`. Reset/trigger/limit are `PUT`, not `POST` as drafted. v0.10.0 plan below corrected.
+- TODOS previously listed "API Keys (5)" but spec has 4 endpoints (`GET/POST /api_keys`, `POST /api_keys/generate`, `DELETE /api_keys/{api_key}`). v0.12.0 count corrected.
+
+Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase if the spec bumps.
 
 ---
 
 ## Active phases
 
-### v0.10.0 — Order Groups resource
-**What:** Implement `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints. Pydantic models (request models with `extra="forbid"`), sync+async resources, unit tests (happy/error/auth-guard), integration tests, `METHOD_ENDPOINT_MAP` registration, `BODY_MODEL_MAP` entries for POST bodies.
-**Why:** Advanced order strategies (OCO, if-then). Entire resource class missing today.
-**Endpoints (7):**
-- `GET /portfolio/order_groups`
-- `GET /portfolio/order_groups/{order_group_id}`
-- `POST /portfolio/order_groups`
-- `DELETE /portfolio/order_groups/{order_group_id}`
-- `POST /portfolio/order_groups/{order_group_id}/reset`
-- `POST /portfolio/order_groups/{order_group_id}/trigger`
-- `POST /portfolio/order_groups/{order_group_id}/limit`
-**Estimate:** ~5h.
-
 ### v0.11.0 — Communications / RFQ + Subaccounts
 **What:** Two new resource subsystems. Pydantic models, sync+async resources, unit + integration tests, contract map registration for all 17 endpoints.
 
-**Communications / RFQ (11 endpoints):** quote CRUD + accept/confirm, RFQ CRUD. Concrete endpoints to confirm against spec during plan phase.
-**Subaccounts (6 endpoints):** create, transfer, balances, netting (get+put), transfers list.
+**Communications / RFQ (11 endpoints):**
+- `GET /communications/id` — demo-supported
+- `GET /communications/rfqs` — demo-supported
+- `POST /communications/rfqs` — demo-supported
+- `GET /communications/rfqs/{rfq_id}` — demo-supported
+- `DELETE /communications/rfqs/{rfq_id}` — demo-supported
+- `GET /communications/quotes` — **auth-gated** (403 on demo) → `integration_real_api_only`
+- `POST /communications/quotes` — demo-supported
+- `GET /communications/quotes/{quote_id}` — demo-supported
+- `DELETE /communications/quotes/{quote_id}` — demo-supported
+- `PUT /communications/quotes/{quote_id}/accept` — demo-supported
+- `PUT /communications/quotes/{quote_id}/confirm` — demo-supported
+
+**Subaccounts (6 endpoints):**
+- `POST /portfolio/subaccounts` — demo-supported (⚠ returns **201 on empty body**; probe already created subaccount #1 with $0 on demo — confirmed via `GET /portfolio/subaccounts/balances`. Integration tests will need a cleanup fixture or server-side delete endpoint; spec shows no DELETE so probably permanent until admin reset)
+- `POST /portfolio/subaccounts/transfer` — demo-supported
+- `GET /portfolio/subaccounts/balances` — demo-supported
+- `GET /portfolio/subaccounts/transfers` — demo-supported
+- `PUT /portfolio/subaccounts/netting` — demo-supported
+- `GET /portfolio/subaccounts/netting` — **demo-broken** (demo returns 500 `users/internal_server_error` on any request) → `integration_real_api_only` or xfail
 
 **Why:** OTC market access + multi-account workflows. Two of the largest "not implemented" buckets.
 **Estimate:** ~11h.
 
 ### v0.12.0 — API Keys + Bulk/Batch + Milestones
 **What:** Three smaller resource additions.
-- **API Keys (5):** get, create, generate, delete, list — programmatic API key management.
-- **Bulk / Batch (3):** batch markets candlesticks, batch orderbooks, batch trades — efficient data pulls.
-- **Milestones (5):** list, get, live_data variants — milestone market tracking.
+- **API Keys (4, not 5 — spec has no "get single"):** `GET /api_keys` (list), `POST /api_keys` (create), `POST /api_keys/generate`, `DELETE /api_keys/{api_key}`. All demo-supported.
+- **Bulk / Batch (3):** `GET /markets/candlesticks`, `GET /markets/orderbooks`, `GET /markets/trades`. All demo-supported.
+- **Milestones + live_data (6):** `GET /milestones`, `GET /milestones/{milestone_id}`, `GET /live_data/batch`, `GET /live_data/milestone/{milestone_id}`, `GET /live_data/milestone/{milestone_id}/game_stats`, `GET /live_data/{type}/milestone/{milestone_id}`. All demo-supported (path-params 404 on bad IDs as expected).
 
 Each with models, sync+async resources, unit + integration tests, contract map entries.
 **Estimate:** ~8h.
 
 ### v0.13.0 — Remaining endpoints + WebSocket parity
 **What:**
-- Implement ~16 remaining endpoints: FCM orders/positions, incentive programs, structured targets, search filters, `exchange.user_data_timestamp`, portfolio summary.
+- Implement remaining endpoints (10 confirmed, audit-classified):
+  - `GET /exchange/user_data_timestamp` — demo-supported
+  - `GET /account/limits` — demo-supported
+  - `GET /search/tags_by_categories` — demo-supported
+  - `GET /search/filters_by_sport` — demo-supported
+  - `GET /incentive_programs` — demo-supported
+  - `GET /structured_targets` — demo-supported
+  - `GET /structured_targets/{structured_target_id}` — demo-supported (404 on bad ID)
+  - `GET /fcm/orders` — demo-supported
+  - `GET /fcm/positions` — demo-supported
+  - `GET /portfolio/summary/total_resting_order_value` — **auth-gated** (403) → `integration_real_api_only`
 - Resolve WebSocket dispatch singular/plural drift (`user_orders` vs `user_order`, `market_positions` vs `market_position`, `multivariate_lookup` vs `multivariate`) via live capture against demo WS.
 - Expand WebSocket integration coverage beyond the 3-test connectivity smoke: exercise each of the 15 dispatched message types end-to-end where demo allows.
 **Why:** Final push to 100% REST + parity on WebSocket.
@@ -77,9 +107,22 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
+### P3: Register Order Groups response models in `_contract_map.py`
+**What:** Add `OrderGroup`, `GetOrderGroupResponse`, and `CreateOrderGroupResponse` to `kalshi/_contract_map.py` so response-side spec drift is caught by contract tests. Currently drift on new fields (e.g., if Kalshi adds `is_suspended: bool` to `OrderGroup`) would silently go unnoticed.
+**Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.
+**Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
+
+### P3: Harden `_put()` against 204 No Content responses
+**What:** `kalshi/resources/_base.py::_put()` unconditionally calls `response.json()`. If a Kalshi endpoint ever returns 204 (empty body) on a PUT, `_put` will raise `JSONDecodeError`. Mirror the `_delete()` pattern (`if response.status_code == 204: return None`).
+**Why:** `_delete()` already handles this. `_put()` is inconsistent and brittle. The risk is currently latent — spec defines 200 responses with empty-object bodies, but spec can change. `OrderGroupsResource.update_limit` is the first `_put()` caller where a spec change could surface this.
+**Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
+
 ---
 
 ## Completed
+
+### ~~v0.10.0 — Order Groups resource~~
+**Completed:** 2026-04-18. `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints (GET/POST/DELETE/PUT across `/portfolio/order_groups/*`). 5 Pydantic models: `OrderGroup`, `GetOrderGroupResponse`, `CreateOrderGroupResponse`, `CreateOrderGroupRequest`, `UpdateOrderGroupLimitRequest` (all request models `extra="forbid"`, response models with `NullableList[str]` on `orders`). 41 unit tests (wire-shape, happy path, auth-guard, error-path, client-wiring) + 9 integration tests (5 sync + 4 async) against demo — all green. Registered in `METHOD_ENDPOINT_MAP` (7 entries), `BODY_MODEL_MAP` (2 entries), `EXCLUSIONS` (2 entries for `contracts_limit_fp` — SDK commits to integer form only, matching the `count_fp` precedent), and the integration coverage harness (9th resource class). Version bumped to 0.10.0. **Integration testing surfaced two real SDK bugs caught before ship:** (1) `reset`/`trigger` PUT endpoints were sending requests without `Content-Type: application/json` (httpx omits the header when no body is passed); demo server rejected with `invalid_content_type`. Fixed by passing `json={}` in both sync and async variants. (2) Async `create → get` had a race condition on demo (eventual consistency) — added a 0.5s sleep mirroring the `test_orders.py` pattern.
 
 ### ~~v0.9.0 — Close Series + Multivariate integration gap~~
 **Completed:** 2026-04-18. Added `kalshi.resources.series` and `kalshi.resources.multivariate` to `RESOURCE_MODULES` (made 11 silently-absent methods visible to the meta-coverage test). Created `tests/integration/test_series.py` (5 methods × sync+async = 10 tests) and `tests/integration/test_multivariate.py` (6 methods × sync+async = 12 tests). Extended `tests/integration/test_events.py` with `list_multivariate` + `list_all_multivariate` coverage (4 new tests). Bumped discovery expectation from 6 → 8 resource classes. **Integration tests surfaced two real issues:** (1) `Series.tags` was typed `list[str]` but demo returns `null` for some series — fixed via `@field_validator(mode="before")` coercing None→[] on `tags`, `settlement_sources`, `additional_prohibitions`; (2) the semantic oracle in `tests/integration/assertions.py` rejected ALL floats as DollarDecimal failures, misfiring on `Series.fee_multiplier: float` — now uses an annotation-aware `_annotation_contains(Decimal)` check so it only flags floats where the field is actually typed Decimal. Coverage result: 40 passed, 5 skipped (destructive create_market + lookup_tickers skip when demo collection lacks associated events with markets; forecast skip when no history). FULL-covered endpoints 13 → 24; NO_INT 23 → 12; meta-coverage test green.

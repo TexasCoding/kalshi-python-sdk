@@ -2,6 +2,33 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.10.0] — 2026-04-18
+
+### Added
+
+- **Order Groups resource** — `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints for rolling 15-second contracts-limit groups (OCO/if-then strategies):
+  - `GET /portfolio/order_groups` — list groups on the account (plain `list[OrderGroup]`, no pagination)
+  - `GET /portfolio/order_groups/{order_group_id}` — full group including member order IDs
+  - `POST /portfolio/order_groups/create` — create a new group with `contracts_limit: int`
+  - `DELETE /portfolio/order_groups/{order_group_id}` — cancel all member orders and delete the group
+  - `PUT /portfolio/order_groups/{order_group_id}/reset` — reset the matched-contracts counter
+  - `PUT /portfolio/order_groups/{order_group_id}/trigger` — cancel all member orders, block new ones until reset
+  - `PUT /portfolio/order_groups/{order_group_id}/limit` — update the rolling-15s limit (no `subaccount` kwarg — spec explicitly omits the query param on this endpoint)
+- **5 new Pydantic models** — `OrderGroup`, `GetOrderGroupResponse`, `CreateOrderGroupResponse` (responses with `extra="allow"`), `CreateOrderGroupRequest`, `UpdateOrderGroupLimitRequest` (request models with `extra="forbid"`). `GetOrderGroupResponse.orders` uses `NullableList[str]` to handle Kalshi's intermittent `null`-vs-array responses on spec-required list fields.
+- **9 integration tests** against the demo server — 5 sync + 4 async, exercising create → get → update_limit → reset → trigger → delete flow with `ephemeral_group` try/finally cleanup fixture. Demo probing during the audit surfaced two real SDK bugs that were fixed before ship: (1) `reset`/`trigger` PUT requests were missing `Content-Type: application/json` because httpx omits the header when no body is passed; (2) async `create → get` needed a 0.5s sleep for demo eventual consistency (matches the existing `test_orders.py` pattern).
+- **41 new unit tests** (`tests/test_order_groups.py`) — wire-shape coverage across all 7 methods sync + async, 5 response-model alias tests, 6 request-model serialization/validation tests, 7 auth-guard regression tests, 2 client-wiring tests. Unit tests explicitly assert `request.content == b"{}"` on `reset`/`trigger` to lock in the httpx `Content-Type` fix.
+- **Path B demo-feasibility audit** — new reusable script `scripts/audit_demo_feasibility.py` that probes every spec endpoint not yet in `METHOD_ENDPOINT_MAP` against demo and classifies each as `demo-supported` / `demo-501` / `auth-gated` / `demo-broken`. The audit informed the corrected v0.10-v0.13 scope in TODOS.md (path corrections: `POST /create`, `PUT` for reset/trigger/limit; API Keys is 4 endpoints not 5; RFQ quotes list is auth-gated on demo; subaccounts/netting GET is demo-broken with a 500).
+
+### Changed
+
+- **Test coverage** — FULL-covered endpoints 24 → 31 (35%), not-implemented 53 → 46 (52%). Meta-coverage test now expects 9 resource classes (was 8). New `OrderGroupsResource` registered in `METHOD_ENDPOINT_MAP` (7 entries), `BODY_MODEL_MAP` (2 entries for request bodies), and the integration coverage harness.
+- **EXCLUSIONS expanded** — 2 new entries for `contracts_limit_fp` on both order-group request models. The SDK commits to the integer `contracts_limit` wire form (same precedent as `count_fp` on order requests); the string FixedPointCount variant is deliberately absent from the SDK surface.
+- **TODOS.md drift corrections** — v0.11 Communications/RFQ block now lists all 11 endpoints with per-endpoint demo classification; `POST /portfolio/subaccounts` documented as returning 201 on empty body (audit probe created subaccount #1 with \$0 on demo — integration tests will need a cleanup fixture); API Keys v0.12 count corrected from 5 to 4.
+
+### Fixed
+
+- **Version drift** — `pyproject.toml` bumped from 0.9.1 to 0.10.0 to track `kalshi/__init__.py`. The 0.9.1 release shipped with the same drift; this release fixes both together.
+
 ## [0.9.1] — 2026-04-18
 
 ### Added

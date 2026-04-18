@@ -29,6 +29,13 @@ from kalshi.models.multivariate import (
     MultivariateEventCollection,
     TickerPair,
 )
+from kalshi.models.order_groups import (
+    CreateOrderGroupRequest,
+    CreateOrderGroupResponse,
+    GetOrderGroupResponse,
+    OrderGroup,
+    UpdateOrderGroupLimitRequest,
+)
 from kalshi.models.orders import (
     AmendOrderRequest,
     AmendOrderResponse,
@@ -69,6 +76,8 @@ __all__ = [
     "Candlestick",
     "CreateMarketInMultivariateEventCollectionRequest",
     "CreateMarketResponse",
+    "CreateOrderGroupRequest",
+    "CreateOrderGroupResponse",
     "CreateOrderRequest",
     "DailySchedule",
     "DecreaseOrderRequest",
@@ -79,6 +88,7 @@ __all__ = [
     "ExchangeStatus",
     "Fill",
     "ForecastPercentilesPoint",
+    "GetOrderGroupResponse",
     "HistoricalCutoff",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
@@ -89,6 +99,7 @@ __all__ = [
     "MarketPosition",
     "MultivariateEventCollection",
     "Order",
+    "OrderGroup",
     "OrderQueuePosition",
     "Orderbook",
     "OrderbookLevel",
@@ -103,5 +114,6 @@ __all__ = [
     "SettlementSource",
     "TickerPair",
     "Trade",
+    "UpdateOrderGroupLimitRequest",
     "WeeklySchedule",
 ]
