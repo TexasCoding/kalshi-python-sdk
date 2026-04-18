@@ -35,22 +35,11 @@
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
-## P3: Piece 2 — automated contract test for request-param drift (v0.8.0+)
-**What:** Build a new `TestRequestParamDrift` class that, for each `MethodEndpointEntry`, pulls endpoint spec via `_resolve_path_params`, inspects the mapped SDK method via `inspect.signature`, diffs param sets, and fails the test if SDK is missing a non-excluded param or has an unexpected extra. Allowlist format for intentional exclusions to be designed.
-**Why:** Without this, AUDIT.md becomes a snapshot that drifts. Manual re-audits are expensive. Pipeline catches all four drift categories (ADD, REMOVE, RENAME, RESERIALIZE) automatically going forward.
-**Fixtures already shipped:** `MethodEndpointEntry`, `METHOD_ENDPOINT_MAP` (54 entries), `_resolve_path_params()` in `tests/_contract_support.py`. AUDIT.md exclusion table becomes the allowlist source.
-**Pros:** Locks in v0.7.0 normalization. Future spec drift surfaces as test failures in CI.
-**Cons:** Needs allowlist design (YAML? Python decorator? in-code dict?). Edge cases: naming normalization, paginator-handled excludes.
-**Depends on:** v0.7.0 normalization shipped (done).
-**Added:** 2026-04-16 (deferred follow-up after v0.7.0).
+## ~~P3: Piece 2 — automated contract test for request-param drift~~
+**Completed:** v0.8.0 (2026-04-18). `TestRequestParamDrift` (query+path, 94 parametrized cases across 47 endpoints × sync+async) and `TestRequestBodyDrift` (body, 7 parametrized cases) in `tests/test_contracts.py`. Hard-fail on any drift; `EXCLUSIONS` allowlist in `tests/_contract_support.py` with reason strings. `test_exclusion_map_is_current` lint guards against stale allowlist entries. 25 bootstrap exclusions covering deprecated fields, paginator-handled cursor, count_fp wire normalization, deferred _fp variants on DecreaseOrderRequest, deprecated ids on BatchCancelOrdersRequest, and body-vs-query-param distinctions.
 
-## P3: Audit inline body dicts (orders.amend/decrease/create, multivariate.create_market/lookup_tickers)
-**What:** Body schemas (POST/PUT request payloads built as inline dicts) are NOT covered by Session 1a/1b's request-param audit. The relevant call sites: `orders.create` (body keys: `ticker`, `side`, `type`, `action`, `count`, `yes_price_dollars`, `no_price_dollars`, `client_order_id`, `expiration_ts`), `orders.amend`, `orders.decrease`, `orders.batch_create`, `multivariate.create_market`, `multivariate.lookup_tickers`. Audit each against `components.schemas` in `openapi.yaml`.
-**Why:** Body field drift would cause silent API rejections or data loss. Different drift class than query/path params (hardcoded dict keys vs spec schemas).
-**Pros:** Closes the body-side spec drift gap.
-**Cons:** Body schemas have nested objects; harder than flat query param diff. Some kwargs use Pydantic `_dollars`/`_fp` translation that needs preservation.
-**Depends on:** v0.7.0 query param normalization shipped (done).
-**Added:** 2026-04-16 (deferred follow-up after v0.7.0).
+## ~~P3: Audit inline body dicts~~
+**Completed:** v0.8.0 (2026-04-18). All POST/PUT/DELETE bodies routed through Pydantic models. CreateOrderRequest extended with 7 fields (time_in_force, post_only, reduce_only, self_trade_prevention_type, order_group_id, cancel_order_on_pause, subaccount) + buy_max_cost wired through. AmendOrderRequest, DecreaseOrderRequest, BatchCreateOrdersRequest, BatchCancelOrdersRequest (+ BatchCancelOrdersRequestOrder), and two multivariate request models added. Phantom `type` field on orders.create removed; buy_max_cost type fixed to int cents (spec-compliant); count wire key normalized to count_fp; batch_cancel migrated from deprecated `ids` wire field to preferred `orders` field with per-order subaccount support.
 
 ## P3: Reduce sync/async duplication tax (v0.8+)
 **What:** Every resource file has near-identical sync and async classes (~95% duplication of method bodies). Each new kwarg must be added in two places; mismatch is a real risk. Possible approaches: (a) shared params-builder helpers, (b) sync-wrapping-async architecture, (c) code-gen from a single source. Out of scope for v0.7.0 because the audit alone added ~32 kwargs × 2 = ~64 method signatures touched.
@@ -65,6 +54,24 @@
 **Why:** The unauthenticated client guards private resources (orders, portfolio) at the resource level, but some public resource endpoints might require auth (e.g., if Kalshi adds a `/markets/{ticker}/my-position` endpoint). Without guards on those specific methods, users get a confusing 401 from Kalshi instead of a clear `AuthRequiredError`.
 **Depends on:** Unauthenticated client path shipped.
 **Added:** 2026-04-14 via /plan-eng-review (Codex outside voice identified the gap)
+
+## P3: Enum typing sweep — adopt Literal across enum kwargs (v0.9)
+**What:** Replace `str | None` with `Literal[...]` for fixed-enum kwargs: `time_in_force`, `self_trade_prevention_type`, `side`, `action`, `status` filters on list methods. Single-sweep release.
+**Why:** v0.7.0 and v0.8.0 both deferred `Literal` adoption to avoid scoping-in a typing sweep during feature work. A dedicated sweep lets mypy catch invalid enum values at user-code authoring time.
+**Depends on:** v0.8.0 shipped (done).
+**Added:** 2026-04-18 via /plan-eng-review (scope decision deferred from v0.8.0).
+
+## P3: Model-first request API overload (v0.9)
+**What:** Add optional model-first signatures alongside existing kwarg-based signatures: `orders.amend(request: AmendOrderRequest)`, etc. Runtime dispatch on argument type. Existing kwarg-based callers unaffected.
+**Why:** Advanced users (programmatic order construction, serialization layers) benefit from passing a fully-formed request model. Current API forces them to unpack into kwargs and re-pack.
+**Depends on:** v0.8.0 shipped (done). Request models all exist.
+**Added:** 2026-04-18 via /plan-eng-review.
+
+## P3: Nested request-body schema $ref recursion (only if needed)
+**What:** Extend `_resolve_request_body_schema` in `tests/_contract_support.py` to recurse into nested `$ref` pointers inside body schemas. Today all 7 POST/PUT/DELETE body schemas have flat properties — verified at v0.8.0. Only implement when a nested ref lands in the spec.
+**Why:** Drift detection breaks silently if nested property refs are introduced without resolver support.
+**Depends on:** v0.8.0 shipped (done). Activation trigger: first spec update that introduces a nested `$ref` in a POST/PUT/DELETE body schema.
+**Added:** 2026-04-18 via /plan-eng-review.
 
 ## Completed
 
