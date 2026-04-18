@@ -19,13 +19,14 @@ SCENARIO_REGISTRY: dict[str, list[str]] = {}
 # Resource modules to introspect
 RESOURCE_MODULES = [
     "kalshi.resources.markets",
+    "kalshi.resources.multivariate",
+    "kalshi.resources.order_groups",
     "kalshi.resources.orders",
     "kalshi.resources.events",
     "kalshi.resources.exchange",
     "kalshi.resources.historical",
     "kalshi.resources.portfolio",
     "kalshi.resources.series",
-    "kalshi.resources.multivariate",
 ]
 
 

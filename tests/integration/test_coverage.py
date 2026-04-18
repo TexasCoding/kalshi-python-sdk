@@ -19,6 +19,12 @@ import tests.integration.test_multivariate as _multivariate  # noqa: F401
 import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
+
+try:
+    import tests.integration.test_order_groups as _order_groups  # type: ignore[import-untyped]
+except ImportError:
+    # Task 12 hasn't created this module yet. When it lands, remove this guard.
+    _order_groups = None
 from tests.integration.coverage_harness import SCENARIO_REGISTRY, discover_public_methods
 
 
@@ -59,11 +65,12 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 8 resource classes."""
+        """Sanity check: discover finds the expected 9 resource classes."""
         discovered = discover_public_methods()
         expected = {
             "MarketsResource",
             "OrdersResource",
+            "OrderGroupsResource",
             "EventsResource",
             "ExchangeResource",
             "HistoricalResource",
