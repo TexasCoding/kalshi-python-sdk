@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 from pydantic import BaseModel
 
+from kalshi.types import NullableList
 from tests.integration.assertions import _annotation_contains, assert_model_fields
 
 
@@ -93,6 +94,19 @@ class TestAnnotationContains:
 
     def test_none_annotation(self) -> None:
         assert _annotation_contains(None, Decimal) is False
+
+    def test_nullable_list_of_decimal(self) -> None:
+        """Walks Annotated[list[Decimal], BeforeValidator(...)] → list[Decimal] → Decimal.
+
+        Pins the full NullableList stack — if the recursion ever stops at the
+        Annotated boundary or trips on the BeforeValidator metadata arg, this
+        fails. Motivated by PR #32 review feedback (finding n1).
+        """
+        assert _annotation_contains(NullableList[Decimal], Decimal) is True
+
+    def test_nullable_list_of_str_no_match(self) -> None:
+        """NullableList[str] must not match Decimal — negative pin."""
+        assert _annotation_contains(NullableList[str], Decimal) is False
 
 
 class TestPriceRange:
