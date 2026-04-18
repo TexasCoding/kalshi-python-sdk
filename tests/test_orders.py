@@ -832,3 +832,174 @@ class TestBatchCancelWireShape:
             {"order_id": "ord-1", "subaccount": 5},
             {"order_id": "ord-2"},
         ]
+
+
+class TestAmendWireShape:
+    """v0.8.0: orders.amend() builds AmendOrderRequest internally and
+    serializes via model_dump. Price fields must use _dollars suffix;
+    count must use count_fp alias; phantom keys must be absent."""
+
+    @respx.mock
+    def test_price_serializes_dollars_alias(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
+        ).mock(return_value=httpx.Response(200, json={
+            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
+            "order": {"order_id": "ord-99", "ticker": "MKT"},
+        }))
+
+        orders.amend(
+            "ord-99",
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            yes_price="0.55",
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["yes_price_dollars"] == "0.55"
+        assert "yes_price" not in body
+
+    @respx.mock
+    def test_count_serializes_fp_alias(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
+        ).mock(return_value=httpx.Response(200, json={
+            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
+            "order": {"order_id": "ord-99", "ticker": "MKT"},
+        }))
+
+        orders.amend(
+            "ord-99",
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            count=3,
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["count_fp"] == "3"
+        assert "count" not in body
+
+    @respx.mock
+    def test_required_and_optional_fields(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
+        ).mock(return_value=httpx.Response(200, json={
+            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
+            "order": {"order_id": "ord-99", "ticker": "MKT"},
+        }))
+
+        orders.amend(
+            "ord-99",
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            yes_price="0.55",
+            count=3,
+            subaccount=2,
+            client_order_id="c-old",
+            updated_client_order_id="c-new",
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["ticker"] == "MKT"
+        assert body["side"] == "yes"
+        assert body["action"] == "buy"
+        assert body["yes_price_dollars"] == "0.55"
+        assert body["count_fp"] == "3"
+        assert body["subaccount"] == 2
+        assert body["client_order_id"] == "c-old"
+        assert body["updated_client_order_id"] == "c-new"
+        # no phantom keys
+        assert "yes_price" not in body
+        assert "no_price" not in body
+        assert "count" not in body
+
+    @respx.mock
+    def test_no_price_absent_when_not_passed(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
+        ).mock(return_value=httpx.Response(200, json={
+            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
+            "order": {"order_id": "ord-99", "ticker": "MKT"},
+        }))
+
+        orders.amend(
+            "ord-99",
+            ticker="MKT",
+            side="no",
+            action="buy",
+            no_price="0.45",
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["no_price_dollars"] == "0.45"
+        assert "no_price" not in body
+        assert "yes_price_dollars" not in body
+        assert "count_fp" not in body
+
+
+class TestDecreaseWireShape:
+    """v0.8.0: orders.decrease() builds DecreaseOrderRequest internally."""
+
+    @respx.mock
+    def test_reduce_by_body(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
+        ).mock(return_value=httpx.Response(200, json={
+            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
+        }))
+
+        orders.decrease("ord-99", reduce_by=5, subaccount=1)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"reduce_by": 5, "subaccount": 1}
+
+    @respx.mock
+    def test_reduce_to_body(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
+        ).mock(return_value=httpx.Response(200, json={
+            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
+        }))
+
+        orders.decrease("ord-99", reduce_to=2)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"reduce_to": 2}
+
+
+class TestBatchCreateWireShape:
+    """v0.8.0: orders.batch_create() wraps via BatchCreateOrdersRequest."""
+
+    @respx.mock
+    def test_wraps_orders_key(self, orders: OrdersResource) -> None:
+        import json
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+
+        orders.batch_create([
+            CreateOrderRequest(ticker="A", side="yes"),
+            CreateOrderRequest(ticker="B", side="no"),
+        ])
+
+        body = json.loads(route.calls[0].request.content)
+        assert "orders" in body
+        assert len(body["orders"]) == 2
+        # no phantom top-level keys
+        assert set(body.keys()) == {"orders"}

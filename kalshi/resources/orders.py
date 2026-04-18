@@ -10,10 +10,13 @@ from typing import Any
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
+    AmendOrderRequest,
     AmendOrderResponse,
     BatchCancelOrdersRequest,
     BatchCancelOrdersRequestOrder,
+    BatchCreateOrdersRequest,
     CreateOrderRequest,
+    DecreaseOrderRequest,
     Fill,
     Order,
     OrderQueuePosition,
@@ -140,9 +143,12 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
-    def batch_create(self, orders: builtins.list[CreateOrderRequest]) -> builtins.list[Order]:
+    def batch_create(
+        self, orders: builtins.list[CreateOrderRequest],
+    ) -> builtins.list[Order]:
         self._require_auth()
-        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
+        req = BatchCreateOrdersRequest(orders=list(orders))
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
@@ -242,24 +248,18 @@ class OrdersResource(SyncResource):
         self._require_auth()
         if yes_price is None and no_price is None and count is None:
             raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "action": action,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if count is not None:
-            body["count_fp"] = str(to_decimal(count))
-        if client_order_id is not None:
-            body["client_order_id"] = client_order_id
-        if updated_client_order_id is not None:
-            body["updated_client_order_id"] = updated_client_order_id
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = AmendOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            count=to_decimal(count) if count is not None else None,
+            client_order_id=client_order_id,
+            updated_client_order_id=updated_client_order_id,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
@@ -276,14 +276,12 @@ class OrdersResource(SyncResource):
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
             raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        body: dict[str, Any] = {}
-        if reduce_by is not None:
-            body["reduce_by"] = reduce_by
-        if reduce_to is not None:
-            body["reduce_to"] = reduce_to
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = DecreaseOrderRequest(
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -439,10 +437,11 @@ class AsyncOrdersResource(AsyncResource):
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
     async def batch_create(
-        self, orders: builtins.list[CreateOrderRequest]
+        self, orders: builtins.list[CreateOrderRequest],
     ) -> builtins.list[Order]:
         self._require_auth()
-        body = {"orders": [o.model_dump(exclude_none=True, by_alias=True) for o in orders]}
+        req = BatchCreateOrdersRequest(orders=list(orders))
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
@@ -538,24 +537,18 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         if yes_price is None and no_price is None and count is None:
             raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "action": action,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if count is not None:
-            body["count_fp"] = str(to_decimal(count))
-        if client_order_id is not None:
-            body["client_order_id"] = client_order_id
-        if updated_client_order_id is not None:
-            body["updated_client_order_id"] = updated_client_order_id
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = AmendOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            count=to_decimal(count) if count is not None else None,
+            client_order_id=client_order_id,
+            updated_client_order_id=updated_client_order_id,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
@@ -572,14 +565,12 @@ class AsyncOrdersResource(AsyncResource):
             raise ValueError("decrease() requires either reduce_by or reduce_to")
         if reduce_by is not None and reduce_to is not None:
             raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        body: dict[str, Any] = {}
-        if reduce_by is not None:
-            body["reduce_by"] = reduce_by
-        if reduce_to is not None:
-            body["reduce_to"] = reduce_to
-        if subaccount is not None:
-            body["subaccount"] = subaccount
-
+        req = DecreaseOrderRequest(
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
