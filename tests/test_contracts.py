@@ -29,8 +29,10 @@ from pydantic.fields import FieldInfo
 from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
 from tests._contract_support import (
     EXCLUSIONS,
+    METHOD_ENDPOINT_MAP,
     Exclusion,
     MethodEndpointEntry,
+    _resolve_path_params,
     _resolve_request_body_schema,
 )
 
@@ -628,4 +630,145 @@ class TestWsSpecDrift:
                 "WS payload models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),
                 stacklevel=1,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Request-side Drift Tests (v0.8.0)
+# ---------------------------------------------------------------------------
+
+
+def _signature_params(sdk_method_fqn: str) -> set[str]:
+    """Return the set of keyword parameter names for an SDK method, minus
+    ``self``. Resolves the dotted path ``module.Class.method``.
+
+    Uses the rightmost-two-dots split so that FQNs like
+    ``kalshi.resources.orders.OrdersResource.create`` resolve as
+    module=``kalshi.resources.orders``, class=``OrdersResource``, method=``create``.
+    """
+    parts = sdk_method_fqn.split(".")
+    method = parts[-1]
+    cls_name = parts[-2]
+    module_name = ".".join(parts[:-2])
+    module = importlib.import_module(module_name)
+    cls = getattr(module, cls_name)
+    func = getattr(cls, method)
+    sig = inspect.signature(func)
+    return {
+        name for name, param in sig.parameters.items()
+        if name != "self" and param.kind in (
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        )
+    }
+
+
+def _path_params_from_template(path_template: str) -> set[str]:
+    """Extract ``{name}`` placeholders from a path template."""
+    import re
+    return set(re.findall(r"\{([^}]+)\}", path_template))
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [e for e in METHOD_ENDPOINT_MAP if e.http_method in ("GET", "DELETE")],
+    ids=[
+        e.sdk_method.rsplit(".", 1)[1]
+        for e in METHOD_ENDPOINT_MAP
+        if e.http_method in ("GET", "DELETE")
+    ],
+)
+class TestRequestParamDrift:
+    """Verify resource method signatures match OpenAPI spec query/path params.
+
+    Parametrized over every GET/DELETE entry in ``METHOD_ENDPOINT_MAP``. For each,
+    compares the SDK method's kwarg set (sync + async) to the spec's ``parameters``
+    list, modulo the ``EXCLUSIONS`` allowlist.
+
+    Async sibling derived via ``Async<ClassName>`` substitution — one map entry
+    drives both sync and async tests. Asserts the async class exists; a missing
+    sibling is a bug we want to see immediately.
+
+    Hard-fails via ``pytest.fail`` (NOT ``warnings.warn``). Request-side drift
+    is a user-facing capability gap. See the docstring of
+    ``tests/_contract_support.py`` for the rationale on the asymmetry vs
+    ``TestSpecDrift`` (response-side, which warns rather than fails).
+    """
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_spec()
+
+    def test_sync_params_match_spec(self, entry: MethodEndpointEntry) -> None:
+        self._assert_params_match(entry, async_=False)
+
+    def test_async_params_match_spec(self, entry: MethodEndpointEntry) -> None:
+        self._assert_params_match(entry, async_=True)
+
+    def _assert_params_match(
+        self, entry: MethodEndpointEntry, *, async_: bool,
+    ) -> None:
+        sdk_fqn = entry.sdk_method
+        if async_:
+            parts = sdk_fqn.split(".")
+            parts[-2] = f"Async{parts[-2]}"
+            sdk_fqn = ".".join(parts)
+            # Assert sibling exists
+            module_name = ".".join(parts[:-2])
+            cls_name = parts[-2]
+            module = importlib.import_module(module_name)
+            assert hasattr(module, cls_name), (
+                f"Missing async sibling {cls_name} in {module_name}"
+            )
+
+        sdk_params = _signature_params(sdk_fqn)
+        spec_params_list = _resolve_path_params(
+            self.spec, entry.path_template, entry.http_method,
+        )
+        spec_params = {
+            p["name"] for p in spec_params_list
+            if p.get("in") in ("query", "path")
+        }
+        # Spec path params like ``{order_id}`` should appear in the path
+        # template placeholders too; union them in so the test catches
+        # cases where a spec operation declares a path param that the
+        # SDK method signature doesn't accept.
+        template_params = _path_params_from_template(entry.path_template)
+        spec_params |= template_params
+
+        # EXCLUSIONS is indexed by the SYNC method fqn; async tests reuse
+        # the same allowlist entries.
+        lookup_fqn = entry.sdk_method
+
+        # ADD drift: spec has it, SDK missing
+        missing = spec_params - sdk_params
+        missing_unallowed = {
+            p for p in missing
+            if (lookup_fqn, p) not in EXCLUSIONS
+        }
+        # REMOVE drift: SDK has it, spec doesn't
+        extra = sdk_params - spec_params
+        extra_unallowed = {
+            p for p in extra
+            if (lookup_fqn, p) not in EXCLUSIONS
+        }
+
+        errors: list[str] = []
+        if missing_unallowed:
+            errors.append(
+                f"[ADD drift] spec has params SDK missing: "
+                f"{sorted(missing_unallowed)}"
+            )
+        if extra_unallowed:
+            errors.append(
+                f"[REMOVE drift] SDK has params spec doesn't: "
+                f"{sorted(extra_unallowed)}"
+            )
+        if errors:
+            pytest.fail(
+                f"{sdk_fqn} <-> {entry.http_method} {entry.path_template}\n"
+                + "\n".join(errors)
+                + f"\n(Allowlist via EXCLUSIONS[({lookup_fqn!r}, '...')])"
             )
