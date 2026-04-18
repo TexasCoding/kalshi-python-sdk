@@ -21,8 +21,10 @@ from kalshi.models.markets import (
 )
 from kalshi.models.multivariate import (
     AssociatedEvent,
+    CreateMarketInMultivariateEventCollectionRequest,
     CreateMarketResponse,
     LookupPoint,
+    LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
@@ -61,6 +63,7 @@ __all__ = [
     "BatchCreateOrdersRequest",
     "BidAskDistribution",
     "Candlestick",
+    "CreateMarketInMultivariateEventCollectionRequest",
     "CreateMarketResponse",
     "CreateOrderRequest",
     "DailySchedule",
@@ -74,6 +77,7 @@ __all__ = [
     "ForecastPercentilesPoint",
     "HistoricalCutoff",
     "LookupPoint",
+    "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
     "Market",

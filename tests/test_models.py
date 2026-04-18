@@ -556,3 +556,84 @@ class TestBatchCreateOrdersRequest:
                 ticker="MKT", side="yes", action="buy",
                 type="limit",  # type: ignore[call-arg]
             )
+
+
+class TestCreateMarketInMultivariateRequest:
+    def test_requires_selected_markets(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+        )
+
+        with pytest.raises(ValidationError):
+            CreateMarketInMultivariateEventCollectionRequest()  # type: ignore[call-arg]
+
+    def test_accepts_ticker_pair_items(self) -> None:
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=[pair],
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["selected_markets"][0]["event_ticker"] == "E1"
+
+    def test_with_market_payload_optional(self) -> None:
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        req = CreateMarketInMultivariateEventCollectionRequest(
+            selected_markets=[pair],
+            with_market_payload=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["with_market_payload"] is True
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            CreateMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        with pytest.raises(ValidationError):
+            CreateMarketInMultivariateEventCollectionRequest(
+                selected_markets=[pair],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+
+class TestLookupTickersRequest:
+    def test_requires_selected_markets(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            LookupTickersForMarketInMultivariateEventCollectionRequest,
+        )
+
+        with pytest.raises(ValidationError):
+            LookupTickersForMarketInMultivariateEventCollectionRequest()  # type: ignore[call-arg]
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.multivariate import (
+            LookupTickersForMarketInMultivariateEventCollectionRequest,
+            TickerPair,
+        )
+
+        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
+        with pytest.raises(ValidationError):
+            LookupTickersForMarketInMultivariateEventCollectionRequest(
+                selected_markets=[pair],
+                bogus=1,  # type: ignore[call-arg]
+            )

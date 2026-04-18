@@ -58,6 +58,38 @@ class TickerPair(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class CreateMarketInMultivariateEventCollectionRequest(BaseModel):
+    """Parameters for ``POST /multivariate_event_collections/{collection_ticker}``.
+
+    Matches spec ``components.schemas.CreateMarketInMultivariateEventCollectionRequest``.
+    Required: ``selected_markets``. Optional: ``with_market_payload``.
+
+    See ``kalshi.resources.multivariate.MultivariateCollectionsResource.create_market``
+    — v0.8.0 builds this model internally; method signature unchanged.
+    """
+
+    selected_markets: list[TickerPair]
+    with_market_payload: bool | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class LookupTickersForMarketInMultivariateEventCollectionRequest(BaseModel):
+    """Parameters for ``PUT /multivariate_event_collections/{collection_ticker}/lookup``.
+
+    Matches spec
+    ``components.schemas.LookupTickersForMarketInMultivariateEventCollectionRequest``.
+    Only ``selected_markets``, required.
+
+    See ``kalshi.resources.multivariate.MultivariateCollectionsResource.lookup_tickers``
+    — v0.8.0 builds this model internally; method signature unchanged.
+    """
+
+    selected_markets: list[TickerPair]
+
+    model_config = {"extra": "forbid"}
+
+
 class CreateMarketResponse(BaseModel):
     """Response from creating a market in a multivariate collection."""
 
