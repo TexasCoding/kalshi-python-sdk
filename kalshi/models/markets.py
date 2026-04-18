@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, NullableList
 
 
 class Market(BaseModel):
@@ -145,8 +145,8 @@ class Orderbook(BaseModel):
     """Orderbook for a market."""
 
     ticker: str
-    yes: list[OrderbookLevel] = []
-    no: list[OrderbookLevel] = []
+    yes: NullableList[OrderbookLevel] = []
+    no: NullableList[OrderbookLevel] = []
 
 
 class BidAskDistribution(BaseModel):

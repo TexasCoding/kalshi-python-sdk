@@ -8,6 +8,7 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
+from kalshi.errors import KalshiNotFoundError, KalshiValidationError
 from kalshi.models.series import (
     EventCandlesticks,
     ForecastPercentilesPoint,
@@ -82,8 +83,6 @@ class TestSeriesSync:
         self, sync_client: KalshiClient, demo_event_ticker: str
     ) -> None:
         """Auth-required. May return empty history for events without forecasts."""
-        from kalshi.errors import KalshiNotFoundError, KalshiValidationError
-
         event = sync_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")
@@ -149,8 +148,6 @@ class TestSeriesAsync:
     async def test_forecast_percentile_history(
         self, async_client: AsyncKalshiClient, demo_event_ticker: str
     ) -> None:
-        from kalshi.errors import KalshiNotFoundError, KalshiValidationError
-
         event = await async_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")

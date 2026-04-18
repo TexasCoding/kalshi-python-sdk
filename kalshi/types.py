@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from pydantic import BeforeValidator, PlainSerializer
+
+T = TypeVar("T")
 
 
 def _to_decimal_dollars(value: Any) -> Decimal:
@@ -79,3 +81,23 @@ def to_decimal(value: int | float | str | Decimal) -> Decimal:
     if isinstance(value, Decimal):
         return value
     return Decimal(str(value))
+
+
+def _none_to_empty_list(value: Any) -> Any:
+    """Coerce None to [] for optional list response fields.
+
+    Kalshi's demo API returns JSON null for some optional list fields that the
+    spec declares as non-nullable arrays. Pydantic's default list[T] annotation
+    rejects None and raises ValidationError, breaking response parsing.
+    Use NullableList[T] on response-model fields where the server may return null.
+    """
+    return [] if value is None else value
+
+
+NullableList = Annotated[list[T], BeforeValidator(_none_to_empty_list)]
+"""A list[T] that tolerates server-returned null by coercing to [].
+
+Use on response-model fields (extra='allow') whose spec says 'array' but where
+the live API has been observed to return null. Do NOT use on request bodies —
+those should enforce strict validation.
+"""

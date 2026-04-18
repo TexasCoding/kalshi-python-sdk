@@ -8,7 +8,6 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.errors import (
     KalshiNotFoundError,
-    KalshiServerError,
     KalshiValidationError,
 )
 from kalshi.models.common import Page
@@ -120,7 +119,7 @@ class TestMultivariateSync:
                 demo_collection.collection_ticker,
                 selected_markets=pairs,
             )
-        except (KalshiValidationError, KalshiNotFoundError, KalshiServerError) as e:
+        except (KalshiValidationError, KalshiNotFoundError) as e:
             pytest.skip(f"Demo rejected create_market for this collection: {e}")
         assert isinstance(resp, CreateMarketResponse)
         assert resp.event_ticker
@@ -140,7 +139,7 @@ class TestMultivariateSync:
                 demo_collection.collection_ticker,
                 selected_markets=pairs,
             )
-        except (KalshiValidationError, KalshiNotFoundError, KalshiServerError) as e:
+        except (KalshiValidationError, KalshiNotFoundError) as e:
             pytest.skip(f"Demo rejected lookup_tickers for this collection: {e}")
         assert isinstance(resp, LookupTickersResponse)
         assert resp.event_ticker
@@ -204,7 +203,7 @@ class TestMultivariateAsync:
                 demo_collection.collection_ticker,
                 selected_markets=pairs,
             )
-        except (KalshiValidationError, KalshiNotFoundError, KalshiServerError) as e:
+        except (KalshiValidationError, KalshiNotFoundError) as e:
             pytest.skip(f"Demo rejected create_market for this collection: {e}")
         assert isinstance(resp, CreateMarketResponse)
         assert resp.event_ticker
@@ -224,7 +223,7 @@ class TestMultivariateAsync:
                 demo_collection.collection_ticker,
                 selected_markets=pairs,
             )
-        except (KalshiValidationError, KalshiNotFoundError, KalshiServerError) as e:
+        except (KalshiValidationError, KalshiNotFoundError) as e:
             pytest.skip(f"Demo rejected lookup_tickers for this collection: {e}")
         assert isinstance(resp, LookupTickersResponse)
         assert resp.event_ticker

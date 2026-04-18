@@ -30,6 +30,18 @@ class FakeMarket(BaseModel):
     levels: list[FakePrice] = []
 
 
+class FakeRateBearing(BaseModel):
+    """Model with a legitimately-float field (like Series.fee_multiplier).
+
+    Represents the negative case for the annotation-aware float check —
+    when a field's annotation IS float, a float value must NOT trigger
+    the 'DollarDecimal parsing failed' assertion.
+    """
+    ticker: str
+    fee_multiplier: float = 0.0
+    optional_rate: float | None = None
+
+
 class TestDecimalEnforcement:
     def test_passes_with_decimal(self) -> None:
         m = FakeMarket(ticker="T", yes_bid=Decimal("0.50"))
@@ -43,6 +55,50 @@ class TestDecimalEnforcement:
         object.__setattr__(m, "volume", 0.5)
         with pytest.raises(AssertionError, match=r"float.*expected Decimal"):
             assert_model_fields(m)
+
+    def test_float_field_with_float_value_does_not_raise(self) -> None:
+        """Regression: a field annotated as float with a float value is fine.
+
+        Series.fee_multiplier is a rate multiplier typed as float per spec.
+        Before the annotation-aware check, the oracle misfired here.
+        """
+        m = FakeRateBearing(ticker="T", fee_multiplier=1.5)
+        assert_model_fields(m)  # must not raise
+
+    def test_optional_float_with_float_value_does_not_raise(self) -> None:
+        m = FakeRateBearing(ticker="T", optional_rate=0.25)
+        assert_model_fields(m)  # must not raise
+
+
+class TestAnnotationContains:
+    """Pin the typing semantics of _annotation_contains.
+
+    Covers bare, Optional, union (PEP 604), list[T], and None annotations.
+    """
+
+    def test_bare_type_match(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(Decimal, Decimal) is True
+
+    def test_bare_type_no_match(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(float, Decimal) is False
+
+    def test_union_pep604(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(Decimal | None, Decimal) is True
+
+    def test_union_without_target(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(float | str, Decimal) is False
+
+    def test_list_of_decimal(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(list[Decimal], Decimal) is True
+
+    def test_none_annotation(self) -> None:
+        from tests.integration.assertions import _annotation_contains
+        assert _annotation_contains(None, Decimal) is False
 
 
 class TestPriceRange:
