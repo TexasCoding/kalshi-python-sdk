@@ -13,9 +13,9 @@ No new features, no publishing, no polish sweeps until this is closed. Side ques
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 24 | 27% |
+| FULL (SDK + unit + integration) | 31 | 35% |
 | SDK + unit, no integration | 12 | 13% |
-| Not implemented | 53 | 60% |
+| Not implemented | 46 | 52% |
 | **Total** | **89** | |
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
@@ -42,19 +42,6 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Active phases
-
-### v0.10.0 — Order Groups resource
-**What:** Implement `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints. Pydantic models (request models with `extra="forbid"`), sync+async resources, unit tests (happy/error/auth-guard), integration tests, `METHOD_ENDPOINT_MAP` registration, `BODY_MODEL_MAP` entries for POST/PUT bodies.
-**Why:** Advanced order strategies (OCO, if-then). Entire resource class missing today.
-**Endpoints (7 — all `demo-supported`):**
-- `GET /portfolio/order_groups`
-- `GET /portfolio/order_groups/{order_group_id}`
-- `POST /portfolio/order_groups/create`
-- `DELETE /portfolio/order_groups/{order_group_id}`
-- `PUT /portfolio/order_groups/{order_group_id}/reset`
-- `PUT /portfolio/order_groups/{order_group_id}/trigger`
-- `PUT /portfolio/order_groups/{order_group_id}/limit`
-**Estimate:** ~5h.
 
 ### v0.11.0 — Communications / RFQ + Subaccounts
 **What:** Two new resource subsystems. Pydantic models, sync+async resources, unit + integration tests, contract map registration for all 17 endpoints.
@@ -123,6 +110,9 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 ---
 
 ## Completed
+
+### ~~v0.10.0 — Order Groups resource~~
+**Completed:** 2026-04-18. `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints (GET/POST/DELETE/PUT across `/portfolio/order_groups/*`). 5 Pydantic models: `OrderGroup`, `GetOrderGroupResponse`, `CreateOrderGroupResponse`, `CreateOrderGroupRequest`, `UpdateOrderGroupLimitRequest` (all request models `extra="forbid"`, response models with `NullableList[str]` on `orders`). 41 unit tests (wire-shape, happy path, auth-guard, error-path, client-wiring) + 9 integration tests (5 sync + 4 async) against demo — all green. Registered in `METHOD_ENDPOINT_MAP` (7 entries), `BODY_MODEL_MAP` (2 entries), `EXCLUSIONS` (2 entries for `contracts_limit_fp` — SDK commits to integer form only, matching the `count_fp` precedent), and the integration coverage harness (9th resource class). Version bumped to 0.10.0. **Integration testing surfaced two real SDK bugs caught before ship:** (1) `reset`/`trigger` PUT endpoints were sending requests without `Content-Type: application/json` (httpx omits the header when no body is passed); demo server rejected with `invalid_content_type`. Fixed by passing `json={}` in both sync and async variants. (2) Async `create → get` had a race condition on demo (eventual consistency) — added a 0.5s sleep mirroring the `test_orders.py` pattern.
 
 ### ~~v0.9.0 — Close Series + Multivariate integration gap~~
 **Completed:** 2026-04-18. Added `kalshi.resources.series` and `kalshi.resources.multivariate` to `RESOURCE_MODULES` (made 11 silently-absent methods visible to the meta-coverage test). Created `tests/integration/test_series.py` (5 methods × sync+async = 10 tests) and `tests/integration/test_multivariate.py` (6 methods × sync+async = 12 tests). Extended `tests/integration/test_events.py` with `list_multivariate` + `list_all_multivariate` coverage (4 new tests). Bumped discovery expectation from 6 → 8 resource classes. **Integration tests surfaced two real issues:** (1) `Series.tags` was typed `list[str]` but demo returns `null` for some series — fixed via `@field_validator(mode="before")` coercing None→[] on `tags`, `settlement_sources`, `additional_prohibitions`; (2) the semantic oracle in `tests/integration/assertions.py` rejected ALL floats as DollarDecimal failures, misfiring on `Series.fee_multiplier: float` — now uses an annotation-aware `_annotation_contains(Decimal)` check so it only flags floats where the field is actually typed Decimal. Coverage result: 40 passed, 5 skipped (destructive create_market + lookup_tickers skip when demo collection lacks associated events with markets; forecast skip when no history). FULL-covered endpoints 13 → 24; NO_INT 23 → 12; meta-coverage test green.
