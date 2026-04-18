@@ -419,6 +419,19 @@ class TestAmendOrderRequest:
         assert body["yes_price_dollars"] == "0.55"
         assert "yes_price" not in body  # int cent form excluded
 
+    def test_serializes_no_price_dollars(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="no", action="sell",
+            no_price=Decimal("0.75"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["no_price_dollars"] == "0.75"
+        assert "no_price" not in body
+
     def test_serializes_count_fp(self) -> None:
         from decimal import Decimal
 
@@ -546,15 +559,28 @@ class TestBatchCreateOrdersRequest:
             )
 
     def test_nested_create_order_phantom_rejected(self) -> None:
-        """Phantom key in a nested CreateOrderRequest fails at construction."""
+        """Phantom key in a raw-dict nested order rejected via BatchCreateOrdersRequest.
+
+        Constructs BatchCreateOrdersRequest with a raw dict item — Pydantic
+        coerces into CreateOrderRequest and its extra='forbid' fires on the
+        phantom. This exercises the BatchCreateOrdersRequest -> nested item
+        path, not CreateOrderRequest's forbid in isolation (already covered
+        by TestCreateOrderRequestExtended.test_forbid_extra).
+        """
         from pydantic import ValidationError
 
-        from kalshi.models.orders import CreateOrderRequest
+        from kalshi.models.orders import BatchCreateOrdersRequest
 
         with pytest.raises(ValidationError):
-            CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
-                type="limit",  # type: ignore[call-arg]
+            BatchCreateOrdersRequest(
+                orders=[
+                    {
+                        "ticker": "MKT",
+                        "side": "yes",
+                        "action": "buy",
+                        "type": "limit",  # phantom
+                    },  # type: ignore[list-item]
+                ],
             )
 
 
