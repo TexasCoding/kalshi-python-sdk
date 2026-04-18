@@ -10,6 +10,7 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
+from kalshi.errors import KalshiNotFoundError
 from kalshi.models.order_groups import (
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
@@ -94,7 +95,6 @@ class TestOrderGroupsSync:
         resp = sync_client.order_groups.create(contracts_limit=1)
         sync_client.order_groups.delete(resp.order_group_id)
         # Follow-up GET should 404
-        from kalshi.errors import KalshiNotFoundError
         with pytest.raises(KalshiNotFoundError):
             sync_client.order_groups.get(resp.order_group_id)
 

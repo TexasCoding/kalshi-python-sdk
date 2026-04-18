@@ -76,6 +76,8 @@ class OrderGroupsResource(SyncResource):
 
 
 class AsyncOrderGroupsResource(AsyncResource):
+    """Async order groups API."""
+
     async def list(self, *, subaccount: int | None = None) -> builtins.list[OrderGroup]:
         self._require_auth()
         params = _params(subaccount=subaccount)
