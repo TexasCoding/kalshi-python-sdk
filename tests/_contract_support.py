@@ -248,6 +248,44 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/orders/{order_id}/queue_position",
     ),
+    # ── order groups ────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.list",
+        http_method="GET",
+        path_template="/portfolio/order_groups",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.get",
+        http_method="GET",
+        path_template="/portfolio/order_groups/{order_group_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.create",
+        http_method="POST",
+        path_template="/portfolio/order_groups/create",
+        request_body_schema="#/components/schemas/CreateOrderGroupRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.delete",
+        http_method="DELETE",
+        path_template="/portfolio/order_groups/{order_group_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.reset",
+        http_method="PUT",
+        path_template="/portfolio/order_groups/{order_group_id}/reset",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.trigger",
+        http_method="PUT",
+        path_template="/portfolio/order_groups/{order_group_id}/trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.order_groups.OrderGroupsResource.update_limit",
+        http_method="PUT",
+        path_template="/portfolio/order_groups/{order_group_id}/limit",
+        request_body_schema="#/components/schemas/UpdateOrderGroupLimitRequest",
+    ),
     # ── portfolio ───────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.portfolio.PortfolioResource.balance",
@@ -482,6 +520,23 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason=(
             "deprecated spec field; SDK v0.8.0 migrated to preferred 'orders' field; "
             "intentional REMOVE drift documented in CHANGELOG"
+        ),
+    ),
+    # --- CreateOrderGroupRequest / UpdateOrderGroupLimitRequest _fp variants ---
+    # Spec has both contracts_limit (int) and contracts_limit_fp (FixedPointCount
+    # string) as mutually-compatible representations. SDK commits to the integer
+    # form (contracts_limit); Kalshi accepts either. Same pattern as count_fp on
+    # order requests (v0.8.0).
+    ("kalshi.models.order_groups.CreateOrderGroupRequest", "contracts_limit_fp"): Exclusion(
+        reason=(
+            "FixedPointCount variant of contracts_limit; SDK emits integer contracts_limit only; "
+            "Kalshi accepts either form; _fp variant intentionally omitted (v0.10.0)"
+        ),
+    ),
+    ("kalshi.models.order_groups.UpdateOrderGroupLimitRequest", "contracts_limit_fp"): Exclusion(
+        reason=(
+            "FixedPointCount variant of contracts_limit; SDK emits integer contracts_limit only; "
+            "Kalshi accepts either form; _fp variant intentionally omitted (v0.10.0)"
         ),
     ),
 }
