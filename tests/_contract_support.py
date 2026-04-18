@@ -19,11 +19,30 @@ from typing import Any
 
 @dataclass(frozen=True)
 class MethodEndpointEntry:
-    """Maps one sync SDK method to its OpenAPI endpoint."""
+    """Maps one sync SDK method to its OpenAPI endpoint.
+
+    ``request_body_schema`` is the spec ref for POST/PUT request bodies
+    (e.g., ``"#/components/schemas/CreateOrderRequest"``). None for
+    GET/DELETE endpoints. Defaulted so existing entries don't need to be
+    touched; new POST/PUT entries SHOULD populate it so ``TestRequestBodyDrift``
+    has something to diff against.
+    """
 
     sdk_method: str
     http_method: str
     path_template: str
+    request_body_schema: str | None = None
+
+
+@dataclass(frozen=True)
+class Exclusion:
+    """Intentional deviation from the OpenAPI spec, with a human-readable reason.
+
+    Values in ``EXCLUSIONS`` carry this dataclass. The ``reason`` field is
+    required — nameless deviations are a bug we refuse to ship.
+    """
+
+    reason: str
 
 
 METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
@@ -161,6 +180,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.create",
         http_method="POST",
         path_template="/portfolio/orders",
+        request_body_schema="#/components/schemas/CreateOrderRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.get",
@@ -186,6 +206,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.batch_create",
         http_method="POST",
         path_template="/portfolio/orders/batched",
+        request_body_schema="#/components/schemas/BatchCreateOrdersRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.batch_cancel",
@@ -206,11 +227,13 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.amend",
         http_method="POST",
         path_template="/portfolio/orders/{order_id}/amend",
+        request_body_schema="#/components/schemas/AmendOrderRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.decrease",
         http_method="POST",
         path_template="/portfolio/orders/{order_id}/decrease",
+        request_body_schema="#/components/schemas/DecreaseOrderRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.queue_positions",
@@ -304,6 +327,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         ),
         http_method="POST",
         path_template="/multivariate_event_collections/{collection_ticker}",
+        request_body_schema="#/components/schemas/CreateMarketInMultivariateEventCollectionRequest",
     ),
     MethodEndpointEntry(
         sdk_method=(
@@ -312,6 +336,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         ),
         http_method="PUT",
         path_template="/multivariate_event_collections/{collection_ticker}/lookup",
+        request_body_schema="#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest",
     ),
     MethodEndpointEntry(
         sdk_method=(
@@ -322,6 +347,79 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/multivariate_event_collections/{collection_ticker}/lookup",
     ),
 ]
+
+
+# ---------------------------------------------------------------------------
+# EXCLUSIONS allowlist for request-side drift tests
+# ---------------------------------------------------------------------------
+# Keys are ``(sdk_fqn, param_or_field_name)`` tuples. Values are ``Exclusion``
+# dataclasses with a required ``reason`` string. An entry declares "this is
+# not drift; here's why." Tests that fail to find the corresponding drift
+# should also fail (see ``test_exclusion_map_is_current``), so stale entries
+# don't accumulate.
+#
+# BOOTSTRAP (v0.8.0) — two classes of entries:
+#   1. ``CreateOrderRequest`` spec fields the SDK deliberately omits (cent-form
+#      redundant with ``_dollars`` variants; deprecated-in-spec).
+#   2. ``cursor`` on every ``list_all`` method — paginator-handled internally;
+#      the kwarg is absent from the method signature by design.
+#
+# Additional entries for ``AmendOrderRequest`` get appended in Task 3 (after
+# that model is created). Do NOT preload them here — forward references to
+# a model that doesn't exist yet will trip mypy on import.
+
+EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
+    # --- CreateOrderRequest spec fields deliberately not on the model ---
+    ("kalshi.models.orders.CreateOrderRequest", "yes_price"): Exclusion(
+        reason=(
+            "cent form redundant with yes_price_dollars; caller passes dollars, "
+            "wire carries dollars"
+        ),
+    ),
+    ("kalshi.models.orders.CreateOrderRequest", "no_price"): Exclusion(
+        reason=(
+            "cent form redundant with no_price_dollars; caller passes dollars, "
+            "wire carries dollars"
+        ),
+    ),
+    ("kalshi.models.orders.CreateOrderRequest", "sell_position_floor"): Exclusion(
+        reason="deprecated in spec (only accepts 0); superseded by reduce_only",
+    ),
+    # --- cursor exclusions on list_all variants (paginator-handled) ---
+    ("kalshi.resources.markets.MarketsResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.events.EventsResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.events.EventsResource.list_all_multivariate", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.historical.HistoricalResource.markets_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.historical.HistoricalResource.fills_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.historical.HistoricalResource.orders_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.historical.HistoricalResource.trades_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.orders.OrdersResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.orders.OrdersResource.fills_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.portfolio.PortfolioResource.settlements_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.multivariate.MultivariateCollectionsResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+}
 
 
 def _resolve_ref(
@@ -417,3 +515,52 @@ def _resolve_path_params(
     for p in op_level:
         merged[(p["name"], p.get("in", ""))] = p
     return list(merged.values())
+
+
+def _resolve_request_body_schema(
+    spec: dict[str, Any],
+    path_template: str,
+    http_method: str,
+    *,
+    max_ref_depth: int = 8,
+) -> dict[str, Any] | None:
+    """Return the resolved request body schema for a POST/PUT/PATCH operation, or
+    None if the operation has no ``requestBody``. Follows ``$ref`` pointers in
+    ``content['application/json'].schema`` and resolves them via ``_resolve_ref``.
+
+    Only ``application/json`` content is considered — Kalshi's spec doesn't use
+    other media types for request bodies. If that changes, extend this function.
+
+    Returns ``None`` for endpoints without a body (GET/DELETE/HEAD/OPTIONS etc.).
+    Returns the resolved schema dict otherwise (with any top-level ``$ref``
+    already chased).
+    """
+    paths = spec.get("paths", {})
+    if path_template not in paths:
+        raise KeyError(f"path {path_template!r} not found in spec")
+
+    op_key = http_method.lower()
+    path_entry = paths[path_template]
+    if op_key not in path_entry:
+        raise KeyError(
+            f"operation {http_method!r} not defined on path {path_template!r}"
+        )
+
+    op_entry = path_entry[op_key]
+    request_body = op_entry.get("requestBody")
+    if not request_body:
+        return None
+
+    content = request_body.get("content", {})
+    json_content = content.get("application/json")
+    if not json_content:
+        return None
+
+    schema = json_content.get("schema")
+    if not schema:
+        return None
+
+    if "$ref" in schema:
+        schema = _resolve_ref(spec, schema["$ref"], max_depth=max_ref_depth)
+
+    return schema  # type: ignore[no-any-return]

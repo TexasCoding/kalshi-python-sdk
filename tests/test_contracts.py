@@ -27,8 +27,126 @@ from pydantic import BaseModel as PydanticBase
 from pydantic.fields import FieldInfo
 
 from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
+from tests._contract_support import (
+    EXCLUSIONS,
+    Exclusion,
+    MethodEndpointEntry,
+    METHOD_ENDPOINT_MAP,
+    _resolve_path_params,
+    _resolve_request_body_schema,
+)
 
 SPEC_FILE = Path(__file__).parent.parent / "specs" / "openapi.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure tests
+# ---------------------------------------------------------------------------
+
+
+class TestContractSupportInfra:
+    def test_exclusion_requires_reason(self) -> None:
+        import dataclasses
+
+        with pytest.raises(TypeError):
+            Exclusion()  # type: ignore[call-arg]
+
+        e = Exclusion(reason="because")
+        assert e.reason == "because"
+        assert dataclasses.is_dataclass(e)
+
+    def test_exclusions_bootstrap_has_cursor_entries(self) -> None:
+        cursor_keys = [k for k in EXCLUSIONS if k[1] == "cursor"]
+        assert len(cursor_keys) == 11, (
+            f"Expected 11 cursor entries (one per list_all), got {len(cursor_keys)}"
+        )
+        for key in cursor_keys:
+            assert "paginator" in EXCLUSIONS[key].reason.lower()
+
+    def test_exclusions_bootstrap_has_create_order_request_entries(self) -> None:
+        create_keys = [
+            k for k in EXCLUSIONS
+            if k[0] == "kalshi.models.orders.CreateOrderRequest"
+        ]
+        field_names = {k[1] for k in create_keys}
+        assert {"yes_price", "no_price", "sell_position_floor"} <= field_names
+
+    def test_method_endpoint_entry_has_request_body_schema(self) -> None:
+        entry = MethodEndpointEntry(
+            sdk_method="x", http_method="GET", path_template="/y",
+        )
+        assert entry.request_body_schema is None
+
+        entry2 = MethodEndpointEntry(
+            sdk_method="x",
+            http_method="POST",
+            path_template="/y",
+            request_body_schema="#/components/schemas/Foo",
+        )
+        assert entry2.request_body_schema == "#/components/schemas/Foo"
+
+    def test_resolve_request_body_schema_returns_none_for_get(self) -> None:
+        spec: dict[str, Any] = {
+            "paths": {
+                "/markets": {
+                    "get": {"parameters": []},
+                },
+            },
+        }
+        assert _resolve_request_body_schema(spec, "/markets", "GET") is None
+
+    def test_resolve_request_body_schema_resolves_ref(self) -> None:
+        spec = {
+            "paths": {
+                "/portfolio/orders": {
+                    "post": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Foo",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "components": {
+                "schemas": {
+                    "Foo": {
+                        "type": "object",
+                        "properties": {"a": {"type": "string"}},
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(spec, "/portfolio/orders", "POST")
+        assert result is not None
+        assert "a" in result["properties"]
+
+    def test_resolve_request_body_schema_inline_schema(self) -> None:
+        spec = {
+            "paths": {
+                "/x": {
+                    "post": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {"b": {"type": "integer"}},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(spec, "/x", "POST")
+        assert result is not None
+        assert "b" in result["properties"]
 
 
 # ---------------------------------------------------------------------------
