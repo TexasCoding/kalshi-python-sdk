@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+import tests.integration.test_communications as _communications  # noqa: F401
 import tests.integration.test_events as _events  # noqa: F401
 
 # Force import of all test files so they register their methods.
@@ -60,9 +61,10 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 9 resource classes."""
+        """Sanity check: discover finds the expected 10 resource classes."""
         discovered = discover_public_methods()
         expected = {
+            "CommunicationsResource",
             "MarketsResource",
             "OrdersResource",
             "OrderGroupsResource",
