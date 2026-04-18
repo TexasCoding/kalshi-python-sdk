@@ -20,11 +20,7 @@ import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
 
-try:
-    import tests.integration.test_order_groups as _order_groups  # type: ignore[import-untyped]
-except ImportError:
-    # Task 12 hasn't created this module yet. When it lands, remove this guard.
-    _order_groups = None
+import tests.integration.test_order_groups as _order_groups  # noqa: F401
 from tests.integration.coverage_harness import SCENARIO_REGISTRY, discover_public_methods
 
 
