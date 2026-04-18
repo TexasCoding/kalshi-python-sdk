@@ -9,13 +9,13 @@
 
 No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-### Current state (audit 2026-04-18, updated post-v0.10.0)
+### Current state (audit 2026-04-18, updated post-v0.11.0)
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 31 | 35% |
-| SDK + unit, no integration | 12 | 13% |
-| Not implemented | 46 | 52% |
+| FULL (SDK + unit + integration) | 44 | 49% |
+| SDK + unit, no integration | 16 | 18% |
+| Not implemented | 29 | 33% |
 | **Total** | **89** | |
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
@@ -40,33 +40,6 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Active phases
-
-### v0.11.0 — Communications / RFQ + Subaccounts
-**What:** Two new resource subsystems. Pydantic models, sync+async resources, unit + integration tests, contract map registration for all 17 endpoints.
-
-**Communications / RFQ (11 endpoints):**
-- `GET /communications/id` — demo-supported
-- `GET /communications/rfqs` — demo-supported
-- `POST /communications/rfqs` — demo-supported
-- `GET /communications/rfqs/{rfq_id}` — demo-supported
-- `DELETE /communications/rfqs/{rfq_id}` — demo-supported
-- `GET /communications/quotes` — **auth-gated** (403 on demo) → `integration_real_api_only`
-- `POST /communications/quotes` — demo-supported
-- `GET /communications/quotes/{quote_id}` — demo-supported
-- `DELETE /communications/quotes/{quote_id}` — demo-supported
-- `PUT /communications/quotes/{quote_id}/accept` — demo-supported
-- `PUT /communications/quotes/{quote_id}/confirm` — demo-supported
-
-**Subaccounts (6 endpoints):**
-- `POST /portfolio/subaccounts` — demo-supported (⚠ returns **201 on empty body**; probe already created subaccount #1 with $0 on demo — confirmed via `GET /portfolio/subaccounts/balances`. Integration tests will need a cleanup fixture or server-side delete endpoint; spec shows no DELETE so probably permanent until admin reset)
-- `POST /portfolio/subaccounts/transfer` — demo-supported
-- `GET /portfolio/subaccounts/balances` — demo-supported
-- `GET /portfolio/subaccounts/transfers` — demo-supported
-- `PUT /portfolio/subaccounts/netting` — demo-supported
-- `GET /portfolio/subaccounts/netting` — **demo-broken** (demo returns 500 `users/internal_server_error` on any request) → `integration_real_api_only` or xfail
-
-**Why:** OTC market access + multi-account workflows. Two of the largest "not implemented" buckets.
-**Estimate:** ~11h.
 
 ### v0.12.0 — API Keys + Bulk/Batch + Milestones
 **What:** Three smaller resource additions.
@@ -110,14 +83,12 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 **Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.
 **Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
 
-### P3: Harden `_put()` against 204 No Content responses
-**What:** `kalshi/resources/_base.py::_put()` unconditionally calls `response.json()`. If a Kalshi endpoint ever returns 204 (empty body) on a PUT, `_put` will raise `JSONDecodeError`. Mirror the `_delete()` pattern (`if response.status_code == 204: return None`).
-**Why:** `_delete()` already handles this. `_put()` is inconsistent and brittle. The risk is currently latent — spec defines 200 responses with empty-object bodies, but spec can change. `OrderGroupsResource.update_limit` is the first `_put()` caller where a spec change could surface this.
-**Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
-
 ---
 
 ## Completed
+
+### ~~v0.11.0 — Communications / RFQ + Subaccounts~~
+**Completed:** 2026-04-18. Two new resource subsystems — `CommunicationsResource` + `AsyncCommunicationsResource` (11 endpoints: get_id, list_rfqs/create_rfq/get_rfq/delete_rfq, list_quotes/create_quote/get_quote/delete_quote, accept_quote/confirm_quote, plus list_all_rfqs + list_all_quotes paginator helpers) and `SubaccountsResource` + `AsyncSubaccountsResource` (6 endpoints: create, transfer, list_balances, list_transfers + list_all_transfers, update_netting, get_netting). 21 new Pydantic models (`RFQ`, `Quote`, `MveSelectedLeg` + envelopes/requests on Communications; `SubaccountBalance`, `SubaccountTransfer`, `SubaccountNettingConfig` + envelopes/requests on Subaccounts). Wired into `KalshiClient.communications` / `.subaccounts`. Registered 20 METHOD_ENDPOINT_MAP entries, 5 BODY_MODEL_MAP entries, 10 `_contract_map.py` response-side entries, 4 EXCLUSIONS. 103 new unit tests + 30 integration tests (26 passing, 4 correctly skipped; the demo-broken `get_netting` + the quote-party-two workflow gated behind the new `integration_real_api_only` marker). **Live-demo findings surfaced during integration runs:** (1) `GET /communications/quotes` requires `creator_user_id` OR `rfq_creator_user_id` filter even when `rfq_id` is provided (demo returns 400, not 403 — audit row corrected); (2) demo rejects malformed IDs with 400 `invalid_parameters` before 404 route lookup (regression tests assert `KalshiError` base class); (3) demo refuses self-quoting — `test_quote_lifecycle` skips cleanly so future server changes surface organically; (4) `POST /portfolio/subaccounts` needs `json={}` to force Content-Type (same fix as order_groups v0.10 reset/trigger). **Bonus: closed the P3 `_put()` 204 handling item** — was on the critical path for `accept_quote` / `confirm_quote` which return 204 per spec. `_put` now returns `None` on 204 like `_delete`. FULL-covered endpoints 31 → 44 (49%); meta-coverage test now expects 11 resource classes (was 9).
 
 ### ~~v0.10.0 — Order Groups resource~~
 **Completed:** 2026-04-18. `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints (GET/POST/DELETE/PUT across `/portfolio/order_groups/*`). 5 Pydantic models: `OrderGroup`, `GetOrderGroupResponse`, `CreateOrderGroupResponse`, `CreateOrderGroupRequest`, `UpdateOrderGroupLimitRequest` (all request models `extra="forbid"`, response models with `NullableList[str]` on `orders`). 41 unit tests (wire-shape, happy path, auth-guard, error-path, client-wiring) + 9 integration tests (5 sync + 4 async) against demo — all green. Registered in `METHOD_ENDPOINT_MAP` (7 entries), `BODY_MODEL_MAP` (2 entries), `EXCLUSIONS` (2 entries for `contracts_limit_fp` — SDK commits to integer form only, matching the `count_fp` precedent), and the integration coverage harness (9th resource class). Version bumped to 0.10.0. **Integration testing surfaced two real SDK bugs caught before ship:** (1) `reset`/`trigger` PUT endpoints were sending requests without `Content-Type: application/json` (httpx omits the header when no body is passed); demo server rejected with `invalid_content_type`. Fixed by passing `json={}` in both sync and async variants. (2) Async `create → get` had a race condition on demo (eventual consistency) — added a 0.5s sleep mirroring the `test_orders.py` pattern.

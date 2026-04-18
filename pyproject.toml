@@ -1,6 +1,6 @@
 [project]
 name = "kalshi-sdk"
-version = "0.10.0"
+version = "0.11.0"
 description = "A professional Python SDK for the Kalshi prediction markets API"
 readme = "README.md"
 license = { text = "MIT" }
