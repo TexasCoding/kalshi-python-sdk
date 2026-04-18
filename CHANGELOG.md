@@ -2,6 +2,29 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.9.1] — 2026-04-18
+
+### Added
+
+- **`NullableList[T]`** — new reusable Pydantic type alias in `kalshi.types` for response-model list fields that the live API may return as JSON null. Applied across 24 list-default fields in response models (events, exchange, markets, multivariate, portfolio, series). Replaces a one-off `field_validator` pattern with a systematic opt-in: any new response field that could be null from the server uses `NullableList[X] = []` instead of `list[X] = []`.
+- **Integration test coverage for Series + Multivariate Collections resources (v0.9.0 scope).** 11 previously-unregistered methods now have real tests against the Kalshi demo server:
+  - `SeriesResource`: `list`, `get`, `fee_changes`, `event_candlesticks`, `forecast_percentile_history`
+  - `MultivariateCollectionsResource`: `list`, `list_all`, `get`, `create_market`, `lookup_tickers`, `lookup_history`
+  - `EventsResource`: `list_multivariate`, `list_all_multivariate`
+- **Meta-coverage test** (`tests/integration/test_coverage.py`) now discovers all 8 resource classes (was 6) and fails on any public method that lacks an integration scenario. FULL-covered endpoints: 13 → 24.
+- **`NullableList` regression tests** — 7 new unit tests in `tests/test_series_models.py` covering null coercion on Series (`tags`, `settlement_sources`, `additional_prohibitions`), `EventCandlesticks` (`market_tickers`, `market_candlesticks`), and `ForecastPercentilesPoint` (`percentile_points`).
+- **Annotation-aware assertion oracle tests** — 6 new tests in `tests/integration/test_assertions.py` pinning `_annotation_contains` semantics across bare types, `Optional`, PEP 604 unions, `list[T]`, and `None` annotations. Plus 2 positive tests confirming float-annotated fields no longer misfire the DollarDecimal check.
+
+### Changed
+
+- **Semantic oracle** (`tests/integration/assertions.py`) is now annotation-aware. The oracle previously rejected *any* float value on a Pydantic model as "DollarDecimal parsing failed", which misfired on legitimately-typed fields like `Series.fee_multiplier: float` (spec type `number/double`). It now only flags floats where the field's type annotation actually resolves to `Decimal`, via a new `_annotation_contains()` helper that walks `__args__` through `Optional`, `Union`, `Annotated`, and generic aliases.
+- **`tests/integration/test_multivariate.py`** — tightened except clauses on `test_create_market` and `test_lookup_tickers` (sync + async). Previously caught `KalshiServerError` as `pytest.skip`, which masked real SDK regressions (body serialization, PUT/POST auth) as demo flakiness. Now only swallows `KalshiValidationError` and `KalshiNotFoundError`; 5xx fails loud so the integration suite actually serves its north-star purpose of surfacing real SDK issues.
+
+### Fixed
+
+- **Stale `__version__`** in `kalshi/__init__.py` (was `0.7.0`, now `0.9.1`). `pyproject.toml` was bumped to `0.8.0` in the previous release without updating the package `__version__`. Both now track together.
+- **`TODOS.md`** restructured around the north-star goal: 100% endpoint coverage (SDK + unit + integration test for every REST operation and WebSocket channel). New phased roadmap v0.9 → v0.13. `BACKLOG.md` added as the parking lot for valuable-but-off-path items.
+
 ## [0.8.0] — 2026-04-18
 
 ### Breaking changes
