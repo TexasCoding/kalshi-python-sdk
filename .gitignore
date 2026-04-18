@@ -32,3 +32,4 @@ kalshi/_generated/models.py
 # AsyncAPI spec (downloaded for future WebSocket support, not committed)
 # Note: specs/openapi.yaml IS committed as a pinned snapshot for deterministic PR builds.
 specs/asyncapi.yaml
+.gitnexus
