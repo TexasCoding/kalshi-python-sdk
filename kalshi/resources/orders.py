@@ -30,31 +30,53 @@ class OrdersResource(SyncResource):
         *,
         ticker: str,
         side: str,
-        type: str = "limit",
         action: str = "buy",
         count: int = 1,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
+        buy_max_cost: int | None = None,
+        time_in_force: str | None = None,
+        post_only: bool | None = None,
+        reduce_only: bool | None = None,
+        self_trade_prevention_type: str | None = None,
+        order_group_id: str | None = None,
+        cancel_order_on_pause: bool | None = None,
+        subaccount: int | None = None,
     ) -> Order:
-        self._require_auth()
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "type": type,
-            "action": action,
-            "count": count,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if expiration_ts is not None:
-            body["expiration_ts"] = expiration_ts
+        """Place a new order.
 
+        ``buy_max_cost`` is integer cents per OpenAPI spec (e.g., 500 for $5.00).
+
+        ``time_in_force`` accepts ``"fill_or_kill"``, ``"good_till_canceled"``,
+        ``"immediate_or_cancel"``. Passing ``None`` omits the field and lets
+        Kalshi apply its server-side default (``good_till_canceled``).
+
+        v0.8.0 removed the ``type`` kwarg: the field was never defined in
+        the OpenAPI spec. Callers passing ``type="limit"`` now get a
+        ``TypeError``.
+        """
+        self._require_auth()
+        req = CreateOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=to_decimal(count),
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
+            self_trade_prevention_type=self_trade_prevention_type,
+            order_group_id=order_group_id,
+            cancel_order_on_pause=cancel_order_on_pause,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -305,31 +327,53 @@ class AsyncOrdersResource(AsyncResource):
         *,
         ticker: str,
         side: str,
-        type: str = "limit",
         action: str = "buy",
         count: int = 1,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
         expiration_ts: int | None = None,
+        buy_max_cost: int | None = None,
+        time_in_force: str | None = None,
+        post_only: bool | None = None,
+        reduce_only: bool | None = None,
+        self_trade_prevention_type: str | None = None,
+        order_group_id: str | None = None,
+        cancel_order_on_pause: bool | None = None,
+        subaccount: int | None = None,
     ) -> Order:
-        self._require_auth()
-        body: dict[str, Any] = {
-            "ticker": ticker,
-            "side": side,
-            "type": type,
-            "action": action,
-            "count": count,
-        }
-        if yes_price is not None:
-            body["yes_price_dollars"] = str(to_decimal(yes_price))
-        if no_price is not None:
-            body["no_price_dollars"] = str(to_decimal(no_price))
-        if client_order_id:
-            body["client_order_id"] = client_order_id
-        if expiration_ts is not None:
-            body["expiration_ts"] = expiration_ts
+        """Place a new order.
 
+        ``buy_max_cost`` is integer cents per OpenAPI spec (e.g., 500 for $5.00).
+
+        ``time_in_force`` accepts ``"fill_or_kill"``, ``"good_till_canceled"``,
+        ``"immediate_or_cancel"``. Passing ``None`` omits the field and lets
+        Kalshi apply its server-side default (``good_till_canceled``).
+
+        v0.8.0 removed the ``type`` kwarg: the field was never defined in
+        the OpenAPI spec. Callers passing ``type="limit"`` now get a
+        ``TypeError``.
+        """
+        self._require_auth()
+        req = CreateOrderRequest(
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=to_decimal(count),
+            yes_price=to_decimal(yes_price) if yes_price is not None else None,
+            no_price=to_decimal(no_price) if no_price is not None else None,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
+            self_trade_prevention_type=self_trade_prevention_type,
+            order_group_id=order_group_id,
+            cancel_order_on_pause=cancel_order_on_pause,
+            subaccount=subaccount,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)

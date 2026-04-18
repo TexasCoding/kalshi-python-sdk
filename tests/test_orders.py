@@ -10,6 +10,7 @@ import respx
 
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
+from kalshi.client import KalshiClient
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError, KalshiValidationError
 from kalshi.models.orders import CreateOrderRequest
@@ -31,8 +32,141 @@ def orders(test_auth: KalshiAuth, config: KalshiConfig) -> OrdersResource:
 
 
 @pytest.fixture
+def client(test_auth: KalshiAuth) -> KalshiClient:
+    """KalshiClient wired to the demo base URL (matches wire-shape test mocks)."""
+    from kalshi.config import DEMO_BASE_URL
+    cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
+    return KalshiClient(auth=test_auth, config=cfg)
+
+
+@pytest.fixture
 def unauth_orders(config: KalshiConfig) -> OrdersResource:
     return OrdersResource(SyncTransport(None, config))
+
+
+_MINIMAL_ORDER = {
+    "order_id": "ord-123",
+    "ticker": "MKT",
+    "side": "yes",
+    "status": "resting",
+}
+
+
+class TestCreateOrderWireShape:
+    """v0.8.0: orders.create() builds CreateOrderRequest internally and
+    serializes via model_dump. Wire body must not contain phantom `type`
+    field; count must serialize as count_fp; new fields reach the wire."""
+
+    def test_no_phantom_type_in_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(ticker="MKT", side="yes", yes_price=0.5)
+
+        body = json.loads(route.calls[0].request.content)
+        assert "type" not in body
+
+    def test_count_fp_not_count_in_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(ticker="MKT", side="yes", yes_price=0.5, count=3)
+
+        body = json.loads(route.calls[0].request.content)
+        assert "count_fp" in body
+        assert body["count_fp"] == "3"
+        assert "count" not in body
+
+    def test_time_in_force_reaches_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(
+            ticker="MKT", side="yes", yes_price=0.5,
+            time_in_force="fill_or_kill",
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["time_in_force"] == "fill_or_kill"
+
+    def test_post_only_reduce_only_reach_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(
+            ticker="MKT", side="yes", yes_price=0.5,
+            post_only=True, reduce_only=False,
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["post_only"] is True
+        assert body["reduce_only"] is False
+
+    def test_buy_max_cost_int_cents_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        """Spec says cents. SDK must send int on the wire."""
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(ticker="MKT", side="yes", yes_price=0.5, buy_max_cost=500)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["buy_max_cost"] == 500
+        assert isinstance(body["buy_max_cost"], int)
+
+    def test_subaccount_order_group_cancel_on_pause_stp_wire(
+        self, client: KalshiClient, respx_mock: respx.MockRouter,
+    ) -> None:
+        import json
+
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(
+            ticker="MKT", side="yes", yes_price=0.5,
+            subaccount=2, order_group_id="grp-x",
+            cancel_order_on_pause=True,
+            self_trade_prevention_type="maker",
+        )
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["subaccount"] == 2
+        assert body["order_group_id"] == "grp-x"
+        assert body["cancel_order_on_pause"] is True
+        assert body["self_trade_prevention_type"] == "maker"
+
+    def test_type_kwarg_removed(self, client: KalshiClient) -> None:
+        """v0.8.0 removed the `type` kwarg from orders.create()."""
+        with pytest.raises(TypeError):
+            client.orders.create(
+                ticker="MKT", side="yes",
+                type="market",  # type: ignore[call-arg]
+            )
 
 
 class TestOrdersCreate:
@@ -59,7 +193,7 @@ class TestOrdersCreate:
         assert order.count == 10
 
     @respx.mock
-    def test_create_market_order_no_price(self, orders: OrdersResource) -> None:
+    def test_create_order_no_price(self, orders: OrdersResource) -> None:
         respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
@@ -72,7 +206,7 @@ class TestOrdersCreate:
                 },
             )
         )
-        order = orders.create(ticker="TEST-MKT", side="yes", type="market")
+        order = orders.create(ticker="TEST-MKT", side="yes")
         assert order.order_id == "ord-456"
 
     @respx.mock
