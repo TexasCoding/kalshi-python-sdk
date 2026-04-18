@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from kalshi.models.markets import Market
 from kalshi.models.orders import Order
 from kalshi.types import to_decimal
@@ -222,3 +224,126 @@ class TestOrderQueuePosition:
         assert result.order_id == "ord-123"
         assert result.market_ticker == "MKT-A"
         assert result.queue_position == Decimal("42.00")
+
+
+class TestCreateOrderRequestExtended:
+    def test_accepts_time_in_force(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            time_in_force="fill_or_kill",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["time_in_force"] == "fill_or_kill"
+
+    def test_accepts_post_only_and_reduce_only(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            post_only=True, reduce_only=False,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["post_only"] is True
+        assert body["reduce_only"] is False
+
+    def test_accepts_self_trade_prevention_and_order_group(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            self_trade_prevention_type="maker",
+            order_group_id="grp-123",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["self_trade_prevention_type"] == "maker"
+        assert body["order_group_id"] == "grp-123"
+
+    def test_accepts_cancel_on_pause_and_subaccount(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            cancel_order_on_pause=True, subaccount=5,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["cancel_order_on_pause"] is True
+        assert body["subaccount"] == 5
+
+    def test_buy_max_cost_is_int_cents(self) -> None:
+        """Spec says integer cents; SDK must send int on the wire."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            buy_max_cost=500,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["buy_max_cost"] == 500
+        assert isinstance(body["buy_max_cost"], int)
+
+    def test_buy_max_cost_rejects_non_integer_string(self) -> None:
+        """A caller passing a fractional string like '5.5' must raise.
+
+        Pydantic v2 int coercion rejects strings that are not whole numbers
+        (e.g. '5.5'), but accepts whole-number strings like '500' and even
+        '5.00' (coerced to 5). The field is int cents, so fractional values
+        are always invalid.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost="5.5",  # type: ignore[arg-type]
+            )
+
+    def test_omits_none_fields_from_wire(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy")
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        # Core fields present
+        assert body["ticker"] == "MKT"
+        # Optional fields absent (defaults to None, stripped by exclude_none)
+        assert "time_in_force" not in body
+        assert "post_only" not in body
+        assert "buy_max_cost" not in body
+        assert "subaccount" not in body
+
+    def test_phantom_type_field_removed(self) -> None:
+        """v0.8.0 removed the phantom `type` field (spec has no such field)."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                type="limit",  # type: ignore[call-arg]
+            )
+
+    def test_forbid_extra_rejects_unknown_kwarg(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                bogus_field="x",  # type: ignore[call-arg]
+            )
+
+    def test_serializes_count_fp_not_count(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            count=Decimal("7"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert "count_fp" in body
+        assert "count" not in body

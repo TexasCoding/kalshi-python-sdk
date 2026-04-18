@@ -111,14 +111,30 @@ class Fill(BaseModel):
 class CreateOrderRequest(BaseModel):
     """Parameters for creating an order.
 
-    Price fields are serialized with ``_dollars`` suffix for the API.
-    ``buy_max_cost`` is sent as-is (the API expects integer cents for this field;
-    callers should pass cents, not dollars).
+    Price fields serialize with ``_dollars`` suffix. ``count`` is a Decimal
+    and serializes as ``count_fp`` (FixedPointCount string); the spec
+    accepts either ``count`` or ``count_fp`` key, but the SDK commits to
+    a single wire shape.
+
+    ``buy_max_cost`` is **integer cents** (per OpenAPI spec: "Maximum
+    cost in cents"). Pass e.g. ``500`` for a $5.00 cap, NOT ``5.00``.
+    Passing a decimal string like ``"5.00"`` raises ``ValidationError``.
+
+    The SDK previously exposed a ``type: str = "limit"`` field never
+    defined in the spec's ``CreateOrderRequest`` schema. v0.8.0 removes
+    it. Callers passing ``type="market"`` (or similar) now get a
+    ``ValidationError`` at construction time.
+
+    ``action`` defaults to ``"buy"`` — the pre-v0.8.0 default is
+    preserved to keep existing call sites working. ``ticker`` and
+    ``side`` remain required.
+
+    See ``kalshi.resources.orders.OrdersResource.create`` for the
+    user-facing method that will build this model internally (Task 8).
     """
 
     ticker: str
     side: str
-    type: str = "limit"
     action: str = "buy"
     count: FixedPointCount = Field(default=Decimal("1"), serialization_alias="count_fp")
     yes_price: DollarDecimal | None = Field(
@@ -131,7 +147,14 @@ class CreateOrderRequest(BaseModel):
     )
     client_order_id: str | None = None
     expiration_ts: int | None = None
-    buy_max_cost: DollarDecimal | None = None
+    buy_max_cost: int | None = None
+    time_in_force: str | None = None
+    post_only: bool | None = None
+    reduce_only: bool | None = None
+    self_trade_prevention_type: str | None = None
+    order_group_id: str | None = None
+    cancel_order_on_pause: bool | None = None
+    subaccount: int | None = None
 
     model_config = {"extra": "forbid"}
 
