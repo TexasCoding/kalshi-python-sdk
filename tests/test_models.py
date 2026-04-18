@@ -520,6 +520,19 @@ class TestDecreaseOrderRequest:
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body == {}
 
+    def test_rejects_both_reduce_by_and_reduce_to(self) -> None:
+        """Model-level XOR: direct construction must match the method-level guard.
+
+        The public ``orders.decrease()`` method forbids passing both — constructing
+        the model directly used to bypass that check. v0.8.0 closes the gap.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError, match="not both"):
+            DecreaseOrderRequest(reduce_by=3, reduce_to=2)
+
 
 class TestBatchCreateOrdersRequest:
     def test_wraps_order_list(self) -> None:

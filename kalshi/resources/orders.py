@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -155,15 +155,15 @@ class OrdersResource(SyncResource):
 
     def batch_cancel(
         self,
-        orders: builtins.list[BatchCancelOrdersRequestOrder] | builtins.list[str],
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
     ) -> None:
         """Batch-cancel orders.
 
-        Accepts either:
-        - ``list[BatchCancelOrdersRequestOrder]`` for full control including
-          per-order ``subaccount`` routing;
-        - ``list[str]`` of order IDs as a convenience shortcut — internally
-          each ID is wrapped as ``BatchCancelOrdersRequestOrder(order_id=id)``.
+        Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
+        entries (for per-order ``subaccount`` routing), plain order-id
+        strings (convenience shortcut — each is wrapped internally), or a
+        mix of both. String entries are wrapped as
+        ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
 
         BREAKING in v0.8.0: previously the method signature was
         ``batch_cancel(order_ids: list[str])`` and the wire body used the
@@ -448,15 +448,15 @@ class AsyncOrdersResource(AsyncResource):
 
     async def batch_cancel(
         self,
-        orders: builtins.list[BatchCancelOrdersRequestOrder] | builtins.list[str],
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
     ) -> None:
         """Batch-cancel orders.
 
-        Accepts either:
-        - ``list[BatchCancelOrdersRequestOrder]`` for full control including
-          per-order ``subaccount`` routing;
-        - ``list[str]`` of order IDs as a convenience shortcut — internally
-          each ID is wrapped as ``BatchCancelOrdersRequestOrder(order_id=id)``.
+        Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
+        entries (for per-order ``subaccount`` routing), plain order-id
+        strings (convenience shortcut — each is wrapped internally), or a
+        mix of both. String entries are wrapped as
+        ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
 
         BREAKING in v0.8.0: previously the method signature was
         ``batch_cancel(order_ids: list[str])`` and the wire body used the

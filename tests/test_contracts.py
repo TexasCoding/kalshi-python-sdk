@@ -56,9 +56,22 @@ class TestContractSupportInfra:
         assert dataclasses.is_dataclass(e)
 
     def test_exclusions_bootstrap_has_cursor_entries(self) -> None:
-        cursor_keys = [k for k in EXCLUSIONS if k[1] == "cursor"]
-        assert len(cursor_keys) == 11, (
-            f"Expected 11 cursor entries (one per list_all), got {len(cursor_keys)}"
+        """Every paginator method must have a matching cursor exclusion.
+
+        Derives the expected set from METHOD_ENDPOINT_MAP so adding a new
+        ``*_all`` / ``list_all_*`` paginator method fails this test with a
+        pointed error rather than a stale hardcoded count mismatch.
+        """
+        cursor_keys = {k for k in EXCLUSIONS if k[1] == "cursor"}
+        paginator_methods = {
+            e.sdk_method for e in METHOD_ENDPOINT_MAP
+            if e.sdk_method.endswith("_all") or "list_all_" in e.sdk_method
+        }
+        covered = {k[0] for k in cursor_keys}
+        assert covered == paginator_methods, (
+            "Cursor exclusions out of sync with METHOD_ENDPOINT_MAP paginators. "
+            f"Missing exclusions for: {sorted(paginator_methods - covered)}. "
+            f"Orphaned cursor exclusions: {sorted(covered - paginator_methods)}."
         )
         for key in cursor_keys:
             assert "paginator" in EXCLUSIONS[key].reason.lower()

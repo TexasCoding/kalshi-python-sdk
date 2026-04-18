@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -130,7 +130,7 @@ class CreateOrderRequest(BaseModel):
     ``side`` remain required.
 
     See ``kalshi.resources.orders.OrdersResource.create`` for the
-    user-facing method that will build this model internally (Task 8).
+    user-facing method that builds this model internally.
     """
 
     ticker: str
@@ -226,11 +226,11 @@ class AmendOrderRequest(BaseModel):
 class DecreaseOrderRequest(BaseModel):
     """Parameters for decreasing an open order's size.
 
-    Matches spec ``components.schemas.DecreaseOrderRequest``. All fields
-    optional per spec; ``orders.decrease()`` enforces the XOR between
-    ``reduce_by`` and ``reduce_to`` at the method level, not the model
-    (spec permits either, neither, or — per the method's validation,
-    not both).
+    Matches spec ``components.schemas.DecreaseOrderRequest``. The spec
+    permits ``reduce_by`` alone, ``reduce_to`` alone, or neither; setting
+    both is a user error that the model rejects via ``model_validator``.
+    ``orders.decrease()`` additionally rejects the neither case (calling
+    decrease with no delta is meaningless in a method call).
 
     See ``kalshi.resources.orders.OrdersResource.decrease`` — v0.8.0
     builds this model internally; method signature unchanged.
@@ -241,6 +241,14 @@ class DecreaseOrderRequest(BaseModel):
     subaccount: int | None = None
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def _reject_both_reduce_fields(self) -> DecreaseOrderRequest:
+        if self.reduce_by is not None and self.reduce_to is not None:
+            raise ValueError(
+                "DecreaseOrderRequest accepts reduce_by or reduce_to, not both"
+            )
+        return self
 
 
 class BatchCreateOrdersRequest(BaseModel):
