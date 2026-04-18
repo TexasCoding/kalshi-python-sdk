@@ -214,6 +214,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.batch_cancel",
         http_method="DELETE",
         path_template="/portfolio/orders/batched",
+        request_body_schema="#/components/schemas/BatchCancelOrdersRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.fills",
@@ -420,6 +421,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     ("kalshi.resources.multivariate.MultivariateCollectionsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- batch_cancel body param (not a query/path param) ---
+    ("kalshi.resources.orders.OrdersResource.batch_cancel", "orders"): Exclusion(
+        reason="body param (BatchCancelOrdersRequest.orders); not query/path",
     ),
     # --- AmendOrderRequest spec fields deliberately not on the model ---
     ("kalshi.models.orders.AmendOrderRequest", "yes_price"): Exclusion(

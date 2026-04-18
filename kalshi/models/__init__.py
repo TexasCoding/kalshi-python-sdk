@@ -32,6 +32,8 @@ from kalshi.models.multivariate import (
 from kalshi.models.orders import (
     AmendOrderRequest,
     AmendOrderResponse,
+    BatchCancelOrdersRequest,
+    BatchCancelOrdersRequestOrder,
     BatchCreateOrdersRequest,
     CreateOrderRequest,
     DecreaseOrderRequest,
@@ -60,6 +62,8 @@ __all__ = [
     "Announcement",
     "AssociatedEvent",
     "Balance",
+    "BatchCancelOrdersRequest",
+    "BatchCancelOrdersRequestOrder",
     "BatchCreateOrdersRequest",
     "BidAskDistribution",
     "Candlestick",

@@ -653,3 +653,48 @@ class TestOrdersAuthGuards:
         from kalshi.errors import AuthRequiredError
         with pytest.raises(AuthRequiredError):
             unauth_orders.queue_position("ord-123")
+
+
+class TestBatchCancelWireShape:
+    @respx.mock
+    def test_wraps_str_ids_into_orders(
+        self, orders: OrdersResource
+    ) -> None:
+        import json
+
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        orders.batch_cancel(["ord-1", "ord-2"])
+
+        body = json.loads(route.calls[0].request.content)
+        assert "ids" not in body  # deprecated field no longer used
+        assert "orders" in body
+        assert body["orders"] == [
+            {"order_id": "ord-1"},
+            {"order_id": "ord-2"},
+        ]
+
+    @respx.mock
+    def test_accepts_typed_order_entries(
+        self, orders: OrdersResource
+    ) -> None:
+        import json
+
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        orders.batch_cancel([
+            BatchCancelOrdersRequestOrder(order_id="ord-1", subaccount=5),
+            BatchCancelOrdersRequestOrder(order_id="ord-2"),
+        ])
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["orders"] == [
+            {"order_id": "ord-1", "subaccount": 5},
+            {"order_id": "ord-2"},
+        ]

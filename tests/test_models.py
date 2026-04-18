@@ -663,3 +663,76 @@ class TestLookupTickersRequest:
                 selected_markets=[pair],
                 bogus=1,  # type: ignore[call-arg]
             )
+
+
+class TestBatchCancelOrdersRequest:
+    def test_orders_field_required(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequest()  # type: ignore[call-arg]
+
+    def test_empty_orders_list_allowed(self) -> None:
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        req = BatchCancelOrdersRequest(orders=[])
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"orders": []}
+
+    def test_wraps_order_entries(self) -> None:
+        from kalshi.models.orders import (
+            BatchCancelOrdersRequest,
+            BatchCancelOrdersRequestOrder,
+        )
+
+        req = BatchCancelOrdersRequest(
+            orders=[
+                BatchCancelOrdersRequestOrder(order_id="ord-1"),
+                BatchCancelOrdersRequestOrder(order_id="ord-2", subaccount=3),
+            ],
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert len(body["orders"]) == 2
+        assert body["orders"][0] == {"order_id": "ord-1"}
+        assert body["orders"][1] == {"order_id": "ord-2", "subaccount": 3}
+
+    def test_forbid_extra_on_wrapper(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequest(
+                orders=[],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+
+class TestBatchCancelOrdersRequestOrder:
+    def test_order_id_required(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequestOrder()  # type: ignore[call-arg]
+
+    def test_subaccount_optional(self) -> None:
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        req = BatchCancelOrdersRequestOrder(order_id="ord-x")
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"order_id": "ord-x"}
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCancelOrdersRequestOrder
+
+        with pytest.raises(ValidationError):
+            BatchCancelOrdersRequestOrder(
+                order_id="x",
+                bogus=5,  # type: ignore[call-arg]
+            )

@@ -21,6 +21,8 @@ from kalshi.errors import (
 from kalshi.models import (
     AmendOrderRequest,
     AmendOrderResponse,
+    BatchCancelOrdersRequest,
+    BatchCancelOrdersRequestOrder,
     BatchCreateOrdersRequest,
     BidAskDistribution,
     Candlestick,
@@ -48,6 +50,8 @@ __all__ = [
     "AmendOrderResponse",
     "AsyncKalshiClient",
     "AuthRequiredError",
+    "BatchCancelOrdersRequest",
+    "BatchCancelOrdersRequestOrder",
     "BatchCreateOrdersRequest",
     "BidAskDistribution",
     "Candlestick",

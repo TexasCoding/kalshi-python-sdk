@@ -260,6 +260,40 @@ class BatchCreateOrdersRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class BatchCancelOrdersRequestOrder(BaseModel):
+    """A single cancellation entry in a batch cancel request.
+
+    Matches spec ``components.schemas.BatchCancelOrdersRequestOrder``.
+    Required: ``order_id``. Optional: ``subaccount`` (defaults to 0,
+    primary subaccount).
+    """
+
+    order_id: str
+    subaccount: int | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class BatchCancelOrdersRequest(BaseModel):
+    """Wrapper for the ``DELETE /portfolio/orders/batched`` request body.
+
+    Matches spec ``components.schemas.BatchCancelOrdersRequest``. Spec
+    defines two fields: the preferred ``orders`` (list of
+    ``BatchCancelOrdersRequestOrder``) and the deprecated ``ids`` (list
+    of string order IDs). SDK v0.8.0 commits to emitting ``orders`` only.
+
+    The previous SDK sent the deprecated ``ids`` field — BREAKING change
+    at the wire level as of v0.8.0. Users calling the public
+    ``batch_cancel(orders=[...])`` method are unaffected.
+
+    See ``kalshi.resources.orders.OrdersResource.batch_cancel``.
+    """
+
+    orders: list[BatchCancelOrdersRequestOrder]
+
+    model_config = {"extra": "forbid"}
+
+
 class AmendOrderResponse(BaseModel):
     """Response from amending an order — contains both pre and post-amendment orders."""
 

@@ -11,6 +11,8 @@ from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
     AmendOrderResponse,
+    BatchCancelOrdersRequest,
+    BatchCancelOrdersRequestOrder,
     CreateOrderRequest,
     Fill,
     Order,
@@ -123,9 +125,34 @@ class OrdersResource(SyncResource):
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
-    def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+    def batch_cancel(
+        self,
+        orders: builtins.list[BatchCancelOrdersRequestOrder] | builtins.list[str],
+    ) -> None:
+        """Batch-cancel orders.
+
+        Accepts either:
+        - ``list[BatchCancelOrdersRequestOrder]`` for full control including
+          per-order ``subaccount`` routing;
+        - ``list[str]`` of order IDs as a convenience shortcut — internally
+          each ID is wrapped as ``BatchCancelOrdersRequestOrder(order_id=id)``.
+
+        BREAKING in v0.8.0: previously the method signature was
+        ``batch_cancel(order_ids: list[str])`` and the wire body used the
+        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
+        ``orders`` field and renames the kwarg. Callers passing a plain
+        list of order-id strings still work without code changes via the
+        convenience shortcut.
+        """
         self._require_auth()
-        body = {"ids": order_ids}
+        normalized = [
+            (
+                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+            )
+            for o in orders
+        ]
+        req = BatchCancelOrdersRequest(orders=normalized)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._delete_with_body("/portfolio/orders/batched", json=body)
 
     def _delete_with_body(self, path: str, *, json: dict[str, Any]) -> None:
@@ -376,9 +403,34 @@ class AsyncOrdersResource(AsyncResource):
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
-    async def batch_cancel(self, order_ids: builtins.list[str]) -> None:
+    async def batch_cancel(
+        self,
+        orders: builtins.list[BatchCancelOrdersRequestOrder] | builtins.list[str],
+    ) -> None:
+        """Batch-cancel orders.
+
+        Accepts either:
+        - ``list[BatchCancelOrdersRequestOrder]`` for full control including
+          per-order ``subaccount`` routing;
+        - ``list[str]`` of order IDs as a convenience shortcut — internally
+          each ID is wrapped as ``BatchCancelOrdersRequestOrder(order_id=id)``.
+
+        BREAKING in v0.8.0: previously the method signature was
+        ``batch_cancel(order_ids: list[str])`` and the wire body used the
+        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
+        ``orders`` field and renames the kwarg. Callers passing a plain
+        list of order-id strings still work without code changes via the
+        convenience shortcut.
+        """
         self._require_auth()
-        body = {"ids": order_ids}
+        normalized = [
+            (
+                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+            )
+            for o in orders
+        ]
+        req = BatchCancelOrdersRequest(orders=normalized)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
 
     async def fills(
