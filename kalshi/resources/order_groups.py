@@ -11,6 +11,7 @@ from kalshi.models.order_groups import (
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
     OrderGroup,
+    UpdateOrderGroupLimitRequest,
 )
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
@@ -52,6 +53,39 @@ class OrderGroupsResource(SyncResource):
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/order_groups/create", json=body)
         return CreateOrderGroupResponse.model_validate(data)
+
+    def delete(self, order_group_id: str, *, subaccount: int | None = None) -> None:
+        """Delete an order group — permanently cancels all member orders."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
+
+    def reset(self, order_group_id: str, *, subaccount: int | None = None) -> None:
+        """Reset the group's matched-contracts counter to zero."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        self._transport.request(
+            "PUT", f"/portfolio/order_groups/{order_group_id}/reset", params=params
+        )
+
+    def trigger(self, order_group_id: str, *, subaccount: int | None = None) -> None:
+        """Trigger the group — cancels all member orders, blocks new ones until reset."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        self._transport.request(
+            "PUT", f"/portfolio/order_groups/{order_group_id}/trigger", params=params
+        )
+
+    def update_limit(self, order_group_id: str, *, contracts_limit: int) -> None:
+        """Update the group's rolling-15s contracts limit.
+
+        Per spec: the ``/limit`` endpoint does NOT accept a ``subaccount`` query
+        param — it's keyed entirely by the group id.
+        """
+        self._require_auth()
+        req = UpdateOrderGroupLimitRequest(contracts_limit=contracts_limit)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)
 
 
 class AsyncOrderGroupsResource(AsyncResource):

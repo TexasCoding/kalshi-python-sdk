@@ -253,3 +253,63 @@ class TestOrderGroupsCreate:
 
         with pytest.raises(KalshiValidationError):
             order_groups.create(contracts_limit=5)
+
+
+class TestOrderGroupsMutations:
+    @respx.mock
+    def test_delete_sends_delete_request(self, order_groups: OrderGroupsResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
+        ).mock(return_value=httpx.Response(200, json={}))
+        result = order_groups.delete("grp-1")
+        assert result is None
+        assert route.called
+
+    @respx.mock
+    def test_delete_with_subaccount(self, order_groups: OrderGroupsResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
+        ).mock(return_value=httpx.Response(200, json={}))
+        order_groups.delete("grp-1", subaccount=2)
+        assert route.calls[0].request.url.params["subaccount"] == "2"
+
+    @respx.mock
+    def test_reset_sends_put(self, order_groups: OrderGroupsResource) -> None:
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/reset"
+        ).mock(return_value=httpx.Response(200, json={}))
+        result = order_groups.reset("grp-1")
+        assert result is None
+        assert route.called
+
+    @respx.mock
+    def test_trigger_sends_put(self, order_groups: OrderGroupsResource) -> None:
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/trigger"
+        ).mock(return_value=httpx.Response(200, json={}))
+        result = order_groups.trigger("grp-1")
+        assert result is None
+        assert route.called
+
+    @respx.mock
+    def test_update_limit_sends_put_with_body(
+        self, order_groups: OrderGroupsResource,
+    ) -> None:
+        import json
+
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1/limit"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        order_groups.update_limit("grp-1", contracts_limit=20)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"contracts_limit": 20}
+
+    @respx.mock
+    def test_update_limit_404(self, order_groups: OrderGroupsResource) -> None:
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/limit"
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            order_groups.update_limit("gone", contracts_limit=5)
