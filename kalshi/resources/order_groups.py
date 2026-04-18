@@ -55,18 +55,16 @@ class OrderGroupsResource(SyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
-        self._transport.request(
-            "PUT", f"/portfolio/order_groups/{order_group_id}/reset",
-            params=params, json={},
+        self._put(
+            f"/portfolio/order_groups/{order_group_id}/reset", params=params, json={},
         )
 
     def trigger(self, order_group_id: str, *, subaccount: int | None = None) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
-        self._transport.request(
-            "PUT", f"/portfolio/order_groups/{order_group_id}/trigger",
-            params=params, json={},
+        self._put(
+            f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
         )
 
     def update_limit(self, order_group_id: str, *, contracts_limit: int) -> None:
@@ -119,9 +117,8 @@ class AsyncOrderGroupsResource(AsyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
-        await self._transport.request(
-            "PUT", f"/portfolio/order_groups/{order_group_id}/reset",
-            params=params, json={},
+        await self._put(
+            f"/portfolio/order_groups/{order_group_id}/reset", params=params, json={},
         )
 
     async def trigger(
@@ -130,9 +127,8 @@ class AsyncOrderGroupsResource(AsyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
-        await self._transport.request(
-            "PUT", f"/portfolio/order_groups/{order_group_id}/trigger",
-            params=params, json={},
+        await self._put(
+            f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
         )
 
     async def update_limit(

@@ -294,6 +294,22 @@ class TestOrderGroupsMutations:
         assert route.calls[0].request.content == b"{}"
 
     @respx.mock
+    def test_reset_404(self, order_groups: OrderGroupsResource) -> None:
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/reset"
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            order_groups.reset("gone")
+
+    @respx.mock
+    def test_trigger_404(self, order_groups: OrderGroupsResource) -> None:
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/trigger"
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            order_groups.trigger("gone")
+
+    @respx.mock
     def test_update_limit_sends_put_with_body(
         self, order_groups: OrderGroupsResource,
     ) -> None:

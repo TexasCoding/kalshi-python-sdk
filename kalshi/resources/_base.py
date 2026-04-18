@@ -59,9 +59,13 @@ class SyncResource:
         return result
 
     def _put(
-        self, path: str, *, json: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        response = self._transport.request("PUT", path, json=json)
+        response = self._transport.request("PUT", path, params=params, json=json)
         result: dict[str, Any] = response.json()
         return result
 
@@ -135,9 +139,13 @@ class AsyncResource:
         return result
 
     async def _put(
-        self, path: str, *, json: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        response = await self._transport.request("PUT", path, json=json)
+        response = await self._transport.request("PUT", path, params=params, json=json)
         result: dict[str, Any] = response.json()
         return result
 
