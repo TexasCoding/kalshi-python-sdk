@@ -31,8 +31,6 @@ from tests._contract_support import (
     EXCLUSIONS,
     Exclusion,
     MethodEndpointEntry,
-    METHOD_ENDPOINT_MAP,
-    _resolve_path_params,
     _resolve_request_body_schema,
 )
 

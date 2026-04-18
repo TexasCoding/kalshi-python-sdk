@@ -3,9 +3,11 @@
 This module is test infrastructure. It lives in ``tests/`` (not ``kalshi/``) so that
 users importing the SDK don't get spec-parsing code shipped in the PyPI wheel.
 
-The map covers ``path`` and ``query`` parameter surface. Body schemas (POST/PUT
-request payloads built as inline dicts in ``orders.py::amend()`` etc.) are NOT
-covered — those are audited by the separate inline-body-dict TODO.
+The map covers ``path``, ``query``, and ``requestBody`` surface. Body schemas
+for POST/PUT endpoints are referenced via ``MethodEndpointEntry.request_body_schema``
+(a spec ``$ref`` string) and resolved via ``_resolve_request_body_schema``. Drift
+tests that consume this infrastructure (``TestRequestParamDrift``,
+``TestRequestBodyDrift``) land in subsequent v0.8.0 tasks.
 
 Async siblings are derived at test time via ``Async<ClassName>`` substitution
 with identical method names. Do NOT add separate async entries to the map.
