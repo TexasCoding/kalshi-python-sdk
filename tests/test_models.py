@@ -506,3 +506,53 @@ class TestDecreaseOrderRequest:
         req = DecreaseOrderRequest()
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body == {}
+
+
+class TestBatchCreateOrdersRequest:
+    def test_wraps_order_list(self) -> None:
+        from kalshi.models.orders import (
+            BatchCreateOrdersRequest,
+            CreateOrderRequest,
+        )
+
+        orders = [
+            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy"),
+            CreateOrderRequest(ticker="MKT-B", side="no", action="sell"),
+        ]
+        req = BatchCreateOrdersRequest(orders=orders)
+        body = req.model_dump(exclude_none=True, by_alias=True)
+
+        assert "orders" in body
+        assert len(body["orders"]) == 2
+        assert body["orders"][0]["ticker"] == "MKT-A"
+        assert body["orders"][1]["ticker"] == "MKT-B"
+
+    def test_empty_list_allowed(self) -> None:
+        from kalshi.models.orders import BatchCreateOrdersRequest
+
+        req = BatchCreateOrdersRequest(orders=[])
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body == {"orders": []}
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import BatchCreateOrdersRequest
+
+        with pytest.raises(ValidationError):
+            BatchCreateOrdersRequest(
+                orders=[],
+                bogus=1,  # type: ignore[call-arg]
+            )
+
+    def test_nested_create_order_phantom_rejected(self) -> None:
+        """Phantom key in a nested CreateOrderRequest fails at construction."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                type="limit",  # type: ignore[call-arg]
+            )

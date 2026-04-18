@@ -243,6 +243,23 @@ class DecreaseOrderRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class BatchCreateOrdersRequest(BaseModel):
+    """Wrapper for the ``POST /portfolio/orders/batched`` request body.
+
+    Matches spec ``components.schemas.BatchCreateOrdersRequest``: a single
+    ``orders`` key holding a list of ``CreateOrderRequest`` entries. Each
+    nested entry inherits ``extra="forbid"`` from ``CreateOrderRequest``
+    itself, so phantom fields in items fail at construction time.
+
+    See ``kalshi.resources.orders.OrdersResource.batch_create`` — v0.8.0
+    wraps this model internally; method signature unchanged.
+    """
+
+    orders: list[CreateOrderRequest]
+
+    model_config = {"extra": "forbid"}
+
+
 class AmendOrderResponse(BaseModel):
     """Response from amending an order — contains both pre and post-amendment orders."""
 
