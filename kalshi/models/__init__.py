@@ -77,6 +77,16 @@ from kalshi.models.series import (
     Series,
     SeriesFeeChange,
 )
+from kalshi.models.subaccounts import (
+    ApplySubaccountTransferRequest,
+    CreateSubaccountResponse,
+    GetSubaccountBalancesResponse,
+    GetSubaccountNettingResponse,
+    SubaccountBalance,
+    SubaccountNettingConfig,
+    SubaccountTransfer,
+    UpdateSubaccountNettingRequest,
+)
 
 __all__ = [
     "RFQ",
@@ -84,6 +94,7 @@ __all__ = [
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
+    "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "Balance",
     "BatchCancelOrdersRequest",
@@ -100,6 +111,7 @@ __all__ = [
     "CreateQuoteResponse",
     "CreateRFQRequest",
     "CreateRFQResponse",
+    "CreateSubaccountResponse",
     "DailySchedule",
     "DecreaseOrderRequest",
     "Event",
@@ -115,6 +127,8 @@ __all__ = [
     "GetQuotesResponse",
     "GetRFQResponse",
     "GetRFQsResponse",
+    "GetSubaccountBalancesResponse",
+    "GetSubaccountNettingResponse",
     "HistoricalCutoff",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
@@ -140,8 +154,12 @@ __all__ = [
     "SeriesFeeChange",
     "Settlement",
     "SettlementSource",
+    "SubaccountBalance",
+    "SubaccountNettingConfig",
+    "SubaccountTransfer",
     "TickerPair",
     "Trade",
     "UpdateOrderGroupLimitRequest",
+    "UpdateSubaccountNettingRequest",
     "WeeklySchedule",
 ]
