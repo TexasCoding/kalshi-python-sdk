@@ -235,3 +235,122 @@ class TestAsyncMultivariateCollectionsResource:
         )
         result = await async_mv.lookup_history("MVC-1", lookback_seconds=300)
         assert result == []
+
+
+class TestCreateMarketWireShape:
+    """v0.8.0: create_market() builds CreateMarketInMultivariateEventCollectionRequest
+    internally and serializes via model_dump."""
+
+    @respx.mock
+    def test_selected_markets_in_body(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        import json
+
+        route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
+        mv.create_market("MVC-1", selected_markets=pairs)
+
+        body = json.loads(route.calls[0].request.content)
+        assert "selected_markets" in body
+        assert len(body["selected_markets"]) == 1
+        item = body["selected_markets"][0]
+        assert item["market_ticker"] == "M-A"
+        assert item["event_ticker"] == "E-A"
+        assert item["side"] == "yes"
+
+    @respx.mock
+    def test_with_market_payload_included_when_true(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        import json
+
+        route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        mv.create_market("MVC-1", selected_markets=[], with_market_payload=True)
+
+        body = json.loads(route.calls[0].request.content)
+        assert body["with_market_payload"] is True
+
+    @respx.mock
+    def test_with_market_payload_absent_when_not_passed(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        import json
+
+        route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        mv.create_market("MVC-1", selected_markets=[])
+
+        body = json.loads(route.calls[0].request.content)
+        assert "with_market_payload" not in body
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_selected_markets_in_body(
+        self,
+        test_auth: KalshiAuth,
+        config: KalshiConfig,
+    ) -> None:
+        import json
+
+        from kalshi._base_client import AsyncTransport
+
+        async_mv = AsyncMultivariateCollectionsResource(AsyncTransport(test_auth, config))
+        route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
+        await async_mv.create_market("MVC-1", selected_markets=pairs)
+
+        body = json.loads(route.calls[0].request.content)
+        assert "selected_markets" in body
+        assert body["selected_markets"][0]["market_ticker"] == "M-A"
+        assert "with_market_payload" not in body
+
+
+class TestLookupTickersWireShape:
+    """v0.8.0: lookup_tickers() builds LookupTickersForMarketInMultivariateEventCollectionRequest
+    internally and serializes via model_dump."""
+
+    @respx.mock
+    def test_only_selected_markets_in_body(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        import json
+
+        route = respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
+        mv.lookup_tickers("MVC-1", selected_markets=pairs)
+
+        body = json.loads(route.calls[0].request.content)
+        assert set(body.keys()) == {"selected_markets"}
+        assert len(body["selected_markets"]) == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_only_selected_markets_in_body(
+        self,
+        test_auth: KalshiAuth,
+        config: KalshiConfig,
+    ) -> None:
+        import json
+
+        from kalshi._base_client import AsyncTransport
+
+        async_mv = AsyncMultivariateCollectionsResource(AsyncTransport(test_auth, config))
+        route = respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
+            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
+        )
+        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
+        await async_mv.lookup_tickers("MVC-1", selected_markets=pairs)
+
+        body = json.loads(route.calls[0].request.content)
+        assert set(body.keys()) == {"selected_markets"}
+        assert len(body["selected_markets"]) == 1
