@@ -118,7 +118,7 @@ class TestOrderGroupRequestModels:
         assert body == {"contracts_limit": 10, "subaccount": 2}
 
     def test_create_request_forbids_extra(self) -> None:
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(ValidationError) as exc:
             CreateOrderGroupRequest(contracts_limit=1, phantom=True)  # type: ignore[call-arg]
         assert "phantom" in str(exc.value).lower() or "extra" in str(exc.value).lower()
 
@@ -134,7 +134,7 @@ class TestOrderGroupRequestModels:
         assert body == {"contracts_limit": 20}
 
     def test_update_limit_request_forbids_extra(self) -> None:
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(ValidationError) as exc:
             UpdateOrderGroupLimitRequest(contracts_limit=1, subaccount=0)  # type: ignore[call-arg]
         # subaccount is NOT on this request per spec (no SubaccountQuery on /limit)
         assert "subaccount" in str(exc.value).lower() or "extra" in str(exc.value).lower()
