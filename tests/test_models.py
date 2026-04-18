@@ -283,7 +283,7 @@ class TestCreateOrderRequestExtended:
         assert body["buy_max_cost"] == 500
         assert isinstance(body["buy_max_cost"], int)
 
-    def test_buy_max_cost_rejects_non_integer_string(self) -> None:
+    def test_buy_max_cost_rejects_fractional_value(self) -> None:
         """A caller passing a fractional string like '5.5' must raise.
 
         Pydantic v2 int coercion rejects strings that are not whole numbers
@@ -300,6 +300,50 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT", side="yes", action="buy",
                 buy_max_cost="5.5",  # type: ignore[arg-type]
             )
+
+    def test_buy_max_cost_rejects_decimal(self) -> None:
+        """Migration-hazard guard: Decimal inputs raise clearly, not silently coerce."""
+        from decimal import Decimal
+
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        # Both whole and fractional Decimal values must raise — the hazard is
+        # silent coercion to cents regardless of the numeric value.
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=Decimal("500"),  # type: ignore[arg-type]
+            )
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=Decimal("5.00"),  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_rejects_float(self) -> None:
+        """Float inputs (even whole-valued) must raise to prevent unit confusion."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                buy_max_cost=5.0,  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_accepts_int_string(self) -> None:
+        """Int-shaped strings are coerced normally (e.g., loading from env/config)."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            buy_max_cost="500",  # type: ignore[arg-type]
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["buy_max_cost"] == 500
 
     def test_omits_none_fields_from_wire(self) -> None:
         from kalshi.models.orders import CreateOrderRequest

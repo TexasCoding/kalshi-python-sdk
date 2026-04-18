@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -155,6 +155,32 @@ class CreateOrderRequest(BaseModel):
     order_group_id: str | None = None
     cancel_order_on_pause: bool | None = None
     subaccount: int | None = None
+
+    @field_validator("buy_max_cost", mode="before")
+    @classmethod
+    def _reject_decimal_and_float_buy_max_cost(cls, v: object) -> object:
+        """Reject Decimal and float inputs on buy_max_cost.
+
+        Spec says integer cents. Accepting Decimal would silently coerce
+        callers who pass Decimal('5.00') (expecting $5.00 under the old
+        DollarDecimal semantics) into 5 cents — data corruption with no
+        error. Reject at the boundary.
+
+        int and int-shaped strings are fine (Pydantic coerces normally).
+        """
+        if isinstance(v, Decimal):
+            raise ValueError(
+                "buy_max_cost must be int (cents), not Decimal. "
+                "The previous DollarDecimal type was a v0.7.x-and-earlier "
+                "bug — spec says integer cents. Pass cents directly "
+                "(e.g., 500 for $5.00)."
+            )
+        if isinstance(v, float):
+            raise ValueError(
+                "buy_max_cost must be int (cents), not float. "
+                "Pass cents directly (e.g., 500 for $5.00)."
+            )
+        return v
 
     model_config = {"extra": "forbid"}
 
