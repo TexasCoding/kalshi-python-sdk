@@ -161,6 +161,68 @@ class TestContractSupportInfra:
         assert result is not None
         assert "b" in result["properties"]
 
+    def test_resolve_request_body_schema_delete_with_body(self) -> None:
+        """DELETE operations with a requestBody (Kalshi's batch_cancel pattern)
+        must resolve just like POST/PUT. Locks in the HTTP-method-agnostic
+        behavior so ``TestRequestBodyDrift`` actually covers ``batch_cancel``.
+        """
+        spec = {
+            "paths": {
+                "/portfolio/orders/batched": {
+                    "delete": {
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Bar",
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "components": {
+                "schemas": {
+                    "Bar": {
+                        "type": "object",
+                        "properties": {"orders": {"type": "array"}},
+                    },
+                },
+            },
+        }
+        result = _resolve_request_body_schema(
+            spec, "/portfolio/orders/batched", "DELETE",
+        )
+        assert result is not None
+        assert "orders" in result["properties"]
+
+    def test_batch_cancel_body_drift_is_actually_exercised(self) -> None:
+        """Live check: ``batch_cancel`` is present in METHOD_ENDPOINT_MAP with
+        a body schema ref, and the real OpenAPI spec's DELETE operation
+        resolves to a non-empty schema. Without this, TestRequestBodyDrift
+        could silently vacuum up a None schema and skip drift checks.
+        """
+        entries = [
+            e for e in METHOD_ENDPOINT_MAP
+            if e.http_method == "DELETE" and e.request_body_schema is not None
+        ]
+        assert entries, "Expected at least one DELETE entry with a body schema"
+
+        spec = _load_spec()
+        for entry in entries:
+            resolved = _resolve_request_body_schema(
+                spec, entry.path_template, entry.http_method,
+            )
+            assert resolved is not None, (
+                f"DELETE {entry.path_template} has request_body_schema "
+                f"{entry.request_body_schema!r} registered but the spec "
+                f"resolves to None. Drift test would silently pass."
+            )
+            assert resolved.get("properties"), (
+                f"DELETE {entry.path_template} resolved to an empty schema."
+            )
+
 
 # ---------------------------------------------------------------------------
 # Spec helpers

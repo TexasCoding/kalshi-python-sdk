@@ -512,19 +512,9 @@ class TestDecreaseOrderRequest:
                 bogus_field=5,  # type: ignore[call-arg]
             )
 
-    def test_all_optional(self) -> None:
-        """Spec has no required fields on this schema."""
-        from kalshi.models.orders import DecreaseOrderRequest
-
-        req = DecreaseOrderRequest()
-        body = req.model_dump(exclude_none=True, by_alias=True)
-        assert body == {}
-
     def test_rejects_both_reduce_by_and_reduce_to(self) -> None:
-        """Model-level XOR: direct construction must match the method-level guard.
-
-        The public ``orders.decrease()`` method forbids passing both — constructing
-        the model directly used to bypass that check. v0.8.0 closes the gap.
+        """Model rejects setting both fields — direct construction must match
+        the method-level guard in ``orders.decrease()``.
         """
         from pydantic import ValidationError
 
@@ -532,6 +522,18 @@ class TestDecreaseOrderRequest:
 
         with pytest.raises(ValidationError, match="not both"):
             DecreaseOrderRequest(reduce_by=3, reduce_to=2)
+
+    def test_rejects_neither_reduce_by_nor_reduce_to(self) -> None:
+        """Model rejects the all-None case too: sending an empty decrease body
+        is meaningless, so fail-fast at construction matches the method-level
+        guard and keeps the v0.9 model-first API honest.
+        """
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import DecreaseOrderRequest
+
+        with pytest.raises(ValidationError, match="reduce_by or reduce_to"):
+            DecreaseOrderRequest()
 
 
 class TestBatchCreateOrdersRequest:

@@ -589,15 +589,17 @@ def _resolve_request_body_schema(
     *,
     max_ref_depth: int = 8,
 ) -> dict[str, Any] | None:
-    """Return the resolved request body schema for a POST/PUT/PATCH operation, or
-    None if the operation has no ``requestBody``. Follows ``$ref`` pointers in
+    """Return the resolved request body schema for any operation with a
+    ``requestBody`` (HTTP method-agnostic: POST/PUT/PATCH — and DELETE, which
+    the Kalshi spec uses for ``batch_cancel``). Follows ``$ref`` pointers in
     ``content['application/json'].schema`` and resolves them via ``_resolve_ref``.
 
     Only ``application/json`` content is considered — Kalshi's spec doesn't use
     other media types for request bodies. If that changes, extend this function.
 
-    Returns ``None`` for endpoints without a body (GET/DELETE/HEAD/OPTIONS etc.).
-    Returns the resolved schema dict otherwise (with any top-level ``$ref``
+    Returns ``None`` when the operation has no ``requestBody`` key at all, or
+    when the body has no ``application/json`` content or no ``schema`` under
+    it. Returns the resolved schema dict otherwise (with any top-level ``$ref``
     already chased).
     """
     paths = spec.get("paths", {})

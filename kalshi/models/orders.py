@@ -226,11 +226,12 @@ class AmendOrderRequest(BaseModel):
 class DecreaseOrderRequest(BaseModel):
     """Parameters for decreasing an open order's size.
 
-    Matches spec ``components.schemas.DecreaseOrderRequest``. The spec
-    permits ``reduce_by`` alone, ``reduce_to`` alone, or neither; setting
-    both is a user error that the model rejects via ``model_validator``.
-    ``orders.decrease()`` additionally rejects the neither case (calling
-    decrease with no delta is meaningless in a method call).
+    Matches spec ``components.schemas.DecreaseOrderRequest``. Spec marks
+    all fields optional, but the server rejects an empty body — so the
+    model enforces XOR at construction: exactly one of ``reduce_by`` or
+    ``reduce_to`` must be set. This matches the method-level guard in
+    ``orders.decrease()`` and keeps model-first construction (v0.9)
+    fail-fast rather than deferring the error to the HTTP call.
 
     See ``kalshi.resources.orders.OrdersResource.decrease`` — v0.8.0
     builds this model internally; method signature unchanged.
@@ -243,10 +244,14 @@ class DecreaseOrderRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     @model_validator(mode="after")
-    def _reject_both_reduce_fields(self) -> DecreaseOrderRequest:
+    def _enforce_reduce_xor(self) -> DecreaseOrderRequest:
         if self.reduce_by is not None and self.reduce_to is not None:
             raise ValueError(
                 "DecreaseOrderRequest accepts reduce_by or reduce_to, not both"
+            )
+        if self.reduce_by is None and self.reduce_to is None:
+            raise ValueError(
+                "DecreaseOrderRequest requires either reduce_by or reduce_to"
             )
         return self
 
