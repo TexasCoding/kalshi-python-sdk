@@ -96,6 +96,7 @@ class TestEventsAsync:
         for event in page.items:
             assert isinstance(event, Event)
             assert_model_fields(event)
+            assert event.event_ticker
 
     async def test_list_all_multivariate(self, async_client: AsyncKalshiClient) -> None:
         count = 0

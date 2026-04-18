@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 from pydantic import BaseModel
 
-from tests.integration.assertions import assert_model_fields
+from tests.integration.assertions import _annotation_contains, assert_model_fields
 
 
 class FakePrice(BaseModel):
@@ -77,27 +77,21 @@ class TestAnnotationContains:
     """
 
     def test_bare_type_match(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(Decimal, Decimal) is True
 
     def test_bare_type_no_match(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(float, Decimal) is False
 
     def test_union_pep604(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(Decimal | None, Decimal) is True
 
     def test_union_without_target(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(float | str, Decimal) is False
 
     def test_list_of_decimal(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(list[Decimal], Decimal) is True
 
     def test_none_annotation(self) -> None:
-        from tests.integration.assertions import _annotation_contains
         assert _annotation_contains(None, Decimal) is False
 
 

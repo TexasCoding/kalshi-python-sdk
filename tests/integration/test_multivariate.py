@@ -57,7 +57,7 @@ def _build_ticker_pairs(
     callers should skip in that case.
     """
     events = collection.associated_events[:2]
-    if len(events) < 1:
+    if not events:
         return []
     pairs: list[TickerPair] = []
     for assoc in events:
@@ -166,6 +166,7 @@ class TestMultivariateAsync:
     async def test_list(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.multivariate_collections.list(limit=5)
         assert isinstance(page, Page)
+        assert isinstance(page.items, list)
         if page.items:
             assert isinstance(page.items[0], MultivariateEventCollection)
             assert_model_fields(page.items[0])
