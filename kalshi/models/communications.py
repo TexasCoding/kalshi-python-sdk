@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -67,10 +68,10 @@ class Quote(BaseModel):
     no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
+    rfq_creator_id: str
     created_ts: datetime
     updated_ts: datetime
     status: str
-    rfq_creator_id: str | None = None
     accepted_side: str | None = None
     accepted_ts: datetime | None = None
     confirmed_ts: datetime | None = None
@@ -140,7 +141,7 @@ class CreateRFQRequest(BaseModel):
     )
     replace_existing: bool | None = None
     subtrader_id: str | None = None
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: int | None = Field(default=None, ge=0, le=32)
 
     model_config = {"extra": "forbid"}
 
@@ -182,7 +183,7 @@ class CreateQuoteRequest(BaseModel):
     yes_bid: DollarDecimal
     no_bid: DollarDecimal
     rest_remainder: bool
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: int | None = Field(default=None, ge=0, le=32)
 
     model_config = {"extra": "forbid"}
 
@@ -198,6 +199,6 @@ class CreateQuoteResponse(BaseModel):
 class AcceptQuoteRequest(BaseModel):
     """Body for PUT /communications/quotes/{quote_id}/accept."""
 
-    accepted_side: str
+    accepted_side: Literal["yes", "no"]
 
     model_config = {"extra": "forbid"}

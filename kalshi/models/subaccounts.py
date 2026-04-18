@@ -25,8 +25,8 @@ class ApplySubaccountTransferRequest(BaseModel):
     """
 
     client_transfer_id: str
-    from_subaccount: int = Field(ge=0)
-    to_subaccount: int = Field(ge=0)
+    from_subaccount: int = Field(ge=0, le=32)
+    to_subaccount: int = Field(ge=0, le=32)
     amount_cents: int = Field(ge=0)
 
     model_config = {"extra": "forbid"}
@@ -65,7 +65,7 @@ class SubaccountTransfer(BaseModel):
 class UpdateSubaccountNettingRequest(BaseModel):
     """Body for PUT /portfolio/subaccounts/netting."""
 
-    subaccount_number: int = Field(ge=0)
+    subaccount_number: int = Field(ge=0, le=32)
     enabled: bool
 
     model_config = {"extra": "forbid"}

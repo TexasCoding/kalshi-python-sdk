@@ -89,6 +89,7 @@ _MINIMAL_QUOTE = {
     "id": "q-1",
     "rfq_id": "rfq-1",
     "creator_id": "comm-99",
+    "rfq_creator_id": "comm-42",
     "market_ticker": "MKT-1",
     "contracts_fp": "100",
     "yes_bid_dollars": "0.5600",

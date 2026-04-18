@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
+from typing import Literal
 
 from kalshi.models.common import Page
 from kalshi.models.communications import (
@@ -191,7 +192,9 @@ class CommunicationsResource(SyncResource):
         self._require_auth()
         self._delete(f"/communications/quotes/{quote_id}")
 
-    def accept_quote(self, quote_id: str, *, accepted_side: str) -> None:
+    def accept_quote(
+        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+    ) -> None:
         self._require_auth()
         req = AcceptQuoteRequest(accepted_side=accepted_side)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
@@ -379,7 +382,9 @@ class AsyncCommunicationsResource(AsyncResource):
         self._require_auth()
         await self._delete(f"/communications/quotes/{quote_id}")
 
-    async def accept_quote(self, quote_id: str, *, accepted_side: str) -> None:
+    async def accept_quote(
+        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+    ) -> None:
         self._require_auth()
         req = AcceptQuoteRequest(accepted_side=accepted_side)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
