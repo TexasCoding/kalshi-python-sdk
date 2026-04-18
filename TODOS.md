@@ -9,7 +9,7 @@
 
 No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-### Current state (audit 2026-04-18, updated post-v0.9.0)
+### Current state (audit 2026-04-18, updated post-v0.10.0)
 
 | Status | REST endpoints | % |
 |---|---:|---:|
@@ -31,11 +31,9 @@ Meta-coverage test green as of v0.9.0.
 | `demo-broken` | 1 | `GET /portfolio/subaccounts/netting` returns 500 `{service:"users", code:"internal_server_error"}` on demo regardless of input. Mark `@pytest.mark.integration_real_api_only` (or xfail) with a link to this audit line. |
 | `demo-501` | 0 | No endpoint responded 501. Every uncovered endpoint is wired up on demo. |
 
-**Side findings worth capturing before v0.11.0:**
-- Endpoint count drifted: audit found 47 uncovered (not 53 as pre-v0.9.0 snapshot indicated) — multivariate/forecast/series endpoints covered since last count.
-- `POST /portfolio/subaccounts` returned **201 on empty body** — demo appears to create a subaccount from thin air. Worth probing behavior more carefully when implementing v0.11.0 (do we need a cleanup fixture? does it tie to the parent account?).
-- TODOS previously listed `POST /portfolio/order_groups` but spec is `POST /portfolio/order_groups/create`. Reset/trigger/limit are `PUT`, not `POST` as drafted. v0.10.0 plan below corrected.
-- TODOS previously listed "API Keys (5)" but spec has 4 endpoints (`GET/POST /api_keys`, `POST /api_keys/generate`, `DELETE /api_keys/{api_key}`). v0.12.0 count corrected.
+**Side findings still relevant for v0.11+ phases:**
+- `POST /portfolio/subaccounts` returned **201 on empty body** during the audit — demo creates a subaccount from thin air. Audit probe created subaccount #1 with $0 on demo (confirmed via `GET /portfolio/subaccounts/balances`). Integration tests will need a cleanup fixture or a server-side delete endpoint; spec shows no DELETE so the demo subaccount is probably permanent until admin reset.
+- API Keys v0.12 count is 4 endpoints (not 5 as originally drafted): spec has `GET/POST /api_keys`, `POST /api_keys/generate`, `DELETE /api_keys/{api_key}` — no "get single".
 
 Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase if the spec bumps.
 
