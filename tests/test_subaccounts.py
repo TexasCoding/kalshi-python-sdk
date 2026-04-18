@@ -182,10 +182,12 @@ class TestSubaccountRequestModels:
 
 class TestSubaccountsCreate:
     @respx.mock
-    def test_create_sends_empty_body(
+    def test_create_sends_empty_json_body(
         self, subaccounts: SubaccountsResource,
     ) -> None:
-        # Spec has no requestBody — POST with no json arg.
+        # Spec has no requestBody but demo rejects the POST without
+        # Content-Type. SDK sends json={} (content == b"{}") to force the
+        # header on httpx.
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts",
         ).mock(return_value=httpx.Response(201, json={"subaccount_number": 5}))
@@ -193,6 +195,7 @@ class TestSubaccountsCreate:
         assert isinstance(resp, CreateSubaccountResponse)
         assert resp.subaccount_number == 5
         assert route.called
+        assert route.calls[0].request.content == b"{}"
 
     @respx.mock
     def test_create_500_raises(self, subaccounts: SubaccountsResource) -> None:

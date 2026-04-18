@@ -26,8 +26,11 @@ class SubaccountsResource(SyncResource):
 
     def create(self) -> CreateSubaccountResponse:
         self._require_auth()
-        # Empty body — spec defines no requestBody for this POST.
-        data = self._post("/portfolio/subaccounts")
+        # Spec defines no requestBody, but httpx omits Content-Type when no
+        # body is passed and demo rejects the POST with `invalid_content_type`.
+        # json={} forces Content-Type: application/json — same workaround
+        # used on order_groups reset/trigger PUTs.
+        data = self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
     def transfer(
@@ -98,7 +101,9 @@ class AsyncSubaccountsResource(AsyncResource):
 
     async def create(self) -> CreateSubaccountResponse:
         self._require_auth()
-        data = await self._post("/portfolio/subaccounts")
+        # json={} forces Content-Type: application/json — demo rejects the
+        # POST with `invalid_content_type` when no body is passed.
+        data = await self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
     async def transfer(
