@@ -28,6 +28,7 @@ from kalshi.models.multivariate import (
     TickerPair,
 )
 from kalshi.models.orders import (
+    AmendOrderRequest,
     AmendOrderResponse,
     CreateOrderRequest,
     Fill,
@@ -50,6 +51,7 @@ from kalshi.models.series import (
 )
 
 __all__ = [
+    "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
     "AssociatedEvent",

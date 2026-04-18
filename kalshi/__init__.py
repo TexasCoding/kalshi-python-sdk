@@ -19,6 +19,7 @@ from kalshi.errors import (
     KalshiWebSocketError,
 )
 from kalshi.models import (
+    AmendOrderRequest,
     AmendOrderResponse,
     BidAskDistribution,
     Candlestick,
@@ -39,6 +40,7 @@ from kalshi.models import (
 )
 
 __all__ = [
+    "AmendOrderRequest",
     "AmendOrderResponse",
     "AsyncKalshiClient",
     "AuthRequiredError",

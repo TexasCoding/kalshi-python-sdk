@@ -391,3 +391,76 @@ class TestCreateOrderRequestExtended:
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert "count_fp" in body
         assert "count" not in body
+
+
+class TestAmendOrderRequest:
+    def test_required_fields(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest()  # type: ignore[call-arg]
+
+        # ticker/side/action required per spec
+        req = AmendOrderRequest(ticker="MKT", side="yes", action="buy")
+        assert req.ticker == "MKT"
+
+    def test_serializes_yes_price_dollars(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            yes_price=Decimal("0.55"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["yes_price_dollars"] == "0.55"
+        assert "yes_price" not in body  # int cent form excluded
+
+    def test_serializes_count_fp(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            count=Decimal("3"),
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "count_fp" in body
+        assert body["count_fp"] == "3"
+        assert "count" not in body
+
+    def test_forbid_extra(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest(
+                ticker="MKT", side="yes", action="buy",
+                bogus_field="x",  # type: ignore[call-arg]
+            )
+
+    def test_accepts_client_order_ids(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy",
+            client_order_id="old-id",
+            updated_client_order_id="new-id",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["client_order_id"] == "old-id"
+        assert body["updated_client_order_id"] == "new-id"
+
+    def test_accepts_subaccount(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(
+            ticker="MKT", side="yes", action="buy", subaccount=3,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True)
+        assert body["subaccount"] == 3

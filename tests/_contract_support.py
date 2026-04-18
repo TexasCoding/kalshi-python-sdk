@@ -421,6 +421,19 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ("kalshi.resources.multivariate.MultivariateCollectionsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
+    # --- AmendOrderRequest spec fields deliberately not on the model ---
+    ("kalshi.models.orders.AmendOrderRequest", "yes_price"): Exclusion(
+        reason=(
+            "cent form redundant with yes_price_dollars; caller passes dollars, "
+            "wire carries dollars"
+        ),
+    ),
+    ("kalshi.models.orders.AmendOrderRequest", "no_price"): Exclusion(
+        reason=(
+            "cent form redundant with no_price_dollars; caller passes dollars, "
+            "wire carries dollars"
+        ),
+    ),
 }
 
 

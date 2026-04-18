@@ -185,6 +185,44 @@ class CreateOrderRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class AmendOrderRequest(BaseModel):
+    """Parameters for amending an open order.
+
+    Matches spec ``components.schemas.AmendOrderRequest``. Required fields
+    (``ticker``, ``side``, ``action``) mirror the spec's ``required`` list.
+    Price fields serialize with ``_dollars`` suffix; ``count`` serializes
+    as ``count_fp`` (FixedPointCount).
+
+    Cent-form ``yes_price``/``no_price`` spec properties are NOT on this
+    model — redundant with the ``_dollars`` forms. EXCLUSIONS in
+    ``tests/_contract_support.py`` records this.
+
+    See ``kalshi.resources.orders.OrdersResource.amend`` — v0.8.0 builds
+    this model internally; the public method signature is unchanged.
+    """
+
+    ticker: str
+    side: str
+    action: str
+    yes_price: DollarDecimal | None = Field(
+        default=None,
+        serialization_alias="yes_price_dollars",
+    )
+    no_price: DollarDecimal | None = Field(
+        default=None,
+        serialization_alias="no_price_dollars",
+    )
+    count: FixedPointCount | None = Field(
+        default=None,
+        serialization_alias="count_fp",
+    )
+    client_order_id: str | None = None
+    updated_client_order_id: str | None = None
+    subaccount: int | None = None
+
+    model_config = {"extra": "forbid"}
+
+
 class AmendOrderResponse(BaseModel):
     """Response from amending an order — contains both pre and post-amendment orders."""
 
