@@ -11,7 +11,10 @@ from kalshi.models.events import Event, EventMetadata
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
-register("EventsResource", ["get", "list", "list_all", "metadata"])
+register(
+    "EventsResource",
+    ["get", "list", "list_all", "list_multivariate", "list_all_multivariate", "metadata"],
+)
 
 
 @pytest.mark.integration
@@ -39,6 +42,22 @@ class TestEventsSync:
             if count >= 2:
                 break
         assert count > 0
+
+    def test_list_multivariate(self, sync_client: KalshiClient) -> None:
+        page = sync_client.events.list_multivariate(limit=5)
+        assert isinstance(page, Page)
+        assert isinstance(page.items, list)
+        for event in page.items:
+            assert isinstance(event, Event)
+            assert_model_fields(event)
+            assert event.event_ticker
+
+    def test_list_all_multivariate(self, sync_client: KalshiClient) -> None:
+        for count, event in enumerate(sync_client.events.list_all_multivariate(limit=2)):
+            assert isinstance(event, Event)
+            assert_model_fields(event)
+            if count >= 1:
+                break
 
     def test_metadata(self, sync_client: KalshiClient, demo_event_ticker: str) -> None:
         meta = sync_client.events.metadata(demo_event_ticker)
@@ -70,6 +89,23 @@ class TestEventsAsync:
             if count >= 3:
                 break
         assert count > 0
+
+    async def test_list_multivariate(self, async_client: AsyncKalshiClient) -> None:
+        page = await async_client.events.list_multivariate(limit=5)
+        assert isinstance(page, Page)
+        for event in page.items:
+            assert isinstance(event, Event)
+            assert_model_fields(event)
+            assert event.event_ticker
+
+    async def test_list_all_multivariate(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for event in async_client.events.list_all_multivariate(limit=2):
+            assert isinstance(event, Event)
+            assert_model_fields(event)
+            count += 1
+            if count >= 2:
+                break
 
     async def test_metadata(self, async_client: AsyncKalshiClient, demo_event_ticker: str) -> None:
         meta = await async_client.events.metadata(demo_event_ticker)

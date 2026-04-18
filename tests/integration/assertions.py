@@ -12,8 +12,26 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel
+
+
+def _annotation_contains(annotation: Any, target: type) -> bool:
+    """True if annotation resolves to target.
+
+    Walks `__args__` recursively to handle Optional, Union (PEP 604),
+    list[T], and Annotated[T, ...] forms. The recursion also visits the
+    metadata args of ``Annotated`` (e.g. ``BeforeValidator(...)``), but
+    those objects have no ``__args__``, so the ``getattr(..., (), ())``
+    fallback terminates the walk safely on leaf types.
+    """
+    if annotation is target:
+        return True
+    return any(
+        _annotation_contains(arg, target)
+        for arg in getattr(annotation, "__args__", ())
+    )
 
 # Exhaustive set of field names that must be in [0, 1] when non-None.
 # Covers Market, OrderbookLevel, BidAskDistribution, PriceDistribution,
@@ -67,7 +85,12 @@ def assert_model_fields(model: BaseModel, *, _path: str = "") -> None:
             continue
 
         # 1. No floats where Decimal is expected
-        if isinstance(val, float):
+        #    Only flag if the field's annotation resolves to Decimal — a `float`
+        #    annotation means float is the intended runtime type (e.g. rates,
+        #    multipliers, non-currency numerics).
+        if isinstance(val, float) and _annotation_contains(
+            field_info.annotation, Decimal
+        ):
             raise AssertionError(
                 f"{full_name} is float ({val!r}), expected Decimal. "
                 f"DollarDecimal parsing may have failed."

@@ -1,101 +1,101 @@
 # TODOS
 
+## North Star
 
+**100% Kalshi endpoint coverage** — every REST operation in `specs/openapi.yaml` and every WebSocket channel in `specs/asyncapi.yaml` must have:
+1. An SDK implementation (sync + async)
+2. A unit test (happy path + error path + edge cases)
+3. A real integration test against the Kalshi demo server
 
+No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-## P3: Investigate WS dispatch type mismatch (spec vs SDK)
-**What:** The SDK dispatches WS messages on `type = "user_orders"` (plural) and `type = "market_positions"` (plural), but the AsyncAPI spec defines `type const = "user_order"` (singular) and `type const = "market_position"` (singular). Investigate whether the real API sends plural or singular by capturing live WS frames and comparing to the spec's `type` const values.
-**Why:** If the real API sends singular (matching spec), the SDK silently drops these messages as "unknown type." If the real API sends plural (matching SDK), the spec is wrong. Either way, the mismatch should be resolved.
-**Pros:** Prevents silent message drops if Kalshi aligns their API to their spec.
-**Cons:** May be a spec-only bug with no runtime impact. Requires live WS session to verify.
-**Depends on:** WS integration tests (done). WS spec drift pipeline (in progress).
-**Added:** 2026-04-15 via /plan-eng-review (Codex outside voice identified the gap)
+### Current state (audit 2026-04-18, updated post-v0.9.0)
 
-## P3: Integration test — CI pipeline with scheduled runs
-**What:** Add a GitHub Actions workflow that runs `pytest tests/integration/ -v` on a schedule (nightly or weekly). Store KALSHI_KEY_ID and KALSHI_PRIVATE_KEY_PATH as GitHub Actions secrets. Report failures via PR comment or Slack notification.
-**Why:** Integration tests only catch drift if they run regularly. Currently they only run when a developer manually runs them locally with credentials configured.
-**Depends on:** Integration test suite stable (done). GitHub Actions secrets configured.
-**Added:** 2026-04-14
+| Status | REST endpoints | % |
+|---|---:|---:|
+| FULL (SDK + unit + integration) | 24 | 27% |
+| SDK + unit, no integration | 12 | 13% |
+| Not implemented | 53 | 60% |
+| **Total** | **89** | |
 
-## P3: Integration test — from_env() and constructor variant coverage
-**What:** Add integration tests that verify KalshiClient can be constructed via all supported paths: `from_env()`, `key_id + private_key_path`, `key_id + private_key` (PEM string), `auth=KalshiAuth(...)`, and `demo=True` flag. Currently only `from_env()` is tested by the integration suite.
-**Why:** Users construct the client in different ways. A signing bug that only manifests with `from_key_path()` vs `from_pem()` would go undetected.
-**Depends on:** Integration test suite shipped (done).
-**Added:** 2026-04-14
+WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
 
-## ~~P3: Integration test — series and multivariate event endpoints~~
-**Completed:** v0.6.0 (2026-04-16). Added SeriesResource (5 methods: list, get, fee_changes, event_candlesticks, forecast_percentile_history) and MultivariateCollectionsResource (5 methods: list, get, create_market, lookup_tickers, lookup_history). Added list_multivariate/list_all_multivariate to EventsResource. Fixed EventsResource.list() param drift (added with_milestones, min_close_ts, min_updated_ts). 11 new endpoints, 50+ new tests, 4 contract map entries. Auth guards on forecast_percentile_history, create_market, lookup_tickers.
+Meta-coverage test green as of v0.9.0.
 
-## ~~P3: Integration test — order amendments and decrease~~
-**Completed:** v0.5.0 (2026-04-15). Added `amend()`, `decrease()`, `queue_positions()`, and `queue_position()` to OrdersResource and AsyncOrdersResource. AmendOrderResponse and OrderQueuePosition models. 29 new tests (sync/async happy paths, error paths, serialization, auth guards). Contract map entries for spec drift coverage. Also added queue position endpoints (GET /portfolio/orders/queue_positions, GET /portfolio/orders/{order_id}/queue_position) as natural companion to amend.
+**Next up — Path B demo-feasibility audit:** Before diving into v0.10.0, run a 1h audit hitting each v0.10–v0.13 endpoint against demo to classify as `demo-supported` / `demo-501` / `auth-gated`. Anything demo can't test gets tagged `@pytest.mark.integration_real_api_only` up front so we don't write integration tests that will forever skip.
 
-## P3: Integration test — handle transient 500 errors from demo API
+---
+
+## Active phases
+
+### v0.10.0 — Order Groups resource
+**What:** Implement `OrderGroupsResource` + `AsyncOrderGroupsResource` covering 7 endpoints. Pydantic models (request models with `extra="forbid"`), sync+async resources, unit tests (happy/error/auth-guard), integration tests, `METHOD_ENDPOINT_MAP` registration, `BODY_MODEL_MAP` entries for POST bodies.
+**Why:** Advanced order strategies (OCO, if-then). Entire resource class missing today.
+**Endpoints (7):**
+- `GET /portfolio/order_groups`
+- `GET /portfolio/order_groups/{order_group_id}`
+- `POST /portfolio/order_groups`
+- `DELETE /portfolio/order_groups/{order_group_id}`
+- `POST /portfolio/order_groups/{order_group_id}/reset`
+- `POST /portfolio/order_groups/{order_group_id}/trigger`
+- `POST /portfolio/order_groups/{order_group_id}/limit`
+**Estimate:** ~5h.
+
+### v0.11.0 — Communications / RFQ + Subaccounts
+**What:** Two new resource subsystems. Pydantic models, sync+async resources, unit + integration tests, contract map registration for all 17 endpoints.
+
+**Communications / RFQ (11 endpoints):** quote CRUD + accept/confirm, RFQ CRUD. Concrete endpoints to confirm against spec during plan phase.
+**Subaccounts (6 endpoints):** create, transfer, balances, netting (get+put), transfers list.
+
+**Why:** OTC market access + multi-account workflows. Two of the largest "not implemented" buckets.
+**Estimate:** ~11h.
+
+### v0.12.0 — API Keys + Bulk/Batch + Milestones
+**What:** Three smaller resource additions.
+- **API Keys (5):** get, create, generate, delete, list — programmatic API key management.
+- **Bulk / Batch (3):** batch markets candlesticks, batch orderbooks, batch trades — efficient data pulls.
+- **Milestones (5):** list, get, live_data variants — milestone market tracking.
+
+Each with models, sync+async resources, unit + integration tests, contract map entries.
+**Estimate:** ~8h.
+
+### v0.13.0 — Remaining endpoints + WebSocket parity
+**What:**
+- Implement ~16 remaining endpoints: FCM orders/positions, incentive programs, structured targets, search filters, `exchange.user_data_timestamp`, portfolio summary.
+- Resolve WebSocket dispatch singular/plural drift (`user_orders` vs `user_order`, `market_positions` vs `market_position`, `multivariate_lookup` vs `multivariate`) via live capture against demo WS.
+- Expand WebSocket integration coverage beyond the 3-test connectivity smoke: exercise each of the 15 dispatched message types end-to-end where demo allows.
+**Why:** Final push to 100% REST + parity on WebSocket.
+**Estimate:** ~10h.
+
+---
+
+## Reliability (gates CI trust for integration tests)
+
+### P3: Integration test — handle transient 500 errors from demo API
 **What:** `TestOrdersSync::test_list_all` intermittently fails with `KalshiServerError: HTTP 500` when paginating orders on the demo server. Investigate whether this is a known demo server issue or a bug in cursor handling. Consider adding a retry wrapper or `pytest.mark.flaky` for demo-specific transient failures.
-**Why:** Transient 500s on demo cause false test failures, making CI unreliable. The SDK's retry logic already handles 500s for GET requests, but `list_all()` re-raises after exhausting retries. Either the retry count is too low for demo, or the demo server has a known instability on the orders list endpoint with cursors.
+**Why:** Transient 500s cause false test failures, making CI unreliable. The SDK's retry logic already handles 500s for GET requests, but `list_all()` re-raises after exhausting retries. Either retry count is too low for demo, or the demo server has a known instability on the orders list endpoint with cursors.
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
-## ~~P3: Piece 2 — automated contract test for request-param drift~~
-**Completed:** v0.8.0 (2026-04-18). `TestRequestParamDrift` (query+path, 94 parametrized cases across 47 endpoints × sync+async) and `TestRequestBodyDrift` (body, 7 parametrized cases) in `tests/test_contracts.py`. Hard-fail on any drift; `EXCLUSIONS` allowlist in `tests/_contract_support.py` with reason strings. `test_exclusion_map_is_current` lint guards against stale allowlist entries. 25 bootstrap exclusions covering deprecated fields, paginator-handled cursor, count_fp wire normalization, deferred _fp variants on DecreaseOrderRequest, deprecated ids on BatchCancelOrdersRequest, and body-vs-query-param distinctions.
-
-## ~~P3: Audit inline body dicts~~
-**Completed:** v0.8.0 (2026-04-18). All POST/PUT/DELETE bodies routed through Pydantic models. CreateOrderRequest extended with 7 fields (time_in_force, post_only, reduce_only, self_trade_prevention_type, order_group_id, cancel_order_on_pause, subaccount) + buy_max_cost wired through. AmendOrderRequest, DecreaseOrderRequest, BatchCreateOrdersRequest, BatchCancelOrdersRequest (+ BatchCancelOrdersRequestOrder), and two multivariate request models added. Phantom `type` field on orders.create removed; buy_max_cost type fixed to int cents (spec-compliant); count wire key normalized to count_fp; batch_cancel migrated from deprecated `ids` wire field to preferred `orders` field with per-order subaccount support.
-
-## P3: Reduce sync/async duplication tax (v0.8+)
-**What:** Every resource file has near-identical sync and async classes (~95% duplication of method bodies). Each new kwarg must be added in two places; mismatch is a real risk. Possible approaches: (a) shared params-builder helpers, (b) sync-wrapping-async architecture, (c) code-gen from a single source. Out of scope for v0.7.0 because the audit alone added ~32 kwargs × 2 = ~64 method signatures touched.
-**Why:** Maintenance tax keeps growing as the SDK adds resources. v0.7.0 doubled the kwarg surface; future additions get more painful.
-**Pros:** Single source of truth. Half the maintenance.
-**Cons:** Potentially big architectural change. Risk of breaking the `async for` ergonomics that `list_all` enables.
-**Depends on:** v0.7.0 shipped (done).
-**Added:** 2026-04-16 via /plan-eng-review round 2 (flagged but not bundled).
-
-## P3: Verify public resource endpoint auth requirements
-**What:** Check the OpenAPI spec for which GET endpoints in public resources (MarketsResource, EventsResource, ExchangeResource, HistoricalResource) actually require auth headers. If any public resource method routes to an auth-requiring endpoint, add a per-method `_require_auth()` guard to that specific method.
-**Why:** The unauthenticated client guards private resources (orders, portfolio) at the resource level, but some public resource endpoints might require auth (e.g., if Kalshi adds a `/markets/{ticker}/my-position` endpoint). Without guards on those specific methods, users get a confusing 401 from Kalshi instead of a clear `AuthRequiredError`.
-**Depends on:** Unauthenticated client path shipped.
-**Added:** 2026-04-14 via /plan-eng-review (Codex outside voice identified the gap)
-
-## P3: Enum typing sweep — adopt Literal across enum kwargs (v0.9)
-**What:** Replace `str | None` with `Literal[...]` for fixed-enum kwargs: `time_in_force`, `self_trade_prevention_type`, `side`, `action`, `status` filters on list methods. Single-sweep release.
-**Why:** v0.7.0 and v0.8.0 both deferred `Literal` adoption to avoid scoping-in a typing sweep during feature work. A dedicated sweep lets mypy catch invalid enum values at user-code authoring time.
-**Depends on:** v0.8.0 shipped (done).
-**Added:** 2026-04-18 via /plan-eng-review (scope decision deferred from v0.8.0).
-
-## P3: Model-first request API overload (v0.9)
-**What:** Add optional model-first signatures alongside existing kwarg-based signatures: `orders.amend(request: AmendOrderRequest)`, etc. Runtime dispatch on argument type. Existing kwarg-based callers unaffected.
-**Why:** Advanced users (programmatic order construction, serialization layers) benefit from passing a fully-formed request model. Current API forces them to unpack into kwargs and re-pack.
-**Depends on:** v0.8.0 shipped (done). Request models all exist.
-**Added:** 2026-04-18 via /plan-eng-review.
-
-## P3: Nested request-body schema $ref recursion (only if needed)
-**What:** Extend `_resolve_request_body_schema` in `tests/_contract_support.py` to recurse into nested `$ref` pointers inside body schemas. Today all 7 POST/PUT/DELETE body schemas have flat properties — verified at v0.8.0. Only implement when a nested ref lands in the spec.
-**Why:** Drift detection breaks silently if nested property refs are introduced without resolver support.
-**Depends on:** v0.8.0 shipped (done). Activation trigger: first spec update that introduces a nested `$ref` in a POST/PUT/DELETE body schema.
-**Added:** 2026-04-18 via /plan-eng-review.
-
-## P3: Typed `Exclusion.kind` enum instead of free-text reason matching (v0.9)
-**What:** Replace string-heuristic classification in `test_exclusion_map_is_current` (substring match on `"body param"`, `"not query/path"`, etc.) with a typed `kind: Literal["body_param", "spec_deprecated", "paginator_handled", "wire_normalization"]` field on `Exclusion`. Update all 25 existing entries to set `kind` explicitly.
-**Why:** Current staleness checker in `tests/test_contracts.py` branches on free-text `reason` substrings. A future exclusion with slightly different wording (e.g. `"request body field"` instead of `"body param"`) would silently misclassify. A typed enum makes intent explicit and prevents classification drift.
-**Pros:** Unambiguous; IDE autocomplete; mypy catches typos.
-**Cons:** Requires updating 25 existing entries. Low risk but touches most of `_contract_support.py`.
-**Depends on:** v0.8.0 shipped (done).
-**Added:** 2026-04-18 via PR #31 claude[bot] review (finding n2).
-
-## P3: Async/sync `_delete_with_body` parity (v0.9)
-**What:** Sync `OrdersResource.batch_cancel` goes through `self._delete_with_body(...)`; async `AsyncOrdersResource.batch_cancel` calls `self._transport.request("DELETE", ...)` directly. If `_delete_with_body` ever gains error-mapping or retry behavior, the async path silently diverges. Add an `async_delete_with_body` helper (or equivalent on the async transport) and route async batch_cancel through it.
-**Why:** The project's stated sync/async parity via dual transport abstraction has a one-method gap. Fine today (`_delete_with_body` is a thin shim), but tempting to drop extra logic into the sync helper without remembering the async path bypasses it.
-**Depends on:** v0.8.0 shipped (done).
-**Added:** 2026-04-18 via PR #31 claude[bot] review (finding m4).
-
-## P3: TestRequestBodyDrift should cover nested Pydantic models (v0.9)
-**What:** `_model_aliases()` in `tests/test_contracts.py` iterates one level deep only. Nested models like `TickerPair` (inside `CreateMarketInMultivariateEventCollectionRequest.selected_markets`) have no `BODY_MODEL_MAP` entry and are not checked for drift. `TickerPair` has `extra="allow"` so phantom fields flow to the wire silently.
-**Why:** False confidence in drift coverage. Not a production bug today (TickerPair fields are correct) but a future schema change to the nested type would silently bypass the drift test.
-**Pros:** Closes a genuine gap in the scanner; surfaces any drift on nested models.
-**Cons:** Requires deciding whether TickerPair should gain `extra="forbid"` (could be breaking for callers who pass extra keys). Design decision + test expansion.
-**Depends on:** v0.8.0 shipped (done).
-**Added:** 2026-04-18 via /review adversarial pass (Finding INFORMATIONAL-3).
+---
 
 ## Completed
+
+### ~~v0.9.0 — Close Series + Multivariate integration gap~~
+**Completed:** 2026-04-18. Added `kalshi.resources.series` and `kalshi.resources.multivariate` to `RESOURCE_MODULES` (made 11 silently-absent methods visible to the meta-coverage test). Created `tests/integration/test_series.py` (5 methods × sync+async = 10 tests) and `tests/integration/test_multivariate.py` (6 methods × sync+async = 12 tests). Extended `tests/integration/test_events.py` with `list_multivariate` + `list_all_multivariate` coverage (4 new tests). Bumped discovery expectation from 6 → 8 resource classes. **Integration tests surfaced two real issues:** (1) `Series.tags` was typed `list[str]` but demo returns `null` for some series — fixed via `@field_validator(mode="before")` coercing None→[] on `tags`, `settlement_sources`, `additional_prohibitions`; (2) the semantic oracle in `tests/integration/assertions.py` rejected ALL floats as DollarDecimal failures, misfiring on `Series.fee_multiplier: float` — now uses an annotation-aware `_annotation_contains(Decimal)` check so it only flags floats where the field is actually typed Decimal. Coverage result: 40 passed, 5 skipped (destructive create_market + lookup_tickers skip when demo collection lacks associated events with markets; forecast skip when no history). FULL-covered endpoints 13 → 24; NO_INT 23 → 12; meta-coverage test green.
+
+### ~~P3: Integration test — series and multivariate event endpoints~~
+**Completed:** v0.6.0 (2026-04-16). Added SeriesResource (5 methods: list, get, fee_changes, event_candlesticks, forecast_percentile_history) and MultivariateCollectionsResource (5 methods: list, get, create_market, lookup_tickers, lookup_history). Added list_multivariate/list_all_multivariate to EventsResource. Fixed EventsResource.list() param drift (added with_milestones, min_close_ts, min_updated_ts). 11 new endpoints, 50+ new tests, 4 contract map entries. Auth guards on forecast_percentile_history, create_market, lookup_tickers.
+**Note:** v0.6.0 shipped the SDK + unit tests but integration tests and `SCENARIO_REGISTRY` registration landed later in v0.9.0 (2026-04-18).
+
+### ~~P3: Integration test — order amendments and decrease~~
+**Completed:** v0.5.0 (2026-04-15). Added `amend()`, `decrease()`, `queue_positions()`, and `queue_position()` to OrdersResource and AsyncOrdersResource. AmendOrderResponse and OrderQueuePosition models. 29 new tests (sync/async happy paths, error paths, serialization, auth guards). Contract map entries for spec drift coverage. Also added queue position endpoints (GET /portfolio/orders/queue_positions, GET /portfolio/orders/{order_id}/queue_position) as natural companion to amend.
+
+### ~~P3: Piece 2 — automated contract test for request-param drift~~
+**Completed:** v0.8.0 (2026-04-18). `TestRequestParamDrift` (query+path, 94 parametrized cases across 47 endpoints × sync+async) and `TestRequestBodyDrift` (body, 7 parametrized cases) in `tests/test_contracts.py`. Hard-fail on any drift; `EXCLUSIONS` allowlist in `tests/_contract_support.py` with reason strings. `test_exclusion_map_is_current` lint guards against stale allowlist entries. 25 bootstrap exclusions covering deprecated fields, paginator-handled cursor, count_fp wire normalization, deferred _fp variants on DecreaseOrderRequest, deprecated ids on BatchCancelOrdersRequest, and body-vs-query-param distinctions.
+
+### ~~P3: Audit inline body dicts~~
+**Completed:** v0.8.0 (2026-04-18). All POST/PUT/DELETE bodies routed through Pydantic models. CreateOrderRequest extended with 7 fields (time_in_force, post_only, reduce_only, self_trade_prevention_type, order_group_id, cancel_order_on_pause, subaccount) + buy_max_cost wired through. AmendOrderRequest, DecreaseOrderRequest, BatchCreateOrdersRequest, BatchCancelOrdersRequest (+ BatchCancelOrdersRequestOrder), and two multivariate request models added. Phantom `type` field on orders.create removed; buy_max_cost type fixed to int cents (spec-compliant); count wire key normalized to count_fp; batch_cancel migrated from deprecated `ids` wire field to preferred `orders` field with per-order subaccount support.
 
 ### ~~Normalize resource methods against OpenAPI spec surface (v0.7.0 major)~~
 **Completed:** v0.7.0 (2026-04-16). Resource method query/path parameter surface aligned to spec across markets, historical, orders, portfolio, series. 5 BREAKING (2 phantom REMOVE: `markets.list.market_type`, `portfolio.positions.settlement_status`; 3 RENAME: `historical.markets.ticker`→`tickers`, series positional `event_ticker`→`ticker` on `event_candlesticks` + `forecast_percentile_history`). 32 ADD across the 5 resources (subaccount, *_ts ranges, mve_filter, count_filter, depth, include_latest_before_start, etc). Plus `_params()` standardization on `orders.list`/`list_all` (fixes pre-existing empty-string truthiness drop on `ticker` AND `status`), `_join_tickers` helper lifted to `_base.py`, `_delete()` extended to accept `params=`. 60+ new unit tests including 5 BREAKING regression tests, 4 dedicated tickers comma-join tests, 2 dedicated percentiles explode:true tests, 2 dedicated bool "true or omit" tests, 4 _params standardization regression tests. Migration guide in CHANGELOG. AUDIT.md `settlement_status` migration text corrected during /plan-eng-review round 2 (count_filter is NOT a semantic replacement — verified spec lines 2206-2221).

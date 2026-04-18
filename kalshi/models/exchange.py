@@ -6,6 +6,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from kalshi.types import NullableList
+
 
 class ExchangeStatus(BaseModel):
     """Current exchange operational status."""
@@ -31,13 +33,13 @@ class WeeklySchedule(BaseModel):
 
     start_time: datetime
     end_time: datetime
-    monday: list[DailySchedule] = []
-    tuesday: list[DailySchedule] = []
-    wednesday: list[DailySchedule] = []
-    thursday: list[DailySchedule] = []
-    friday: list[DailySchedule] = []
-    saturday: list[DailySchedule] = []
-    sunday: list[DailySchedule] = []
+    monday: NullableList[DailySchedule] = []
+    tuesday: NullableList[DailySchedule] = []
+    wednesday: NullableList[DailySchedule] = []
+    thursday: NullableList[DailySchedule] = []
+    friday: NullableList[DailySchedule] = []
+    saturday: NullableList[DailySchedule] = []
+    sunday: NullableList[DailySchedule] = []
 
     model_config = {"extra": "allow"}
 
@@ -54,8 +56,8 @@ class MaintenanceWindow(BaseModel):
 class Schedule(BaseModel):
     """Exchange operating schedule."""
 
-    standard_hours: list[WeeklySchedule] = []
-    maintenance_windows: list[MaintenanceWindow] = []
+    standard_hours: NullableList[WeeklySchedule] = []
+    maintenance_windows: NullableList[MaintenanceWindow] = []
 
     model_config = {"extra": "allow"}
 

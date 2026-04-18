@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.models.markets import Candlestick
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, NullableList
 
 # Fee type constants (use str fields, not StrEnum, for forward-compat)
 FEE_TYPE_QUADRATIC = "quadratic"
@@ -23,14 +23,14 @@ class Series(BaseModel):
     frequency: str
     title: str
     category: str
-    tags: list[str] = []
-    settlement_sources: list[dict[str, Any]] = []
+    tags: NullableList[str] = []
+    settlement_sources: NullableList[dict[str, Any]] = []
     contract_url: str = ""
     contract_terms_url: str = ""
     product_metadata: dict[str, Any] | None = None
     fee_type: str = ""
     fee_multiplier: float = 0.0
-    additional_prohibitions: list[str] = []
+    additional_prohibitions: NullableList[str] = []
     volume: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
@@ -59,8 +59,8 @@ class EventCandlesticks(BaseModel):
     return a nested structure: one candlestick list per market in the event.
     """
 
-    market_tickers: list[str] = []
-    market_candlesticks: list[list[Candlestick]] = []
+    market_tickers: NullableList[str] = []
+    market_candlesticks: NullableList[list[Candlestick]] = []
     adjusted_end_ts: int = 0
 
     model_config = {"extra": "allow"}
@@ -83,6 +83,6 @@ class ForecastPercentilesPoint(BaseModel):
     event_ticker: str
     end_period_ts: int
     period_interval: int
-    percentile_points: list[PercentilePoint] = []
+    percentile_points: NullableList[PercentilePoint] = []
 
     model_config = {"extra": "allow"}

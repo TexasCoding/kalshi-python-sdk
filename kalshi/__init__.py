@@ -44,6 +44,7 @@ from kalshi.models import (
     SeriesFeeChange,
     TickerPair,
 )
+from kalshi.types import NullableList
 
 __all__ = [
     "AmendOrderRequest",
@@ -77,6 +78,7 @@ __all__ = [
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "Market",
     "MultivariateEventCollection",
+    "NullableList",
     "Order",
     "OrderQueuePosition",
     "Orderbook",
@@ -88,4 +90,4 @@ __all__ = [
     "TickerPair",
 ]
 
-__version__ = "0.7.0"
+__version__ = "0.9.1"

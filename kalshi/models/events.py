@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from kalshi.models.markets import Market
+from kalshi.types import NullableList
 
 
 class Event(BaseModel):
@@ -25,7 +26,7 @@ class Event(BaseModel):
     available_on_brokers: bool | None = None
     product_metadata: dict[str, Any] | None = None
     last_updated_ts: datetime | None = None
-    markets: list[Market] = []
+    markets: NullableList[Market] = []
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from kalshi.models.markets import Market
+from kalshi.types import NullableList
 
 # Side constants (use str, not StrEnum, for forward-compat)
 SIDE_YES = "yes"
@@ -20,7 +21,7 @@ class AssociatedEvent(BaseModel):
     is_yes_only: bool = False
     size_max: int | None = None
     size_min: int | None = None
-    active_quoters: list[str] = []
+    active_quoters: NullableList[str] = []
 
     model_config = {"extra": "allow"}
 
@@ -34,9 +35,9 @@ class MultivariateEventCollection(BaseModel):
     description: str = ""
     open_date: datetime | None = None
     close_date: datetime | None = None
-    associated_events: list[AssociatedEvent] = []
+    associated_events: NullableList[AssociatedEvent] = []
     # Deprecated fields — still returned by API
-    associated_event_tickers: list[str] = []
+    associated_event_tickers: NullableList[str] = []
     is_single_market_per_event: bool = False
     is_all_yes: bool = False
     # Active fields
@@ -134,7 +135,7 @@ class LookupPoint(BaseModel):
 
     event_ticker: str
     market_ticker: str
-    selected_markets: list[TickerPair] = []
+    selected_markets: NullableList[TickerPair] = []
     last_queried_ts: datetime | None = None
 
     model_config = {"extra": "allow"}

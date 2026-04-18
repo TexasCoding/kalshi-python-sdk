@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 
 from kalshi.models.series import (
     EventCandlesticks,
@@ -81,6 +82,91 @@ class TestSeriesModel:
             "additional_prohibitions": [],
         })
         assert s.volume is None
+
+
+class TestSeriesNullableList:
+    """Guard the NullableList[T] coercion on Series list fields.
+
+    The Kalshi demo API has been observed returning JSON null for tags,
+    settlement_sources, and additional_prohibitions, even though the spec
+    declares them as required arrays. NullableList[T] coerces null -> [].
+    """
+
+    def _base_payload(self) -> dict[str, Any]:
+        return {
+            "ticker": "T",
+            "frequency": "daily",
+            "title": "T",
+            "category": "T",
+            "contract_url": "",
+            "contract_terms_url": "",
+            "fee_type": "flat",
+            "fee_multiplier": 0.5,
+        }
+
+    def test_tags_none_coerced_to_empty_list(self) -> None:
+        payload = {**self._base_payload(), "tags": None,
+                   "settlement_sources": [], "additional_prohibitions": []}
+        s = Series.model_validate(payload)
+        assert s.tags == []
+
+    def test_settlement_sources_none_coerced(self) -> None:
+        payload = {**self._base_payload(), "tags": [],
+                   "settlement_sources": None, "additional_prohibitions": []}
+        s = Series.model_validate(payload)
+        assert s.settlement_sources == []
+
+    def test_additional_prohibitions_none_coerced(self) -> None:
+        payload = {**self._base_payload(), "tags": [],
+                   "settlement_sources": [], "additional_prohibitions": None}
+        s = Series.model_validate(payload)
+        assert s.additional_prohibitions == []
+
+    def test_all_three_none_together(self) -> None:
+        payload = {**self._base_payload(), "tags": None,
+                   "settlement_sources": None, "additional_prohibitions": None}
+        s = Series.model_validate(payload)
+        assert s.tags == []
+        assert s.settlement_sources == []
+        assert s.additional_prohibitions == []
+
+    def test_populated_list_passes_through(self) -> None:
+        payload = {**self._base_payload(), "tags": ["a", "b"],
+                   "settlement_sources": [{"name": "BEA"}],
+                   "additional_prohibitions": ["nope"]}
+        s = Series.model_validate(payload)
+        assert s.tags == ["a", "b"]
+        assert len(s.settlement_sources) == 1
+        assert s.additional_prohibitions == ["nope"]
+
+
+class TestEventCandlesticksNullableList:
+    def test_null_market_tickers_coerced(self) -> None:
+        ec = EventCandlesticks.model_validate({
+            "market_tickers": None,
+            "market_candlesticks": [],
+            "adjusted_end_ts": 0,
+        })
+        assert ec.market_tickers == []
+
+    def test_null_market_candlesticks_coerced(self) -> None:
+        ec = EventCandlesticks.model_validate({
+            "market_tickers": [],
+            "market_candlesticks": None,
+            "adjusted_end_ts": 0,
+        })
+        assert ec.market_candlesticks == []
+
+
+class TestForecastPercentilesPointNullableList:
+    def test_null_percentile_points_coerced(self) -> None:
+        fp = ForecastPercentilesPoint.model_validate({
+            "event_ticker": "EVT-1",
+            "end_period_ts": 12345,
+            "period_interval": 60,
+            "percentile_points": None,
+        })
+        assert fp.percentile_points == []
 
 
 class TestSeriesFeeChangeModel:

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, NullableList
 
 
 class Balance(BaseModel):
@@ -80,8 +80,8 @@ class EventPosition(BaseModel):
 class PositionsResponse(BaseModel):
     """Response from the positions endpoint containing both market and event positions."""
 
-    market_positions: list[MarketPosition] = []
-    event_positions: list[EventPosition] = []
+    market_positions: NullableList[MarketPosition] = []
+    event_positions: NullableList[EventPosition] = []
     cursor: str | None = None
 
     @property
