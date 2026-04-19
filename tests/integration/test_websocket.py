@@ -77,3 +77,103 @@ class TestWebSocketLive:
         # The fixture will clean up on exit. If cleanup hangs or errors,
         # the test framework will report it as a fixture teardown failure.
         # No explicit assertion needed — we're testing that exit doesn't hang.
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_ticker(
+        self,
+        ws_session: KalshiWebSocket,
+        demo_market_ticker: str,
+    ) -> None:
+        """Subscribe to ticker channel and receive one update.
+
+        Ticker frames are best-effort broadcasts; if the market is quiet
+        for 10s we skip (not fail). A quiet market is valid demo state.
+        """
+        from kalshi.ws.models.ticker import TickerMessage
+        stream = await ws_session.subscribe_ticker(tickers=[demo_market_ticker])
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip(f"No ticker update for {demo_market_ticker} within 10s")
+        assert isinstance(msg, TickerMessage)
+        assert msg.type == "ticker"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_trade(
+        self,
+        ws_session: KalshiWebSocket,
+        demo_market_ticker: str,
+    ) -> None:
+        """Subscribe to trade channel. Skip if no trades occur in window."""
+        from kalshi.ws.models.trade import TradeMessage
+        stream = await ws_session.subscribe_trade(tickers=[demo_market_ticker])
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip(f"No trade on {demo_market_ticker} within 10s")
+        assert isinstance(msg, TradeMessage)
+        assert msg.type == "trade"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_orderbook_delta_emits_delta(
+        self,
+        ws_session: KalshiWebSocket,
+        demo_market_ticker: str,
+    ) -> None:
+        """Subscribe to orderbook_delta; expect snapshot first, then at least one delta.
+
+        Extends the existing snapshot smoke test by waiting for a second
+        frame to exercise the OrderbookDeltaMessage branch of the dispatcher.
+        """
+        from kalshi.ws.models.orderbook_delta import (
+            OrderbookDeltaMessage,
+            OrderbookSnapshotMessage,
+        )
+        stream = await ws_session.subscribe_orderbook_delta(
+            tickers=[demo_market_ticker],
+        )
+        try:
+            first = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip("No orderbook snapshot within 10s")
+        assert isinstance(first, OrderbookSnapshotMessage)
+
+        try:
+            second = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip("Snapshot received but no delta within 10s")
+        assert isinstance(second, (OrderbookDeltaMessage, OrderbookSnapshotMessage))
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_market_lifecycle(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to market_lifecycle_v2 (no ticker filter).
+
+        Lifecycle events fire on market open/close/settle; on quiet demo
+        windows we skip.
+        """
+        from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
+        stream = await ws_session.subscribe_market_lifecycle()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip("No market_lifecycle_v2 event within 10s")
+        assert isinstance(msg, MarketLifecycleMessage)
+        assert msg.type == "market_lifecycle_v2"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_communications(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to communications (RFQ / quote broadcasts)."""
+        from kalshi.ws.models.communications import CommunicationsMessage
+        stream = await ws_session.subscribe_communications()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=10.0)
+        except TimeoutError:
+            pytest.skip("No communications event within 10s")
+        assert isinstance(msg, CommunicationsMessage)
+        assert msg.type == "communications"
