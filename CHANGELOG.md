@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.11.0] — 2026-04-18
+
+### Added
+
+- **Communications / RFQ resource** — `CommunicationsResource` + `AsyncCommunicationsResource` covering all 11 endpoints of the RFQ + Quote subsystem (OTC market access):
+  - `GET /communications/id` — caller's public communications ID
+  - `GET /communications/rfqs`, `POST /communications/rfqs`, `GET /communications/rfqs/{rfq_id}`, `DELETE /communications/rfqs/{rfq_id}` — RFQ lifecycle (plus `list_all_rfqs` paginator)
+  - `GET /communications/quotes`, `POST /communications/quotes`, `GET /communications/quotes/{quote_id}`, `DELETE /communications/quotes/{quote_id}` — Quote lifecycle (plus `list_all_quotes` paginator)
+  - `PUT /communications/quotes/{quote_id}/accept`, `PUT /communications/quotes/{quote_id}/confirm` — two-party workflow
+- **Subaccounts resource** — `SubaccountsResource` + `AsyncSubaccountsResource` covering all 6 endpoints for multi-account workflows:
+  - `POST /portfolio/subaccounts` — spin up the next numbered subaccount (empty body; demo requires explicit `Content-Type: application/json`, SDK sends `json={}` to force it)
+  - `POST /portfolio/subaccounts/transfer` — move cents between subaccounts with client-side idempotency ID
+  - `GET /portfolio/subaccounts/balances`, `GET /portfolio/subaccounts/transfers` (+ `list_all_transfers`) — read state
+  - `PUT /portfolio/subaccounts/netting`, `GET /portfolio/subaccounts/netting` — netting configuration
+- **New Pydantic models** — 13 for Communications (`RFQ`, `Quote`, `MveSelectedLeg`, 5 response envelopes, 3 request models, 2 id wrappers) + 8 for Subaccounts (`SubaccountBalance`, `SubaccountTransfer`, `SubaccountNettingConfig`, 3 response envelopes, 2 request models). Request models use `extra="forbid"` so phantom keys fail at construction time; response models use `extra="allow"`.
+- **`integration_real_api_only` pytest marker** — new marker for endpoints the demo server cannot service (auth-gated role requirements, demo-broken routes). The `pytest_collection_modifyitems` hook in `tests/integration/conftest.py` auto-skips these tests unless `KALSHI_ENABLE_REAL_API_ONLY=1` is set. Applied to 4 tests spanning Communications (`list_quotes_unfiltered`, `list_all_quotes`, `list_quotes_by_rfq`, `accept_and_confirm_quote`) + Subaccounts (`get_netting` — demo returns 500).
+- **103 new tests** — 64 unit tests for Communications (`tests/test_communications.py`: model aliases, request wire-shape, happy/error paths per method, async, auth guards, client wiring) + 39 unit tests for Subaccounts (`tests/test_subaccounts.py`: same matrix). Plus 16 integration tests for Communications + 14 for Subaccounts against the demo server.
+
+### Changed
+
+- **Test coverage** — FULL-covered endpoints 31 → 44 (52%); partial coverage (SDK + unit, no integration) expanded across the v0.11.0 scope. Meta-coverage test now expects 11 resource classes (was 9). `CommunicationsResource` and `SubaccountsResource` both registered in `METHOD_ENDPOINT_MAP` (20 new entries), `BODY_MODEL_MAP` (5 new request-body entries), `_contract_map.py` (10 new response-side entries), and `coverage_harness.RESOURCE_MODULES`.
+- **EXCLUSIONS expanded** — 3 new entries covering `CreateRFQRequest.contracts_fp` (integer form only, matching the `count_fp` precedent), `CreateRFQRequest.target_cost_centi_cents` (deprecated in spec), and the `cursor` paginator kwargs on the 3 new `list_all_*` methods (2 communications + 1 subaccounts).
+- **Live-demo findings refined the v0.11.0 audit:**
+  - `GET /communications/quotes` requires `creator_user_id` OR `rfq_creator_user_id` even when `rfq_id` is provided — demo returns `400 "Either creator_user_id or rfq_creator_user_id must be filled"`. Supersedes the audit's "403 unless filtered by rfq_id" note; all `list_quotes` variants are `integration_real_api_only`.
+  - Demo rejects malformed IDs with `400 invalid_parameters` before the route-level 404 lookup, so the 404 regression tests assert the base `KalshiError` class to tolerate either shape.
+  - Demo refuses self-quoting (RFQ creator responding to their own RFQ) with `400` — `test_quote_lifecycle` skips with a descriptive reason rather than failing, so a future demo-server change surfaces organically.
+
+### Fixed
+
+- **`_put()` now handles 204 No Content.** `SyncResource._put` / `AsyncResource._put` previously called `response.json()` unconditionally and raised `JSONDecodeError` on empty-body responses. Mirrors the `_delete()` pattern — returns `None` on 204. Required by the new `accept_quote` / `confirm_quote` endpoints, which return `204` on success per spec. Closes the P3 reliability item flagged on PR #33.
+
 ## [0.10.0] — 2026-04-18
 
 ### Added

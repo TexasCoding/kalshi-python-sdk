@@ -1,6 +1,6 @@
 [project]
 name = "kalshi-sdk"
-version = "0.10.0"
+version = "0.11.0"
 description = "A professional Python SDK for the Kalshi prediction markets API"
 readme = "README.md"
 license = { text = "MIT" }
@@ -58,6 +58,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "integration: tests that hit the real Kalshi demo API (require credentials)",
+    "integration_real_api_only: endpoints the demo server cannot service (auth-gated roles, demo-broken). Skipped under the default integration run; enable explicitly with -m integration_real_api_only against a prod-like account.",
 ]
 
 [dependency-groups]

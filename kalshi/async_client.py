@@ -11,6 +11,7 @@ from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import AuthRequiredError
+from kalshi.resources.communications import AsyncCommunicationsResource
 from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
 from kalshi.resources.historical import AsyncHistoricalResource
@@ -20,6 +21,7 @@ from kalshi.resources.order_groups import AsyncOrderGroupsResource
 from kalshi.resources.orders import AsyncOrdersResource
 from kalshi.resources.portfolio import AsyncPortfolioResource
 from kalshi.resources.series import AsyncSeriesResource
+from kalshi.resources.subaccounts import AsyncSubaccountsResource
 
 if TYPE_CHECKING:
     from kalshi.ws.client import KalshiWebSocket
@@ -80,6 +82,7 @@ class AsyncKalshiClient:
 
         # Build transport and resources
         self._transport = AsyncTransport(self._auth, self._config)
+        self.communications = AsyncCommunicationsResource(self._transport)
         self.events = AsyncEventsResource(self._transport)
         self.exchange = AsyncExchangeResource(self._transport)
         self.historical = AsyncHistoricalResource(self._transport)
@@ -88,6 +91,7 @@ class AsyncKalshiClient:
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
         self.series = AsyncSeriesResource(self._transport)
+        self.subaccounts = AsyncSubaccountsResource(self._transport)
         self.multivariate_collections = AsyncMultivariateCollectionsResource(self._transport)
 
     @property

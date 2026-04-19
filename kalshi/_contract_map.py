@@ -119,6 +119,51 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.multivariate.TickerPair",
         spec_schema="TickerPair",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQ",
+        spec_schema="RFQ",
+        notes="contracts/target_cost use short names with _fp/_dollars aliases",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.Quote",
+        spec_schema="Quote",
+        notes="bid/contracts fields use short names with _dollars/_fp aliases",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.CreateRFQRequest",
+        spec_schema="CreateRFQRequest",
+        notes="Uses serialization_alias (outbound) for target_cost → target_cost_dollars",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.CreateQuoteRequest",
+        spec_schema="CreateQuoteRequest",
+        notes="Spec wire uses yes_bid/no_bid without _dollars suffix (unlike other requests)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.AcceptQuoteRequest",
+        spec_schema="AcceptQuoteRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountBalance",
+        spec_schema="SubaccountBalance",
+        notes="balance uses DollarDecimal; updated_ts is Unix int",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountTransfer",
+        spec_schema="SubaccountTransfer",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.SubaccountNettingConfig",
+        spec_schema="SubaccountNettingConfig",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountTransferRequest",
+        spec_schema="ApplySubaccountTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.UpdateSubaccountNettingRequest",
+        spec_schema="UpdateSubaccountNettingRequest",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

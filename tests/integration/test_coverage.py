@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+import tests.integration.test_communications as _communications  # noqa: F401
 import tests.integration.test_events as _events  # noqa: F401
 
 # Force import of all test files so they register their methods.
@@ -20,6 +21,7 @@ import tests.integration.test_order_groups as _order_groups  # noqa: F401
 import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
+import tests.integration.test_subaccounts as _subaccounts  # noqa: F401
 from tests.integration.coverage_harness import SCENARIO_REGISTRY, discover_public_methods
 
 
@@ -60,9 +62,10 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 9 resource classes."""
+        """Sanity check: discover finds the expected 11 resource classes."""
         discovered = discover_public_methods()
         expected = {
+            "CommunicationsResource",
             "MarketsResource",
             "OrdersResource",
             "OrderGroupsResource",
@@ -71,6 +74,7 @@ class TestCoverageHarness:
             "HistoricalResource",
             "PortfolioResource",
             "SeriesResource",
+            "SubaccountsResource",
             "MultivariateCollectionsResource",
         }
         assert set(discovered.keys()) == expected, (

@@ -286,6 +286,113 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/portfolio/order_groups/{order_group_id}/limit",
         request_body_schema="#/components/schemas/UpdateOrderGroupLimitRequest",
     ),
+    # ── communications / RFQ ────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.get_id",
+        http_method="GET",
+        path_template="/communications/id",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.list_rfqs",
+        http_method="GET",
+        path_template="/communications/rfqs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.list_all_rfqs",
+        http_method="GET",
+        path_template="/communications/rfqs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.create_rfq",
+        http_method="POST",
+        path_template="/communications/rfqs",
+        request_body_schema="#/components/schemas/CreateRFQRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.get_rfq",
+        http_method="GET",
+        path_template="/communications/rfqs/{rfq_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.delete_rfq",
+        http_method="DELETE",
+        path_template="/communications/rfqs/{rfq_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.list_quotes",
+        http_method="GET",
+        path_template="/communications/quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.list_all_quotes",
+        http_method="GET",
+        path_template="/communications/quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.create_quote",
+        http_method="POST",
+        path_template="/communications/quotes",
+        request_body_schema="#/components/schemas/CreateQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.get_quote",
+        http_method="GET",
+        path_template="/communications/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.delete_quote",
+        http_method="DELETE",
+        path_template="/communications/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.accept_quote",
+        http_method="PUT",
+        path_template="/communications/quotes/{quote_id}/accept",
+        request_body_schema="#/components/schemas/AcceptQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.CommunicationsResource.confirm_quote",
+        http_method="PUT",
+        path_template="/communications/quotes/{quote_id}/confirm",
+    ),
+    # ── subaccounts ─────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.create",
+        http_method="POST",
+        path_template="/portfolio/subaccounts",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer",
+        http_method="POST",
+        path_template="/portfolio/subaccounts/transfer",
+        request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_balances",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/balances",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_transfers",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.update_netting",
+        http_method="PUT",
+        path_template="/portfolio/subaccounts/netting",
+        request_body_schema="#/components/schemas/UpdateSubaccountNettingRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.get_netting",
+        http_method="GET",
+        path_template="/portfolio/subaccounts/netting",
+    ),
     # ── portfolio ───────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.portfolio.PortfolioResource.balance",
@@ -538,6 +645,31 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "FixedPointCount variant of contracts_limit; SDK emits integer contracts_limit only; "
             "Kalshi accepts either form; _fp variant intentionally omitted (v0.10.0)"
         ),
+    ),
+    # --- list_all cursor exclusions for communications paginators ---
+    ("kalshi.resources.communications.CommunicationsResource.list_all_rfqs", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.communications.CommunicationsResource.list_all_quotes", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- CreateRFQRequest deviations (v0.11.0) ---
+    # Same count / count_fp precedent as order_groups: SDK commits to integer form.
+    ("kalshi.models.communications.CreateRFQRequest", "contracts_fp"): Exclusion(
+        reason=(
+            "FixedPointCount variant of contracts; SDK emits integer contracts only; "
+            "Kalshi accepts either form; _fp variant intentionally omitted (v0.11.0)"
+        ),
+    ),
+    ("kalshi.models.communications.CreateRFQRequest", "target_cost_centi_cents"): Exclusion(
+        reason=(
+            "deprecated in spec; superseded by target_cost_dollars which SDK ships as "
+            "target_cost (serialization_alias='target_cost_dollars')"
+        ),
+    ),
+    # --- list_all cursor exclusions for subaccounts paginator ---
+    ("kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }
 

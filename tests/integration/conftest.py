@@ -6,6 +6,12 @@ Requires environment variables:
     KALSHI_DEMO=true        — Route to demo environment
 
 Tests auto-skip when credentials are absent.
+
+Tests marked ``@pytest.mark.integration_real_api_only`` auto-skip under
+the default run — they exercise endpoints the demo server cannot service
+(auth-gated roles, demo-broken routes). Enable explicitly by setting
+``KALSHI_ENABLE_REAL_API_ONLY=1`` against a prod-like account, or by
+running ``pytest -m integration_real_api_only`` with that env var set.
 """
 
 from __future__ import annotations
@@ -23,6 +29,24 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.markets import Market
 from kalshi.ws.client import KalshiWebSocket
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item],
+) -> None:
+    """Skip ``integration_real_api_only`` tests unless explicitly enabled."""
+    if os.environ.get("KALSHI_ENABLE_REAL_API_ONLY") == "1":
+        return
+    skip_marker = pytest.mark.skip(
+        reason=(
+            "integration_real_api_only: demo cannot service this endpoint "
+            "(auth-gated or demo-broken). Set KALSHI_ENABLE_REAL_API_ONLY=1 "
+            "to run against a prod-like account."
+        ),
+    )
+    for item in items:
+        if "integration_real_api_only" in item.keywords:
+            item.add_marker(skip_marker)
 
 try:
     from dotenv import load_dotenv
