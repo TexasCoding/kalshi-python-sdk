@@ -281,7 +281,10 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.user_orders.UserOrdersPayload",
         spec_schema="userOrderPayload",
-        notes="Spec uses 'userOrderPayload' (singular), SDK channel is 'user_orders' (plural)",
+        notes="Aligned to spec v0.14.0 (2026-04-19): envelope type is "
+        "singular 'user_order' on the wire; channel name stays plural "
+        "'user_orders'. Live-captured on demo -- see "
+        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.market_lifecycle.MarketLifecyclePayload",

@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 
-from kalshi.ws.backpressure import MessageQueue
-from kalshi.ws.channels import Subscription
+from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
+from kalshi.ws.channels import Subscription, SubscriptionManager
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
+from kalshi.ws.models.user_orders import UserOrdersMessage
 
 
 class FakeSubManager:
@@ -123,7 +125,7 @@ class TestMessageDispatcher:
             "trade",
             "fill",
             "market_positions",
-            "user_orders",
+            "user_order",
             "order_group_updates",
             "market_lifecycle_v2",
             "multivariate",
@@ -161,3 +163,36 @@ class TestMessageDispatcher:
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "ticker", "msg": {"market_ticker": "T", "market_id": "x"}})
         await dispatcher.dispatch(raw)  # should not crash
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_user_order_singular() -> None:
+    """Spec emits `type: user_order` (singular) on the user_orders channel.
+
+    Regression guard: dispatcher must parse singular form and route to
+    the user_orders subscription queue. Confirmed via live capture
+    against demo on 2026-04-19.
+    """
+    conn = AsyncMock()
+    sub_mgr = SubscriptionManager(conn)
+    queue: MessageQueue[UserOrdersMessage] = MessageQueue(
+        maxsize=10, overflow=OverflowStrategy.DROP_OLDEST,
+    )
+    sub = Subscription(client_id=1, channel="user_orders", params={}, queue=queue)
+    sub.server_sid = 42
+    sub_mgr._subscriptions[1] = sub
+    sub_mgr._sid_to_client[42] = 1
+
+    dispatcher = MessageDispatcher(sub_mgr)
+    raw = '{"type":"user_order","sid":42,"msg":{"order_id":"ORD1"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await queue.get()
+    assert isinstance(msg, UserOrdersMessage)
+    assert msg.msg.order_id == "ORD1"
+
+
+def test_message_models_user_order_key_is_singular() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "user_order" in MESSAGE_MODELS
+    assert "user_orders" not in MESSAGE_MODELS
