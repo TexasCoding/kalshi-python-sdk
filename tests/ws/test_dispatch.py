@@ -10,6 +10,7 @@ from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
 from kalshi.ws.models.market_positions import MarketPositionsMessage
+from kalshi.ws.models.multivariate import MultivariateMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
 
 
@@ -129,7 +130,7 @@ class TestMessageDispatcher:
             "user_order",
             "order_group_updates",
             "market_lifecycle_v2",
-            "multivariate",
+            "multivariate_lookup",
             "multivariate_market_lifecycle",
             "communications",
         }
@@ -215,3 +216,30 @@ def test_message_models_market_position_key_is_singular() -> None:
     """MESSAGE_MODELS must key on the spec-correct singular type string."""
     assert "market_position" in MESSAGE_MODELS
     assert "market_positions" not in MESSAGE_MODELS
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_multivariate_lookup() -> None:
+    """Spec emits `type: multivariate_lookup` on the multivariate channel.
+
+    Regression guard. No direct live capture on demo (no active
+    collections emitting); aligns to spec matching the user_orders
+    pattern. See
+    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(17, "multivariate")
+    dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+    raw = '{"type":"multivariate_lookup","sid":17,"msg":{"event_ticker":"E1"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
+    assert isinstance(msg, MultivariateMessage)
+
+
+def test_message_models_multivariate_lookup_key() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "multivariate_lookup" in MESSAGE_MODELS
+    # multivariate_market_lifecycle is sibling (different message type) -- must stay
+    assert "multivariate_market_lifecycle" in MESSAGE_MODELS
+    assert "multivariate" not in MESSAGE_MODELS  # the original short form, now replaced

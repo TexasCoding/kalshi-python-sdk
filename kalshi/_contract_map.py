@@ -305,6 +305,12 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",
         spec_schema="multivariateLookupPayload",
+        notes="Aligned to spec v0.14.0 (2026-04-19): envelope type is "
+        "'multivariate_lookup' on the wire; channel name stays 'multivariate'. "
+        "MultivariateLifecycleMessage (type 'multivariate_market_lifecycle') "
+        "is unaffected -- separate spec-aligned sibling. No direct demo "
+        "capture (no active collections emitting); see "
+        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.order_group.OrderGroupPayload",

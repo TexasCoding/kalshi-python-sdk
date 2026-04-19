@@ -34,7 +34,7 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "user_order": UserOrdersMessage,
     "order_group_updates": OrderGroupMessage,
     "market_lifecycle_v2": MarketLifecycleMessage,
-    "multivariate": MultivariateMessage,
+    "multivariate_lookup": MultivariateMessage,
     "multivariate_market_lifecycle": MultivariateLifecycleMessage,
     "communications": CommunicationsMessage,
 }

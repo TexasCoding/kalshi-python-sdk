@@ -27,7 +27,7 @@ class MultivariatePayload(BaseModel):
 class MultivariateMessage(BaseModel):
     """Multivariate update message. NO required seq."""
 
-    type: str = "multivariate"
+    type: str = "multivariate_lookup"
     sid: int
     seq: int | None = None
     msg: MultivariatePayload
