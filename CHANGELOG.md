@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 0.15.0 — 2026-04-19
+
+### Fixed — WebSocket payload type drift
+
+Closes the payload-type class of bug surfaced (but not resolved) during v0.14.0. v0.14.0 fixed the envelope-type drift (dispatcher routing) but left a parallel payload-type drift intact: SDK modeled `_dollars`-aliased fields as `int` and several `ts` fields as `int | None`, while demo sends dollar-decimal strings (`"0.0100"`) and RFC3339 date-time strings (`"2026-04-19T23:14:30.160405Z"`). Pydantic rejected real frames at `model_validate`, so the dispatcher continued to silently drop every `orderbook_delta` frame and every `user_order` frame. Live-captured evidence on demo, fix verified via provoke probes (1 orderbook_snapshot + 1 orderbook_delta + 2 user_order frames round-trip cleanly after the fix).
+
+- **`OrderbookDeltaPayload`** — `price: int` → `DollarDecimal`; `delta: int` → `str` (spec `delta_fp` format); `ts: int | None` → `str | None` (RFC3339).
+- **`OrderbookSnapshotPayload`** — `yes: list[list[int]]` / `no: list[list[int]]` → `list[list[str]]` (spec `yes_dollars_fp` / `no_dollars_fp` is `[price_in_dollars, count_fp]` string pairs).
+- **`UserOrdersPayload`** — `yes_price: int | None` → `DollarDecimal | None`; `taker_fill_cost`, `maker_fill_cost`, `taker_fees`, `maker_fees` promoted from `str | None` to `DollarDecimal | None` (CLAUDE.md price convention).
+- **`MarketPositionsPayload`** — `position_cost`, `realized_pnl`, `fees_paid`, `position_fee_cost` promoted from `str | None` to `DollarDecimal | None`.
+- **`FillPayload.fee_cost`** — promoted from `str | None` to `DollarDecimal | None`.
+- **`MarketLifecyclePayload.settlement_value`** — promoted from `str | None` to `DollarDecimal | None`.
+- **`RfqCreatedPayload.target_cost`**, **`QuoteCreatedPayload.{yes_bid,no_bid}`**, **`QuoteAcceptedPayload.{yes_bid,no_bid}`** — promoted from `str | None` to `DollarDecimal | None`. Completes the CLAUDE.md price convention across every `_dollars`-aliased WS payload field — downstream consumers doing Decimal math no longer hit `TypeError: unsupported operand type(s) for +: 'str' and 'Decimal'`.
+- **`TickerPayload`** — `yes_bid`, `yes_ask`, `no_bid`, `no_ask` from `int | None` to `DollarDecimal | None`.
+- **`TradePayload`** — `yes_price`, `no_price` from `int | None` to `DollarDecimal | None`.
+- **`FillPayload`** — `yes_price: int | None` → `DollarDecimal | None`.
+- **`RfqCreatedPayload.created_ts`**, **`RfqDeletedPayload.deleted_ts`**, **`QuoteCreatedPayload.created_ts`**, **`QuoteExecutedPayload.executed_ts`** — `int | None` → `str | None` (spec says `string, format: date-time`). **Caveat: spec-aligned, no live capture.** The communications channel was quiet on demo during v0.15.0 work. If demo follows the v0.14.0 `user_orders` precedent (emits `created_ts_ms` as integer milliseconds instead of the spec'd ISO string), these fields will reject the frame. Monitor with the drift test — a future live capture can confirm or defer to `extra="allow"` pickup. Matches the v0.14.0 pattern for `market_position` / `multivariate_lookup` envelope types (spec-inferred, no live evidence).
+
+### Changed — OrderbookManager works in dollars + contracts directly
+
+`OrderbookManager.apply_snapshot` / `apply_delta` previously assumed cents integers on the wire and divided by 100 to produce dollar Decimals, and treated `quantity` as dollar-denominated. With the payload fix, both wire values are already decimal strings (`price_dollars` for price, `delta_fp` for count). Manager now uses the Decimal directly, no conversion. Quantity is now correctly a contract count (e.g. `Decimal("100")`), not a dollar amount.
+
+### Added — drift-test coverage for payload-level types
+
+- **`test_ws_payload_field_type_drift`** in `tests/test_contracts.py` — parametrized over `WS_CONTRACT_MAP`, hard-fails if an SDK field's Python type conflicts with the AsyncAPI spec schema type for three specific patterns: `_dollars`-aliased string field typed as `int`, `date-time` string field typed as `int`, or array-of-strings field typed as `list[list[int]]`. Would have blocked the v0.14.0 envelope-only PR; reduces the blast radius of this class of drift to one parametrized test case per model.
+- Helpers `_unwrap_annotation`, `_sdk_type_kind`, `_spec_property_kind`, `_ws_field_type_violations` — type-kind comparison infrastructure reusable for future spec-alignment work.
+
+### Verified
+
+Live-captured on demo 2026-04-19: `orderbook_snapshot` (quiet market, empty rows) and `orderbook_delta` (`price=Decimal('0.0100')`, `delta='1.00'`, `ts='2026-04-19T23:14:30.160405Z'`) parse cleanly; `user_order` placement + cancel frames both parse (`yes_price=Decimal('0.0100')`). All 1378 unit tests green; mypy strict clean on `kalshi/`.
+
 ## 0.14.0 — 2026-04-19
 
 ### Fixed

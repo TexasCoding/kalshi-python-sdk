@@ -21,7 +21,7 @@ No new features, no publishing, no polish sweeps until this is closed. Side ques
 
 **REST coverage is complete as of v0.13.0.** Every endpoint in `specs/openapi.yaml` has an SDK implementation + unit tests + integration test (with `integration_real_api_only` marker on the two endpoints demo can't authenticate for). Remaining work is entirely WebSocket.
 
-WebSocket: 12 message types dispatched with spec-aligned envelope types, 14 integration tests.
+WebSocket: 12 message types dispatched with spec-aligned envelope types AND spec-aligned payload field types (v0.15.0). 14 integration tests; `test_ws_payload_field_type_drift` hard-asserts on 15 models.
 
 Meta-coverage test green as of v0.9.0.
 
@@ -44,16 +44,7 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 
 ## Active phases
 
-### v0.15.0 — WebSocket payload type drift sweep
-**What:**
-- Systematic audit of WS payload models against live demo wire format. Pre-existing class-of-bug surfaced during v0.14.0 Task 11 integration-test validation: SDK models type `_dollars`-aliased fields as `int` but demo sends dollar-decimal strings; SDK types `ts: int | None` across payloads but demo sends ISO datetime strings.
-- Confirmed breakage: `OrderbookDeltaPayload.price` (int vs wire `"0.0200"`), `OrderbookDeltaPayload.ts` (int vs wire `"2026-04-19T18:43:37.662364Z"`), `UserOrdersPayload.yes_price` (int vs wire `"0.0100"` from Task 2 capture).
-- Suspected across every `_dollars` field and every `ts: int` field in the 12 dispatched WS payload models (ticker, trade, fill, market_positions, multivariate, etc).
-- Live-probe each channel, compare to model, fix all drifts to match the CLAUDE.md price convention (`DollarDecimal` for `_dollars` fields, `str | None` for ISO datetime `ts`).
-- Expand `tests/test_contracts.py` WS drift coverage with a `test_ws_payload_field_type_drift` that cross-checks SDK model field types against the AsyncAPI spec schemas — would have caught this class of bug before v0.14.0 integration tests did.
-**Why:** v0.14.0 closed envelope-type drift (dispatcher routing) but surfaced a deeper payload-type drift (model parsing). In the current SDK, every orderbook_delta frame and every user_order frame silently drops at `model_validate` even after v0.14.0's envelope fix — integration tests waiting for these frames time out and skip, masking the real breakage. `test_ws_connect_and_auth` still passes because it never subscribes.
-**Estimate:** ~8h (systematic per-channel live probe + model type corrections + drift-test expansion).
-**Added:** 2026-04-19 (discovered during v0.14.0 Task 11 verification).
+*(none — v0.15.0 closed, WS parity complete.)*
 
 ---
 
@@ -96,6 +87,9 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Completed
+
+### ~~v0.15.0 — WebSocket payload type drift sweep~~
+**Completed:** 2026-04-19. Closed the payload-type class of bug surfaced during v0.14.0 Task 11 verification. Fix scope: 7 `_dollars`-aliased SDK fields typed as `int` → `DollarDecimal` (OrderbookDelta.price, Ticker.{yes_bid,yes_ask,no_bid,no_ask}, Trade.{yes_price,no_price}, Fill.yes_price, UserOrders.yes_price); 4 `*_ts` fields where spec says string/date-time but SDK typed `int | None` → `str | None` (Rfq{Created,Deleted}, Quote{Created,Executed}); `OrderbookSnapshotPayload.{yes,no}` from `list[list[int]]` → `list[list[str]]` (spec says two-string pairs of `[price_dollars, count_fp]`); `OrderbookDeltaPayload.delta` from `int` → `str` (spec `delta_fp`). Promoted 4 UserOrders cost/fee fields from `str | None` to `DollarDecimal | None` to match the CLAUDE.md price convention. **OrderbookManager rewrite** — no longer divides by 100; price Decimal comes directly from `DollarDecimal`, quantity Decimal from `_fp` string. Quantity semantics corrected: was dollar-denominated in v0.14.0, now correctly a contract count. Added `test_ws_payload_field_type_drift` to `tests/test_contracts.py`: parametrized over `WS_CONTRACT_MAP`, hard-fails on three specific drift patterns (`_dollars`-aliased string field typed as int, `date-time` string field typed as int, array-of-strings field typed as `list[list[int]]`). The test would have blocked the v0.14.0 envelope-only PR. **Live-verified on demo:** `orderbook_snapshot` (quiet market, empty rows) + `orderbook_delta` (`price=Decimal('0.0100')`, `delta='1.00'`, `ts='2026-04-19T23:14:30.160405Z'`) + 2× `user_order` (placement + cancel, `yes_price=Decimal('0.0100')`) all round-trip cleanly post-fix. Pre-fix, every one of those frames was silently dropped at `model_validate`. 1378 unit tests green; mypy strict clean. 3 WS integration tests pass on demo; 11 skip on timeout (quiet channels, not parse failures) — same signal as v0.14.0.
 
 ### ~~v0.14.0 — WebSocket parity (envelope drift only)~~
 **Completed:** 2026-04-19. Resolved all three envelope-type drifts in the WS dispatcher (user_orders→user_order, market_positions→market_position, multivariate→multivariate_lookup) against live-captured evidence. Added `scripts/ws_capture.py` (raw-frame dumper) and `scripts/ws_provoke_user_order.py` (order-lifecycle probe) for evidence gathering. **Empirical finding**: demo emits singular `"type":"user_order"` on the user_orders channel; pre-v0.14.0 SDKs silently dropped every user-order frame as "Unknown message type" — real user-facing bug. market_position and multivariate_lookup drifts had `NONE_OBSERVED` on demo (idle account / no active collections) and were aligned to spec by analogy with the directly-confirmed pattern. Expanded `tests/integration/test_websocket.py` from 3 connectivity smoke tests to 14 per-message-type integration tests. Promoted `test_ws_envelope_type_drift` from a warning-only check to a hard assertion with an empty `_DEMO_DIVERGENCE_ALLOWLIST` escape hatch for future intentional divergences. **Known limitation (tracked as v0.15.0):** the envelope rename routes frames to the correct Message class, but a separate payload-type drift remains — `OrderbookDeltaPayload.price` / `UserOrdersPayload.yes_price` are typed `int` (demo sends dollar strings), `ts` fields are typed `int | None` (demo sends ISO datetime strings). Pydantic rejects these frames at `model_validate`, so the dispatcher still drops them — net user-visible behavior for orderbook_delta and user_orders is unchanged until v0.15.0 fixes the payload types. 13/14 integration tests skip because of this (only `test_ws_connect_and_auth` passes, since it never subscribes). Evidence: `docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md` (gitignored working doc — plan also gitignored).
