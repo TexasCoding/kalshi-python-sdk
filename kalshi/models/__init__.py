@@ -1,5 +1,6 @@
 """Kalshi SDK data models."""
 
+from kalshi.models.account import AccountApiLimits
 from kalshi.models.api_keys import (
     ApiKey,
     CreateApiKeyRequest,
@@ -114,6 +115,7 @@ from kalshi.models.subaccounts import (
 __all__ = [
     "RFQ",
     "AcceptQuoteRequest",
+    "AccountApiLimits",
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",

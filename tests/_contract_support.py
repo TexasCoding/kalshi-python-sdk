@@ -94,6 +94,12 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/markets/orderbooks",
     ),
+    # ── account ─────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.account.AccountResource.limits",
+        http_method="GET",
+        path_template="/account/limits",
+    ),
     # ── api keys ────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.api_keys.ApiKeysResource.list",

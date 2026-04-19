@@ -21,6 +21,7 @@ from kalshi.errors import (
 from kalshi.models import (
     RFQ,
     AcceptQuoteRequest,
+    AccountApiLimits,
     AmendOrderRequest,
     AmendOrderResponse,
     ApiKey,
@@ -92,6 +93,7 @@ from kalshi.types import NullableList
 __all__ = [
     "RFQ",
     "AcceptQuoteRequest",
+    "AccountApiLimits",
     "AmendOrderRequest",
     "AmendOrderResponse",
     "ApiKey",

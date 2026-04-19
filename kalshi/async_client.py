@@ -11,6 +11,7 @@ from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import AuthRequiredError
+from kalshi.resources.account import AsyncAccountResource
 from kalshi.resources.api_keys import AsyncApiKeysResource
 from kalshi.resources.communications import AsyncCommunicationsResource
 from kalshi.resources.events import AsyncEventsResource
@@ -85,6 +86,7 @@ class AsyncKalshiClient:
 
         # Build transport and resources
         self._transport = AsyncTransport(self._auth, self._config)
+        self.account = AsyncAccountResource(self._transport)
         self.api_keys = AsyncApiKeysResource(self._transport)
         self.communications = AsyncCommunicationsResource(self._transport)
         self.events = AsyncEventsResource(self._transport)

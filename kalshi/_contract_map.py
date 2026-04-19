@@ -207,6 +207,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetUserDataTimestampResponse",
         notes="Spec wraps single as_of_time in GetUserDataTimestampResponse",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.account.AccountApiLimits",
+        spec_schema="GetAccountApiLimitsResponse",
+        notes="Spec wraps tier/read/write limits in GetAccountApiLimitsResponse",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match
