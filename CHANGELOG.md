@@ -2,6 +2,17 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 0.14.0 — 2026-04-19
+
+### Fixed
+- WebSocket dispatcher silently dropped `user_orders` / `market_positions` / `multivariate` frames because `MESSAGE_MODELS` keyed on the channel name (plural) instead of the envelope `type` const (singular per AsyncAPI spec). Confirmed live on demo for `user_orders` via a provoke probe — demo emits `"type":"user_order"` singular. Resolved by aligning SDK to spec across all three channels.
+
+### Added
+- `scripts/ws_capture.py` — one-shot demo WS frame dumper used for evidence gathering. Autoloads `.env`; refuses non-demo URLs; prints raw JSONL to stdout.
+- `scripts/ws_provoke_user_order.py` — order-lifecycle probe that subscribes to `user_orders` raw WS, places a non-marketable limit order via REST, and captures the resulting frames.
+- 11 new WebSocket integration tests covering every currently-dispatched message type end-to-end. Each skips cleanly on demo silence within its respective timeout window.
+- Hard-assertion drift guard: `test_ws_envelope_type_drift` now fails on any new spec/SDK envelope-type mismatch not on the (currently-empty) `_DEMO_DIVERGENCE_ALLOWLIST`.
+
 ## [0.13.0] — 2026-04-19
 
 ### Added — REST coverage to 100%

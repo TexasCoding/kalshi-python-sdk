@@ -21,7 +21,7 @@ No new features, no publishing, no polish sweeps until this is closed. Side ques
 
 **REST coverage is complete as of v0.13.0.** Every endpoint in `specs/openapi.yaml` has an SDK implementation + unit tests + integration test (with `integration_real_api_only` marker on the two endpoints demo can't authenticate for). Remaining work is entirely WebSocket.
 
-WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
+WebSocket: 12 message types dispatched with spec-aligned envelope types, 14 integration tests.
 
 Meta-coverage test green as of v0.9.0.
 
@@ -43,13 +43,6 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Active phases
-
-### v0.14.0 — WebSocket parity
-**What:**
-- Resolve WebSocket dispatch singular/plural drift (`user_orders` vs `user_order`, `market_positions` vs `market_position`, `multivariate_lookup` vs `multivariate`) via live capture against demo WS.
-- Expand WebSocket integration coverage beyond the 3-test connectivity smoke: exercise each of the 15 dispatched message types end-to-end where demo allows.
-**Why:** REST is at 100% as of v0.13.0. WebSocket is the remaining gap — 15/32 message types dispatched, only connectivity smoke tests.
-**Estimate:** ~6h.
 
 ---
 
@@ -92,6 +85,9 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Completed
+
+### ~~v0.14.0 — WebSocket parity~~
+**Completed:** 2026-04-19. Resolved all three envelope-type drifts in the WS dispatcher (user_orders→user_order, market_positions→market_position, multivariate→multivariate_lookup) against live-captured evidence. Added `scripts/ws_capture.py` (raw-frame dumper) and `scripts/ws_provoke_user_order.py` (order-lifecycle probe) for evidence gathering. **Empirical finding**: demo emits singular `"type":"user_order"` on the user_orders channel; pre-v0.14.0 SDKs silently dropped every user-order frame as "Unknown message type" — real user-facing bug. market_position and multivariate_lookup drifts had `NONE_OBSERVED` on demo (idle account / no active collections) and were aligned to spec by analogy with the directly-confirmed pattern. Expanded `tests/integration/test_websocket.py` from 3 connectivity smoke tests to 14 per-message-type integration tests: 5 public data channels (ticker, trade, orderbook_delta, market_lifecycle_v2, communications), 2 multivariate channels, 4 private channels (skip cleanly on idle demo). Promoted `test_ws_envelope_type_drift` from a warning-only check to a hard assertion with an empty `_DEMO_DIVERGENCE_ALLOWLIST` escape hatch for future intentional divergences. Evidence: `docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md` (gitignored working doc — plan also gitignored).
 
 ### ~~v0.13.0 — Remaining endpoints (REST coverage closed)~~
 **Completed:** 2026-04-19. 10 new endpoints across 5 new resources + 2 extensions: `AccountResource.limits`, `StructuredTargetsResource.{list,list_all,get}`, `FcmResource.{orders,orders_all,positions}`, `SearchResource.{tags_by_categories,filters_by_sport}`, `IncentiveProgramsResource.{list,list_all}`, `exchange.user_data_timestamp`, `portfolio.total_resting_order_value`. 7 new Pydantic models + nested helpers (AccountApiLimits, StructuredTarget + envelopes, IncentiveProgram + envelope, SportFilterDetails/ScopeList + envelopes, UserDataTimestamp, TotalRestingOrderValue). 57 new unit tests + 25 integration tests (2 gated behind `integration_real_api_only` on `portfolio.total_resting_order_value` — FCM-member only, demo 403s; FCM resource tests use a try/except skip since demo tolerates the endpoints structurally). METHOD_ENDPOINT_MAP +13, contract map +7, EXCLUSIONS +16 (type/target_type/incentive_type shadow-avoidance + paginator cursors), coverage harness resource count 14 → 19. **Unique wire shape:** `GET /incentive_programs` paginates on `next_cursor` (not `cursor`) — rather than hand-rolling, the base `_list` / `_list_all` helpers now accept a `cursor_key: str = "cursor"` kwarg so any future non-standard cursor key is a one-line fix. FULL-covered endpoints 57 → 67 (75%); remaining 22 are SDK+unit with `integration_real_api_only` marker on 2 auth-gated routes. **REST coverage is now complete.** Post-review polish in this phase also: added `_require_auth()` to `exchange.user_data_timestamp` (spec has no security block but it reports lag on user-scoped data), renamed `StructuredTarget.type` → `target_type` with `validation_alias=AliasChoices("type", "target_type")` (shadow-avoidance convention), fixed `IncentiveProgram.target_size_fp` type (`DollarDecimal` → `FixedPointCount`), narrowed FCM integration test's tolerated-errors catch from base `KalshiError` to `(KalshiAuthError, KalshiNotFoundError)` so real bugs surface instead of being swallowed as "not FCM", and added 7 missing top-level `kalshi.*` re-exports for response envelopes. Remaining work (v0.14.0) is entirely WebSocket: resolve 3 singular/plural dispatch drifts via live capture + expand integration coverage beyond the 3-test connectivity smoke.
