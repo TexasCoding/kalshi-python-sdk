@@ -212,7 +212,10 @@ class MarketsResource(SyncResource):
 
         ``market_tickers`` serializes as a comma-separated string per spec
         (not exploded). Accepts a list, tuple, or pre-joined string.
+        Spec requires at least one ticker (max 100).
         """
+        if not market_tickers:
+            raise ValueError("market_tickers must be a non-empty list or string")
         joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
@@ -230,11 +233,13 @@ class MarketsResource(SyncResource):
     ) -> builtins.list[Orderbook]:
         """Fetch orderbooks for up to 100 tickers in a single call.
 
-        Spec requires auth. ``tickers`` wire format is
-        ``?tickers=a&tickers=b`` (spec ``style: form, explode: true``) —
-        httpx serializes list values that way by default.
+        Spec requires auth and at least one ticker (max 100). ``tickers``
+        wire format is ``?tickers=a&tickers=b`` (spec ``style: form,
+        explode: true``) — httpx serializes list values that way by default.
         """
         self._require_auth()
+        if not tickers:
+            raise ValueError("tickers must be a non-empty list")
         params = _params(tickers=tickers)
         data = self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])
@@ -408,6 +413,8 @@ class AsyncMarketsResource(AsyncResource):
         period_interval: int,
         include_latest_before_start: bool | None = None,
     ) -> builtins.list[MarketCandlesticks]:
+        if not market_tickers:
+            raise ValueError("market_tickers must be a non-empty list or string")
         joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
@@ -424,6 +431,8 @@ class AsyncMarketsResource(AsyncResource):
         self, *, tickers: builtins.list[str],
     ) -> builtins.list[Orderbook]:
         self._require_auth()
+        if not tickers:
+            raise ValueError("tickers must be a non-empty list")
         params = _params(tickers=tickers)
         data = await self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])

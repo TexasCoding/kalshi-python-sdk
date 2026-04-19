@@ -501,6 +501,32 @@ class TestMarketsBulkCandlesticks:
         assert q["include_latest_before_start"] == "true"
 
 
+class TestMarketsBulkEmptyValidation:
+    def test_bulk_candlesticks_rejects_empty_list(
+        self, markets: MarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            markets.bulk_candlesticks(
+                market_tickers=[],
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    def test_bulk_candlesticks_rejects_empty_string(
+        self, markets: MarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            markets.bulk_candlesticks(
+                market_tickers="",
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    def test_bulk_orderbooks_rejects_empty_list(
+        self, markets: MarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            markets.bulk_orderbooks(tickers=[])
+
+
 class TestMarketsBulkOrderbooks:
     @respx.mock
     def test_returns_list_of_orderbooks(self, markets: MarketsResource) -> None:

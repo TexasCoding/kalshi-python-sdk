@@ -82,6 +82,11 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 **Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.
 **Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
 
+### P3: Tighten `_join_tickers` input validation
+**What:** `kalshi/resources/_base.py:_join_tickers` currently passes `["A", "", "B"]` through as `"A,,B"` (empty element poisons the server-side filter) and `["FOO", "BAR,EVIL"]` through as `"FOO,BAR,EVIL"` (embedded comma silently expands the list). Add: raise `ValueError` if any element is empty or contains a comma.
+**Why:** Predates v0.12.0 (used by `markets.list`, `events.list`, multiple other resources). Flagged during v0.12.0 adversarial review. Low user-facing risk today (most callers pass validated tickers) but silent data-corruption class: a wrong ticker CSV means the server returns data for a different market than requested and the caller has no signal anything went wrong.
+**Added:** 2026-04-19 (flagged by v0.12.0 adversarial review).
+
 ---
 
 ## Completed

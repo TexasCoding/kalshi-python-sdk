@@ -95,14 +95,27 @@ class TestLiveDataGet:
         assert q["include_player_stats"] == "true"
 
     @respx.mock
-    def test_get_omits_flag_when_false(
+    def test_get_sends_explicit_false(
+        self, live_data: LiveDataResource,
+    ) -> None:
+        # include_player_stats=False must serialize as include_player_stats=false,
+        # NOT drop — otherwise callers can't override a future server-default flip
+        # to true. None is the "let server default apply" signal, not False.
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/milestone/ms-1",
+        ).mock(return_value=httpx.Response(200, json={"live_data": _LD_JSON}))
+        live_data.get("ms-1", include_player_stats=False)
+        q = dict(route.calls[0].request.url.params)
+        assert q["include_player_stats"] == "false"
+
+    @respx.mock
+    def test_get_omits_flag_when_none(
         self, live_data: LiveDataResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/live_data/milestone/ms-1",
         ).mock(return_value=httpx.Response(200, json={"live_data": _LD_JSON}))
-        live_data.get("ms-1", include_player_stats=False)
-        # False and None both drop the kwarg — spec default is false so omitting is OK.
+        live_data.get("ms-1", include_player_stats=None)
         assert "include_player_stats" not in dict(route.calls[0].request.url.params)
 
     @respx.mock
@@ -158,6 +171,14 @@ class TestLiveDataBatch:
         ).mock(return_value=httpx.Response(200, json={"live_datas": []}))
         items = live_data.batch(milestone_ids=["nope"])
         assert items == []
+
+    def test_batch_rejects_empty_list_before_network(
+        self, live_data: LiveDataResource,
+    ) -> None:
+        # Spec requires minItems: 1 — raise at SDK boundary instead of
+        # letting httpx send ?<nothing> and the server decide.
+        with pytest.raises(ValueError, match="non-empty"):
+            live_data.batch(milestone_ids=[])
 
 
 class TestLiveDataGameStats:

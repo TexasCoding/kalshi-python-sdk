@@ -119,6 +119,22 @@ class TestMilestonesList:
         assert q["minimum_start_date"] == "2026-09-01T00:00:00Z"
 
     @respx.mock
+    def test_list_coerces_naive_datetime_to_utc(
+        self, milestones: MilestonesResource,
+    ) -> None:
+        # Naive datetime has no tzinfo. Without coercion, .isoformat() would
+        # emit "2026-09-01T00:00:00" (no offset), which isn't RFC3339 and can
+        # be silently interpreted in the server's local timezone.
+        from datetime import datetime as _dt
+        route = respx.get("https://test.kalshi.com/trade-api/v2/milestones").mock(
+            return_value=httpx.Response(200, json={"milestones": [], "cursor": ""}),
+        )
+        milestones.list(limit=25, minimum_start_date=_dt(2026, 9, 1, 0, 0, 0))
+        q = dict(route.calls[0].request.url.params)
+        # Coerced to UTC: "+00:00" suffix.
+        assert q["minimum_start_date"] == "2026-09-01T00:00:00+00:00"
+
+    @respx.mock
     def test_list_all_paginates(
         self, milestones: MilestonesResource,
     ) -> None:

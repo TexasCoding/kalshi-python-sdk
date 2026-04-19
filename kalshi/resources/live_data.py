@@ -18,6 +18,19 @@ from kalshi.models.live_data import (
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
+def _bool_param(value: bool | None) -> str | None:
+    """Serialize a tri-state bool for query params.
+
+    ``True`` -> ``"true"``, ``False`` -> ``"false"``, ``None`` -> drop.
+    Explicit ``False`` must survive so callers can opt out when the
+    server default ever flips; a single ``"true" if x else None`` would
+    erase that distinction.
+    """
+    if value is None:
+        return None
+    return "true" if value else "false"
+
+
 class LiveDataResource(SyncResource):
     """Sync live-data API — public, no auth required per spec."""
 
@@ -28,7 +41,7 @@ class LiveDataResource(SyncResource):
         include_player_stats: bool | None = None,
     ) -> LiveData:
         params = _params(
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get(
             f"/live_data/milestone/{milestone_id}",
@@ -49,7 +62,7 @@ class LiveDataResource(SyncResource):
         form retained for backward compatibility.
         """
         params = _params(
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get(
             f"/live_data/{type}/milestone/{milestone_id}",
@@ -65,13 +78,16 @@ class LiveDataResource(SyncResource):
     ) -> builtins.list[LiveData]:
         """Fetch up to 100 milestones in one call.
 
-        ``milestone_ids`` wire format is ``?milestone_ids=a&milestone_ids=b``
-        (spec ``style: form, explode: true``) — httpx serializes list values
+        Spec requires at least one milestone id (max 100). ``milestone_ids``
+        wire format is ``?milestone_ids=a&milestone_ids=b`` (spec
+        ``style: form, explode: true``) — httpx serializes list values
         that way by default.
         """
+        if not milestone_ids:
+            raise ValueError("milestone_ids must be a non-empty list")
         params = _params(
             milestone_ids=milestone_ids,
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get("/live_data/batch", params=params)
         return GetLiveDatasResponse.model_validate(data).live_datas
@@ -92,7 +108,7 @@ class AsyncLiveDataResource(AsyncResource):
         include_player_stats: bool | None = None,
     ) -> LiveData:
         params = _params(
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get(
             f"/live_data/milestone/{milestone_id}",
@@ -108,7 +124,7 @@ class AsyncLiveDataResource(AsyncResource):
         include_player_stats: bool | None = None,
     ) -> LiveData:
         params = _params(
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get(
             f"/live_data/{type}/milestone/{milestone_id}",
@@ -122,9 +138,11 @@ class AsyncLiveDataResource(AsyncResource):
         milestone_ids: builtins.list[str],
         include_player_stats: bool | None = None,
     ) -> builtins.list[LiveData]:
+        if not milestone_ids:
+            raise ValueError("milestone_ids must be a non-empty list")
         params = _params(
             milestone_ids=milestone_ids,
-            include_player_stats="true" if include_player_stats else None,
+            include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get("/live_data/batch", params=params)
         return GetLiveDatasResponse.model_validate(data).live_datas
