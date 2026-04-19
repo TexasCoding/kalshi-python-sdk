@@ -180,6 +180,13 @@ class TestLiveDataBatch:
         with pytest.raises(ValueError, match="non-empty"):
             live_data.batch(milestone_ids=[])
 
+    def test_batch_rejects_over_100_before_network(
+        self, live_data: LiveDataResource,
+    ) -> None:
+        # Spec maxItems: 100 — raise at SDK boundary to save a round-trip.
+        with pytest.raises(ValueError, match="at most 100"):
+            live_data.batch(milestone_ids=[f"ms-{i}" for i in range(101)])
+
 
 class TestLiveDataGameStats:
     @respx.mock

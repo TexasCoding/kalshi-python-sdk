@@ -5,14 +5,15 @@ it shows up in list(), then deletes it. Matches v0.11.0 subaccounts
 precedent: real lifecycle on demo, cleanup via try/finally so a test
 failure mid-flight still removes the key.
 
-Leak defense: (1) ``_delete_with_retry`` wraps the cleanup call with 3
-attempts at 0.25s/0.5s/1.0s backoff to survive transient network blips.
-POST/DELETE are not retried at the transport layer (SDK duplicate-risk
-policy), so the retry lives here in the test fixture. (2) The
-``_scan_leaked_keys`` session-scoped autouse fixture lists all
-``sdk-integration-*``-named keys at session end and warns if any remain.
-A warning is louder than a silent leak; it does NOT fail the test run
-(production credential checks should live outside the SDK test suite).
+Leak defense: (1) ``_delete_with_retry`` wraps the cleanup call with 4
+attempts (immediate + 0.25s/0.5s/1.0s backoff) to survive transient
+network blips. POST/DELETE are not retried at the transport layer (SDK
+duplicate-risk policy), so the retry lives here in the test fixture.
+(2) The ``scan_leaked_api_keys`` session-scoped autouse fixture (defined
+in ``tests/integration/conftest.py``) lists all ``sdk-integration-*``-named
+keys at session end and warns if any remain. A warning is louder than a
+silent leak; it does NOT fail the test run (production credential checks
+should live outside the SDK test suite).
 """
 
 from __future__ import annotations
@@ -21,7 +22,6 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import Iterator
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -37,14 +37,12 @@ from kalshi.models.api_keys import (
     GetApiKeysResponse,
 )
 from tests.integration.assertions import assert_model_fields
+from tests.integration.conftest import API_KEY_LEAK_PREFIX as _LEAK_PREFIX
 from tests.integration.coverage_harness import register
 
 logger = logging.getLogger(__name__)
 
 register("ApiKeysResource", ["create", "delete", "generate", "list"])
-
-# Test-key name prefix — session sweep uses this to identify leaks.
-_LEAK_PREFIX = "sdk-integration-"
 
 
 def _mint_public_key_pem() -> str:
@@ -58,7 +56,7 @@ def _mint_public_key_pem() -> str:
 
 
 def _delete_with_retry(client: KalshiClient, api_key_id: str) -> bool:
-    """Delete with 3 attempts at 0.25s/0.5s/1.0s backoff.
+    """Delete with 4 attempts (immediate + 0.25s/0.5s/1.0s backoff).
 
     Returns True if the key was deleted (or already gone), False if all
     attempts failed. Never raises — cleanup should never mask the
@@ -89,7 +87,7 @@ def _delete_with_retry(client: KalshiClient, api_key_id: str) -> bool:
 async def _async_delete_with_retry(
     client: AsyncKalshiClient, api_key_id: str,
 ) -> bool:
-    """Async twin of ``_delete_with_retry`` — same retry cadence."""
+    """Async twin of ``_delete_with_retry`` — 4 attempts, same cadence."""
     for attempt, delay in enumerate([0.0, 0.25, 0.5, 1.0]):
         if delay:
             await asyncio.sleep(delay)
@@ -109,31 +107,6 @@ async def _async_delete_with_retry(
         api_key_id, last_exc,
     )
     return False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _scan_leaked_keys(sync_client: KalshiClient) -> Iterator[None]:
-    """Session-end sweep: warn about any surviving ``sdk-integration-*`` keys.
-
-    Does NOT auto-delete — a leak should be loud, not silent. If this
-    fires, inspect the demo account and either drain manually or tighten
-    the retry logic. Warns (does not fail) so a single cleanup failure
-    doesn't red the whole integration suite.
-    """
-    yield
-    try:
-        listed = sync_client.api_keys.list()
-    except Exception as exc:
-        logger.warning("Leak sweep: could not list keys: %s", exc)
-        return
-    leaked = [k for k in listed.api_keys if k.name.startswith(_LEAK_PREFIX)]
-    if leaked:
-        logger.warning(
-            "API KEY LEAK — %d test-minted key(s) survived on demo: %s. "
-            "Delete manually or fix the cleanup retry.",
-            len(leaked),
-            ", ".join(f"{k.name}({k.api_key_id})" for k in leaked),
-        )
 
 
 @pytest.mark.integration

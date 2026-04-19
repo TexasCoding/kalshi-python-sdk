@@ -222,6 +222,40 @@ def cleanup_orders(sync_client: KalshiClient) -> Iterator[None]:
 
 
 # ---------------------------------------------------------------------------
+# Session-end leak sweep for API keys minted by integration tests
+# ---------------------------------------------------------------------------
+# Test-key name prefix — session sweep uses this to identify leaks.
+# Lives in conftest (not test_api_keys.py) so the autouse sweep runs on EVERY
+# integration session, even when test_api_keys.py isn't collected.
+API_KEY_LEAK_PREFIX = "sdk-integration-"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def scan_leaked_api_keys(sync_client: KalshiClient) -> Iterator[None]:
+    """Session-end sweep: warn about any surviving ``sdk-integration-*`` keys.
+
+    Does NOT auto-delete — a leak should be loud, not silent. If this
+    fires, inspect the demo account and either drain manually or tighten
+    the retry logic. Warns (does not fail) so a single cleanup failure
+    doesn't red the whole integration suite.
+    """
+    yield
+    try:
+        listed = sync_client.api_keys.list()
+    except Exception as exc:
+        logger.warning("API key leak sweep: could not list keys: %s", exc)
+        return
+    leaked = [k for k in listed.api_keys if k.name.startswith(API_KEY_LEAK_PREFIX)]
+    if leaked:
+        logger.warning(
+            "API KEY LEAK — %d test-minted key(s) survived on demo: %s. "
+            "Delete manually or fix the cleanup retry.",
+            len(leaked),
+            ", ".join(f"{k.name}({k.api_key_id})" for k in leaked),
+        )
+
+
+# ---------------------------------------------------------------------------
 # WebSocket connection fixture
 # ---------------------------------------------------------------------------
 @pytest_asyncio.fixture

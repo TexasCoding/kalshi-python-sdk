@@ -88,6 +88,9 @@ class MilestonesResource(SyncResource):
 
     def get(self, milestone_id: str) -> Milestone:
         data = self._get(f"/milestones/{milestone_id}")
+        # Spec wraps the single-milestone response as ``{"milestone": {...}}``;
+        # fall back to the raw dict so future unwrapped responses still validate
+        # (a missing key surfaces as a Pydantic validation error, not KeyError).
         ms = data.get("milestone", data)
         return Milestone.model_validate(ms)
 
@@ -152,5 +155,6 @@ class AsyncMilestonesResource(AsyncResource):
 
     async def get(self, milestone_id: str) -> Milestone:
         data = await self._get(f"/milestones/{milestone_id}")
+        # See sync get() for rationale on the ``data.get("milestone", data)`` fallback.
         ms = data.get("milestone", data)
         return Milestone.model_validate(ms)

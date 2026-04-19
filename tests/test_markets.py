@@ -374,10 +374,10 @@ class TestMarketsCandlesticks:
         assert route.calls[0].request.url.params["include_latest_before_start"] == "true"
 
     @respx.mock
-    def test_candlesticks_omits_include_latest_when_false(
+    def test_candlesticks_sends_explicit_false(
         self, markets: MarketsResource
     ) -> None:
-        """Bool 'true or omit' rule: False/None drop the param entirely."""
+        """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
         ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
@@ -388,6 +388,23 @@ class TestMarketsCandlesticks:
             end_ts=1700100000,
             period_interval=60,
             include_latest_before_start=False,
+        )
+        assert route.calls[0].request.url.params["include_latest_before_start"] == "false"
+
+    @respx.mock
+    def test_candlesticks_omits_include_latest_when_none(
+        self, markets: MarketsResource
+    ) -> None:
+        """Tri-state bool: None drops the param entirely."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
         )
         assert "include_latest_before_start" not in dict(
             route.calls[0].request.url.params
@@ -500,6 +517,40 @@ class TestMarketsBulkCandlesticks:
         q = dict(route.calls[0].request.url.params)
         assert q["include_latest_before_start"] == "true"
 
+    @respx.mock
+    def test_bulk_candlesticks_include_flag_false(
+        self, markets: MarketsResource,
+    ) -> None:
+        """Tri-state bool: explicit False must send 'false' on the wire."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
+        ).mock(return_value=httpx.Response(200, json={"markets": []}))
+        markets.bulk_candlesticks(
+            market_tickers="MKT-A",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+            include_latest_before_start=False,
+        )
+        q = dict(route.calls[0].request.url.params)
+        assert q["include_latest_before_start"] == "false"
+
+    @respx.mock
+    def test_bulk_candlesticks_omits_include_flag_when_none(
+        self, markets: MarketsResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
+        ).mock(return_value=httpx.Response(200, json={"markets": []}))
+        markets.bulk_candlesticks(
+            market_tickers="MKT-A",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+        )
+        q = dict(route.calls[0].request.url.params)
+        assert "include_latest_before_start" not in q
+
 
 class TestMarketsBulkEmptyValidation:
     def test_bulk_candlesticks_rejects_empty_list(
@@ -520,11 +571,26 @@ class TestMarketsBulkEmptyValidation:
                 start_ts=1, end_ts=2, period_interval=60,
             )
 
+    def test_bulk_candlesticks_rejects_over_100_list(
+        self, markets: MarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            markets.bulk_candlesticks(
+                market_tickers=[f"MKT-{i}" for i in range(101)],
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
     def test_bulk_orderbooks_rejects_empty_list(
         self, markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="non-empty"):
             markets.bulk_orderbooks(tickers=[])
+
+    def test_bulk_orderbooks_rejects_over_100(
+        self, markets: MarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            markets.bulk_orderbooks(tickers=[f"MKT-{i}" for i in range(101)])
 
 
 class TestMarketsBulkOrderbooks:
@@ -586,6 +652,22 @@ class TestMarketsBulkOrderbooks:
         books = markets.bulk_orderbooks(tickers=["MKT-X"])
         assert books[0].yes == []
         assert books[0].no == []
+
+    @respx.mock
+    def test_bulk_orderbooks_rejects_item_with_missing_ticker(
+        self, markets: MarketsResource,
+    ) -> None:
+        """Server omitting per-item ticker must raise, not silently return ``ticker=''``."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/orderbooks",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"orderbooks": [{"orderbook_fp": {}}]},
+            ),
+        )
+        with pytest.raises(ValueError, match="missing required 'ticker'"):
+            markets.bulk_orderbooks(tickers=["MKT-X"])
 
 
 class TestMarketModel:

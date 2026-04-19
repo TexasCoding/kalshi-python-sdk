@@ -4,6 +4,15 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## [0.12.0] — 2026-04-19
 
+### Fixed (post-review)
+
+- **`include_latest_before_start` is now tri-state** — `candlesticks` and `bulk_candlesticks` (sync + async) previously mapped `False` to `None` (dropped), which meant callers explicitly opting out silently accepted whatever the server default happened to be. Now: `True → "true"`, `False → "false"`, `None → drop`. Same pattern `live_data` already uses; `_bool_param` promoted to `kalshi/resources/_base.py` as the shared helper. Two new wire-shape tests cover the `False` → `"false"` case (sync and async).
+- **`_orderbook_from_item` raises on missing per-item ticker** — previously returned `Orderbook(ticker="")`, silently corrupting caller-side lookups when the server response omitted the field. Now raises `ValueError` with the offending item. Regression test added.
+- **Upper-bound validation on bulk methods** — `bulk_candlesticks`, `bulk_orderbooks`, and `live_data.batch` now raise `ValueError` when passed > 100 entries (spec `maxItems`). Saves a wasted round-trip on a request the server would reject. Two new tests per resource.
+- **API key leak sweep moved to `tests/integration/conftest.py`** — a `scope="session", autouse=True` fixture inside `test_api_keys.py` only applies to tests collected from that module. Moved to the integration `conftest.py` so the sweep runs on every integration session regardless of which test files are selected. `API_KEY_LEAK_PREFIX` also lives in conftest now; test_api_keys.py imports it.
+- **`_delete_with_retry` docstring** — said "3 attempts," but the loop iterates 4 times (`[0.0, 0.25, 0.5, 1.0]`). Docstring and module header now accurately say "4 attempts (immediate + 0.25s/0.5s/1.0s backoff)."
+- **Minor** — `import time` moved to the top of `tests/integration/test_markets.py`; async `LiveDataResource.batch` / `get_typed` / `game_stats` now have docstrings matching their sync counterparts; added a comment explaining the `milestones.get()` `data.get("milestone", data)` fallback.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:

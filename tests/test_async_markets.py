@@ -393,10 +393,10 @@ class TestAsyncMarketsCandlesticks:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_candlesticks_omits_include_latest_when_false(
+    async def test_candlesticks_sends_explicit_false(
         self, markets: AsyncMarketsResource
     ) -> None:
-        """Bool 'true or omit' rule: False/None drop the param."""
+        """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
         ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
@@ -407,6 +407,24 @@ class TestAsyncMarketsCandlesticks:
             end_ts=1700100000,
             period_interval=60,
             include_latest_before_start=False,
+        )
+        assert route.calls[0].request.url.params["include_latest_before_start"] == "false"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_candlesticks_omits_include_latest_when_none(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """Tri-state bool: None drops the param entirely."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        await markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
         )
         assert "include_latest_before_start" not in dict(
             route.calls[0].request.url.params

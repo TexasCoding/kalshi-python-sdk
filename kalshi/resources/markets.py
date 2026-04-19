@@ -15,7 +15,15 @@ from kalshi.models.markets import (
     Orderbook,
     OrderbookLevel,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _bool_param,
+    _join_tickers,
+    _params,
+)
+
+_MAX_BULK = 100
 
 
 def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
@@ -23,8 +31,15 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
 
     Shape is ``{"ticker": "...", "orderbook_fp": {"yes_dollars": [...], "no_dollars": [...]}}``.
     Mirrors the single-orderbook unwrapping logic, with per-item ticker.
+    Raises ``ValueError`` if the server response omits a per-item ticker —
+    silently returning ``ticker=""`` would corrupt caller-side lookups.
     """
-    ticker = item.get("ticker", "")
+    ticker = item.get("ticker")
+    if not ticker:
+        raise ValueError(
+            "bulk orderbook item missing required 'ticker' field; "
+            f"got {item!r}"
+        )
     ob = item.get("orderbook_fp") or item.get("orderbook", {}) or {}
     yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
     no_raw = ob.get("no_dollars") or ob.get("no", []) or []
@@ -156,7 +171,7 @@ class MarketsResource(SyncResource):
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start="true" if include_latest_before_start else None,
+            include_latest_before_start=_bool_param(include_latest_before_start),
         )
         data = self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
@@ -216,13 +231,18 @@ class MarketsResource(SyncResource):
         """
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
+        if isinstance(market_tickers, (list, tuple)) and len(market_tickers) > _MAX_BULK:
+            raise ValueError(
+                f"market_tickers accepts at most {_MAX_BULK} entries per spec "
+                f"(got {len(market_tickers)})"
+            )
         joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start="true" if include_latest_before_start else None,
+            include_latest_before_start=_bool_param(include_latest_before_start),
         )
         data = self._get("/markets/candlesticks", params=params)
         raw = data.get("markets", [])
@@ -240,6 +260,11 @@ class MarketsResource(SyncResource):
         self._require_auth()
         if not tickers:
             raise ValueError("tickers must be a non-empty list")
+        if len(tickers) > _MAX_BULK:
+            raise ValueError(
+                f"tickers accepts at most {_MAX_BULK} entries per spec "
+                f"(got {len(tickers)})"
+            )
         params = _params(tickers=tickers)
         data = self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])
@@ -360,7 +385,7 @@ class AsyncMarketsResource(AsyncResource):
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start="true" if include_latest_before_start else None,
+            include_latest_before_start=_bool_param(include_latest_before_start),
         )
         data = await self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
@@ -415,13 +440,18 @@ class AsyncMarketsResource(AsyncResource):
     ) -> builtins.list[MarketCandlesticks]:
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
+        if isinstance(market_tickers, (list, tuple)) and len(market_tickers) > _MAX_BULK:
+            raise ValueError(
+                f"market_tickers accepts at most {_MAX_BULK} entries per spec "
+                f"(got {len(market_tickers)})"
+            )
         joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
             start_ts=start_ts,
             end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start="true" if include_latest_before_start else None,
+            include_latest_before_start=_bool_param(include_latest_before_start),
         )
         data = await self._get("/markets/candlesticks", params=params)
         raw = data.get("markets", [])
@@ -433,6 +463,11 @@ class AsyncMarketsResource(AsyncResource):
         self._require_auth()
         if not tickers:
             raise ValueError("tickers must be a non-empty list")
+        if len(tickers) > _MAX_BULK:
+            raise ValueError(
+                f"tickers accepts at most {_MAX_BULK} entries per spec "
+                f"(got {len(tickers)})"
+            )
         params = _params(tickers=tickers)
         data = await self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])

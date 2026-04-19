@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from decimal import Decimal
 
 import pytest
@@ -80,8 +81,6 @@ class TestMarketsSync:
     def test_candlesticks(
         self, sync_client: KalshiClient, demo_market: Market, demo_event_ticker: str
     ) -> None:
-        import time
-
         event = sync_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker for candlestick endpoint")
@@ -187,8 +186,6 @@ class TestMarketsBulkSync:
         demo_market: Market,
         demo_event_ticker: str,
     ) -> None:
-        import time
-
         event = sync_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")
@@ -256,8 +253,6 @@ class TestMarketsAsync:
     async def test_candlesticks(
         self, async_client: AsyncKalshiClient, demo_market: Market, demo_event_ticker: str
     ) -> None:
-        import time
-
         event = await async_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")
@@ -290,8 +285,6 @@ class TestMarketsAsync:
         demo_market: Market,
         demo_event_ticker: str,
     ) -> None:
-        import time
-
         event = await async_client.events.get(demo_event_ticker)
         if not event.series_ticker:
             pytest.skip("Demo event has no series_ticker")
