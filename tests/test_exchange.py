@@ -9,6 +9,7 @@ import respx
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiServerError
 from kalshi.resources.exchange import AsyncExchangeResource, ExchangeResource
 
 
@@ -260,6 +261,58 @@ class TestAsyncExchangeSchedule:
         schedule = await async_exchange.schedule()
         assert len(schedule.standard_hours) == 1
         assert schedule.standard_hours[0].monday[0].open_time == "00:00"
+
+
+class TestUserDataTimestamp:
+    @respx.mock
+    def test_returns_timestamp(self, exchange: ExchangeResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/exchange/user_data_timestamp"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"as_of_time": "2026-04-19T12:34:56Z"},
+            )
+        )
+        result = exchange.user_data_timestamp()
+        assert result.as_of_time.year == 2026
+        assert result.as_of_time.month == 4
+        assert result.as_of_time.day == 19
+
+    @respx.mock
+    def test_server_error(self, exchange: ExchangeResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/exchange/user_data_timestamp"
+        ).mock(return_value=httpx.Response(500, json={"error": "internal"}))
+        with pytest.raises(KalshiServerError):
+            exchange.user_data_timestamp()
+
+
+class TestAsyncUserDataTimestamp:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_timestamp(
+        self, async_exchange: AsyncExchangeResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/exchange/user_data_timestamp"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"as_of_time": "2026-04-19T12:34:56Z"},
+            )
+        )
+        result = await async_exchange.user_data_timestamp()
+        assert result.as_of_time.year == 2026
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_server_error(
+        self, async_exchange: AsyncExchangeResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/exchange/user_data_timestamp"
+        ).mock(return_value=httpx.Response(500, json={"error": "internal"}))
+        with pytest.raises(KalshiServerError):
+            await async_exchange.user_data_timestamp()
 
 
 class TestAsyncExchangeAnnouncements:

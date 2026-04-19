@@ -2,6 +2,40 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.13.0] — 2026-04-19
+
+### Added — REST coverage to 100%
+
+Final push to close the North Star goal (every OpenAPI REST operation has SDK + unit + integration tests). Adds 10 endpoints across 5 new resources plus 2 extensions to existing ones.
+
+**New resources (5):**
+
+- **`AccountResource`** — `GET /account/limits` returns API tier limits (usage_tier, read_limit, write_limit) for the authenticated user. Wired as `client.account`.
+- **`StructuredTargetsResource`** — `GET /structured_targets` (paginated list with ids/type/competition filters, page_size 1–2000) and `GET /structured_targets/{id}`. Structured targets are external entities (players, teams, tournaments) markets can anchor to; `details` is flexible JSON keyed by target type. Wired as `client.structured_targets`. `type` query param renamed to `target_type` (avoid Python built-in shadow).
+- **`FcmResource`** — `GET /fcm/orders` and `GET /fcm/positions`, both filtered by required `subtrader_id`. FCM-only endpoints; response envelopes reuse existing `Order` and `PositionsResponse` shapes. Wired as `client.fcm`.
+- **`SearchResource`** — `GET /search/tags_by_categories` (category → tag-list mapping) and `GET /search/filters_by_sport` (sport → filter/competition mapping + display ordering). Both unauthenticated. Wired as `client.search`.
+- **`IncentiveProgramsResource`** — `GET /incentive_programs` (status/type/limit filters up to 10 000) with `IncentiveProgram` model (centi-cent `period_reward`, nullable `discount_factor_bps` and `target_size_fp`). Unique wire shape: this endpoint paginates on `next_cursor` (not `cursor` like every other Kalshi endpoint); resource hand-rolls Page wrapping to handle the difference. `type` query param renamed to `incentive_type`. Wired as `client.incentive_programs`.
+
+**Extensions (2):**
+
+- **`exchange.user_data_timestamp()`** — `GET /exchange/user_data_timestamp` reports the upper bound of lag between exchange state and user-scoped REST endpoints (GetBalance, GetOrders, GetFills, GetPositions). Combine with WebSocket feeds for a live view. New `UserDataTimestamp` model.
+- **`portfolio.total_resting_order_value()`** — `GET /portfolio/summary/total_resting_order_value`. FCM-member only (spec: "intended for FCM members, rare"); non-FCM accounts receive 403 on both demo and prod. Integration test marked `@pytest.mark.integration_real_api_only` — skipped under the default run, opt-in via `KALSHI_ENABLE_REAL_API_ONLY=1`.
+
+### Infrastructure
+
+- **Coverage harness resource count: 14 → 19.** All new resources register in `RESOURCE_MODULES` and `SCENARIO_REGISTRY`.
+- **Contract map entries: +7** (UserDataTimestamp, AccountApiLimits, StructuredTarget, SportFilterDetails, ScopeList, IncentiveProgram, TotalRestingOrderValue).
+- **METHOD_ENDPOINT_MAP entries: +13** covering all new sync resource methods; async siblings auto-derived.
+- **EXCLUSIONS entries: +16** (type-rename shadow avoidance on structured_targets/incentive_programs, paginator-handled cursors on new list_all methods).
+- **Demo verification.** All 10 endpoints reach demo; 2 are auth-gated (total_resting_order_value + FCM endpoints with non-FCM account). Verified against Path B audit (2026-04-18).
+
+### Counts
+
+- 45 new unit tests across 7 new/extended test modules.
+- 25 new integration tests (22 run on demo; 3 gated behind `integration_real_api_only`).
+- Total suite: 827 → **~900 tests.**
+- FULL-covered REST endpoints: 57 → **67** (75%+); the remaining gaps are all WebSocket (deferred to v0.14.0).
+
 ## [0.12.0] — 2026-04-19
 
 ### Fixed (post-review)

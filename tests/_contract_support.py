@@ -94,6 +94,12 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/markets/orderbooks",
     ),
+    # ── account ─────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.account.AccountResource.limits",
+        http_method="GET",
+        path_template="/account/limits",
+    ),
     # ── api keys ────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.api_keys.ApiKeysResource.list",
@@ -200,6 +206,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.exchange.ExchangeResource.announcements",
         http_method="GET",
         path_template="/exchange/announcements",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.exchange.ExchangeResource.user_data_timestamp",
+        http_method="GET",
+        path_template="/exchange/user_data_timestamp",
     ),
     # ── historical ──────────────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -494,6 +505,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/settlements",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.total_resting_order_value",
+        http_method="GET",
+        path_template="/portfolio/summary/total_resting_order_value",
+    ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.list",
@@ -525,6 +541,60 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template=(
             "/series/{series_ticker}/events/{ticker}/forecast_percentile_history"
         ),
+    ),
+    # ── fcm ─────────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.orders",
+        http_method="GET",
+        path_template="/fcm/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.orders_all",
+        http_method="GET",
+        path_template="/fcm/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.positions",
+        http_method="GET",
+        path_template="/fcm/positions",
+    ),
+    # ── incentive programs ──────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        http_method="GET",
+        path_template="/incentive_programs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        http_method="GET",
+        path_template="/incentive_programs",
+    ),
+    # ── search ──────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.search.SearchResource.tags_by_categories",
+        http_method="GET",
+        path_template="/search/tags_by_categories",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.search.SearchResource.filters_by_sport",
+        http_method="GET",
+        path_template="/search/filters_by_sport",
+    ),
+    # ── structured targets ──────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        http_method="GET",
+        path_template="/structured_targets",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        http_method="GET",
+        path_template="/structured_targets",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.get",
+        http_method="GET",
+        path_template="/structured_targets/{structured_target_id}",
     ),
     # ── multivariate ────────────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -792,6 +862,90 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+    ),
+    # --- structured_targets.list/list_all: `type` query param renamed to `target_type` ---
+    # Same shadow-avoidance rationale as milestones + live_data. Wire still sends `?type=...`.
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        "target_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "target_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "cursor",
+    ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- fcm.orders_all: cursor paginator-handled ---
+    ("kalshi.resources.fcm.FcmResource.orders_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- incentive_programs: `type` query param renamed to `incentive_type` ---
+    # Same shadow-avoidance rationale as milestones / structured_targets.
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        "incentive_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "incentive_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "cursor",
+    ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }
 

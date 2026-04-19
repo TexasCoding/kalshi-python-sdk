@@ -6,11 +6,19 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
-from kalshi.models.exchange import Announcement, ExchangeStatus, Schedule
+from kalshi.models.exchange import (
+    Announcement,
+    ExchangeStatus,
+    Schedule,
+    UserDataTimestamp,
+)
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
-register("ExchangeResource", ["announcements", "schedule", "status"])
+register(
+    "ExchangeResource",
+    ["announcements", "schedule", "status", "user_data_timestamp"],
+)
 
 
 @pytest.mark.integration
@@ -34,6 +42,11 @@ class TestExchangeSync:
             assert isinstance(item, Announcement)
             assert_model_fields(item)
 
+    def test_user_data_timestamp(self, sync_client: KalshiClient) -> None:
+        result = sync_client.exchange.user_data_timestamp()
+        assert isinstance(result, UserDataTimestamp)
+        assert_model_fields(result)
+
 
 @pytest.mark.integration
 class TestExchangeAsync:
@@ -54,3 +67,10 @@ class TestExchangeAsync:
         for item in result:
             assert isinstance(item, Announcement)
             assert_model_fields(item)
+
+    async def test_user_data_timestamp(
+        self, async_client: AsyncKalshiClient,
+    ) -> None:
+        result = await async_client.exchange.user_data_timestamp()
+        assert isinstance(result, UserDataTimestamp)
+        assert_model_fields(result)

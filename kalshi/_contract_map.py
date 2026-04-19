@@ -202,6 +202,39 @@ CONTRACT_MAP: list[ContractEntry] = [
             "MarketCandlesticksResponse, SDK name MarketCandlesticks"
         ),
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.UserDataTimestamp",
+        spec_schema="GetUserDataTimestampResponse",
+        notes="Spec wraps single as_of_time in GetUserDataTimestampResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.account.AccountApiLimits",
+        spec_schema="GetAccountApiLimitsResponse",
+        notes="Spec wraps tier/read/write limits in GetAccountApiLimitsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.structured_targets.StructuredTarget",
+        spec_schema="StructuredTarget",
+        notes="All fields optional per spec; details is dict[str, Any]",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.search.SportFilterDetails",
+        spec_schema="SportFilterDetails",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.search.ScopeList",
+        spec_schema="ScopeList",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.incentive_programs.IncentiveProgram",
+        spec_schema="IncentiveProgram",
+        notes="period_reward is int centi-cents; target_size_fp DollarDecimal",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.TotalRestingOrderValue",
+        spec_schema="GetPortfolioRestingOrderTotalValueResponse",
+        notes="Single int total_resting_order_value in cents",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

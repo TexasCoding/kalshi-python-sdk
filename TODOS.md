@@ -9,14 +9,17 @@
 
 No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-### Current state (audit 2026-04-18, updated post-v0.12.0)
+### Current state (audit 2026-04-19, updated post-v0.13.0)
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 57 | 64% |
-| SDK + unit, no integration | 16 | 18% |
-| Not implemented | 16 | 18% |
+| FULL (SDK + unit + integration) | 67 | 75% |
+| SDK + unit, no integration | 20 | 22% |
+| Not implemented | 0 | 0% |
+| Auth-gated (`integration_real_api_only`) | 2 | 2% |
 | **Total** | **89** | |
+
+**REST coverage is complete as of v0.13.0.** Every endpoint in `specs/openapi.yaml` has an SDK implementation + unit tests + integration test (with `integration_real_api_only` marker on the two endpoints demo can't authenticate for). Remaining work is entirely WebSocket.
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
 
@@ -41,23 +44,12 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 
 ## Active phases
 
-### v0.13.0 — Remaining endpoints + WebSocket parity
+### v0.14.0 — WebSocket parity
 **What:**
-- Implement remaining endpoints (10 confirmed, audit-classified):
-  - `GET /exchange/user_data_timestamp` — demo-supported
-  - `GET /account/limits` — demo-supported
-  - `GET /search/tags_by_categories` — demo-supported
-  - `GET /search/filters_by_sport` — demo-supported
-  - `GET /incentive_programs` — demo-supported
-  - `GET /structured_targets` — demo-supported
-  - `GET /structured_targets/{structured_target_id}` — demo-supported (404 on bad ID)
-  - `GET /fcm/orders` — demo-supported
-  - `GET /fcm/positions` — demo-supported
-  - `GET /portfolio/summary/total_resting_order_value` — **auth-gated** (403) → `integration_real_api_only`
 - Resolve WebSocket dispatch singular/plural drift (`user_orders` vs `user_order`, `market_positions` vs `market_position`, `multivariate_lookup` vs `multivariate`) via live capture against demo WS.
 - Expand WebSocket integration coverage beyond the 3-test connectivity smoke: exercise each of the 15 dispatched message types end-to-end where demo allows.
-**Why:** Final push to 100% REST + parity on WebSocket.
-**Estimate:** ~10h.
+**Why:** REST is at 100% as of v0.13.0. WebSocket is the remaining gap — 15/32 message types dispatched, only connectivity smoke tests.
+**Estimate:** ~6h.
 
 ---
 
@@ -82,6 +74,16 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 **Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.
 **Added:** 2026-04-18 (flagged by claude[bot] code review on PR #33).
 
+### P3: Coerce null envelope-level list fields in base `_list` / `_list_all`
+**What:** `kalshi/resources/_base.py:_list` does `raw_items = data.get(items_key, [])` then iterates. If the server returns `{"items_key": null}` explicitly, `.get()` returns `None` (not `[]`), and the next line crashes with `TypeError: 'NoneType' object is not iterable`. Fix: `raw_items = data.get(items_key) or []`. Applies to both sync and async `_list`. Affects every paginated resource.
+**Why:** Flagged during v0.13.0 adversarial review. Response models already use `NullableList[T]` to handle this at the envelope level (see Series.tags v0.9.0 fix, GetMilestonesResponse, GetApiKeysResponse). The base `_list` helper sidesteps those envelope models and reads the raw dict, so the NullableList protection doesn't apply there. Every resource using `_list` (structured_targets, FCM, portfolio.settlements, orders.list, markets.list, etc.) inherits the fragility. Low observed risk (Kalshi rarely sends explicit null for list fields) but newly exposed as v0.13.0 adds endpoints.
+**Added:** 2026-04-19 (flagged by v0.13.0 adversarial review).
+
+### P4: Cursor-loop detection in paginators
+**What:** `_list_all` (sync + async) in `kalshi/resources/_base.py` caps iteration at `max_pages=1000` but has no detection for a cursor loop — if a buggy server returns the same cursor repeatedly, the SDK issues 1000 duplicate requests before bailing. Add: track seen cursors in a set; raise a `KalshiError` when a cursor repeats.
+**Why:** Flagged during v0.13.0 adversarial review. No evidence Kalshi actually does this, but the safety-cap pattern silently papers over a buggy-server class of issue. Would be nice to surface rather than hide.
+**Added:** 2026-04-19 (flagged by v0.13.0 adversarial review).
+
 ### P3: Tighten `_join_tickers` input validation
 **What:** `kalshi/resources/_base.py:_join_tickers` currently passes `["A", "", "B"]` through as `"A,,B"` (empty element poisons the server-side filter) and `["FOO", "BAR,EVIL"]` through as `"FOO,BAR,EVIL"` (embedded comma silently expands the list). Add: raise `ValueError` if any element is empty or contains a comma.
 **Why:** Predates v0.12.0 (used by `markets.list`, `events.list`, multiple other resources). Flagged during v0.12.0 adversarial review. Low user-facing risk today (most callers pass validated tickers) but silent data-corruption class: a wrong ticker CSV means the server returns data for a different market than requested and the caller has no signal anything went wrong.
@@ -90,6 +92,9 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Completed
+
+### ~~v0.13.0 — Remaining endpoints (REST coverage closed)~~
+**Completed:** 2026-04-19. 10 new endpoints across 5 new resources + 2 extensions: `AccountResource.limits`, `StructuredTargetsResource.{list,list_all,get}`, `FcmResource.{orders,orders_all,positions}`, `SearchResource.{tags_by_categories,filters_by_sport}`, `IncentiveProgramsResource.{list,list_all}`, `exchange.user_data_timestamp`, `portfolio.total_resting_order_value`. 7 new Pydantic models + nested helpers (AccountApiLimits, StructuredTarget + envelopes, IncentiveProgram + envelope, SportFilterDetails/ScopeList + envelopes, UserDataTimestamp, TotalRestingOrderValue). 57 new unit tests + 25 integration tests (2 gated behind `integration_real_api_only` on `portfolio.total_resting_order_value` — FCM-member only, demo 403s; FCM resource tests use a try/except skip since demo tolerates the endpoints structurally). METHOD_ENDPOINT_MAP +13, contract map +7, EXCLUSIONS +16 (type/target_type/incentive_type shadow-avoidance + paginator cursors), coverage harness resource count 14 → 19. **Unique wire shape:** `GET /incentive_programs` paginates on `next_cursor` (not `cursor`) — rather than hand-rolling, the base `_list` / `_list_all` helpers now accept a `cursor_key: str = "cursor"` kwarg so any future non-standard cursor key is a one-line fix. FULL-covered endpoints 57 → 67 (75%); remaining 22 are SDK+unit with `integration_real_api_only` marker on 2 auth-gated routes. **REST coverage is now complete.** Post-review polish in this phase also: added `_require_auth()` to `exchange.user_data_timestamp` (spec has no security block but it reports lag on user-scoped data), renamed `StructuredTarget.type` → `target_type` with `validation_alias=AliasChoices("type", "target_type")` (shadow-avoidance convention), fixed `IncentiveProgram.target_size_fp` type (`DollarDecimal` → `FixedPointCount`), narrowed FCM integration test's tolerated-errors catch from base `KalshiError` to `(KalshiAuthError, KalshiNotFoundError)` so real bugs surface instead of being swallowed as "not FCM", and added 7 missing top-level `kalshi.*` re-exports for response envelopes. Remaining work (v0.14.0) is entirely WebSocket: resolve 3 singular/plural dispatch drifts via live capture + expand integration coverage beyond the 3-test connectivity smoke.
 
 ### ~~v0.12.0 — API Keys + Bulk/Batch + Milestones~~
 **Completed:** 2026-04-19. Three new resources — `ApiKeysResource` (4 endpoints: list, create, generate, delete; full RSA keypair lifecycle verified against demo with throwaway keys and try/finally cleanup), `MilestonesResource` (list + get + list_all paginator; `limit` is required 1-500 per spec; RFC3339 coercion helper accepts `datetime | str`), `LiveDataResource` (4 endpoints: get, get_typed [legacy], batch up to 100 ids, game_stats). Plus 4 new methods on `MarketsResource`: `list_trades`/`list_trades_all` (reuses `historical.Trade`), `bulk_candlesticks` (comma-joined tickers), `bulk_orderbooks` (auth-required, explode:true tickers). 11 new Pydantic models (`ApiKey`, request/response envelopes for all 3 resources, `MarketCandlesticks` bundle, `PlayByPlay`/`PlayByPlayPeriod` for game stats). 82 new unit tests + 41 new integration tests (including real-lifecycle API key create/list/delete on demo). METHOD_ENDPOINT_MAP +13, BODY_MODEL_MAP +2 (`CreateApiKeyRequest`, `GenerateApiKeyRequest`), `_contract_map.py` +8 response/request models, EXCLUSIONS +2 paginator cursors, RESOURCE_MODULES +3, meta-coverage test now expects 14 resource classes (was 11). FULL-covered endpoints 44 → 57 (64%). **Live-demo finding:** `GET /milestones?category=Sports` returns `category: "sports"` lowercase in response body even though filter accepted title-case — server-side normalization inconsistency; test asserts case-insensitively.

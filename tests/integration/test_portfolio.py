@@ -7,11 +7,25 @@ import pytest
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
-from kalshi.models.portfolio import Balance, PositionsResponse, Settlement
+from kalshi.models.portfolio import (
+    Balance,
+    PositionsResponse,
+    Settlement,
+    TotalRestingOrderValue,
+)
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
-register("PortfolioResource", ["balance", "positions", "settlements", "settlements_all"])
+register(
+    "PortfolioResource",
+    [
+        "balance",
+        "positions",
+        "settlements",
+        "settlements_all",
+        "total_resting_order_value",
+    ],
+)
 
 
 @pytest.mark.integration
@@ -44,6 +58,14 @@ class TestPortfolioSync:
             if count >= 2:
                 break
 
+    @pytest.mark.integration_real_api_only
+    def test_total_resting_order_value(self, sync_client: KalshiClient) -> None:
+        """Auth-gated on demo (403 for non-FCM accounts) per Path B audit."""
+        result = sync_client.portfolio.total_resting_order_value()
+        assert isinstance(result, TotalRestingOrderValue)
+        assert_model_fields(result)
+        assert isinstance(result.total_resting_order_value, int)
+
 
 @pytest.mark.integration
 class TestPortfolioAsync:
@@ -72,3 +94,11 @@ class TestPortfolioAsync:
             count += 1
             if count >= 3:
                 break
+
+    @pytest.mark.integration_real_api_only
+    async def test_total_resting_order_value(
+        self, async_client: AsyncKalshiClient,
+    ) -> None:
+        """Auth-gated on demo (403 for non-FCM accounts)."""
+        result = await async_client.portfolio.total_resting_order_value()
+        assert isinstance(result, TotalRestingOrderValue)

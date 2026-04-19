@@ -376,6 +376,29 @@ class TestPortfolioSettlements:
         assert params["subaccount"] == "7"
 
 
+class TestPortfolioTotalRestingOrderValue:
+    @respx.mock
+    def test_returns_value(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"total_resting_order_value": 12345},
+            )
+        )
+        result = portfolio.total_resting_order_value()
+        assert result.total_resting_order_value == 12345
+
+    @respx.mock
+    def test_unauthorized(self, portfolio: PortfolioResource) -> None:
+        """Demo returns 403 for non-FCM accounts — verify error mapping."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
+        ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
+        with pytest.raises(KalshiAuthError):
+            portfolio.total_resting_order_value()
+
+
 # ── Async tests ─────────────────────────────────────────────
 
 
@@ -625,3 +648,32 @@ class TestAsyncPortfolioSettlements:
         assert params["min_ts"] == "1700000000"
         assert params["max_ts"] == "1700099999"
         assert params["subaccount"] == "7"
+
+
+class TestAsyncPortfolioTotalRestingOrderValue:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_value(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"total_resting_order_value": 99999},
+            )
+        )
+        result = await async_portfolio.total_resting_order_value()
+        assert result.total_resting_order_value == 99999
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_unauthorized(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        """Demo returns 401/403 for non-FCM accounts — verify error mapping."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
+        ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
+        with pytest.raises(KalshiAuthError):
+            await async_portfolio.total_resting_order_value()

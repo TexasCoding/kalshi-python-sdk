@@ -1,5 +1,6 @@
 """Kalshi SDK data models."""
 
+from kalshi.models.account import AccountApiLimits
 from kalshi.models.api_keys import (
     ApiKey,
     CreateApiKeyRequest,
@@ -31,9 +32,14 @@ from kalshi.models.exchange import (
     ExchangeStatus,
     MaintenanceWindow,
     Schedule,
+    UserDataTimestamp,
     WeeklySchedule,
 )
 from kalshi.models.historical import HistoricalCutoff, Trade
+from kalshi.models.incentive_programs import (
+    GetIncentiveProgramsResponse,
+    IncentiveProgram,
+)
 from kalshi.models.live_data import (
     GetGameStatsResponse,
     GetLiveDataResponse,
@@ -91,6 +97,13 @@ from kalshi.models.portfolio import (
     MarketPosition,
     PositionsResponse,
     Settlement,
+    TotalRestingOrderValue,
+)
+from kalshi.models.search import (
+    GetFiltersBySportsResponse,
+    GetTagsForSeriesCategoriesResponse,
+    ScopeList,
+    SportFilterDetails,
 )
 from kalshi.models.series import (
     EventCandlesticks,
@@ -98,6 +111,11 @@ from kalshi.models.series import (
     PercentilePoint,
     Series,
     SeriesFeeChange,
+)
+from kalshi.models.structured_targets import (
+    GetStructuredTargetResponse,
+    GetStructuredTargetsResponse,
+    StructuredTarget,
 )
 from kalshi.models.subaccounts import (
     ApplySubaccountTransferRequest,
@@ -113,6 +131,7 @@ from kalshi.models.subaccounts import (
 __all__ = [
     "RFQ",
     "AcceptQuoteRequest",
+    "AccountApiLimits",
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
@@ -150,7 +169,9 @@ __all__ = [
     "GenerateApiKeyResponse",
     "GetApiKeysResponse",
     "GetCommunicationsIDResponse",
+    "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
+    "GetIncentiveProgramsResponse",
     "GetLiveDataResponse",
     "GetLiveDatasResponse",
     "GetMilestoneResponse",
@@ -160,9 +181,13 @@ __all__ = [
     "GetQuotesResponse",
     "GetRFQResponse",
     "GetRFQsResponse",
+    "GetStructuredTargetResponse",
+    "GetStructuredTargetsResponse",
     "GetSubaccountBalancesResponse",
     "GetSubaccountNettingResponse",
+    "GetTagsForSeriesCategoriesResponse",
     "HistoricalCutoff",
+    "IncentiveProgram",
     "LiveData",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
@@ -188,16 +213,21 @@ __all__ = [
     "PriceDistribution",
     "Quote",
     "Schedule",
+    "ScopeList",
     "Series",
     "SeriesFeeChange",
     "Settlement",
     "SettlementSource",
+    "SportFilterDetails",
+    "StructuredTarget",
     "SubaccountBalance",
     "SubaccountNettingConfig",
     "SubaccountTransfer",
     "TickerPair",
+    "TotalRestingOrderValue",
     "Trade",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",
+    "UserDataTimestamp",
     "WeeklySchedule",
 ]

@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import pytest
 
+# Force import of all test files so they register their methods.
+import tests.integration.test_account as _account  # noqa: F401
 import tests.integration.test_api_keys as _api_keys  # noqa: F401
 import tests.integration.test_communications as _communications  # noqa: F401
 import tests.integration.test_events as _events  # noqa: F401
-
-# Force import of all test files so they register their methods.
 import tests.integration.test_exchange as _exchange  # noqa: F401
+import tests.integration.test_fcm as _fcm  # noqa: F401
 import tests.integration.test_historical as _historical  # noqa: F401
+import tests.integration.test_incentive_programs as _incentive_programs  # noqa: F401
 import tests.integration.test_live_data as _live_data  # noqa: F401
 import tests.integration.test_markets as _markets  # noqa: F401
 import tests.integration.test_milestones as _milestones  # noqa: F401
@@ -23,7 +25,9 @@ import tests.integration.test_multivariate as _multivariate  # noqa: F401
 import tests.integration.test_order_groups as _order_groups  # noqa: F401
 import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
+import tests.integration.test_search as _search  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
+import tests.integration.test_structured_targets as _structured_targets  # noqa: F401
 import tests.integration.test_subaccounts as _subaccounts  # noqa: F401
 from tests.integration.coverage_harness import SCENARIO_REGISTRY, discover_public_methods
 
@@ -65,11 +69,14 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 14 resource classes."""
+        """Sanity check: discover finds the expected 19 resource classes."""
         discovered = discover_public_methods()
         expected = {
+            "AccountResource",
             "ApiKeysResource",
             "CommunicationsResource",
+            "FcmResource",
+            "IncentiveProgramsResource",
             "LiveDataResource",
             "MarketsResource",
             "MilestonesResource",
@@ -79,7 +86,9 @@ class TestCoverageHarness:
             "ExchangeResource",
             "HistoricalResource",
             "PortfolioResource",
+            "SearchResource",
             "SeriesResource",
+            "StructuredTargetsResource",
             "SubaccountsResource",
             "MultivariateCollectionsResource",
         }

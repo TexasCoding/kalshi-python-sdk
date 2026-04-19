@@ -11,11 +11,14 @@ from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import AuthRequiredError
+from kalshi.resources.account import AsyncAccountResource
 from kalshi.resources.api_keys import AsyncApiKeysResource
 from kalshi.resources.communications import AsyncCommunicationsResource
 from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
+from kalshi.resources.fcm import AsyncFcmResource
 from kalshi.resources.historical import AsyncHistoricalResource
+from kalshi.resources.incentive_programs import AsyncIncentiveProgramsResource
 from kalshi.resources.live_data import AsyncLiveDataResource
 from kalshi.resources.markets import AsyncMarketsResource
 from kalshi.resources.milestones import AsyncMilestonesResource
@@ -23,7 +26,9 @@ from kalshi.resources.multivariate import AsyncMultivariateCollectionsResource
 from kalshi.resources.order_groups import AsyncOrderGroupsResource
 from kalshi.resources.orders import AsyncOrdersResource
 from kalshi.resources.portfolio import AsyncPortfolioResource
+from kalshi.resources.search import AsyncSearchResource
 from kalshi.resources.series import AsyncSeriesResource
+from kalshi.resources.structured_targets import AsyncStructuredTargetsResource
 from kalshi.resources.subaccounts import AsyncSubaccountsResource
 
 if TYPE_CHECKING:
@@ -85,18 +90,23 @@ class AsyncKalshiClient:
 
         # Build transport and resources
         self._transport = AsyncTransport(self._auth, self._config)
+        self.account = AsyncAccountResource(self._transport)
         self.api_keys = AsyncApiKeysResource(self._transport)
         self.communications = AsyncCommunicationsResource(self._transport)
         self.events = AsyncEventsResource(self._transport)
         self.exchange = AsyncExchangeResource(self._transport)
+        self.fcm = AsyncFcmResource(self._transport)
         self.historical = AsyncHistoricalResource(self._transport)
+        self.incentive_programs = AsyncIncentiveProgramsResource(self._transport)
         self.live_data = AsyncLiveDataResource(self._transport)
         self.markets = AsyncMarketsResource(self._transport)
         self.milestones = AsyncMilestonesResource(self._transport)
         self.order_groups = AsyncOrderGroupsResource(self._transport)
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
+        self.search = AsyncSearchResource(self._transport)
         self.series = AsyncSeriesResource(self._transport)
+        self.structured_targets = AsyncStructuredTargetsResource(self._transport)
         self.subaccounts = AsyncSubaccountsResource(self._transport)
         self.multivariate_collections = AsyncMultivariateCollectionsResource(self._transport)
 
