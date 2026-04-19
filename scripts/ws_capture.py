@@ -16,16 +16,32 @@ import sys
 import time
 from pathlib import Path
 
+_ROOT = Path(__file__).resolve().parent.parent
+
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    load_dotenv(_ROOT / ".env")
 except ImportError:
     pass
 
-from kalshi.auth import KalshiAuth
-from kalshi.config import KalshiConfig
-from kalshi.ws.connection import ConnectionManager
+# Bridge .env-style KALSHI_DEMO_* to KALSHI_* so KalshiAuth.from_env works.
+# Mirrors scripts/audit_demo_feasibility.py.
+if os.environ.get("KALSHI_DEMO_KEY_ID") and not os.environ.get("KALSHI_KEY_ID"):
+    os.environ["KALSHI_KEY_ID"] = os.environ["KALSHI_DEMO_KEY_ID"]
+if os.environ.get("KALSHI_DEMO_PRIVATE_KEY_PATH") and not os.environ.get(
+    "KALSHI_PRIVATE_KEY_PATH"
+):
+    _path = os.environ["KALSHI_DEMO_PRIVATE_KEY_PATH"]
+    # Resolve relative paths against repo root, matching how audit script runs.
+    if not os.path.isabs(_path):
+        _path = str((_ROOT / _path).resolve())
+    os.environ["KALSHI_PRIVATE_KEY_PATH"] = _path
+os.environ.setdefault("KALSHI_DEMO", "true")
+
+from kalshi.auth import KalshiAuth  # noqa: E402
+from kalshi.config import KalshiConfig  # noqa: E402
+from kalshi.ws.connection import ConnectionManager  # noqa: E402
 
 
 async def capture(
