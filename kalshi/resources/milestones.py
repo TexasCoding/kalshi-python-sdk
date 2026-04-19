@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 
 from kalshi.models.common import Page
-from kalshi.models.milestones import Milestone
+from kalshi.models.milestones import GetMilestoneResponse, Milestone
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
@@ -36,8 +36,13 @@ class MilestonesResource(SyncResource):
     """Sync milestones API — list + single get.
 
     Unlike most resources ``limit`` is REQUIRED on list (spec) — range
-    1-500. Dates use RFC3339. The ``type`` spec query param is exposed
-    as the ``milestone_type`` kwarg to avoid shadowing the Python built-in.
+    1-500. The ``type`` spec query param is exposed as the
+    ``milestone_type`` kwarg to avoid shadowing the Python built-in.
+
+    ``minimum_start_date`` accepts a ``datetime`` (naive → UTC) or a
+    pre-formatted RFC3339 string. RFC3339 compliance on the string path
+    is the caller's responsibility — pass ``datetime`` if you want the
+    SDK to guarantee a timezone offset.
     """
 
     def list(
@@ -94,11 +99,7 @@ class MilestonesResource(SyncResource):
 
     def get(self, milestone_id: str) -> Milestone:
         data = self._get(f"/milestones/{milestone_id}")
-        # Spec wraps the single-milestone response as ``{"milestone": {...}}``;
-        # fall back to the raw dict so future unwrapped responses still validate
-        # (a missing key surfaces as a Pydantic validation error, not KeyError).
-        ms = data.get("milestone", data)
-        return Milestone.model_validate(ms)
+        return GetMilestoneResponse.model_validate(data).milestone
 
 
 class AsyncMilestonesResource(AsyncResource):
@@ -161,6 +162,4 @@ class AsyncMilestonesResource(AsyncResource):
 
     async def get(self, milestone_id: str) -> Milestone:
         data = await self._get(f"/milestones/{milestone_id}")
-        # See sync get() for rationale on the ``data.get("milestone", data)`` fallback.
-        ms = data.get("milestone", data)
-        return Milestone.model_validate(ms)
+        return GetMilestoneResponse.model_validate(data).milestone

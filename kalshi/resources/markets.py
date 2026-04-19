@@ -6,6 +6,7 @@ import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
+from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.historical import Trade
 from kalshi.models.markets import (
@@ -31,15 +32,15 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
 
     Shape is ``{"ticker": "...", "orderbook_fp": {"yes_dollars": [...], "no_dollars": [...]}}``.
     Mirrors the single-orderbook unwrapping logic, with per-item ticker.
-    Raises ``ValueError`` if the server response omits or empty-strings the
-    per-item ticker — silently returning ``ticker=""`` would corrupt
-    caller-side lookups.
+    Raises ``KalshiError`` (server protocol violation) if the response omits
+    or empty-strings the per-item ticker — silently returning ``ticker=""``
+    would corrupt caller-side lookups.
     """
     ticker = item.get("ticker")
     if not ticker:
-        raise ValueError(
-            "bulk orderbook item has empty or missing 'ticker' field; "
-            f"got {item!r}"
+        raise KalshiError(
+            "bulk orderbook item has empty or missing 'ticker' field "
+            f"in server response; got {item!r}"
         )
     # Key-presence check (not truthy): an empty dict under "orderbook_fp" must
     # NOT fall through to the legacy "orderbook" key — that would quietly
@@ -242,10 +243,14 @@ class MarketsResource(SyncResource):
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
         joined = _join_tickers(market_tickers)
-        # Count validates BOTH list/tuple and pre-joined-string inputs — a
-        # string with 150 comma-separated tickers must fail the same way a
-        # 150-element list does.
-        ticker_count = joined.count(",") + 1 if joined else 0
+        # Split+filter validates BOTH list/tuple and pre-joined-string inputs
+        # uniformly — a string with 150 comma-separated tickers must fail the
+        # same way a 150-element list does. Filtering empty segments also
+        # catches pre-joined strings with trailing or consecutive commas
+        # ("A,B,," -> 2 real tickers, not 4).
+        ticker_count = (
+            sum(1 for t in joined.split(",") if t.strip()) if joined else 0
+        )
         if ticker_count > _MAX_BULK:
             raise ValueError(
                 f"market_tickers accepts at most {_MAX_BULK} entries per spec "

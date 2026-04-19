@@ -11,7 +11,7 @@ import respx
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import AuthRequiredError, KalshiNotFoundError
+from kalshi.errors import AuthRequiredError, KalshiError, KalshiNotFoundError
 from kalshi.models.historical import Trade
 from kalshi.models.markets import MarketCandlesticks, Orderbook
 from kalshi.resources.markets import MarketsResource
@@ -702,8 +702,35 @@ class TestMarketsBulkOrderbooks:
                 json={"orderbooks": [{"orderbook_fp": {}}]},
             ),
         )
-        with pytest.raises(ValueError, match="empty or missing 'ticker'"):
+        with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
             markets.bulk_orderbooks(tickers=["MKT-X"])
+
+
+class TestOrderbookFromItem:
+    """Direct unit tests for the bulk-orderbook per-item parser."""
+
+    def test_missing_ticker_raises_kalshi_error(self) -> None:
+        from kalshi.resources.markets import _orderbook_from_item
+        with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
+            _orderbook_from_item({"orderbook_fp": {}})
+
+    def test_empty_string_ticker_raises(self) -> None:
+        from kalshi.resources.markets import _orderbook_from_item
+        with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
+            _orderbook_from_item({"ticker": "", "orderbook_fp": {}})
+
+    def test_parses_new_shape(self) -> None:
+        from kalshi.resources.markets import _orderbook_from_item
+        ob = _orderbook_from_item({
+            "ticker": "MKT-A",
+            "orderbook_fp": {
+                "yes_dollars": [["0.42", "100"]],
+                "no_dollars": [["0.58", "50"]],
+            },
+        })
+        assert ob.ticker == "MKT-A"
+        assert ob.yes[0].price == Decimal("0.42")
+        assert ob.no[0].price == Decimal("0.58")
 
 
 class TestMarketModel:

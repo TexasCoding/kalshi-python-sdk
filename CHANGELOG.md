@@ -43,6 +43,13 @@ Followup polish (sixth review round):
 - **`_orderbook_from_item` redundant `or []` removed** — `ob.get("yes", [])` already returned `[]` on missing key, making the third `or []` clause dead. Simplified to `ob.get("yes_dollars") or ob.get("yes") or []` for cleaner reading.
 - **`_iso()` docstring clarifies string passthrough** — callers passing pre-stringified dates must ensure RFC3339 compliance themselves. Only `datetime` inputs get the UTC coercion guarantee.
 
+Followup polish (seventh review round):
+
+- **`MilestonesResource.get()` now uses `GetMilestoneResponse`** — the envelope model existed only for contract-map purposes; the resource bypassed it via `data.get("milestone", data)`. Now uses `GetMilestoneResponse.model_validate(data).milestone` for consistency with every other envelope-in-use pattern. A server response missing `"milestone"` now raises Pydantic `ValidationError` naming the field — clearer than the old fallback's silent whole-dict revalidation.
+- **`_orderbook_from_item` now raises `KalshiError` instead of `ValueError`** — malformed server response is a protocol violation, not a user error. Matches the SDK-wide "catch `KalshiError` to handle SDK errors" contract. Regression test updated; three new direct unit tests for the helper cover missing-key, empty-string-ticker, and happy-path shapes.
+- **`bulk_candlesticks` ticker count now splits + filters empty segments** — a pre-joined string like `"A,B,,"` previously counted as 4 (comma count + 1); now counts 2 real tickers. Tightens the 100-ticker cap against trailing/consecutive comma bypasses without waiting on the deferred `_join_tickers` validation work.
+- **`MilestonesResource.list` RFC3339 docstring** — call-site now surfaces the `_iso()` string-passthrough limitation: pass `datetime` for guaranteed UTC, strings travel verbatim.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:
