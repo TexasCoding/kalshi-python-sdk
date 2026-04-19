@@ -72,7 +72,7 @@ class Quote(BaseModel):
     created_ts: datetime
     updated_ts: datetime
     status: str
-    accepted_side: str | None = None
+    accepted_side: Literal["yes", "no"] | None = None
     accepted_ts: datetime | None = None
     confirmed_ts: datetime | None = None
     executed_ts: datetime | None = None

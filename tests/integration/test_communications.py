@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Iterator
 
 import pytest
@@ -155,8 +156,6 @@ class TestCommunicationsSync:
         quote_id = created.id
         try:
             # Demo server may need a beat to propagate.
-            import time
-
             time.sleep(0.5)
             got = sync_client.communications.get_quote(quote_id)
             assert got.quote.id == quote_id

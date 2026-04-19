@@ -53,10 +53,8 @@ class SyncResource:
 
     def _post(
         self, path: str, *, json: dict[str, Any] | None = None
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         response = self._transport.request("POST", path, json=json)
-        if response.status_code == 204:
-            return None
         result: dict[str, Any] = response.json()
         return result
 
@@ -137,10 +135,8 @@ class AsyncResource:
 
     async def _post(
         self, path: str, *, json: dict[str, Any] | None = None
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         response = await self._transport.request("POST", path, json=json)
-        if response.status_code == 204:
-            return None
         result: dict[str, Any] = response.json()
         return result
 

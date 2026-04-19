@@ -107,7 +107,11 @@ class MultivariateCollectionsResource(SyncResource):
         )
         # Spec: this endpoint always returns 200 with body; guard against a
         # future server regression to 204 giving opaque Pydantic errors.
-        assert data is not None, "lookup: expected 200 with body, got 204"
+        # (use an explicit check, not assert — asserts are stripped under -O)
+        if data is None:
+            raise RuntimeError(
+                "lookup: expected 200 with body, got 204 (spec drift)",
+            )
         return LookupTickersResponse.model_validate(data)
 
     def lookup_history(

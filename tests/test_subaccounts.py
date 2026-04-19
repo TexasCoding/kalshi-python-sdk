@@ -270,6 +270,19 @@ class TestSubaccountsTransfer:
                 amount_cents=999_999_999,
             )
 
+    def test_transfer_rejects_malformed_uuid_at_resource_boundary(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        # transfer() accepts `UUID | str`; a malformed string must surface
+        # as ValueError from UUID() at the call site, not a Pydantic error.
+        with pytest.raises(ValueError):
+            subaccounts.transfer(
+                client_transfer_id="not-a-uuid",
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=100,
+            )
+
 
 class TestSubaccountsListBalances:
     @respx.mock

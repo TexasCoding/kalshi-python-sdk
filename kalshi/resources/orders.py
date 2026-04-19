@@ -80,7 +80,7 @@ class OrdersResource(SyncResource):
             subaccount=subaccount,
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post("/portfolio/orders", json=body) or {}
+        data = self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -149,7 +149,7 @@ class OrdersResource(SyncResource):
         self._require_auth()
         req = BatchCreateOrdersRequest(orders=list(orders))
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post("/portfolio/orders/batched", json=body) or {}
+        data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
@@ -285,7 +285,7 @@ class OrdersResource(SyncResource):
             subaccount=subaccount,
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body) or {}
+        data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -375,7 +375,7 @@ class AsyncOrdersResource(AsyncResource):
             subaccount=subaccount,
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post("/portfolio/orders", json=body) or {}
+        data = await self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -445,7 +445,7 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         req = BatchCreateOrdersRequest(orders=list(orders))
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post("/portfolio/orders/batched", json=body) or {}
+        data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
@@ -579,7 +579,7 @@ class AsyncOrdersResource(AsyncResource):
             subaccount=subaccount,
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body) or {}
+        data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 

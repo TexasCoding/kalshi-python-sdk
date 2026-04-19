@@ -37,14 +37,21 @@ class SubaccountsResource(SyncResource):
     def transfer(
         self,
         *,
-        client_transfer_id: str,
+        client_transfer_id: UUID | str,
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
     ) -> None:
         self._require_auth()
+        # Accept str for caller ergonomics; coerce once to surface a clean
+        # ValueError on malformed strings before the model validator sees them.
+        uid = (
+            client_transfer_id
+            if isinstance(client_transfer_id, UUID)
+            else UUID(client_transfer_id)
+        )
         req = ApplySubaccountTransferRequest(
-            client_transfer_id=UUID(client_transfer_id),
+            client_transfer_id=uid,
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
@@ -110,14 +117,19 @@ class AsyncSubaccountsResource(AsyncResource):
     async def transfer(
         self,
         *,
-        client_transfer_id: str,
+        client_transfer_id: UUID | str,
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
     ) -> None:
         self._require_auth()
+        uid = (
+            client_transfer_id
+            if isinstance(client_transfer_id, UUID)
+            else UUID(client_transfer_id)
+        )
         req = ApplySubaccountTransferRequest(
-            client_transfer_id=UUID(client_transfer_id),
+            client_transfer_id=uid,
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
