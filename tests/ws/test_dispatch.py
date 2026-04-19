@@ -1,6 +1,7 @@
 """Tests for MessageDispatcher."""
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -8,6 +9,9 @@ import pytest
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
+from kalshi.ws.models.market_positions import MarketPositionsMessage
+from kalshi.ws.models.multivariate import MultivariateMessage
+from kalshi.ws.models.user_orders import UserOrdersMessage
 
 
 class FakeSubManager:
@@ -122,11 +126,11 @@ class TestMessageDispatcher:
             "ticker",
             "trade",
             "fill",
-            "market_positions",
-            "user_orders",
+            "market_position",
+            "user_order",
             "order_group_updates",
             "market_lifecycle_v2",
-            "multivariate",
+            "multivariate_lookup",
             "multivariate_market_lifecycle",
             "communications",
         }
@@ -161,3 +165,81 @@ class TestMessageDispatcher:
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "ticker", "msg": {"market_ticker": "T", "market_id": "x"}})
         await dispatcher.dispatch(raw)  # should not crash
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_user_order_singular() -> None:
+    """Spec emits `type: user_order` (singular) on the user_orders channel.
+
+    Regression guard: dispatcher must parse singular form and route to
+    the user_orders subscription queue. Confirmed via live capture
+    against demo on 2026-04-19.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(42, "user_orders")
+    dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+    raw = '{"type":"user_order","sid":42,"msg":{"order_id":"ORD1"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
+    assert isinstance(msg, UserOrdersMessage)
+    assert msg.msg.order_id == "ORD1"
+
+
+def test_message_models_user_order_key_is_singular() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "user_order" in MESSAGE_MODELS
+    assert "user_orders" not in MESSAGE_MODELS
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_market_position_singular() -> None:
+    """Spec emits `type: market_position` (singular) on the market_positions channel.
+
+    Regression guard: dispatcher must parse singular form. No direct live
+    capture on demo 2026-04-19 (demo account had no open positions during
+    the capture window), but aligns to the spec, matching the confirmed
+    pattern on the user_orders sibling channel. See
+    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(42, "market_positions")
+    dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+    raw = '{"type":"market_position","sid":42,"msg":{"ticker":"X","market_ticker":"X"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
+    assert isinstance(msg, MarketPositionsMessage)
+
+
+def test_message_models_market_position_key_is_singular() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "market_position" in MESSAGE_MODELS
+    assert "market_positions" not in MESSAGE_MODELS
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_multivariate_lookup() -> None:
+    """Spec emits `type: multivariate_lookup` on the multivariate channel.
+
+    Regression guard. No direct live capture on demo (no active
+    collections emitting); aligns to spec matching the user_orders
+    pattern. See
+    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(17, "multivariate")
+    dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+    raw = '{"type":"multivariate_lookup","sid":17,"msg":{"event_ticker":"E1"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
+    assert isinstance(msg, MultivariateMessage)
+
+
+def test_message_models_multivariate_lookup_key() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "multivariate_lookup" in MESSAGE_MODELS
+    # multivariate_market_lifecycle is sibling (different message type) -- must stay
+    assert "multivariate_market_lifecycle" in MESSAGE_MODELS
+    assert "multivariate" not in MESSAGE_MODELS  # the original short form, now replaced

@@ -57,7 +57,7 @@ class UserOrdersPayload(BaseModel):
 class UserOrdersMessage(BaseModel):
     """User orders update message. NO required seq."""
 
-    type: str = "user_orders"
+    type: str = "user_order"
     sid: int
     seq: int | None = None
     msg: UserOrdersPayload
