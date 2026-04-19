@@ -24,6 +24,7 @@ import tests.integration.test_multivariate as _multivariate  # noqa: F401
 import tests.integration.test_order_groups as _order_groups  # noqa: F401
 import tests.integration.test_orders as _orders  # noqa: F401
 import tests.integration.test_portfolio as _portfolio  # noqa: F401
+import tests.integration.test_search as _search  # noqa: F401
 import tests.integration.test_series as _series  # noqa: F401
 import tests.integration.test_structured_targets as _structured_targets  # noqa: F401
 import tests.integration.test_subaccounts as _subaccounts  # noqa: F401
@@ -67,7 +68,7 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 17 resource classes."""
+        """Sanity check: discover finds the expected 18 resource classes."""
         discovered = discover_public_methods()
         expected = {
             "AccountResource",
@@ -83,6 +84,7 @@ class TestCoverageHarness:
             "ExchangeResource",
             "HistoricalResource",
             "PortfolioResource",
+            "SearchResource",
             "SeriesResource",
             "StructuredTargetsResource",
             "SubaccountsResource",

@@ -217,6 +217,14 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="StructuredTarget",
         notes="All fields optional per spec; details is dict[str, Any]",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.search.SportFilterDetails",
+        spec_schema="SportFilterDetails",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.search.ScopeList",
+        spec_schema="ScopeList",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

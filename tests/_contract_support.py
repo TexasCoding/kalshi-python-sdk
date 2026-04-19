@@ -553,6 +553,17 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/fcm/positions",
     ),
+    # ── search ──────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.search.SearchResource.tags_by_categories",
+        http_method="GET",
+        path_template="/search/tags_by_categories",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.search.SearchResource.filters_by_sport",
+        http_method="GET",
+        path_template="/search/filters_by_sport",
+    ),
     # ── structured targets ──────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list",

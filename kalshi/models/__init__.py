@@ -94,6 +94,12 @@ from kalshi.models.portfolio import (
     PositionsResponse,
     Settlement,
 )
+from kalshi.models.search import (
+    GetFiltersBySportsResponse,
+    GetTagsForSeriesCategoriesResponse,
+    ScopeList,
+    SportFilterDetails,
+)
 from kalshi.models.series import (
     EventCandlesticks,
     ForecastPercentilesPoint,
@@ -158,6 +164,7 @@ __all__ = [
     "GenerateApiKeyResponse",
     "GetApiKeysResponse",
     "GetCommunicationsIDResponse",
+    "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetLiveDataResponse",
     "GetLiveDatasResponse",
@@ -172,6 +179,7 @@ __all__ = [
     "GetStructuredTargetsResponse",
     "GetSubaccountBalancesResponse",
     "GetSubaccountNettingResponse",
+    "GetTagsForSeriesCategoriesResponse",
     "HistoricalCutoff",
     "LiveData",
     "LookupPoint",
@@ -198,10 +206,12 @@ __all__ = [
     "PriceDistribution",
     "Quote",
     "Schedule",
+    "ScopeList",
     "Series",
     "SeriesFeeChange",
     "Settlement",
     "SettlementSource",
+    "SportFilterDetails",
     "StructuredTarget",
     "SubaccountBalance",
     "SubaccountNettingConfig",

@@ -32,6 +32,7 @@ RESOURCE_MODULES = [
     "kalshi.resources.fcm",
     "kalshi.resources.historical",
     "kalshi.resources.portfolio",
+    "kalshi.resources.search",
     "kalshi.resources.series",
     "kalshi.resources.structured_targets",
     "kalshi.resources.subaccounts",
