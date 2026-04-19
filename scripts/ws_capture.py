@@ -59,14 +59,18 @@ async def capture(
                 raw = await asyncio.wait_for(conn.recv(), timeout=remaining)
             except TimeoutError:
                 break
-            # recv() already returns str; validate it is JSON before printing
-            json.loads(raw)
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                print(raw, flush=True)
+                continue
             print(raw, flush=True)
-            received += 1
+            if parsed.get("type") not in ("subscribed", "ok", "error"):
+                received += 1
     finally:
         await conn.close()
 
-    return 0
+    return 0 if received > 0 else 1
 
 
 def main() -> int:
