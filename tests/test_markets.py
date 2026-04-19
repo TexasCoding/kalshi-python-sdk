@@ -580,6 +580,17 @@ class TestMarketsBulkEmptyValidation:
                 start_ts=1, end_ts=2, period_interval=60,
             )
 
+    def test_bulk_candlesticks_rejects_over_100_string(
+        self, markets: MarketsResource,
+    ) -> None:
+        """Pre-joined string input must hit the same upper-bound guard as list input."""
+        joined = ",".join(f"MKT-{i}" for i in range(101))
+        with pytest.raises(ValueError, match="at most 100"):
+            markets.bulk_candlesticks(
+                market_tickers=joined,
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
     def test_bulk_orderbooks_rejects_empty_list(
         self, markets: MarketsResource,
     ) -> None:

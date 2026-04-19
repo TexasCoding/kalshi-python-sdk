@@ -758,6 +758,19 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ("kalshi.resources.milestones.MilestonesResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
+    # --- live_data.get_typed: `type` path param renamed to `milestone_type` ---
+    # SDK exposes `milestone_type` (not `type`) to avoid shadowing the Python
+    # built-in; the value still populates the spec's `{type}` path segment.
+    ("kalshi.resources.live_data.LiveDataResource.get_typed", "type"): Exclusion(
+        reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+    ),
+    ("kalshi.resources.live_data.LiveDataResource.get_typed", "milestone_type"): Exclusion(
+        reason=(
+            "SDK renamed from spec's `{type}` path segment to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same value, "
+            "different kwarg name)"
+        ),
+    ),
 }
 
 

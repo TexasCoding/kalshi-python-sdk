@@ -40,12 +40,16 @@ class LiveDataResource(SyncResource):
 
     def get_typed(
         self,
-        type: str,
+        milestone_type: str,
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
     ) -> LiveData:
         """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
+
+        ``milestone_type`` populates the ``{type}`` path segment. Named
+        ``milestone_type`` (not ``type``) to avoid shadowing the Python
+        built-in.
 
         Prefer :meth:`get`. The spec marks this endpoint as the legacy
         form retained for backward compatibility.
@@ -54,7 +58,7 @@ class LiveDataResource(SyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get(
-            f"/live_data/{type}/milestone/{milestone_id}",
+            f"/live_data/{milestone_type}/milestone/{milestone_id}",
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data
@@ -112,12 +116,16 @@ class AsyncLiveDataResource(AsyncResource):
 
     async def get_typed(
         self,
-        type: str,
+        milestone_type: str,
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
     ) -> LiveData:
         """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
+
+        ``milestone_type`` populates the ``{type}`` path segment. Named
+        ``milestone_type`` (not ``type``) to avoid shadowing the Python
+        built-in.
 
         Prefer :meth:`get`. The spec marks this endpoint as the legacy
         form retained for backward compatibility.
@@ -126,7 +134,7 @@ class AsyncLiveDataResource(AsyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get(
-            f"/live_data/{type}/milestone/{milestone_id}",
+            f"/live_data/{milestone_type}/milestone/{milestone_id}",
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data

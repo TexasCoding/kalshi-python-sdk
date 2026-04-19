@@ -40,7 +40,14 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
             "bulk orderbook item missing required 'ticker' field; "
             f"got {item!r}"
         )
-    ob = item.get("orderbook_fp") or item.get("orderbook", {}) or {}
+    # Key-presence check (not truthy): an empty dict under "orderbook_fp" must
+    # NOT fall through to the legacy "orderbook" key — that would quietly
+    # substitute two different server shapes.
+    ob = (
+        (item.get("orderbook_fp") or {})
+        if "orderbook_fp" in item
+        else (item.get("orderbook") or {})
+    )
     yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
     no_raw = ob.get("no_dollars") or ob.get("no", []) or []
     yes_levels = [
@@ -231,12 +238,16 @@ class MarketsResource(SyncResource):
         """
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
-        if isinstance(market_tickers, (list, tuple)) and len(market_tickers) > _MAX_BULK:
+        joined = _join_tickers(market_tickers)
+        # Count validates BOTH list/tuple and pre-joined-string inputs — a
+        # string with 150 comma-separated tickers must fail the same way a
+        # 150-element list does.
+        ticker_count = joined.count(",") + 1 if joined else 0
+        if ticker_count > _MAX_BULK:
             raise ValueError(
                 f"market_tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {len(market_tickers)})"
+                f"(got {ticker_count})"
             )
-        joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
             start_ts=start_ts,
@@ -438,14 +449,21 @@ class AsyncMarketsResource(AsyncResource):
         period_interval: int,
         include_latest_before_start: bool | None = None,
     ) -> builtins.list[MarketCandlesticks]:
+        """Fetch candlesticks for up to 100 markets in a single call.
+
+        ``market_tickers`` serializes as a comma-separated string per spec
+        (not exploded). Accepts a list, tuple, or pre-joined string.
+        Spec requires at least one ticker (max 100).
+        """
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
-        if isinstance(market_tickers, (list, tuple)) and len(market_tickers) > _MAX_BULK:
+        joined = _join_tickers(market_tickers)
+        ticker_count = joined.count(",") + 1 if joined else 0
+        if ticker_count > _MAX_BULK:
             raise ValueError(
                 f"market_tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {len(market_tickers)})"
+                f"(got {ticker_count})"
             )
-        joined = _join_tickers(market_tickers)
         params = _params(
             market_tickers=joined,
             start_ts=start_ts,

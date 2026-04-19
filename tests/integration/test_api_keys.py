@@ -62,6 +62,10 @@ def _delete_with_retry(client: KalshiClient, api_key_id: str) -> bool:
     attempts failed. Never raises — cleanup should never mask the
     original test failure.
     """
+    # Sentinel so type checkers see last_exc as always bound; the
+    # ``return True`` branches guarantee the logger.error only runs if
+    # at least one except branch executed, replacing the sentinel.
+    last_exc: BaseException = RuntimeError("no delete attempts executed")
     for attempt, delay in enumerate([0.0, 0.25, 0.5, 1.0]):
         if delay:
             time.sleep(delay)
@@ -72,7 +76,7 @@ def _delete_with_retry(client: KalshiClient, api_key_id: str) -> bool:
             # Already deleted — idempotent success.
             return True
         except Exception as exc:  # broad catch is intentional in cleanup
-            last_exc: Exception = exc
+            last_exc = exc
             logger.warning(
                 "Cleanup attempt %d/4 for API key %s failed: %s",
                 attempt + 1, api_key_id, exc,
@@ -88,6 +92,7 @@ async def _async_delete_with_retry(
     client: AsyncKalshiClient, api_key_id: str,
 ) -> bool:
     """Async twin of ``_delete_with_retry`` — 4 attempts, same cadence."""
+    last_exc: BaseException = RuntimeError("no delete attempts executed")
     for attempt, delay in enumerate([0.0, 0.25, 0.5, 1.0]):
         if delay:
             await asyncio.sleep(delay)
@@ -97,7 +102,7 @@ async def _async_delete_with_retry(
         except KalshiNotFoundError:
             return True
         except Exception as exc:
-            last_exc: Exception = exc
+            last_exc = exc
             logger.warning(
                 "Async cleanup attempt %d/4 for API key %s failed: %s",
                 attempt + 1, api_key_id, exc,
