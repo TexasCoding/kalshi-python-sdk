@@ -40,7 +40,7 @@ class MarketPositionsPayload(BaseModel):
 class MarketPositionsMessage(BaseModel):
     """Market positions update message. NO required seq."""
 
-    type: str = "market_positions"
+    type: str = "market_position"
     sid: int
     seq: int | None = None
     msg: MarketPositionsPayload

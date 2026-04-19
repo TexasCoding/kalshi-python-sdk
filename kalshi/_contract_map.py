@@ -295,8 +295,12 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.market_positions.MarketPositionsPayload",
         spec_schema="marketPositionPayload",
-        notes="Spec uses singular 'marketPositionPayload', "
-        "SDK channel is 'market_positions' (plural)",
+        notes="Aligned to spec v0.14.0 (2026-04-19): envelope type is "
+        "singular 'market_position' on the wire; channel name stays plural "
+        "'market_positions'. Pattern matches the directly-confirmed "
+        "user_order drift. No direct demo capture (demo account idle for "
+        "positions during capture window) -- see "
+        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",

@@ -9,6 +9,7 @@ import pytest
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
+from kalshi.ws.models.market_positions import MarketPositionsMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
 
 
@@ -124,7 +125,7 @@ class TestMessageDispatcher:
             "ticker",
             "trade",
             "fill",
-            "market_positions",
+            "market_position",
             "user_order",
             "order_group_updates",
             "market_lifecycle_v2",
@@ -188,3 +189,29 @@ def test_message_models_user_order_key_is_singular() -> None:
     """MESSAGE_MODELS must key on the spec-correct singular type string."""
     assert "user_order" in MESSAGE_MODELS
     assert "user_orders" not in MESSAGE_MODELS
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_market_position_singular() -> None:
+    """Spec emits `type: market_position` (singular) on the market_positions channel.
+
+    Regression guard: dispatcher must parse singular form. No direct live
+    capture on demo 2026-04-19 (demo account had no open positions during
+    the capture window), but aligns to the spec, matching the confirmed
+    pattern on the user_orders sibling channel. See
+    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(42, "market_positions")
+    dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+    raw = '{"type":"market_position","sid":42,"msg":{"ticker":"X","market_ticker":"X"}}'
+    await dispatcher.dispatch(raw)
+
+    msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
+    assert isinstance(msg, MarketPositionsMessage)
+
+
+def test_message_models_market_position_key_is_singular() -> None:
+    """MESSAGE_MODELS must key on the spec-correct singular type string."""
+    assert "market_position" in MESSAGE_MODELS
+    assert "market_positions" not in MESSAGE_MODELS

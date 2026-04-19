@@ -30,7 +30,7 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "ticker": TickerMessage,
     "trade": TradeMessage,
     "fill": FillMessage,
-    "market_positions": MarketPositionsMessage,
+    "market_position": MarketPositionsMessage,
     "user_order": UserOrdersMessage,
     "order_group_updates": OrderGroupMessage,
     "market_lifecycle_v2": MarketLifecycleMessage,
