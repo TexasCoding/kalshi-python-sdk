@@ -105,6 +105,9 @@ class MultivariateCollectionsResource(SyncResource):
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,
         )
+        # Spec: this endpoint always returns 200 with body; guard against a
+        # future server regression to 204 giving opaque Pydantic errors.
+        assert data is not None, "lookup: expected 200 with body, got 204"
         return LookupTickersResponse.model_validate(data)
 
     def lookup_history(

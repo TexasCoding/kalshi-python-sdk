@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, Field
 
 from kalshi.types import DollarDecimal
@@ -24,10 +26,10 @@ class ApplySubaccountTransferRequest(BaseModel):
     the primary account and ``1-32`` for numbered subaccounts.
     """
 
-    client_transfer_id: str
+    client_transfer_id: UUID
     from_subaccount: int = Field(ge=0, le=32)
     to_subaccount: int = Field(ge=0, le=32)
-    amount_cents: int = Field(ge=0)
+    amount_cents: int = Field(gt=0)
 
     model_config = {"extra": "forbid"}
 

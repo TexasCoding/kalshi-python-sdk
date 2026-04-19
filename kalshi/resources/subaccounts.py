@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from uuid import UUID
 
 from kalshi.models.common import Page
 from kalshi.models.subaccounts import (
@@ -43,7 +44,7 @@ class SubaccountsResource(SyncResource):
     ) -> None:
         self._require_auth()
         req = ApplySubaccountTransferRequest(
-            client_transfer_id=client_transfer_id,
+            client_transfer_id=UUID(client_transfer_id),
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
@@ -116,7 +117,7 @@ class AsyncSubaccountsResource(AsyncResource):
     ) -> None:
         self._require_auth()
         req = ApplySubaccountTransferRequest(
-            client_transfer_id=client_transfer_id,
+            client_transfer_id=UUID(client_transfer_id),
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,

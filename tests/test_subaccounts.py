@@ -133,17 +133,20 @@ class TestSubaccountModels:
         assert resp.subaccount_number == 3
 
 
+_TEST_XFER_ID = "550e8400-e29b-41d4-a716-446655440000"
+
+
 class TestSubaccountRequestModels:
     def test_transfer_request_serializes(self) -> None:
         req = ApplySubaccountTransferRequest(
-            client_transfer_id="client-abc",
+            client_transfer_id=_TEST_XFER_ID,
             from_subaccount=0,
             to_subaccount=1,
             amount_cents=500,
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         assert body == {
-            "client_transfer_id": "client-abc",
+            "client_transfer_id": _TEST_XFER_ID,
             "from_subaccount": 0,
             "to_subaccount": 1,
             "amount_cents": 500,
@@ -152,7 +155,7 @@ class TestSubaccountRequestModels:
     def test_transfer_request_forbids_extra(self) -> None:
         with pytest.raises(ValidationError):
             ApplySubaccountTransferRequest(  # type: ignore[call-arg]
-                client_transfer_id="x",
+                client_transfer_id=_TEST_XFER_ID,
                 from_subaccount=0,
                 to_subaccount=1,
                 amount_cents=100,
@@ -162,9 +165,37 @@ class TestSubaccountRequestModels:
     def test_transfer_request_rejects_negative_subaccount(self) -> None:
         with pytest.raises(ValidationError):
             ApplySubaccountTransferRequest(
-                client_transfer_id="x",
+                client_transfer_id=_TEST_XFER_ID,
                 from_subaccount=-1,
                 to_subaccount=1,
+                amount_cents=100,
+            )
+
+    def test_transfer_request_rejects_non_uuid_client_id(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountTransferRequest(
+                client_transfer_id="not-a-uuid",
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=100,
+            )
+
+    def test_transfer_request_rejects_zero_amount(self) -> None:
+        # Spec treats positive integer cents; zero transfers are a bug signal.
+        with pytest.raises(ValidationError):
+            ApplySubaccountTransferRequest(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=0,
+            )
+
+    def test_transfer_request_rejects_out_of_range_subaccount(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountTransferRequest(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=33,
                 amount_cents=100,
             )
 
@@ -213,14 +244,14 @@ class TestSubaccountsTransfer:
             "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/transfer",
         ).mock(return_value=httpx.Response(200, json={}))
         subaccounts.transfer(
-            client_transfer_id="client-1",
+            client_transfer_id=_TEST_XFER_ID,
             from_subaccount=0,
             to_subaccount=1,
             amount_cents=250,
         )
         body = json.loads(route.calls[0].request.content)
         assert body == {
-            "client_transfer_id": "client-1",
+            "client_transfer_id": _TEST_XFER_ID,
             "from_subaccount": 0,
             "to_subaccount": 1,
             "amount_cents": 250,
@@ -233,7 +264,7 @@ class TestSubaccountsTransfer:
         ).mock(return_value=httpx.Response(400, json={"message": "insufficient"}))
         with pytest.raises(KalshiValidationError):
             subaccounts.transfer(
-                client_transfer_id="client-1",
+                client_transfer_id=_TEST_XFER_ID,
                 from_subaccount=0,
                 to_subaccount=1,
                 amount_cents=999_999_999,
@@ -428,7 +459,7 @@ class TestAsyncSubaccounts:
             "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/transfer",
         ).mock(return_value=httpx.Response(200, json={}))
         await async_subaccounts.transfer(
-            client_transfer_id="c-async",
+            client_transfer_id=_TEST_XFER_ID,
             from_subaccount=0,
             to_subaccount=1,
             amount_cents=42,
@@ -541,7 +572,7 @@ class TestSubaccountsAuthGuard:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_subaccounts.transfer(
-                client_transfer_id="x",
+                client_transfer_id=_TEST_XFER_ID,
                 from_subaccount=0,
                 to_subaccount=1,
                 amount_cents=1,
