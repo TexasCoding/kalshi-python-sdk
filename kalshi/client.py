@@ -9,11 +9,14 @@ from types import TracebackType
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
+from kalshi.resources.api_keys import ApiKeysResource
 from kalshi.resources.communications import CommunicationsResource
 from kalshi.resources.events import EventsResource
 from kalshi.resources.exchange import ExchangeResource
 from kalshi.resources.historical import HistoricalResource
+from kalshi.resources.live_data import LiveDataResource
 from kalshi.resources.markets import MarketsResource
+from kalshi.resources.milestones import MilestonesResource
 from kalshi.resources.multivariate import MultivariateCollectionsResource
 from kalshi.resources.order_groups import OrderGroupsResource
 from kalshi.resources.orders import OrdersResource
@@ -84,11 +87,14 @@ class KalshiClient:
 
         # Build transport and resources
         self._transport = SyncTransport(self._auth, self._config)
+        self.api_keys = ApiKeysResource(self._transport)
         self.communications = CommunicationsResource(self._transport)
         self.events = EventsResource(self._transport)
         self.exchange = ExchangeResource(self._transport)
         self.historical = HistoricalResource(self._transport)
+        self.live_data = LiveDataResource(self._transport)
         self.markets = MarketsResource(self._transport)
+        self.milestones = MilestonesResource(self._transport)
         self.order_groups = OrderGroupsResource(self._transport)
         self.orders = OrdersResource(self._transport)
         self.portfolio = PortfolioResource(self._transport)

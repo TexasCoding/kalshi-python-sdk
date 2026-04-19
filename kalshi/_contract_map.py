@@ -164,6 +164,44 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.subaccounts.UpdateSubaccountNettingRequest",
         spec_schema="UpdateSubaccountNettingRequest",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.api_keys.ApiKey",
+        spec_schema="ApiKey",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.api_keys.CreateApiKeyRequest",
+        spec_schema="CreateApiKeyRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.api_keys.CreateApiKeyResponse",
+        spec_schema="CreateApiKeyResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.api_keys.GenerateApiKeyRequest",
+        spec_schema="GenerateApiKeyRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.api_keys.GenerateApiKeyResponse",
+        spec_schema="GenerateApiKeyResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.milestones.Milestone",
+        spec_schema="Milestone",
+        notes="details is dict[str, Any] per spec additionalProperties:true",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.LiveData",
+        spec_schema="LiveData",
+        notes="details is dict[str, Any] per spec additionalProperties:true",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.MarketCandlesticks",
+        spec_schema="MarketCandlesticksResponse",
+        notes=(
+            "Per-market candlestick bundle in bulk response; spec name "
+            "MarketCandlesticksResponse, SDK name MarketCandlesticks"
+        ),
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

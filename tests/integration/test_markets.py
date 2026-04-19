@@ -9,11 +9,31 @@ import pytest
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
-from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
+from kalshi.models.historical import Trade
+from kalshi.models.markets import (
+    Candlestick,
+    Market,
+    MarketCandlesticks,
+    Orderbook,
+    OrderbookLevel,
+)
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
-register("MarketsResource", ["candlesticks", "get", "list", "list_all", "orderbook"])
+register(
+    "MarketsResource",
+    [
+        "bulk_candlesticks",
+        "bulk_orderbooks",
+        "candlesticks",
+        "get",
+        "list",
+        "list_all",
+        "list_trades",
+        "list_trades_all",
+        "orderbook",
+    ],
+)
 
 
 @pytest.mark.integration
@@ -143,6 +163,63 @@ class TestMarketsSync:
 
 
 @pytest.mark.integration
+class TestMarketsBulkSync:
+    def test_list_trades(
+        self, sync_client: KalshiClient, demo_market_ticker: str,
+    ) -> None:
+        page = sync_client.markets.list_trades(ticker=demo_market_ticker, limit=5)
+        assert isinstance(page, Page)
+        for t in page.items:
+            assert isinstance(t, Trade)
+            assert_model_fields(t)
+
+    def test_list_trades_all(self, sync_client: KalshiClient) -> None:
+        for count, t in enumerate(
+            sync_client.markets.list_trades_all(limit=5),
+        ):
+            assert isinstance(t, Trade)
+            if count >= 2:
+                break
+
+    def test_bulk_candlesticks(
+        self,
+        sync_client: KalshiClient,
+        demo_market: Market,
+        demo_event_ticker: str,
+    ) -> None:
+        import time
+
+        event = sync_client.events.get(demo_event_ticker)
+        if not event.series_ticker:
+            pytest.skip("Demo event has no series_ticker")
+        now = int(time.time())
+        result = sync_client.markets.bulk_candlesticks(
+            market_tickers=[demo_market.ticker],
+            start_ts=now - 86400 * 7,
+            end_ts=now,
+            period_interval=60,
+        )
+        assert isinstance(result, list)
+        for bundle in result:
+            assert isinstance(bundle, MarketCandlesticks)
+            assert_model_fields(bundle)
+            for c in bundle.candlesticks:
+                assert isinstance(c, Candlestick)
+
+    def test_bulk_orderbooks(
+        self, sync_client: KalshiClient, demo_market_ticker: str,
+    ) -> None:
+        books = sync_client.markets.bulk_orderbooks(tickers=[demo_market_ticker])
+        assert isinstance(books, list)
+        assert len(books) >= 1
+        for ob in books:
+            assert isinstance(ob, Orderbook)
+            for level in ob.yes:
+                assert isinstance(level, OrderbookLevel)
+                assert isinstance(level.price, Decimal)
+
+
+@pytest.mark.integration
 class TestMarketsAsync:
     async def test_list(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.markets.list(limit=5)
@@ -196,3 +273,42 @@ class TestMarketsAsync:
         for candle in result:
             assert isinstance(candle, Candlestick)
             assert_model_fields(candle)
+
+    async def test_list_trades(
+        self, async_client: AsyncKalshiClient, demo_market_ticker: str,
+    ) -> None:
+        page = await async_client.markets.list_trades(
+            ticker=demo_market_ticker, limit=5,
+        )
+        assert isinstance(page, Page)
+        for t in page.items:
+            assert isinstance(t, Trade)
+
+    async def test_bulk_candlesticks(
+        self,
+        async_client: AsyncKalshiClient,
+        demo_market: Market,
+        demo_event_ticker: str,
+    ) -> None:
+        import time
+
+        event = await async_client.events.get(demo_event_ticker)
+        if not event.series_ticker:
+            pytest.skip("Demo event has no series_ticker")
+        now = int(time.time())
+        result = await async_client.markets.bulk_candlesticks(
+            market_tickers=[demo_market.ticker],
+            start_ts=now - 86400 * 7,
+            end_ts=now,
+            period_interval=60,
+        )
+        assert isinstance(result, list)
+
+    async def test_bulk_orderbooks(
+        self, async_client: AsyncKalshiClient, demo_market_ticker: str,
+    ) -> None:
+        books = await async_client.markets.bulk_orderbooks(
+            tickers=[demo_market_ticker],
+        )
+        assert isinstance(books, list)
+        assert len(books) >= 1

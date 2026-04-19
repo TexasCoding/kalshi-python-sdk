@@ -223,3 +223,16 @@ class Candlestick(BaseModel):
     period_start: datetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class MarketCandlesticks(BaseModel):
+    """Per-market candlestick bundle in a bulk response.
+
+    Spec schema ``MarketCandlesticksResponse`` — wraps a ticker and its
+    candlesticks. The outer bulk response is ``{markets: [...]}``.
+    """
+
+    market_ticker: str
+    candlesticks: list[Candlestick] = []
+
+    model_config = {"extra": "allow"}

@@ -1,13 +1,44 @@
-"""Markets resource — list, get, orderbook, candlesticks."""
+"""Markets resource — list, get, orderbook, candlesticks, bulk variants."""
 
 from __future__ import annotations
 
 import builtins
 from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 from kalshi.models.common import Page
-from kalshi.models.markets import Candlestick, Market, Orderbook, OrderbookLevel
+from kalshi.models.historical import Trade
+from kalshi.models.markets import (
+    Candlestick,
+    Market,
+    MarketCandlesticks,
+    Orderbook,
+    OrderbookLevel,
+)
 from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
+
+
+def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
+    """Parse one entry from GET /markets/orderbooks into an Orderbook.
+
+    Shape is ``{"ticker": "...", "orderbook_fp": {"yes_dollars": [...], "no_dollars": [...]}}``.
+    Mirrors the single-orderbook unwrapping logic, with per-item ticker.
+    """
+    ticker = item.get("ticker", "")
+    ob = item.get("orderbook_fp") or item.get("orderbook", {}) or {}
+    yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
+    no_raw = ob.get("no_dollars") or ob.get("no", []) or []
+    yes_levels = [
+        OrderbookLevel(price=pair[0], quantity=pair[1])
+        for pair in yes_raw
+        if len(pair) >= 2
+    ]
+    no_levels = [
+        OrderbookLevel(price=pair[0], quantity=pair[1])
+        for pair in no_raw
+        if len(pair) >= 2
+    ]
+    return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
 
 
 class MarketsResource(SyncResource):
@@ -134,6 +165,81 @@ class MarketsResource(SyncResource):
         raw = data.get("candlesticks", [])
         return [Candlestick.model_validate(c) for c in raw]
 
+    def list_trades(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Trade]:
+        params = _params(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+        )
+        return self._list("/markets/trades", Trade, "trades", params=params)
+
+    def list_trades_all(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+    ) -> Iterator[Trade]:
+        params = _params(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+        )
+        return self._list_all("/markets/trades", Trade, "trades", params=params)
+
+    def bulk_candlesticks(
+        self,
+        *,
+        market_tickers: builtins.list[str] | str,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
+        include_latest_before_start: bool | None = None,
+    ) -> builtins.list[MarketCandlesticks]:
+        """Fetch candlesticks for up to 100 markets in a single call.
+
+        ``market_tickers`` serializes as a comma-separated string per spec
+        (not exploded). Accepts a list, tuple, or pre-joined string.
+        """
+        joined = _join_tickers(market_tickers)
+        params = _params(
+            market_tickers=joined,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+            include_latest_before_start="true" if include_latest_before_start else None,
+        )
+        data = self._get("/markets/candlesticks", params=params)
+        raw = data.get("markets", [])
+        return [MarketCandlesticks.model_validate(m) for m in raw]
+
+    def bulk_orderbooks(
+        self, *, tickers: builtins.list[str],
+    ) -> builtins.list[Orderbook]:
+        """Fetch orderbooks for up to 100 tickers in a single call.
+
+        Spec requires auth. ``tickers`` wire format is
+        ``?tickers=a&tickers=b`` (spec ``style: form, explode: true``) —
+        httpx serializes list values that way by default.
+        """
+        self._require_auth()
+        params = _params(tickers=tickers)
+        data = self._get("/markets/orderbooks", params=params)
+        raw = data.get("orderbooks", [])
+        return [_orderbook_from_item(item) for item in raw]
+
 
 class AsyncMarketsResource(AsyncResource):
     """Async markets API."""
@@ -257,3 +363,68 @@ class AsyncMarketsResource(AsyncResource):
         )
         raw = data.get("candlesticks", [])
         return [Candlestick.model_validate(c) for c in raw]
+
+    async def list_trades(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Trade]:
+        params = _params(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+        )
+        return await self._list("/markets/trades", Trade, "trades", params=params)
+
+    def list_trades_all(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[Trade]:
+        """Returns an async iterator — use ``async for``."""
+        params = _params(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+        )
+        return self._list_all("/markets/trades", Trade, "trades", params=params)
+
+    async def bulk_candlesticks(
+        self,
+        *,
+        market_tickers: builtins.list[str] | str,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int,
+        include_latest_before_start: bool | None = None,
+    ) -> builtins.list[MarketCandlesticks]:
+        joined = _join_tickers(market_tickers)
+        params = _params(
+            market_tickers=joined,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            period_interval=period_interval,
+            include_latest_before_start="true" if include_latest_before_start else None,
+        )
+        data = await self._get("/markets/candlesticks", params=params)
+        raw = data.get("markets", [])
+        return [MarketCandlesticks.model_validate(m) for m in raw]
+
+    async def bulk_orderbooks(
+        self, *, tickers: builtins.list[str],
+    ) -> builtins.list[Orderbook]:
+        self._require_auth()
+        params = _params(tickers=tickers)
+        data = await self._get("/markets/orderbooks", params=params)
+        raw = data.get("orderbooks", [])
+        return [_orderbook_from_item(item) for item in raw]

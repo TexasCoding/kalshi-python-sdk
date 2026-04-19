@@ -901,6 +901,12 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/UpdateSubaccountNettingRequest": (
         "kalshi.models.subaccounts.UpdateSubaccountNettingRequest"
     ),
+    "#/components/schemas/CreateApiKeyRequest": (
+        "kalshi.models.api_keys.CreateApiKeyRequest"
+    ),
+    "#/components/schemas/GenerateApiKeyRequest": (
+        "kalshi.models.api_keys.GenerateApiKeyRequest"
+    ),
 }
 
 

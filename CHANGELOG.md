@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.12.0] — 2026-04-19
+
+### Added
+
+- **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:
+  - `GET /api_keys` — list keys registered on the account
+  - `POST /api_keys` — register a caller-minted RSA public key
+  - `POST /api_keys/generate` — have Kalshi mint a fresh key pair; private key is returned ONCE and cannot be retrieved again
+  - `DELETE /api_keys/{api_key}` — remove a key
+- **Bulk / batch market endpoints** on `MarketsResource` — three multi-ticker read paths:
+  - `list_trades` + `list_trades_all` — `GET /markets/trades` (paginated Trade listing across all markets; reuses the existing `historical.Trade` model since the schema is shared)
+  - `bulk_candlesticks` — `GET /markets/candlesticks` (up to 100 tickers per call, comma-joined on wire per spec `type: string`)
+  - `bulk_orderbooks` — `GET /markets/orderbooks` (auth-required; `tickers` serialized as repeated params per spec `style: form, explode: true`)
+- **Milestones resource** — `MilestonesResource` + `AsyncMilestonesResource`:
+  - `GET /milestones` — paginated listing with filters for category, competition, type, related_event_ticker, source_id, minimum_start_date (RFC3339), min_updated_ts (Unix seconds). `limit` is required (1-500) per spec
+  - `GET /milestones/{milestone_id}` — single milestone lookup
+  - `list_all` paginator helper
+- **Live Data resource** — `LiveDataResource` + `AsyncLiveDataResource` covering 4 endpoints keyed by `milestone_id`:
+  - `get` — `GET /live_data/milestone/{milestone_id}` (preferred shape)
+  - `get_typed` — `GET /live_data/{type}/milestone/{milestone_id}` (legacy shape, retained for spec-completeness; docstring recommends `get`)
+  - `batch` — `GET /live_data/batch` (up to 100 milestone_ids; wire format `?milestone_ids=a&milestone_ids=b` via httpx list-explosion)
+  - `game_stats` — `GET /live_data/milestone/{milestone_id}/game_stats` (returns `pbp: None` for unsupported milestone types without a Sportradar ID)
+- **11 new Pydantic models** — `ApiKey` + 5 API-key request/response envelopes; `Milestone` + 2 response envelopes; `LiveData`, `PlayByPlay`, `PlayByPlayPeriod`, and 3 live-data response envelopes; `MarketCandlesticks` (per-market bundle in the bulk candlesticks response). Request models use `extra="forbid"`; response models use `extra="allow"`. Milestone `details` and LiveData `details` are `dict[str, Any]` per spec `additionalProperties: true` (shape varies by milestone type).
+- **82 new unit tests** — 25 for API Keys, 12 for Milestones, 16 for LiveData, 7 for bulk markets, 2 client-wiring additions. Plus real-lifecycle integration coverage: API Keys mints a throwaway RSA keypair in-test and runs `create → list → delete` on demo with try/finally cleanup; bulk methods + Milestones + LiveData all exercise against demo inventory.
+
+### Changed
+
+- **Test coverage** — FULL-covered endpoints 44 → 57 (64%). Meta-coverage test now expects 14 resource classes (was 11). Three new resources (`ApiKeysResource`, `MilestonesResource`, `LiveDataResource`) + 4 new methods on `MarketsResource` registered in `METHOD_ENDPOINT_MAP` (13 new entries), `BODY_MODEL_MAP` (2 new request-body entries for `CreateApiKeyRequest`/`GenerateApiKeyRequest`), `_contract_map.py` (8 new response-side entries), `coverage_harness.RESOURCE_MODULES` (3 new modules), and `test_coverage.py` import list.
+- **EXCLUSIONS expanded** — 2 new `cursor` paginator entries for `MarketsResource.list_trades_all` and `MilestonesResource.list_all` (paginator-handled; not caller-facing).
+- **Live-demo finding documented in the integration suite:** `GET /milestones?category=Sports` returns milestones with `category="sports"` (lowercase) in the response body even though the filter accepted the title-cased input and the spec example shows `"Sports"`. `test_list_with_category` asserts case-insensitively so future server-side case fixes don't regress.
+
 ## [0.11.0] — 2026-04-18
 
 ### Added

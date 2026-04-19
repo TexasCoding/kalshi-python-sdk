@@ -74,6 +74,86 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/series/{series_ticker}/markets/{ticker}/candlesticks",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.list_trades",
+        http_method="GET",
+        path_template="/markets/trades",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.list_trades_all",
+        http_method="GET",
+        path_template="/markets/trades",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.bulk_candlesticks",
+        http_method="GET",
+        path_template="/markets/candlesticks",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.bulk_orderbooks",
+        http_method="GET",
+        path_template="/markets/orderbooks",
+    ),
+    # ── api keys ────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.api_keys.ApiKeysResource.list",
+        http_method="GET",
+        path_template="/api_keys",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.api_keys.ApiKeysResource.create",
+        http_method="POST",
+        path_template="/api_keys",
+        request_body_schema="#/components/schemas/CreateApiKeyRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.api_keys.ApiKeysResource.generate",
+        http_method="POST",
+        path_template="/api_keys/generate",
+        request_body_schema="#/components/schemas/GenerateApiKeyRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.api_keys.ApiKeysResource.delete",
+        http_method="DELETE",
+        path_template="/api_keys/{api_key}",
+    ),
+    # ── milestones ──────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.milestones.MilestonesResource.list",
+        http_method="GET",
+        path_template="/milestones",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.milestones.MilestonesResource.list_all",
+        http_method="GET",
+        path_template="/milestones",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.milestones.MilestonesResource.get",
+        http_method="GET",
+        path_template="/milestones/{milestone_id}",
+    ),
+    # ── live data ───────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.get",
+        http_method="GET",
+        path_template="/live_data/milestone/{milestone_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.get_typed",
+        http_method="GET",
+        path_template="/live_data/{type}/milestone/{milestone_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.batch",
+        http_method="GET",
+        path_template="/live_data/batch",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.game_stats",
+        http_method="GET",
+        path_template="/live_data/milestone/{milestone_id}/game_stats",
+    ),
     # ── events ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.events.EventsResource.list",
@@ -669,6 +749,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     # --- list_all cursor exclusions for subaccounts paginator ---
     ("kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- list_all cursor exclusions for markets/milestones paginators ---
+    ("kalshi.resources.markets.MarketsResource.list_trades_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    ("kalshi.resources.milestones.MilestonesResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }

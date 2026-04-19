@@ -9,13 +9,13 @@
 
 No new features, no publishing, no polish sweeps until this is closed. Side quests live in `BACKLOG.md`.
 
-### Current state (audit 2026-04-18, updated post-v0.11.0)
+### Current state (audit 2026-04-18, updated post-v0.12.0)
 
 | Status | REST endpoints | % |
 |---|---:|---:|
-| FULL (SDK + unit + integration) | 44 | 49% |
+| FULL (SDK + unit + integration) | 57 | 64% |
 | SDK + unit, no integration | 16 | 18% |
-| Not implemented | 29 | 33% |
+| Not implemented | 16 | 18% |
 | **Total** | **89** | |
 
 WebSocket: 15/32 message types dispatched, 3 integration tests (connectivity only).
@@ -40,15 +40,6 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Active phases
-
-### v0.12.0 — API Keys + Bulk/Batch + Milestones
-**What:** Three smaller resource additions.
-- **API Keys (4, not 5 — spec has no "get single"):** `GET /api_keys` (list), `POST /api_keys` (create), `POST /api_keys/generate`, `DELETE /api_keys/{api_key}`. All demo-supported.
-- **Bulk / Batch (3):** `GET /markets/candlesticks`, `GET /markets/orderbooks`, `GET /markets/trades`. All demo-supported.
-- **Milestones + live_data (6):** `GET /milestones`, `GET /milestones/{milestone_id}`, `GET /live_data/batch`, `GET /live_data/milestone/{milestone_id}`, `GET /live_data/milestone/{milestone_id}/game_stats`, `GET /live_data/{type}/milestone/{milestone_id}`. All demo-supported (path-params 404 on bad IDs as expected).
-
-Each with models, sync+async resources, unit + integration tests, contract map entries.
-**Estimate:** ~8h.
 
 ### v0.13.0 — Remaining endpoints + WebSocket parity
 **What:**
@@ -94,6 +85,9 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 ---
 
 ## Completed
+
+### ~~v0.12.0 — API Keys + Bulk/Batch + Milestones~~
+**Completed:** 2026-04-19. Three new resources — `ApiKeysResource` (4 endpoints: list, create, generate, delete; full RSA keypair lifecycle verified against demo with throwaway keys and try/finally cleanup), `MilestonesResource` (list + get + list_all paginator; `limit` is required 1-500 per spec; RFC3339 coercion helper accepts `datetime | str`), `LiveDataResource` (4 endpoints: get, get_typed [legacy], batch up to 100 ids, game_stats). Plus 4 new methods on `MarketsResource`: `list_trades`/`list_trades_all` (reuses `historical.Trade`), `bulk_candlesticks` (comma-joined tickers), `bulk_orderbooks` (auth-required, explode:true tickers). 11 new Pydantic models (`ApiKey`, request/response envelopes for all 3 resources, `MarketCandlesticks` bundle, `PlayByPlay`/`PlayByPlayPeriod` for game stats). 82 new unit tests + 41 new integration tests (including real-lifecycle API key create/list/delete on demo). METHOD_ENDPOINT_MAP +13, BODY_MODEL_MAP +2 (`CreateApiKeyRequest`, `GenerateApiKeyRequest`), `_contract_map.py` +8 response/request models, EXCLUSIONS +2 paginator cursors, RESOURCE_MODULES +3, meta-coverage test now expects 14 resource classes (was 11). FULL-covered endpoints 44 → 57 (64%). **Live-demo finding:** `GET /milestones?category=Sports` returns `category: "sports"` lowercase in response body even though filter accepted title-case — server-side normalization inconsistency; test asserts case-insensitively.
 
 ### ~~v0.11.0 — Communications / RFQ + Subaccounts~~
 **Completed:** 2026-04-18. Two new resource subsystems — `CommunicationsResource` + `AsyncCommunicationsResource` (11 endpoints: get_id, list_rfqs/create_rfq/get_rfq/delete_rfq, list_quotes/create_quote/get_quote/delete_quote, accept_quote/confirm_quote, plus list_all_rfqs + list_all_quotes paginator helpers) and `SubaccountsResource` + `AsyncSubaccountsResource` (6 endpoints: create, transfer, list_balances, list_transfers + list_all_transfers, update_netting, get_netting). 21 new Pydantic models (`RFQ`, `Quote`, `MveSelectedLeg` + envelopes/requests on Communications; `SubaccountBalance`, `SubaccountTransfer`, `SubaccountNettingConfig` + envelopes/requests on Subaccounts). Wired into `KalshiClient.communications` / `.subaccounts`. Registered 20 METHOD_ENDPOINT_MAP entries, 5 BODY_MODEL_MAP entries, 10 `_contract_map.py` response-side entries, 4 EXCLUSIONS. 103 new unit tests + 30 integration tests (26 passing, 4 correctly skipped; the demo-broken `get_netting` + the quote-party-two workflow gated behind the new `integration_real_api_only` marker). **Live-demo findings surfaced during integration runs:** (1) `GET /communications/quotes` requires `creator_user_id` OR `rfq_creator_user_id` filter even when `rfq_id` is provided (demo returns 400, not 403 — audit row corrected); (2) demo rejects malformed IDs with 400 `invalid_parameters` before 404 route lookup (regression tests assert `KalshiError` base class); (3) demo refuses self-quoting — `test_quote_lifecycle` skips cleanly so future server changes surface organically; (4) `POST /portfolio/subaccounts` needs `json={}` to force Content-Type (same fix as order_groups v0.10 reset/trigger). **Bonus: closed the P3 `_put()` 204 handling item** — was on the critical path for `accept_quote` / `confirm_quote` which return 204 per spec. `_put` now returns `None` on 204 like `_delete`. FULL-covered endpoints 31 → 44 (49%); meta-coverage test now expects 11 resource classes (was 9).

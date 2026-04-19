@@ -11,11 +11,14 @@ from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import AuthRequiredError
+from kalshi.resources.api_keys import AsyncApiKeysResource
 from kalshi.resources.communications import AsyncCommunicationsResource
 from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
 from kalshi.resources.historical import AsyncHistoricalResource
+from kalshi.resources.live_data import AsyncLiveDataResource
 from kalshi.resources.markets import AsyncMarketsResource
+from kalshi.resources.milestones import AsyncMilestonesResource
 from kalshi.resources.multivariate import AsyncMultivariateCollectionsResource
 from kalshi.resources.order_groups import AsyncOrderGroupsResource
 from kalshi.resources.orders import AsyncOrdersResource
@@ -82,11 +85,14 @@ class AsyncKalshiClient:
 
         # Build transport and resources
         self._transport = AsyncTransport(self._auth, self._config)
+        self.api_keys = AsyncApiKeysResource(self._transport)
         self.communications = AsyncCommunicationsResource(self._transport)
         self.events = AsyncEventsResource(self._transport)
         self.exchange = AsyncExchangeResource(self._transport)
         self.historical = AsyncHistoricalResource(self._transport)
+        self.live_data = AsyncLiveDataResource(self._transport)
         self.markets = AsyncMarketsResource(self._transport)
+        self.milestones = AsyncMilestonesResource(self._transport)
         self.order_groups = AsyncOrderGroupsResource(self._transport)
         self.orders = AsyncOrdersResource(self._transport)
         self.portfolio = AsyncPortfolioResource(self._transport)
