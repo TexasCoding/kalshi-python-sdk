@@ -85,6 +85,7 @@ from kalshi.models import (
     TickerPair,
     UpdateOrderGroupLimitRequest,
     UpdateSubaccountNettingRequest,
+    UserDataTimestamp,
 )
 from kalshi.types import NullableList
 
@@ -172,6 +173,7 @@ __all__ = [
     "TickerPair",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",
+    "UserDataTimestamp",
 ]
 
 __version__ = "0.12.0"

@@ -31,6 +31,7 @@ from kalshi.models.exchange import (
     ExchangeStatus,
     MaintenanceWindow,
     Schedule,
+    UserDataTimestamp,
     WeeklySchedule,
 )
 from kalshi.models.historical import HistoricalCutoff, Trade
@@ -199,5 +200,6 @@ __all__ = [
     "Trade",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",
+    "UserDataTimestamp",
     "WeeklySchedule",
 ]

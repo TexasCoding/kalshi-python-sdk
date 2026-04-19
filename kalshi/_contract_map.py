@@ -202,6 +202,11 @@ CONTRACT_MAP: list[ContractEntry] = [
             "MarketCandlesticksResponse, SDK name MarketCandlesticks"
         ),
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.UserDataTimestamp",
+        spec_schema="GetUserDataTimestampResponse",
+        notes="Spec wraps single as_of_time in GetUserDataTimestampResponse",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

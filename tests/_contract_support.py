@@ -201,6 +201,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/exchange/announcements",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.exchange.ExchangeResource.user_data_timestamp",
+        http_method="GET",
+        path_template="/exchange/user_data_timestamp",
+    ),
     # ── historical ──────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.historical.HistoricalResource.cutoff",

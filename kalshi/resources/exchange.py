@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import builtins
 
-from kalshi.models.exchange import Announcement, ExchangeStatus, Schedule
+from kalshi.models.exchange import (
+    Announcement,
+    ExchangeStatus,
+    Schedule,
+    UserDataTimestamp,
+)
 from kalshi.resources._base import AsyncResource, SyncResource
 
 
@@ -25,6 +30,10 @@ class ExchangeResource(SyncResource):
         raw = data.get("announcements", [])
         return [Announcement.model_validate(a) for a in raw]
 
+    def user_data_timestamp(self) -> UserDataTimestamp:
+        data = self._get("/exchange/user_data_timestamp")
+        return UserDataTimestamp.model_validate(data)
+
 
 class AsyncExchangeResource(AsyncResource):
     """Async exchange API."""
@@ -42,3 +51,7 @@ class AsyncExchangeResource(AsyncResource):
         data = await self._get("/exchange/announcements")
         raw = data.get("announcements", [])
         return [Announcement.model_validate(a) for a in raw]
+
+    async def user_data_timestamp(self) -> UserDataTimestamp:
+        data = await self._get("/exchange/user_data_timestamp")
+        return UserDataTimestamp.model_validate(data)

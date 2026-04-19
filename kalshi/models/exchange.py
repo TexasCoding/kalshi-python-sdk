@@ -71,3 +71,16 @@ class Announcement(BaseModel):
     status: str  # "active" | "inactive"
 
     model_config = {"extra": "allow"}
+
+
+class UserDataTimestamp(BaseModel):
+    """Timestamp when user-scoped exchange data was last validated.
+
+    Combine with WebSocket feeds for a live view — REST endpoints like
+    GetBalance/GetOrders/GetFills/GetPositions may lag the exchange by
+    a short delay; ``as_of_time`` is the upper bound on that lag.
+    """
+
+    as_of_time: datetime
+
+    model_config = {"extra": "allow"}
