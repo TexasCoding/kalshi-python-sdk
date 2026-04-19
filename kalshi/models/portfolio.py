@@ -19,6 +19,18 @@ class Balance(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class TotalRestingOrderValue(BaseModel):
+    """Total value of resting orders in cents.
+
+    Spec: "intended for use by FCM members (rare)". Non-FCM accounts see
+    403 on this endpoint (demo audit 2026-04-18).
+    """
+
+    total_resting_order_value: int
+
+    model_config = {"extra": "allow"}
+
+
 class MarketPosition(BaseModel):
     """A position in a single market."""
 

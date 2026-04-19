@@ -97,6 +97,7 @@ from kalshi.models.portfolio import (
     MarketPosition,
     PositionsResponse,
     Settlement,
+    TotalRestingOrderValue,
 )
 from kalshi.models.search import (
     GetFiltersBySportsResponse,
@@ -223,6 +224,7 @@ __all__ = [
     "SubaccountNettingConfig",
     "SubaccountTransfer",
     "TickerPair",
+    "TotalRestingOrderValue",
     "Trade",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",

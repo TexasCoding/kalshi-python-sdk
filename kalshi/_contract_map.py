@@ -230,6 +230,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="IncentiveProgram",
         notes="period_reward is int centi-cents; target_size_fp DollarDecimal",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.TotalRestingOrderValue",
+        spec_schema="GetPortfolioRestingOrderTotalValueResponse",
+        notes="Single int total_resting_order_value in cents",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

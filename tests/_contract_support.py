@@ -505,6 +505,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/settlements",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.total_resting_order_value",
+        http_method="GET",
+        path_template="/portfolio/summary/total_resting_order_value",
+    ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.list",
