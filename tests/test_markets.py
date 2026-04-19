@@ -501,6 +501,31 @@ class TestMarketsBulkCandlesticks:
         assert q["market_tickers"] == "MKT-A,MKT-B"
 
     @respx.mock
+    def test_bulk_candlesticks_handles_null_candlesticks(
+        self, markets: MarketsResource,
+    ) -> None:
+        """NullableList[Candlestick]: server-sent ``null`` coerces to ``[]``."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "markets": [
+                        {"market_ticker": "MKT-A", "candlesticks": None},
+                    ],
+                },
+            ),
+        )
+        result = markets.bulk_candlesticks(
+            market_tickers=["MKT-A"],
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+        )
+        assert result[0].candlesticks == []
+
+    @respx.mock
     def test_bulk_candlesticks_include_flag(
         self, markets: MarketsResource,
     ) -> None:

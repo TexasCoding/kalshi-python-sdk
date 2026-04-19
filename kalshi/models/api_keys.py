@@ -15,11 +15,17 @@ from kalshi.types import NullableList
 
 
 class ApiKey(BaseModel):
-    """An API key registered on the authenticated user's account."""
+    """An API key registered on the authenticated user's account.
+
+    ``scopes`` uses NullableList for the same reason envelope-level list
+    fields do — Kalshi has historically returned JSON null for required
+    list fields, and silently coercing None -> [] is safer than raising
+    a Pydantic ValidationError on a field most callers don't use.
+    """
 
     api_key_id: str
     name: str
-    scopes: list[str]
+    scopes: NullableList[str] = []
 
     model_config = {"extra": "allow"}
 

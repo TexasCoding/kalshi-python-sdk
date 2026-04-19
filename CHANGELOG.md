@@ -33,6 +33,10 @@ Followup polish (fourth review round):
 - **`GetApiKeysResponse.api_keys` now uses `NullableList[ApiKey]`** — last remaining envelope-level list in this PR using plain `list[ApiKey]`. Brings the API Keys envelope in line with `GetMilestonesResponse`, `GetLiveDatasResponse`, and the Milestone/LiveData nested lists, so a server-sent `{"api_keys": null}` coerces to `[]` instead of raising a Pydantic `ValidationError`. Regression test added: `test_list_handles_null_api_keys`.
 - **`CreateApiKeyRequest.public_key` docstring** — now specifies "PEM-encoded RSA public key" so callers know the expected format without having to round-trip to the server.
 
+Followup polish (fifth review round):
+
+- **`ApiKey.scopes` and `MarketCandlesticks.candlesticks` now use `NullableList`** — last two remaining bare `list[T]` fields on response models in this PR. Swept for consistency with the rest of the SDK. Server-sent `null` for either field now coerces to `[]` instead of raising Pydantic `ValidationError`. Two new regression tests: `test_list_handles_null_scopes` and `test_bulk_candlesticks_handles_null_candlesticks`.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:

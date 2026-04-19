@@ -233,6 +233,9 @@ class MarketCandlesticks(BaseModel):
     """
 
     market_ticker: str
-    candlesticks: list[Candlestick] = []
+    # NullableList: Kalshi has returned JSON null for required list fields
+    # in other envelopes (v0.9.0 Series fix). Coerce None -> [] to match the
+    # pattern used on Orderbook.yes/no and envelope-level list fields.
+    candlesticks: NullableList[Candlestick] = []
 
     model_config = {"extra": "allow"}
