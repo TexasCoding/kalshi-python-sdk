@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from kalshi.types import NullableList
+
 
 class ApiKey(BaseModel):
     """An API key registered on the authenticated user's account."""
@@ -23,9 +25,15 @@ class ApiKey(BaseModel):
 
 
 class GetApiKeysResponse(BaseModel):
-    """Response from GET /api_keys."""
+    """Response from GET /api_keys.
 
-    api_keys: list[ApiKey]
+    ``api_keys`` uses NullableList since Kalshi has returned JSON null
+    for required list fields in other envelopes (see v0.9.0 Series fix).
+    Coercing None -> [] matches the envelope-list pattern established
+    across the rest of the SDK.
+    """
+
+    api_keys: NullableList[ApiKey] = []
 
     model_config = {"extra": "allow"}
 
@@ -33,8 +41,10 @@ class GetApiKeysResponse(BaseModel):
 class CreateApiKeyRequest(BaseModel):
     """Body for POST /api_keys — register a caller-supplied public key.
 
-    ``scopes`` defaults to full access (``["read", "write"]``) server-side
-    when omitted. If ``"write"`` is included, ``"read"`` must be too.
+    ``public_key`` must be a PEM-encoded RSA public key (i.e. starts
+    with ``-----BEGIN PUBLIC KEY-----``). ``scopes`` defaults to full
+    access (``["read", "write"]``) server-side when omitted. If
+    ``"write"`` is included, ``"read"`` must be too.
     """
 
     name: str

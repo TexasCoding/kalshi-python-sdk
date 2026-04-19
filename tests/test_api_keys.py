@@ -144,6 +144,14 @@ class TestApiKeysList:
         )
         assert api_keys.list().api_keys == []
 
+    @respx.mock
+    def test_list_handles_null_api_keys(self, api_keys: ApiKeysResource) -> None:
+        """NullableList[ApiKey]: server-sent ``null`` must coerce to ``[]``."""
+        respx.get("https://test.kalshi.com/trade-api/v2/api_keys").mock(
+            return_value=httpx.Response(200, json={"api_keys": None}),
+        )
+        assert api_keys.list().api_keys == []
+
     def test_list_requires_auth(self, unauth_api_keys: ApiKeysResource) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_api_keys.list()

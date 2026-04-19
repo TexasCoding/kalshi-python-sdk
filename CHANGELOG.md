@@ -28,6 +28,11 @@ Followup polish (third review round):
 - **`AsyncMarketsResource.bulk_orderbooks` docstring** — sync had the spec-constraint + wire-format note; async was missing it. Added.
 - **`live_milestone` fixture exception collapse** — `except (KalshiNotFoundError, KalshiError)` had a dead first branch (`KalshiNotFoundError` is a subclass of `KalshiError`). Collapsed to `except KalshiError` with a comment explaining both paths are caught.
 
+Followup polish (fourth review round):
+
+- **`GetApiKeysResponse.api_keys` now uses `NullableList[ApiKey]`** — last remaining envelope-level list in this PR using plain `list[ApiKey]`. Brings the API Keys envelope in line with `GetMilestonesResponse`, `GetLiveDatasResponse`, and the Milestone/LiveData nested lists, so a server-sent `{"api_keys": null}` coerces to `[]` instead of raising a Pydantic `ValidationError`. Regression test added: `test_list_handles_null_api_keys`.
+- **`CreateApiKeyRequest.public_key` docstring** — now specifies "PEM-encoded RSA public key" so callers know the expected format without having to round-trip to the server.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:
