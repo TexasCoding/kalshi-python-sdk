@@ -31,13 +31,14 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
 
     Shape is ``{"ticker": "...", "orderbook_fp": {"yes_dollars": [...], "no_dollars": [...]}}``.
     Mirrors the single-orderbook unwrapping logic, with per-item ticker.
-    Raises ``ValueError`` if the server response omits a per-item ticker —
-    silently returning ``ticker=""`` would corrupt caller-side lookups.
+    Raises ``ValueError`` if the server response omits or empty-strings the
+    per-item ticker — silently returning ``ticker=""`` would corrupt
+    caller-side lookups.
     """
     ticker = item.get("ticker")
     if not ticker:
         raise ValueError(
-            "bulk orderbook item missing required 'ticker' field; "
+            "bulk orderbook item has empty or missing 'ticker' field; "
             f"got {item!r}"
         )
     # Key-presence check (not truthy): an empty dict under "orderbook_fp" must
@@ -478,6 +479,12 @@ class AsyncMarketsResource(AsyncResource):
     async def bulk_orderbooks(
         self, *, tickers: builtins.list[str],
     ) -> builtins.list[Orderbook]:
+        """Fetch orderbooks for up to 100 tickers in a single call.
+
+        Spec requires auth and at least one ticker (max 100). ``tickers``
+        wire format is ``?tickers=a&tickers=b`` (spec ``style: form,
+        explode: true``) — httpx serializes list values that way by default.
+        """
         self._require_auth()
         if not tickers:
             raise ValueError("tickers must be a non-empty list")

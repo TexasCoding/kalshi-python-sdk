@@ -11,7 +11,7 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiError, KalshiNotFoundError
+from kalshi.errors import KalshiError
 from kalshi.models.live_data import (
     GetGameStatsResponse,
     LiveData,
@@ -37,7 +37,10 @@ def live_milestone(sync_client: KalshiClient) -> Milestone:
         try:
             sync_client.live_data.get(ms.id)
             return ms
-        except (KalshiNotFoundError, KalshiError):
+        except KalshiError:
+            # KalshiNotFoundError is already a subclass of KalshiError, so a
+            # single `except` catches both the 404 path (milestone has no
+            # live feed) and any other Kalshi server error while probing.
             continue
     pytest.skip("No milestone on demo has an accessible live_data feed")
 

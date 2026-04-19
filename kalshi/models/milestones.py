@@ -49,9 +49,15 @@ class GetMilestoneResponse(BaseModel):
 
 
 class GetMilestonesResponse(BaseModel):
-    """Response from GET /milestones — paginated list."""
+    """Response from GET /milestones — paginated list.
 
-    milestones: list[Milestone]
+    ``milestones`` uses NullableList since Kalshi has returned JSON null
+    for required list fields in other envelopes (see the v0.9.0 Series
+    fix). Coercing None -> [] here matches the pattern established on
+    ``Milestone.related_event_tickers`` and ``primary_event_tickers``.
+    """
+
+    milestones: NullableList[Milestone] = []
     cursor: str | None = None
 
     model_config = {"extra": "allow"}

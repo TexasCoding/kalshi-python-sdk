@@ -95,7 +95,7 @@ class TestMilestonesList:
             limit=100,
             category="Sports",
             competition="Pro Football",
-            type="football_game",
+            milestone_type="football_game",
             minimum_start_date=datetime(2026, 9, 1, tzinfo=UTC),
             min_updated_ts=1_700_000_000,
         )

@@ -31,7 +31,8 @@ class MilestonesResource(SyncResource):
     """Sync milestones API — list + single get.
 
     Unlike most resources ``limit`` is REQUIRED on list (spec) — range
-    1-500. Dates use RFC3339.
+    1-500. Dates use RFC3339. The ``type`` spec query param is exposed
+    as the ``milestone_type`` kwarg to avoid shadowing the Python built-in.
     """
 
     def list(
@@ -42,7 +43,7 @@ class MilestonesResource(SyncResource):
         category: str | None = None,
         competition: str | None = None,
         source_id: str | None = None,
-        type: str | None = None,
+        milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         cursor: str | None = None,
         min_updated_ts: int | None = None,
@@ -53,7 +54,7 @@ class MilestonesResource(SyncResource):
             category=category,
             competition=competition,
             source_id=source_id,
-            type=type,
+            type=milestone_type,
             related_event_ticker=related_event_ticker,
             cursor=cursor,
             min_updated_ts=min_updated_ts,
@@ -68,7 +69,7 @@ class MilestonesResource(SyncResource):
         category: str | None = None,
         competition: str | None = None,
         source_id: str | None = None,
-        type: str | None = None,
+        milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
     ) -> Iterator[Milestone]:
@@ -78,7 +79,7 @@ class MilestonesResource(SyncResource):
             category=category,
             competition=competition,
             source_id=source_id,
-            type=type,
+            type=milestone_type,
             related_event_ticker=related_event_ticker,
             min_updated_ts=min_updated_ts,
         )
@@ -106,7 +107,7 @@ class AsyncMilestonesResource(AsyncResource):
         category: str | None = None,
         competition: str | None = None,
         source_id: str | None = None,
-        type: str | None = None,
+        milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         cursor: str | None = None,
         min_updated_ts: int | None = None,
@@ -117,7 +118,7 @@ class AsyncMilestonesResource(AsyncResource):
             category=category,
             competition=competition,
             source_id=source_id,
-            type=type,
+            type=milestone_type,
             related_event_ticker=related_event_ticker,
             cursor=cursor,
             min_updated_ts=min_updated_ts,
@@ -134,7 +135,7 @@ class AsyncMilestonesResource(AsyncResource):
         category: str | None = None,
         competition: str | None = None,
         source_id: str | None = None,
-        type: str | None = None,
+        milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
     ) -> AsyncIterator[Milestone]:
@@ -145,7 +146,7 @@ class AsyncMilestonesResource(AsyncResource):
             category=category,
             competition=competition,
             source_id=source_id,
-            type=type,
+            type=milestone_type,
             related_event_ticker=related_event_ticker,
             min_updated_ts=min_updated_ts,
         )

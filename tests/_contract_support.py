@@ -771,6 +771,28 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "different kwarg name)"
         ),
     ),
+    # --- milestones.list/list_all: `type` query param renamed to `milestone_type` ---
+    # Same rationale as get_typed above. Wire still sends `?type=...`.
+    ("kalshi.resources.milestones.MilestonesResource.list", "type"): Exclusion(
+        reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+    ),
+    ("kalshi.resources.milestones.MilestonesResource.list", "milestone_type"): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    ("kalshi.resources.milestones.MilestonesResource.list_all", "type"): Exclusion(
+        reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+    ),
+    ("kalshi.resources.milestones.MilestonesResource.list_all", "milestone_type"): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
 }
 
 

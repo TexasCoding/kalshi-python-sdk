@@ -677,7 +677,7 @@ class TestMarketsBulkOrderbooks:
                 json={"orderbooks": [{"orderbook_fp": {}}]},
             ),
         )
-        with pytest.raises(ValueError, match="missing required 'ticker'"):
+        with pytest.raises(ValueError, match="empty or missing 'ticker'"):
             markets.bulk_orderbooks(tickers=["MKT-X"])
 
 

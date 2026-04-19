@@ -20,6 +20,14 @@ Followup polish (second review round):
 - **Async `AsyncMarketsResource.bulk_candlesticks` docstring** — sync had the spec-constraint + wire-format note; async was missing it. Added.
 - **`_delete_with_retry` / `_async_delete_with_retry` last_exc sentinel** — `last_exc` was assigned only inside the `except` branch, technically unbound on an empty loop. Sentinel `RuntimeError("no delete attempts executed")` assigned pre-loop.
 
+Followup polish (third review round):
+
+- **`_orderbook_from_item` error wording** — `not ticker` catches both missing-key and empty-string cases. Error message now says "has empty or missing 'ticker' field" instead of "missing required 'ticker' field" to match both paths. Regression-test match string updated.
+- **`MilestonesResource.list` / `list_all` `type` rename** — same built-in-shadow fix as `get_typed`: `type` → `milestone_type` (sync + async). Wire still sends `?type=...`. Drift-test EXCLUSIONS updated for both methods. Internal unit test `test_list_sends_filters` updated to use the new kwarg name.
+- **`GetMilestonesResponse.milestones` now uses `NullableList[Milestone]`** — envelope-level list was a plain `list[Milestone]` while nested lists on `Milestone` itself used `NullableList`. Consistency fix: if Kalshi ever returns `{"milestones": null}` during an outage or empty result, parsing coerces to `[]` instead of raising Pydantic validation error.
+- **`AsyncMarketsResource.bulk_orderbooks` docstring** — sync had the spec-constraint + wire-format note; async was missing it. Added.
+- **`live_milestone` fixture exception collapse** — `except (KalshiNotFoundError, KalshiError)` had a dead first branch (`KalshiNotFoundError` is a subclass of `KalshiError`). Collapsed to `except KalshiError` with a comment explaining both paths are caught.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:
