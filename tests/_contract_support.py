@@ -537,6 +537,22 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
             "/series/{series_ticker}/events/{ticker}/forecast_percentile_history"
         ),
     ),
+    # ── structured targets ──────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        http_method="GET",
+        path_template="/structured_targets",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        http_method="GET",
+        path_template="/structured_targets",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.get",
+        http_method="GET",
+        path_template="/structured_targets/{structured_target_id}",
+    ),
     # ── multivariate ────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method=(
@@ -803,6 +819,46 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+    ),
+    # --- structured_targets.list/list_all: `type` query param renamed to `target_type` ---
+    # Same shadow-avoidance rationale as milestones + live_data. Wire still sends `?type=...`.
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list",
+        "target_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "target_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+        "cursor",
+    ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }
 

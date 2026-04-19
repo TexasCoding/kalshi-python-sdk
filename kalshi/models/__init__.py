@@ -101,6 +101,11 @@ from kalshi.models.series import (
     Series,
     SeriesFeeChange,
 )
+from kalshi.models.structured_targets import (
+    GetStructuredTargetResponse,
+    GetStructuredTargetsResponse,
+    StructuredTarget,
+)
 from kalshi.models.subaccounts import (
     ApplySubaccountTransferRequest,
     CreateSubaccountResponse,
@@ -163,6 +168,8 @@ __all__ = [
     "GetQuotesResponse",
     "GetRFQResponse",
     "GetRFQsResponse",
+    "GetStructuredTargetResponse",
+    "GetStructuredTargetsResponse",
     "GetSubaccountBalancesResponse",
     "GetSubaccountNettingResponse",
     "HistoricalCutoff",
@@ -195,6 +202,7 @@ __all__ = [
     "SeriesFeeChange",
     "Settlement",
     "SettlementSource",
+    "StructuredTarget",
     "SubaccountBalance",
     "SubaccountNettingConfig",
     "SubaccountTransfer",
