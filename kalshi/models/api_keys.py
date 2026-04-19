@@ -9,7 +9,7 @@ has Kalshi mint a fresh key pair and returns the private key once
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from kalshi.types import NullableList
 
@@ -82,10 +82,13 @@ class GenerateApiKeyResponse(BaseModel):
 
     ``private_key`` is a PEM-encoded RSA private key returned ONLY in this
     response. Store it securely — Kalshi does not retain a copy and it
-    cannot be retrieved later.
+    cannot be retrieved later. The field is typed as :class:`pydantic.SecretStr`
+    so it prints as ``'**********'`` in ``repr()``/logs; call
+    ``response.private_key.get_secret_value()`` to retrieve the PEM string
+    when you need to persist it.
     """
 
     api_key_id: str
-    private_key: str
+    private_key: SecretStr
 
     model_config = {"extra": "allow"}

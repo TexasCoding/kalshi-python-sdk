@@ -88,7 +88,9 @@ class TestApiKeyModels:
             {"api_key_id": "k-9", "private_key": "-----BEGIN..."},
         )
         assert resp.api_key_id == "k-9"
-        assert resp.private_key.startswith("-----BEGIN")
+        # SecretStr: masked in repr/logs, retrieve via get_secret_value().
+        assert resp.private_key.get_secret_value().startswith("-----BEGIN")
+        assert "-----BEGIN" not in repr(resp)
 
     def test_create_request_serializes(self) -> None:
         req = CreateApiKeyRequest(
@@ -233,7 +235,7 @@ class TestApiKeysGenerate:
         resp = api_keys.generate(name="bot")
         assert isinstance(resp, GenerateApiKeyResponse)
         assert resp.api_key_id == "k-auto"
-        assert resp.private_key.startswith("-----BEGIN")
+        assert resp.private_key.get_secret_value().startswith("-----BEGIN")
         body = json.loads(route.calls[0].request.content)
         assert body == {"name": "bot"}
 
@@ -308,7 +310,7 @@ class TestAsyncApiKeys:
             ),
         )
         resp = await async_api_keys.generate(name="bot")
-        assert resp.private_key.startswith("-----BEGIN")
+        assert resp.private_key.get_secret_value().startswith("-----BEGIN")
 
     @respx.mock
     @pytest.mark.asyncio

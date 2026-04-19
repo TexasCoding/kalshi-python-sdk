@@ -49,8 +49,10 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
         if "orderbook_fp" in item
         else (item.get("orderbook") or {})
     )
-    yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
-    no_raw = ob.get("no_dollars") or ob.get("no", []) or []
+    # `ob.get(key)` returns None on missing key; the trailing `or []` handles
+    # both None and an explicitly-null JSON value from the server.
+    yes_raw = ob.get("yes_dollars") or ob.get("yes") or []
+    no_raw = ob.get("no_dollars") or ob.get("no") or []
     yes_levels = [
         OrderbookLevel(price=pair[0], quantity=pair[1])
         for pair in yes_raw

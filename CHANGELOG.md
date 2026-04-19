@@ -37,6 +37,12 @@ Followup polish (fifth review round):
 
 - **`ApiKey.scopes` and `MarketCandlesticks.candlesticks` now use `NullableList`** — last two remaining bare `list[T]` fields on response models in this PR. Swept for consistency with the rest of the SDK. Server-sent `null` for either field now coerces to `[]` instead of raising Pydantic `ValidationError`. Two new regression tests: `test_list_handles_null_scopes` and `test_bulk_candlesticks_handles_null_candlesticks`.
 
+Followup polish (sixth review round):
+
+- **`GenerateApiKeyResponse.private_key` is now `pydantic.SecretStr`** — the PEM private key field is returned once and never retrievable again. Plain `str` would appear verbatim in any `repr()`, `str()`, or incidental log call of the response model. Wrapping with `SecretStr` masks it as `'**********'` in those contexts; callers retrieve the PEM via `response.private_key.get_secret_value()`. Docstring updated with usage note. Breaking for pre-release callers accessing `response.private_key` directly as a string (integration test + 3 unit tests updated in this PR).
+- **`_orderbook_from_item` redundant `or []` removed** — `ob.get("yes", [])` already returned `[]` on missing key, making the third `or []` clause dead. Simplified to `ob.get("yes_dollars") or ob.get("yes") or []` for cleaner reading.
+- **`_iso()` docstring clarifies string passthrough** — callers passing pre-stringified dates must ensure RFC3339 compliance themselves. Only `datetime` inputs get the UTC coercion guarantee.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:

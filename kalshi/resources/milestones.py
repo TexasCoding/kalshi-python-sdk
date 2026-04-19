@@ -17,6 +17,11 @@ def _iso(dt: datetime | str | None) -> str | None:
     which mandates a timezone offset — emitting a naive ISO string like
     ``"2026-04-19T12:00:00"`` would be silently accepted by some servers
     but interpreted in the server's local timezone, corrupting filters.
+
+    Strings are passed unchanged. RFC3339 compliance is the caller's
+    responsibility for the string path — a naive ISO string like
+    ``"2026-04-19T12:00:00"`` (no offset) will be forwarded to the server
+    as-is. Use ``datetime`` inputs if you want the SDK to guarantee UTC.
     """
     if dt is None:
         return None

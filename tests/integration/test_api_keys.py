@@ -163,8 +163,10 @@ class TestApiKeysSync:
         assert isinstance(gen, GenerateApiKeyResponse)
         assert gen.api_key_id
         # Private key must be a PEM — exact shape is RSA; loose check avoids
-        # brittle dependency on exact header whitespace.
-        assert "PRIVATE KEY" in gen.private_key
+        # brittle dependency on exact header whitespace. SecretStr wraps the
+        # PEM so it doesn't leak into logs or repr; unwrap here for content
+        # validation only.
+        assert "PRIVATE KEY" in gen.private_key.get_secret_value()
 
         _delete_with_retry(sync_client, gen.api_key_id)
 
