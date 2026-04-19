@@ -35,7 +35,14 @@ class ApplySubaccountTransferRequest(BaseModel):
 
 
 class SubaccountBalance(BaseModel):
-    """Balance for a single subaccount."""
+    """Balance for a single subaccount.
+
+    Note: ``updated_ts`` is a Unix seconds integer per spec
+    (``format: int64``), not an ISO datetime. RFQ/Quote timestamps are
+    ``format: date-time`` and surface as ``datetime``; subaccount
+    timestamps follow the spec's int wire format. Callers wanting a
+    ``datetime`` can ``datetime.fromtimestamp(obj.updated_ts, tz=timezone.utc)``.
+    """
 
     subaccount_number: int
     balance: DollarDecimal
@@ -53,7 +60,12 @@ class GetSubaccountBalancesResponse(BaseModel):
 
 
 class SubaccountTransfer(BaseModel):
-    """A past transfer between subaccounts."""
+    """A past transfer between subaccounts.
+
+    ``created_ts`` is a Unix seconds integer per spec (``format: int64``),
+    matching ``SubaccountBalance.updated_ts``. This is intentionally
+    different from RFQ/Quote timestamps, which are ISO datetime strings.
+    """
 
     transfer_id: str
     from_subaccount: int

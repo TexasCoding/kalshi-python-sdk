@@ -78,6 +78,14 @@ Each with models, sync+async resources, unit + integration tests, contract map e
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
+### P4: v0.11.0 follow-ups from claude[bot] PR #34 review
+**What:**
+- Verify `json={}` on `communications.confirm_quote` (and `subaccounts.create`, order_groups reset/trigger) is still required under production creds, not just demo. Drop the workaround per-endpoint as production confirms each route accepts empty-body POST/PUT without it.
+- Consider an eager `ValueError` in `communications.list_quotes` / `list_all_quotes` when both `quote_creator_user_id` and `rfq_creator_user_id` are `None` (spec + demo require at least one). Currently the caller gets a `KalshiValidationError` round-trip. DX nit, not a correctness bug.
+
+**Why:** Surfaced by PR #34 review. Both are minor and non-blocking — tracked so future cleanup passes don't silently drop them.
+**Added:** 2026-04-18 (PR #34 review round 2).
+
 ### P3: Register Order Groups response models in `_contract_map.py`
 **What:** Add `OrderGroup`, `GetOrderGroupResponse`, and `CreateOrderGroupResponse` to `kalshi/_contract_map.py` so response-side spec drift is caught by contract tests. Currently drift on new fields (e.g., if Kalshi adds `is_suspended: bool` to `OrderGroup`) would silently go unnoticed.
 **Why:** Every other resource (Order, Market, Fill, Settlement, Series, etc.) registers its response models here. Order Groups was shipped in v0.10.0 without this registration to keep the PR focused.

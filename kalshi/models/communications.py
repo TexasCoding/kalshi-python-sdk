@@ -130,6 +130,11 @@ class CreateRFQRequest(BaseModel):
     Spec allows ``contracts`` (integer) or ``contracts_fp`` (fixed-point string);
     SDK commits to the integer form. Target cost uses ``_dollars`` wire suffix.
     ``target_cost_centi_cents`` is deprecated upstream — omitted here.
+
+    Spec only requires ``market_ticker`` and ``rest_remainder``; ``contracts``
+    and ``target_cost`` are both optional and may both be omitted (a "shopping
+    around" RFQ with no committed size or cost). The SDK does not enforce a
+    contracts-or-cost invariant because the spec doesn't.
     """
 
     market_ticker: str
