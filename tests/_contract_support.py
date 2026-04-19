@@ -537,6 +537,22 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
             "/series/{series_ticker}/events/{ticker}/forecast_percentile_history"
         ),
     ),
+    # ── fcm ─────────────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.orders",
+        http_method="GET",
+        path_template="/fcm/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.orders_all",
+        http_method="GET",
+        path_template="/fcm/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.positions",
+        http_method="GET",
+        path_template="/fcm/positions",
+    ),
     # ── structured targets ──────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.structured_targets.StructuredTargetsResource.list",
@@ -858,6 +874,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
         "cursor",
     ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- fcm.orders_all: cursor paginator-handled ---
+    ("kalshi.resources.fcm.FcmResource.orders_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }

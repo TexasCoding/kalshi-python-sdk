@@ -16,6 +16,7 @@ from kalshi.resources.api_keys import AsyncApiKeysResource
 from kalshi.resources.communications import AsyncCommunicationsResource
 from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
+from kalshi.resources.fcm import AsyncFcmResource
 from kalshi.resources.historical import AsyncHistoricalResource
 from kalshi.resources.live_data import AsyncLiveDataResource
 from kalshi.resources.markets import AsyncMarketsResource
@@ -92,6 +93,7 @@ class AsyncKalshiClient:
         self.communications = AsyncCommunicationsResource(self._transport)
         self.events = AsyncEventsResource(self._transport)
         self.exchange = AsyncExchangeResource(self._transport)
+        self.fcm = AsyncFcmResource(self._transport)
         self.historical = AsyncHistoricalResource(self._transport)
         self.live_data = AsyncLiveDataResource(self._transport)
         self.markets = AsyncMarketsResource(self._transport)

@@ -15,6 +15,7 @@ import tests.integration.test_api_keys as _api_keys  # noqa: F401
 import tests.integration.test_communications as _communications  # noqa: F401
 import tests.integration.test_events as _events  # noqa: F401
 import tests.integration.test_exchange as _exchange  # noqa: F401
+import tests.integration.test_fcm as _fcm  # noqa: F401
 import tests.integration.test_historical as _historical  # noqa: F401
 import tests.integration.test_live_data as _live_data  # noqa: F401
 import tests.integration.test_markets as _markets  # noqa: F401
@@ -66,12 +67,13 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 16 resource classes."""
+        """Sanity check: discover finds the expected 17 resource classes."""
         discovered = discover_public_methods()
         expected = {
             "AccountResource",
             "ApiKeysResource",
             "CommunicationsResource",
+            "FcmResource",
             "LiveDataResource",
             "MarketsResource",
             "MilestonesResource",

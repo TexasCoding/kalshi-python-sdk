@@ -14,6 +14,7 @@ from kalshi.resources.api_keys import ApiKeysResource
 from kalshi.resources.communications import CommunicationsResource
 from kalshi.resources.events import EventsResource
 from kalshi.resources.exchange import ExchangeResource
+from kalshi.resources.fcm import FcmResource
 from kalshi.resources.historical import HistoricalResource
 from kalshi.resources.live_data import LiveDataResource
 from kalshi.resources.markets import MarketsResource
@@ -94,6 +95,7 @@ class KalshiClient:
         self.communications = CommunicationsResource(self._transport)
         self.events = EventsResource(self._transport)
         self.exchange = ExchangeResource(self._transport)
+        self.fcm = FcmResource(self._transport)
         self.historical = HistoricalResource(self._transport)
         self.live_data = LiveDataResource(self._transport)
         self.markets = MarketsResource(self._transport)

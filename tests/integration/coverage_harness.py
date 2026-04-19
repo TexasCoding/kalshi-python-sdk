@@ -29,6 +29,7 @@ RESOURCE_MODULES = [
     "kalshi.resources.orders",
     "kalshi.resources.events",
     "kalshi.resources.exchange",
+    "kalshi.resources.fcm",
     "kalshi.resources.historical",
     "kalshi.resources.portfolio",
     "kalshi.resources.series",
