@@ -1,6 +1,8 @@
 """Tests for WebSocket message models."""
 from __future__ import annotations
 
+from decimal import Decimal
+
 from kalshi.ws.models.base import (
     BaseMessage,
     ErrorMessage,
@@ -73,8 +75,8 @@ class TestOrderbookModels:
             "msg": {
                 "market_ticker": "ECON-GDP-25Q1",
                 "market_id": "abc-123",
-                "yes": [[50, 100], [55, 200]],
-                "no": [[45, 150]],
+                "yes": [["0.50", "100.00"], ["0.55", "200.00"]],
+                "no": [["0.45", "150.00"]],
             },
         }
         msg = OrderbookSnapshotMessage.model_validate(raw)
@@ -83,7 +85,7 @@ class TestOrderbookModels:
         assert msg.seq == 1
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert len(msg.msg.yes) == 2
-        assert msg.msg.yes[0] == [50, 100]
+        assert msg.msg.yes[0] == ["0.50", "100.00"]
 
     def test_parse_delta(self) -> None:
         raw = {
@@ -93,16 +95,16 @@ class TestOrderbookModels:
             "msg": {
                 "market_ticker": "ECON-GDP-25Q1",
                 "market_id": "abc-123",
-                "price": 55,
-                "delta": 50,
+                "price_dollars": "0.55",
+                "delta_fp": "50",
                 "side": "yes",
             },
         }
         msg = OrderbookDeltaMessage.model_validate(raw)
         assert msg.type == "orderbook_delta"
         assert msg.seq == 2
-        assert msg.msg.price == 55
-        assert msg.msg.delta == 50
+        assert msg.msg.price == Decimal("0.55")
+        assert msg.msg.delta == "50"
         assert msg.msg.side == "yes"
 
     def test_snapshot_empty_book(self) -> None:
@@ -124,17 +126,17 @@ class TestOrderbookModels:
             "msg": {
                 "market_ticker": "T",
                 "market_id": "x",
-                "price": 50,
-                "delta": -20,
+                "price_dollars": "0.50",
+                "delta_fp": "-20",
                 "side": "no",
                 "client_order_id": "my-order",
-                "ts": 1700000000,
+                "ts": "2026-04-19T18:43:37.662364Z",
             },
         }
         msg = OrderbookDeltaMessage.model_validate(raw)
         assert msg.msg.client_order_id == "my-order"
-        assert msg.msg.ts == 1700000000
-        assert msg.msg.delta == -20  # negative delta = removal
+        assert msg.msg.ts == "2026-04-19T18:43:37.662364Z"
+        assert msg.msg.delta == "-20"  # negative delta = removal
 
 
 # ---------- Ticker ----------
@@ -148,10 +150,10 @@ class TestTickerModel:
             "msg": {
                 "market_ticker": "ECON-GDP-25Q1",
                 "market_id": "abc-123",
-                "yes_bid": 55,
-                "yes_ask": 60,
-                "no_bid": 40,
-                "no_ask": 45,
+                "yes_bid_dollars": "0.55",
+                "yes_ask_dollars": "0.60",
+                "no_bid": "0.40",
+                "no_ask": "0.45",
                 "volume": "1000",
                 "open_interest": "500",
                 "ts": 1700000000,
@@ -161,8 +163,8 @@ class TestTickerModel:
         assert msg.type == "ticker"
         assert msg.sid == 1
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
-        assert msg.msg.yes_bid == 55
-        assert msg.msg.yes_ask == 60
+        assert msg.msg.yes_bid == Decimal("0.55")
+        assert msg.msg.yes_ask == Decimal("0.60")
         assert msg.msg.volume == "1000"
 
     def test_ticker_no_seq(self) -> None:
@@ -206,9 +208,9 @@ class TestTradeModel:
             "msg": {
                 "trade_id": "trade-001",
                 "market_ticker": "ECON-GDP-25Q1",
-                "yes_price": 55,
-                "no_price": 45,
-                "count": "10",
+                "yes_price_dollars": "0.55",
+                "no_price_dollars": "0.45",
+                "count_fp": "10",
                 "taker_side": "yes",
                 "ts": 1700000000,
             },
@@ -217,7 +219,7 @@ class TestTradeModel:
         assert msg.type == "trade"
         assert msg.sid == 2
         assert msg.msg.trade_id == "trade-001"
-        assert msg.msg.yes_price == 55
+        assert msg.msg.yes_price == Decimal("0.55")
         assert msg.msg.count == "10"
 
     def test_trade_no_seq(self) -> None:
@@ -254,12 +256,12 @@ class TestFillModel:
                 "market_ticker": "ECON-GDP-25Q1",
                 "is_taker": True,
                 "side": "yes",
-                "yes_price": 55,
-                "count": "5",
+                "yes_price_dollars": "0.55",
+                "count_fp": "5",
                 "fee_cost": "0.50",
                 "action": "buy",
                 "ts": 1700000000,
-                "post_position": "10",
+                "post_position_fp": "10",
                 "purchased_side": "yes",
             },
         }
@@ -267,8 +269,8 @@ class TestFillModel:
         assert msg.type == "fill"
         assert msg.msg.trade_id == "fill-001"
         assert msg.msg.is_taker is True
-        assert msg.msg.yes_price == 55
-        assert msg.msg.fee_cost == "0.50"
+        assert msg.msg.yes_price == Decimal("0.55")
+        assert msg.msg.fee_cost == Decimal("0.50")
         assert msg.msg.action == "buy"
 
     def test_fill_no_seq(self) -> None:
@@ -317,7 +319,7 @@ class TestMarketPositionsModel:
         assert msg.type == "market_positions"
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert msg.msg.position == "100"
-        assert msg.msg.realized_pnl == "10.50"
+        assert msg.msg.realized_pnl == Decimal("10.50")
 
     def test_market_positions_no_seq(self) -> None:
         raw = {
@@ -353,14 +355,14 @@ class TestUserOrdersModel:
                 "status": "resting",
                 "side": "yes",
                 "is_yes": True,
-                "yes_price": 55,
-                "fill_count": "3",
-                "remaining_count": "7",
-                "initial_count": "10",
-                "taker_fill_cost": "1.65",
-                "maker_fill_cost": "0.00",
-                "taker_fees": "0.05",
-                "maker_fees": "0.00",
+                "yes_price_dollars": "0.55",
+                "fill_count_fp": "3",
+                "remaining_count_fp": "7",
+                "initial_count_fp": "10",
+                "taker_fill_cost_dollars": "1.65",
+                "maker_fill_cost_dollars": "0.00",
+                "taker_fees_dollars": "0.05",
+                "maker_fees_dollars": "0.00",
                 "created_time": "2025-01-01T00:00:00Z",
             },
         }
@@ -369,7 +371,7 @@ class TestUserOrdersModel:
         assert msg.msg.order_id == "ord-001"
         assert msg.msg.status == "resting"
         assert msg.msg.is_yes is True
-        assert msg.msg.yes_price == 55
+        assert msg.msg.yes_price == Decimal("0.55")
         assert msg.msg.fill_count == "3"
 
     def test_user_orders_no_seq(self) -> None:
@@ -506,7 +508,7 @@ class TestMarketLifecycleModel:
             },
         }
         msg = MarketLifecycleMessage.model_validate(raw)
-        assert msg.msg.settlement_value == "1.00"
+        assert msg.msg.settlement_value == Decimal("1.00")
         assert msg.msg.settled_ts == 1700300000
 
 
@@ -656,8 +658,8 @@ class TestCommunicationsModel:
                 "quote_id": "q-001",
                 "rfq_id": "rfq-001",
                 "order_id": "ord-001",
-                "executed_ts": 1700000000,
+                "executed_ts": "2026-04-19T18:43:37Z",
             }
         )
         assert payload.order_id == "ord-001"
-        assert payload.executed_ts == 1700000000
+        assert payload.executed_ts == "2026-04-19T18:43:37Z"

@@ -3,33 +3,43 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.types import DollarDecimal
+
 
 class RfqCreatedPayload(BaseModel):
-    """RFQ created notification payload."""
+    """RFQ created notification payload.
+
+    Wire format per AsyncAPI spec: ``created_ts`` is an RFC3339 date-time
+    string; ``target_cost_dollars`` is a dollar string; ``contracts_fp`` is a
+    2-decimal fixed-point count string.
+    """
 
     id: str
     creator_id: str | None = None
     market_ticker: str | None = None
-    created_ts: int | None = None
+    created_ts: str | None = None
     event_ticker: str | None = None
     contracts: str | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_fp", "contracts"),
     )  # _fp format
-    target_cost: str | None = Field(
+    target_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
-    )  # dollar string
+    )
     model_config = {"extra": "allow"}
 
 
 class RfqDeletedPayload(BaseModel):
-    """RFQ deleted notification payload."""
+    """RFQ deleted notification payload.
+
+    ``deleted_ts`` is an RFC3339 date-time string per AsyncAPI spec.
+    """
 
     id: str
     creator_id: str | None = None
     market_ticker: str | None = None
-    deleted_ts: int | None = None
+    deleted_ts: str | None = None
     model_config = {"extra": "allow"}
 
 
@@ -40,15 +50,15 @@ class QuoteCreatedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = Field(
+    yes_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
-    )  # dollar string
-    no_bid: str | None = Field(
+    )
+    no_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
-    )  # dollar string
-    created_ts: int | None = None
+    )
+    created_ts: str | None = None
     model_config = {"extra": "allow"}
 
 
@@ -59,11 +69,11 @@ class QuoteAcceptedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = Field(
+    yes_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    no_bid: str | None = Field(
+    no_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
@@ -85,7 +95,7 @@ class QuoteExecutedPayload(BaseModel):
     order_id: str | None = None
     client_order_id: str | None = None
     market_ticker: str | None = None
-    executed_ts: int | None = None
+    executed_ts: str | None = None
     model_config = {"extra": "allow"}
 
 

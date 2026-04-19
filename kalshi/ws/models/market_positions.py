@@ -3,9 +3,15 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.types import DollarDecimal
+
 
 class MarketPositionsPayload(BaseModel):
-    """Payload for market_positions messages (private channel)."""
+    """Payload for market_positions messages (private channel).
+
+    Dollar-denominated fields use :data:`DollarDecimal` per the CLAUDE.md
+    convention. ``position`` is a fixed-point contract count (string).
+    """
 
     user_id: str | None = None
     market_ticker: str
@@ -13,22 +19,22 @@ class MarketPositionsPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("position_fp", "position"),
     )  # _fp format
-    position_cost: str | None = Field(
+    position_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("position_cost_dollars", "position_cost"),
-    )  # dollar string
-    realized_pnl: str | None = Field(
+    )
+    realized_pnl: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
-    )  # dollar string
-    fees_paid: str | None = Field(
+    )
+    fees_paid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
-    )  # dollar string
-    position_fee_cost: str | None = Field(
+    )
+    position_fee_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("position_fee_cost_dollars", "position_fee_cost"),
-    )  # dollar string
+    )
     volume: str | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),

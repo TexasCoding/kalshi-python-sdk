@@ -13,13 +13,14 @@ from kalshi.ws.models.orderbook_delta import (
 logger = logging.getLogger("kalshi.ws")
 
 
-def _cents_to_dollars(cents: int) -> Decimal:
-    """Convert integer cents to Decimal dollars."""
-    return Decimal(cents) / Decimal(100)
-
-
 class OrderbookManager:
     """Maintains local orderbook state from WebSocket stream.
+
+    Prices and quantities are :class:`decimal.Decimal` throughout. Wire format
+    (per AsyncAPI spec) sends dollar-decimal strings for prices (e.g.
+    ``"0.5500"``) and fixed-point contract-count strings (e.g. ``"100.00"``)
+    for quantities; both parse directly into ``Decimal`` without any
+    cents-to-dollars conversion.
 
     Usage:
         mgr = OrderbookManager()
@@ -35,11 +36,11 @@ class OrderbookManager:
         """Initialize (or reset) a book from a full snapshot."""
         ticker = msg.msg.market_ticker
         yes_levels = [
-            OrderbookLevel(price=_cents_to_dollars(p), quantity=_cents_to_dollars(q))
+            OrderbookLevel(price=Decimal(p), quantity=Decimal(q))
             for p, q in msg.msg.yes
         ]
         no_levels = [
-            OrderbookLevel(price=_cents_to_dollars(p), quantity=_cents_to_dollars(q))
+            OrderbookLevel(price=Decimal(p), quantity=Decimal(q))
             for p, q in msg.msg.no
         ]
         book = Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
@@ -64,8 +65,8 @@ class OrderbookManager:
             logger.warning("Delta for unknown ticker %s (no snapshot yet)", ticker)
             return None
 
-        price = _cents_to_dollars(msg.msg.price)
-        delta = msg.msg.delta
+        price = msg.msg.price  # already Decimal via DollarDecimal
+        delta = Decimal(msg.msg.delta)  # _fp string → Decimal contracts
         side = msg.msg.side
 
         levels = book.yes if side == "yes" else book.no
@@ -79,20 +80,16 @@ class OrderbookManager:
 
         if existing_idx >= 0:
             existing = levels[existing_idx]
-            new_qty = int(existing.quantity * 100) + delta
+            new_qty = existing.quantity + delta
             if new_qty <= 0:
                 # Remove the level
                 levels.pop(existing_idx)
             else:
-                levels[existing_idx] = OrderbookLevel(
-                    price=price, quantity=_cents_to_dollars(new_qty)
-                )
+                levels[existing_idx] = OrderbookLevel(price=price, quantity=new_qty)
         else:
             if delta > 0:
                 # Add new level
-                levels.append(
-                    OrderbookLevel(price=price, quantity=_cents_to_dollars(delta))
-                )
+                levels.append(OrderbookLevel(price=price, quantity=delta))
                 # Keep sorted by price
                 levels.sort(key=lambda lv: lv.price)
 
