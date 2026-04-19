@@ -60,7 +60,8 @@ async def run() -> int:
     auth = KalshiAuth.from_env()
 
     # REST client for order placement.
-    rest = KalshiClient.from_env(demo=True)
+    # from_env() reads KALSHI_DEMO from env (set by bridge above).
+    rest = KalshiClient.from_env()
 
     # Pick an open market.
     page = rest.markets.list(status="open", limit=1)
