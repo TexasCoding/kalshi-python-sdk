@@ -225,6 +225,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.search.ScopeList",
         spec_schema="ScopeList",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.incentive_programs.IncentiveProgram",
+        spec_schema="IncentiveProgram",
+        notes="period_reward is int centi-cents; target_size_fp DollarDecimal",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

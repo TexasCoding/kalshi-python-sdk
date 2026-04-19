@@ -18,6 +18,7 @@ from kalshi.resources.events import AsyncEventsResource
 from kalshi.resources.exchange import AsyncExchangeResource
 from kalshi.resources.fcm import AsyncFcmResource
 from kalshi.resources.historical import AsyncHistoricalResource
+from kalshi.resources.incentive_programs import AsyncIncentiveProgramsResource
 from kalshi.resources.live_data import AsyncLiveDataResource
 from kalshi.resources.markets import AsyncMarketsResource
 from kalshi.resources.milestones import AsyncMilestonesResource
@@ -96,6 +97,7 @@ class AsyncKalshiClient:
         self.exchange = AsyncExchangeResource(self._transport)
         self.fcm = AsyncFcmResource(self._transport)
         self.historical = AsyncHistoricalResource(self._transport)
+        self.incentive_programs = AsyncIncentiveProgramsResource(self._transport)
         self.live_data = AsyncLiveDataResource(self._transport)
         self.markets = AsyncMarketsResource(self._transport)
         self.milestones = AsyncMilestonesResource(self._transport)

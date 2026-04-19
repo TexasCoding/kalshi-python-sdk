@@ -36,6 +36,10 @@ from kalshi.models.exchange import (
     WeeklySchedule,
 )
 from kalshi.models.historical import HistoricalCutoff, Trade
+from kalshi.models.incentive_programs import (
+    GetIncentiveProgramsResponse,
+    IncentiveProgram,
+)
 from kalshi.models.live_data import (
     GetGameStatsResponse,
     GetLiveDataResponse,
@@ -166,6 +170,7 @@ __all__ = [
     "GetCommunicationsIDResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
+    "GetIncentiveProgramsResponse",
     "GetLiveDataResponse",
     "GetLiveDatasResponse",
     "GetMilestoneResponse",
@@ -181,6 +186,7 @@ __all__ = [
     "GetSubaccountNettingResponse",
     "GetTagsForSeriesCategoriesResponse",
     "HistoricalCutoff",
+    "IncentiveProgram",
     "LiveData",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",

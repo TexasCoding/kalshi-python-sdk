@@ -31,6 +31,7 @@ RESOURCE_MODULES = [
     "kalshi.resources.exchange",
     "kalshi.resources.fcm",
     "kalshi.resources.historical",
+    "kalshi.resources.incentive_programs",
     "kalshi.resources.portfolio",
     "kalshi.resources.search",
     "kalshi.resources.series",

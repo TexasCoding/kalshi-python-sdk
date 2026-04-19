@@ -16,6 +16,7 @@ from kalshi.resources.events import EventsResource
 from kalshi.resources.exchange import ExchangeResource
 from kalshi.resources.fcm import FcmResource
 from kalshi.resources.historical import HistoricalResource
+from kalshi.resources.incentive_programs import IncentiveProgramsResource
 from kalshi.resources.live_data import LiveDataResource
 from kalshi.resources.markets import MarketsResource
 from kalshi.resources.milestones import MilestonesResource
@@ -98,6 +99,7 @@ class KalshiClient:
         self.exchange = ExchangeResource(self._transport)
         self.fcm = FcmResource(self._transport)
         self.historical = HistoricalResource(self._transport)
+        self.incentive_programs = IncentiveProgramsResource(self._transport)
         self.live_data = LiveDataResource(self._transport)
         self.markets = MarketsResource(self._transport)
         self.milestones = MilestonesResource(self._transport)

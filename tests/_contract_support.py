@@ -553,6 +553,17 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/fcm/positions",
     ),
+    # ── incentive programs ──────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        http_method="GET",
+        path_template="/incentive_programs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        http_method="GET",
+        path_template="/incentive_programs",
+    ),
     # ── search ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.search.SearchResource.tags_by_categories",
@@ -889,6 +900,46 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     # --- fcm.orders_all: cursor paginator-handled ---
     ("kalshi.resources.fcm.FcmResource.orders_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+    ),
+    # --- incentive_programs: `type` query param renamed to `incentive_type` ---
+    # Same shadow-avoidance rationale as milestones / structured_targets.
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
+        "incentive_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "type",
+    ): Exclusion(
+        reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "incentive_type",
+    ): Exclusion(
+        reason=(
+            "SDK renamed from spec's `type` query param to avoid shadowing "
+            "the Python built-in; not query/path parity with spec (same wire "
+            "key, different kwarg name)"
+        ),
+    ),
+    (
+        "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+        "cursor",
+    ): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
     ),
 }
