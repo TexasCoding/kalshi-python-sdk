@@ -13,6 +13,9 @@ All notable changes to kalshi-sdk will be documented in this file.
 - 11 new WebSocket integration tests covering every currently-dispatched message type end-to-end. Each skips cleanly on demo silence within its respective timeout window.
 - Hard-assertion drift guard: `test_ws_envelope_type_drift` now fails on any new spec/SDK envelope-type mismatch not on the (currently-empty) `_DEMO_DIVERGENCE_ALLOWLIST`.
 
+### Known Limitations
+- Envelope-type drift is fixed (the dispatcher now routes `user_order` / `market_position` / `multivariate_lookup` frames to the correct Message class), but a separate payload-type drift remains. `OrderbookDeltaPayload.price` and `UserOrdersPayload.yes_price` are typed `int` — demo sends dollar-decimal strings (`"0.0200"`, `"0.0100"`). `ts` fields across payloads are typed `int | None` — demo sends ISO datetime strings. Pydantic rejects these frames at `model_validate`, so the dispatcher continues to silently drop `orderbook_delta` and `user_order` frames. Net user-visible behavior for those channels is unchanged until v0.15.0 fixes the payload types. Of the 14 WS integration tests shipped, only `test_ws_connect_and_auth` currently passes against live demo; 13 skip on timeout because the dispatcher drops every subscribed payload. Tracked as v0.15.0 in TODOS.md.
+
 ## [0.13.0] — 2026-04-19
 
 ### Added — REST coverage to 100%
