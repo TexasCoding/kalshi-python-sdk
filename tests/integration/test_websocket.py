@@ -190,10 +190,11 @@ class TestWebSocketLive:
             msg = await asyncio.wait_for(stream.__anext__(), timeout=15.0)
         except TimeoutError:
             pytest.skip(
-                "No multivariate frame within 15s — demo likely has no active collections"
+                "No multivariate frame within 15s — demo likely has no active "
+                "collections, and 'multivariate_lookup' envelope key is "
+                "spec-inferred (no live capture during v0.14.0 work)"
             )
         assert isinstance(msg, MultivariateMessage)
-        # Envelope type aligned to spec 'multivariate_lookup' in v0.14.0.
         assert msg.type == "multivariate_lookup"
 
     @retry_transient(max_retries=2, delay=1.0)
@@ -238,10 +239,11 @@ class TestWebSocketLive:
             msg = await asyncio.wait_for(stream.__anext__(), timeout=5.0)
         except TimeoutError:
             pytest.skip(
-                "No market_positions frame within 5s (expected if demo acct is flat)"
+                "No market_positions frame within 5s — demo acct likely flat, "
+                "and 'market_position' envelope key is spec-inferred (no live "
+                "capture during v0.14.0 work)"
             )
         assert isinstance(msg, MarketPositionsMessage)
-        # Envelope type aligned to spec 'market_position' in v0.14.0.
         assert msg.type == "market_position"
 
     @retry_transient(max_retries=2, delay=1.0)
@@ -259,7 +261,6 @@ class TestWebSocketLive:
                 "No user_orders frame within 5s (expected if demo acct has no open orders)"
             )
         assert isinstance(msg, UserOrdersMessage)
-        # Envelope type aligned to spec 'user_order' in v0.14.0.
         assert msg.type == "user_order"
 
     @retry_transient(max_retries=2, delay=1.0)

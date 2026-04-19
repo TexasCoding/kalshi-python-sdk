@@ -634,7 +634,8 @@ class TestWsSpecDrift:
     def test_ws_envelope_type_drift(self) -> None:
         """Warn if spec type const values differ from SDK message envelope type defaults."""
         schemas = self.spec.get("components", {}).get("schemas", {})
-        mismatches: list[str] = []
+        # Collect structured mismatches: (spec_schema, spec_type, sdk_message_name, sdk_type)
+        mismatches: list[tuple[str, str, str, str]] = []
 
         for entry in WS_CONTRACT_MAP:
             schema = schemas.get(entry.spec_schema, {})
@@ -672,26 +673,23 @@ class TestWsSpecDrift:
                         sdk_type_field = obj.model_fields.get("type")
                         if sdk_type_field and sdk_type_field.default != spec_type:
                             mismatches.append(
-                                f"{entry.spec_schema}: spec type='{spec_type}', "
-                                f"SDK {name}.type='{sdk_type_field.default}'"
+                                (entry.spec_schema, spec_type, name, str(sdk_type_field.default))
                             )
 
         # Filter out documented divergences (Branch-B style intentional exceptions).
-        # Each mismatch string has the shape:
-        #   "{spec_schema}: spec type='{spec_type}', SDK {name}.type='{sdk_type}'"
-        unexpected = []
-        for m in mismatches:
-            matched_allowlist = False
-            for allowed_schema, allowed_sdk_type in self._DEMO_DIVERGENCE_ALLOWLIST:
-                if m.startswith(f"{allowed_schema}: ") and f"'{allowed_sdk_type}'" in m:
-                    matched_allowlist = True
-                    break
-            if not matched_allowlist:
-                unexpected.append(m)
+        # Allowlist compares tuples directly, so the assertion output format can
+        # change without silently breaking the filter.
+        unexpected = [
+            m for m in mismatches
+            if (m[0], m[3]) not in self._DEMO_DIVERGENCE_ALLOWLIST
+        ]
 
         assert not unexpected, (
             "WS envelope type drift (not on documented divergence allowlist):\n"
-            + "\n".join(f"  - {u}" for u in unexpected)
+            + "\n".join(
+                f"  - {schema}: spec type='{st}', SDK {cls}.type='{sdk}'"
+                for schema, st, cls, sdk in unexpected
+            )
         )
 
     def test_ws_contract_map_completeness(self) -> None:
