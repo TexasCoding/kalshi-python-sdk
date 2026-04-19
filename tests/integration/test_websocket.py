@@ -210,3 +210,71 @@ class TestWebSocketLive:
             pytest.skip("No multivariate_market_lifecycle event within 15s")
         assert isinstance(msg, MultivariateLifecycleMessage)
         assert msg.type == "multivariate_market_lifecycle"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_fill(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to fill channel. Skip if account has no fills in window."""
+        from kalshi.ws.models.fill import FillMessage
+        stream = await ws_session.subscribe_fill()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=5.0)
+        except TimeoutError:
+            pytest.skip("No fill for demo account within 5s (expected if idle)")
+        assert isinstance(msg, FillMessage)
+        assert msg.type == "fill"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_market_positions(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to market_positions channel. Skip if demo account has no positions."""
+        from kalshi.ws.models.market_positions import MarketPositionsMessage
+        stream = await ws_session.subscribe_market_positions()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=5.0)
+        except TimeoutError:
+            pytest.skip(
+                "No market_positions frame within 5s (expected if demo acct is flat)"
+            )
+        assert isinstance(msg, MarketPositionsMessage)
+        # Envelope type aligned to spec 'market_position' in v0.14.0.
+        assert msg.type == "market_position"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_user_orders(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to user_orders channel. Skip if demo account has no resting orders."""
+        from kalshi.ws.models.user_orders import UserOrdersMessage
+        stream = await ws_session.subscribe_user_orders()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=5.0)
+        except TimeoutError:
+            pytest.skip(
+                "No user_orders frame within 5s (expected if demo acct has no open orders)"
+            )
+        assert isinstance(msg, UserOrdersMessage)
+        # Envelope type aligned to spec 'user_order' in v0.14.0.
+        assert msg.type == "user_order"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_order_group(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to order_group_updates. Skip if demo account has no order groups."""
+        from kalshi.ws.models.order_group import OrderGroupMessage
+        stream = await ws_session.subscribe_order_group()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=5.0)
+        except TimeoutError:
+            pytest.skip(
+                "No order_group_updates within 5s (expected if demo acct has no groups)"
+            )
+        assert isinstance(msg, OrderGroupMessage)
+        assert msg.type == "order_group_updates"
