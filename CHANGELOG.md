@@ -50,6 +50,10 @@ Followup polish (seventh review round):
 - **`bulk_candlesticks` ticker count now splits + filters empty segments** — a pre-joined string like `"A,B,,"` previously counted as 4 (comma count + 1); now counts 2 real tickers. Tightens the 100-ticker cap against trailing/consecutive comma bypasses without waiting on the deferred `_join_tickers` validation work.
 - **`MilestonesResource.list` RFC3339 docstring** — call-site now surfaces the `_iso()` string-passthrough limitation: pass `datetime` for guaranteed UTC, strings travel verbatim.
 
+Followup polish (eighth review round):
+
+- **[MED] Async `bulk_candlesticks` ticker-count bug** — the split+filter ticker-count fix from the seventh round only landed on the sync path; the async counterpart still used the naive `joined.count(",") + 1` formula. Trailing-comma strings like `"A,B,,"` would spuriously fail async calls with `ValueError` (counted as 4, not 2); `,`.join([""] * 99) + "A,B"` would wrongly pass (100 commas, 2 real tickers). Now sync and async share the same `sum(1 for t in joined.split(",") if t.strip())` counter. Three new async regression tests in `TestAsyncMarketsBulkCandlesticksValidation` cover over-100 list, over-100 string, and trailing-comma happy path.
+
 ### Added
 
 - **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:

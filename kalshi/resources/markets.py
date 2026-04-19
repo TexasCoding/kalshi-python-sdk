@@ -466,7 +466,11 @@ class AsyncMarketsResource(AsyncResource):
         if not market_tickers:
             raise ValueError("market_tickers must be a non-empty list or string")
         joined = _join_tickers(market_tickers)
-        ticker_count = joined.count(",") + 1 if joined else 0
+        # Split+filter matches the sync version so trailing/consecutive commas
+        # ("A,B,," -> 2 real tickers) don't spuriously fail or bypass the cap.
+        ticker_count = (
+            sum(1 for t in joined.split(",") if t.strip()) if joined else 0
+        )
         if ticker_count > _MAX_BULK:
             raise ValueError(
                 f"market_tickers accepts at most {_MAX_BULK} entries per spec "

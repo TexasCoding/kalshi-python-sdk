@@ -429,3 +429,44 @@ class TestAsyncMarketsCandlesticks:
         assert "include_latest_before_start" not in dict(
             route.calls[0].request.url.params
         )
+
+
+class TestAsyncMarketsBulkCandlesticksValidation:
+    """Parity check: async bulk_candlesticks shares sync's ticker-count logic."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_over_100_list(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            await markets.bulk_candlesticks(
+                market_tickers=[f"MKT-{i}" for i in range(101)],
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    @pytest.mark.asyncio
+    async def test_rejects_over_100_string(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        """Regression: the split+filter counter must apply to the async path too."""
+        joined = ",".join(f"MKT-{i}" for i in range(101))
+        with pytest.raises(ValueError, match="at most 100"):
+            await markets.bulk_candlesticks(
+                market_tickers=joined,
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_trailing_commas_do_not_inflate_count(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        """"A,B,," counts as 2 real tickers, not 4 — must not spuriously fail."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
+        ).mock(return_value=httpx.Response(200, json={"markets": []}))
+        # Does not raise even with trailing commas.
+        await markets.bulk_candlesticks(
+            market_tickers="A,B,,",
+            start_ts=1, end_ts=2, period_interval=60,
+        )
