@@ -12,7 +12,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from kalshi.types import DollarDecimal, NullableList
+from kalshi.types import FixedPointCount, NullableList
 
 
 class IncentiveProgram(BaseModel):
@@ -28,7 +28,7 @@ class IncentiveProgram(BaseModel):
     period_reward: int
     paid_out: bool
     discount_factor_bps: int | None = None
-    target_size_fp: DollarDecimal | None = None
+    target_size_fp: FixedPointCount | None = None
 
     model_config = {"extra": "allow"}
 

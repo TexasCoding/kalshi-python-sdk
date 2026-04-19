@@ -11,7 +11,7 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiAuthError, KalshiError, KalshiNotFoundError
+from kalshi.errors import KalshiAuthError, KalshiNotFoundError
 from kalshi.models.orders import Order
 from kalshi.models.portfolio import PositionsResponse
 from tests.integration.assertions import assert_model_fields
@@ -19,10 +19,12 @@ from tests.integration.coverage_harness import register
 
 register("FcmResource", ["orders", "orders_all", "positions"])
 
+# Demo returns 401/403 (→ KalshiAuthError) or 404 (→ KalshiNotFoundError)
+# for non-FCM accounts. Intentionally NOT including KalshiError base class —
+# a timeout or parse error should surface, not be swallowed as "not FCM".
 _TOLERATED_FCM_ERRORS: tuple[type[Exception], ...] = (
     KalshiAuthError,
     KalshiNotFoundError,
-    KalshiError,
 )
 
 

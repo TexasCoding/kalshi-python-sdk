@@ -9,6 +9,7 @@ import respx
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiServerError
 from kalshi.resources.search import AsyncSearchResource, SearchResource
 
 
@@ -106,6 +107,38 @@ class TestFiltersBySport:
         result = search.filters_by_sport()
         assert result.filters_by_sports == {}
         assert result.sport_ordering == []
+
+    @respx.mock
+    def test_null_sport_ordering(self, search: SearchResource) -> None:
+        """NullableList coerces server-sent null to []."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/search/filters_by_sport",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"filters_by_sports": {}, "sport_ordering": None},
+            )
+        )
+        result = search.filters_by_sport()
+        assert result.sport_ordering == []
+
+
+class TestSearchErrors:
+    @respx.mock
+    def test_tags_server_error(self, search: SearchResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/search/tags_by_categories",
+        ).mock(return_value=httpx.Response(500, json={"error": "internal"}))
+        with pytest.raises(KalshiServerError):
+            search.tags_by_categories()
+
+    @respx.mock
+    def test_filters_server_error(self, search: SearchResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/search/filters_by_sport",
+        ).mock(return_value=httpx.Response(500, json={"error": "internal"}))
+        with pytest.raises(KalshiServerError):
+            search.filters_by_sport()
 
 
 class TestAsyncSearch:

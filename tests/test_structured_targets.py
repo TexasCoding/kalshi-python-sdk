@@ -150,6 +150,27 @@ class TestAsyncList:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_filters_serialize(
+        self, async_resource: AsyncStructuredTargetsResource,
+    ) -> None:
+        """Regression guard: SDK kwarg `target_type` must serialize to wire `type`."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/structured_targets",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"structured_targets": []},
+            )
+        )
+        await async_resource.list(
+            ids=["uuid-1", "uuid-2"], target_type="basketball_player",
+        )
+        assert route.called
+        url = route.calls.last.request.url
+        assert url.params.get_list("ids") == ["uuid-1", "uuid-2"]
+        assert url.params["type"] == "basketball_player"
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_get(
         self, async_resource: AsyncStructuredTargetsResource,
     ) -> None:
@@ -163,3 +184,45 @@ class TestAsyncList:
         target = await async_resource.get("uuid-1")
         assert target is not None
         assert target.id == "uuid-1"
+
+
+class TestListAll:
+    @respx.mock
+    def test_paginates(self, resource: StructuredTargetsResource) -> None:
+        """Verify cursor-driven pagination flows through base _list_all."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/structured_targets",
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "structured_targets": [{"id": "uuid-1"}],
+                        "cursor": "page-2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={"structured_targets": [{"id": "uuid-2"}]},
+                ),
+            ],
+        )
+        items = list(resource.list_all())
+        assert len(items) == 2
+        assert items[0].id == "uuid-1"
+        assert items[1].id == "uuid-2"
+        assert route.call_count == 2
+        assert route.calls[1].request.url.params["cursor"] == "page-2"
+
+
+class TestModel:
+    def test_type_alias_round_trip(self) -> None:
+        """StructuredTarget accepts both wire key `type` and SDK name `target_type`."""
+        from kalshi.models.structured_targets import StructuredTarget
+
+        from_wire = StructuredTarget.model_validate({"type": "basketball_player"})
+        assert from_wire.target_type == "basketball_player"
+        from_sdk = StructuredTarget.model_validate(
+            {"target_type": "basketball_player"},
+        )
+        assert from_sdk.target_type == "basketball_player"

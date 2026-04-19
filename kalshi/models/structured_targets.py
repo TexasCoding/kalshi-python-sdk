@@ -14,23 +14,32 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import NullableList
 
 
 class StructuredTarget(BaseModel):
-    """An external entity a market can be structured against."""
+    """An external entity a market can be structured against.
+
+    ``target_type`` is exposed under the SDK-local name (spec wire key
+    is ``type``) to avoid shadowing the Python built-in — same convention
+    as the SDK's query-param renames on this and related resources.
+    """
 
     id: str | None = None
     name: str | None = None
-    type: str | None = None
+    target_type: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("type", "target_type"),
+        serialization_alias="type",
+    )
     details: dict[str, Any] = {}
     source_id: str | None = None
     source_ids: dict[str, str] | None = None
     last_updated_ts: datetime | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class GetStructuredTargetsResponse(BaseModel):

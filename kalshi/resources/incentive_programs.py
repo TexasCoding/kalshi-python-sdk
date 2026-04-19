@@ -1,33 +1,17 @@
 """Incentive programs resource — market-level reward programs.
 
-Unique wire shape: this endpoint paginates on ``next_cursor`` (not
-``cursor`` like every other Kalshi endpoint), so we bypass the base
-``_list`` helper and hand-roll the Page wrapping.
+Wire quirk: this endpoint paginates on ``next_cursor`` (every other
+Kalshi endpoint uses ``cursor``). The base ``_list`` / ``_list_all``
+helpers accept a ``cursor_key`` kwarg to handle the difference.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
 
 from kalshi.models.common import Page
-from kalshi.models.incentive_programs import (
-    GetIncentiveProgramsResponse,
-    IncentiveProgram,
-)
+from kalshi.models.incentive_programs import IncentiveProgram
 from kalshi.resources._base import AsyncResource, SyncResource, _params
-
-# Safety cap on auto-pagination — same default as the base _list_all helper.
-_MAX_PAGES = 1000
-
-
-def _parse_page(data: dict[str, Any]) -> Page[IncentiveProgram]:
-    """Parse the envelope into a Page[IncentiveProgram]."""
-    parsed = GetIncentiveProgramsResponse.model_validate(data)
-    return Page(
-        items=list(parsed.incentive_programs),
-        cursor=parsed.next_cursor if parsed.next_cursor else None,
-    )
 
 
 class IncentiveProgramsResource(SyncResource):
@@ -51,8 +35,13 @@ class IncentiveProgramsResource(SyncResource):
             limit=limit,
             cursor=cursor,
         )
-        data = self._get("/incentive_programs", params=params)
-        return _parse_page(data)
+        return self._list(
+            "/incentive_programs",
+            IncentiveProgram,
+            "incentive_programs",
+            params=params,
+            cursor_key="next_cursor",
+        )
 
     def list_all(
         self,
@@ -62,14 +51,13 @@ class IncentiveProgramsResource(SyncResource):
         limit: int | None = None,
     ) -> Iterator[IncentiveProgram]:
         params = _params(status=status, type=incentive_type, limit=limit)
-        current_params = dict(params)
-        for _ in range(_MAX_PAGES):
-            data = self._get("/incentive_programs", params=current_params)
-            page = _parse_page(data)
-            yield from page.items
-            if not page.has_next:
-                break
-            current_params["cursor"] = page.cursor
+        yield from self._list_all(
+            "/incentive_programs",
+            IncentiveProgram,
+            "incentive_programs",
+            params=params,
+            cursor_key="next_cursor",
+        )
 
 
 class AsyncIncentiveProgramsResource(AsyncResource):
@@ -89,10 +77,15 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             limit=limit,
             cursor=cursor,
         )
-        data = await self._get("/incentive_programs", params=params)
-        return _parse_page(data)
+        return await self._list(
+            "/incentive_programs",
+            IncentiveProgram,
+            "incentive_programs",
+            params=params,
+            cursor_key="next_cursor",
+        )
 
-    async def list_all(
+    def list_all(
         self,
         *,
         status: str | None = None,
@@ -101,12 +94,10 @@ class AsyncIncentiveProgramsResource(AsyncResource):
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""
         params = _params(status=status, type=incentive_type, limit=limit)
-        current_params = dict(params)
-        for _ in range(_MAX_PAGES):
-            data = await self._get("/incentive_programs", params=current_params)
-            page = _parse_page(data)
-            for item in page.items:
-                yield item
-            if not page.has_next:
-                break
-            current_params["cursor"] = page.cursor
+        return self._list_all(
+            "/incentive_programs",
+            IncentiveProgram,
+            "incentive_programs",
+            params=params,
+            cursor_key="next_cursor",
+        )

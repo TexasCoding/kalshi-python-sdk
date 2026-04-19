@@ -39,6 +39,11 @@ def unauth_account(config: KalshiConfig) -> AccountResource:
     return AccountResource(SyncTransport(None, config))
 
 
+@pytest.fixture
+def unauth_async_account(config: KalshiConfig) -> AsyncAccountResource:
+    return AsyncAccountResource(AsyncTransport(None, config))
+
+
 class TestAccountLimits:
     @respx.mock
     def test_returns_limits(self, account: AccountResource) -> None:
@@ -90,3 +95,21 @@ class TestAsyncAccountLimits:
         assert limits.usage_tier == "elevated"
         assert limits.read_limit == 500
         assert limits.write_limit == 50
+
+    @pytest.mark.asyncio
+    async def test_requires_auth(
+        self, unauth_async_account: AsyncAccountResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_account.limits()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_server_rejects_auth(
+        self, async_account: AsyncAccountResource,
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/account/limits").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            await async_account.limits()

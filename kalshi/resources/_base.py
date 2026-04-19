@@ -100,12 +100,19 @@ class SyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
+        cursor_key: str = "cursor",
     ) -> Page[T]:
-        """Fetch a paginated list endpoint and return a Page[T]."""
+        """Fetch a paginated list endpoint and return a Page[T].
+
+        ``cursor_key`` overrides the response envelope key the paginator
+        reads for the next-page cursor. Default ``"cursor"`` matches
+        every Kalshi endpoint except ``GET /incentive_programs`` which
+        uses ``"next_cursor"``.
+        """
         data = self._get(path, params=params)
         raw_items = data.get(items_key, [])
         items = [model_cls.model_validate(item) for item in raw_items]
-        cursor = data.get("cursor")
+        cursor = data.get(cursor_key)
         return Page(items=items, cursor=cursor if cursor else None)
 
     def _list_all(
@@ -116,11 +123,20 @@ class SyncResource:
         *,
         params: dict[str, Any] | None = None,
         max_pages: int = 1000,
+        cursor_key: str = "cursor",
     ) -> Iterator[T]:
-        """Auto-paginate through all pages, yielding items."""
+        """Auto-paginate through all pages, yielding items.
+
+        The outbound cursor query param is always named ``cursor`` (spec
+        convention). ``cursor_key`` only affects how the response envelope
+        is parsed.
+        """
         current_params = dict(params) if params else {}
         for _ in range(max_pages):
-            page = self._list(path, model_cls, items_key, params=current_params)
+            page = self._list(
+                path, model_cls, items_key,
+                params=current_params, cursor_key=cursor_key,
+            )
             yield from page.items
             if not page.has_next:
                 break
@@ -182,11 +198,12 @@ class AsyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
+        cursor_key: str = "cursor",
     ) -> Page[T]:
         data = await self._get(path, params=params)
         raw_items = data.get(items_key, [])
         items = [model_cls.model_validate(item) for item in raw_items]
-        cursor = data.get("cursor")
+        cursor = data.get(cursor_key)
         return Page(items=items, cursor=cursor if cursor else None)
 
     async def _list_all(
@@ -197,10 +214,14 @@ class AsyncResource:
         *,
         params: dict[str, Any] | None = None,
         max_pages: int = 1000,
+        cursor_key: str = "cursor",
     ) -> AsyncIterator[T]:
         current_params = dict(params) if params else {}
         for _ in range(max_pages):
-            page = await self._list(path, model_cls, items_key, params=current_params)
+            page = await self._list(
+                path, model_cls, items_key,
+                params=current_params, cursor_key=cursor_key,
+            )
             for item in page.items:
                 yield item
             if not page.has_next:

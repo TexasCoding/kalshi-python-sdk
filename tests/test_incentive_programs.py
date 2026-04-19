@@ -179,6 +179,28 @@ class TestAsync:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_forwards_filters(
+        self, async_resource: AsyncIncentiveProgramsResource,
+    ) -> None:
+        """Regression guard: SDK kwarg `incentive_type` must serialize to wire `type`."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/incentive_programs",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"incentive_programs": []},
+            )
+        )
+        await async_resource.list(
+            status="active", incentive_type="volume", limit=50,
+        )
+        assert route.called
+        url = route.calls.last.request.url
+        assert url.params["type"] == "volume"
+        assert url.params["status"] == "active"
+        assert url.params["limit"] == "50"
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_list_all(
         self, async_resource: AsyncIncentiveProgramsResource,
     ) -> None:
@@ -191,3 +213,37 @@ class TestAsync:
         )
         items = [item async for item in async_resource.list_all()]
         assert len(items) == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_paginates_next_cursor(
+        self, async_resource: AsyncIncentiveProgramsResource,
+    ) -> None:
+        """next_cursor (not cursor) drives async pagination for this endpoint."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/incentive_programs",
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "incentive_programs": [_SAMPLE_PROGRAM],
+                        "next_cursor": "page-2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "incentive_programs": [
+                            {**_SAMPLE_PROGRAM, "id": "prog-2"},
+                        ],
+                    },
+                ),
+            ],
+        )
+        items = [item async for item in async_resource.list_all(limit=1)]
+        assert len(items) == 2
+        assert items[0].id == "prog-1"
+        assert items[1].id == "prog-2"
+        assert route.call_count == 2
+        assert route.calls[1].request.url.params["cursor"] == "page-2"

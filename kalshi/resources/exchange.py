@@ -31,6 +31,11 @@ class ExchangeResource(SyncResource):
         return [Announcement.model_validate(a) for a in raw]
 
     def user_data_timestamp(self) -> UserDataTimestamp:
+        # Spec has no security block, but the endpoint reports lag on
+        # user-scoped routes (balance/orders/fills/positions). Guard
+        # client-side so unauth callers get a clear AuthRequiredError
+        # instead of a server-side 401.
+        self._require_auth()
         data = self._get("/exchange/user_data_timestamp")
         return UserDataTimestamp.model_validate(data)
 
@@ -53,5 +58,7 @@ class AsyncExchangeResource(AsyncResource):
         return [Announcement.model_validate(a) for a in raw]
 
     async def user_data_timestamp(self) -> UserDataTimestamp:
+        # See sync note on auth guard (user-scoped endpoint, spec omits security).
+        self._require_auth()
         data = await self._get("/exchange/user_data_timestamp")
         return UserDataTimestamp.model_validate(data)
