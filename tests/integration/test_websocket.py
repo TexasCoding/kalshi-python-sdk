@@ -177,3 +177,36 @@ class TestWebSocketLive:
             pytest.skip("No communications event within 10s")
         assert isinstance(msg, CommunicationsMessage)
         assert msg.type == "communications"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_multivariate(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to multivariate channel. Skip if demo has no active collections."""
+        from kalshi.ws.models.multivariate import MultivariateMessage
+        stream = await ws_session.subscribe_multivariate()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=15.0)
+        except TimeoutError:
+            pytest.skip(
+                "No multivariate frame within 15s — demo likely has no active collections"
+            )
+        assert isinstance(msg, MultivariateMessage)
+        # Envelope type aligned to spec 'multivariate_lookup' in v0.14.0.
+        assert msg.type == "multivariate_lookup"
+
+    @retry_transient(max_retries=2, delay=1.0)
+    async def test_ws_subscribe_multivariate_lifecycle(
+        self,
+        ws_session: KalshiWebSocket,
+    ) -> None:
+        """Subscribe to multivariate_market_lifecycle."""
+        from kalshi.ws.models.multivariate import MultivariateLifecycleMessage
+        stream = await ws_session.subscribe_multivariate_lifecycle()
+        try:
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=15.0)
+        except TimeoutError:
+            pytest.skip("No multivariate_market_lifecycle event within 15s")
+        assert isinstance(msg, MultivariateLifecycleMessage)
+        assert msg.type == "multivariate_market_lifecycle"
