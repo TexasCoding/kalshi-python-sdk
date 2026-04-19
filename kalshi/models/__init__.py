@@ -1,5 +1,13 @@
 """Kalshi SDK data models."""
 
+from kalshi.models.api_keys import (
+    ApiKey,
+    CreateApiKeyRequest,
+    CreateApiKeyResponse,
+    GenerateApiKeyRequest,
+    GenerateApiKeyResponse,
+    GetApiKeysResponse,
+)
 from kalshi.models.common import Page
 from kalshi.models.communications import (
     RFQ,
@@ -26,13 +34,27 @@ from kalshi.models.exchange import (
     WeeklySchedule,
 )
 from kalshi.models.historical import HistoricalCutoff, Trade
+from kalshi.models.live_data import (
+    GetGameStatsResponse,
+    GetLiveDataResponse,
+    GetLiveDatasResponse,
+    LiveData,
+    PlayByPlay,
+    PlayByPlayPeriod,
+)
 from kalshi.models.markets import (
     BidAskDistribution,
     Candlestick,
     Market,
+    MarketCandlesticks,
     Orderbook,
     OrderbookLevel,
     PriceDistribution,
+)
+from kalshi.models.milestones import (
+    GetMilestoneResponse,
+    GetMilestonesResponse,
+    Milestone,
 )
 from kalshi.models.multivariate import (
     AssociatedEvent,
@@ -94,6 +116,7 @@ __all__ = [
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
+    "ApiKey",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "Balance",
@@ -102,6 +125,8 @@ __all__ = [
     "BatchCreateOrdersRequest",
     "BidAskDistribution",
     "Candlestick",
+    "CreateApiKeyRequest",
+    "CreateApiKeyResponse",
     "CreateMarketInMultivariateEventCollectionRequest",
     "CreateMarketResponse",
     "CreateOrderGroupRequest",
@@ -121,7 +146,15 @@ __all__ = [
     "ExchangeStatus",
     "Fill",
     "ForecastPercentilesPoint",
+    "GenerateApiKeyRequest",
+    "GenerateApiKeyResponse",
+    "GetApiKeysResponse",
     "GetCommunicationsIDResponse",
+    "GetGameStatsResponse",
+    "GetLiveDataResponse",
+    "GetLiveDatasResponse",
+    "GetMilestoneResponse",
+    "GetMilestonesResponse",
     "GetOrderGroupResponse",
     "GetQuoteResponse",
     "GetQuotesResponse",
@@ -130,13 +163,16 @@ __all__ = [
     "GetSubaccountBalancesResponse",
     "GetSubaccountNettingResponse",
     "HistoricalCutoff",
+    "LiveData",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
     "Market",
+    "MarketCandlesticks",
     "MarketMetadata",
     "MarketPosition",
+    "Milestone",
     "MultivariateEventCollection",
     "MveSelectedLeg",
     "Order",
@@ -146,6 +182,8 @@ __all__ = [
     "OrderbookLevel",
     "Page",
     "PercentilePoint",
+    "PlayByPlay",
+    "PlayByPlayPeriod",
     "PositionsResponse",
     "PriceDistribution",
     "Quote",

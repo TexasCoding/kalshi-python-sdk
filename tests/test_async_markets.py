@@ -393,10 +393,10 @@ class TestAsyncMarketsCandlesticks:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_candlesticks_omits_include_latest_when_false(
+    async def test_candlesticks_sends_explicit_false(
         self, markets: AsyncMarketsResource
     ) -> None:
-        """Bool 'true or omit' rule: False/None drop the param."""
+        """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
         ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
@@ -408,6 +408,65 @@ class TestAsyncMarketsCandlesticks:
             period_interval=60,
             include_latest_before_start=False,
         )
+        assert route.calls[0].request.url.params["include_latest_before_start"] == "false"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_candlesticks_omits_include_latest_when_none(
+        self, markets: AsyncMarketsResource
+    ) -> None:
+        """Tri-state bool: None drops the param entirely."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        await markets.candlesticks(
+            "SER",
+            "MKT",
+            start_ts=1700000000,
+            end_ts=1700100000,
+            period_interval=60,
+        )
         assert "include_latest_before_start" not in dict(
             route.calls[0].request.url.params
+        )
+
+
+class TestAsyncMarketsBulkCandlesticksValidation:
+    """Parity check: async bulk_candlesticks shares sync's ticker-count logic."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_over_100_list(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            await markets.bulk_candlesticks(
+                market_tickers=[f"MKT-{i}" for i in range(101)],
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    @pytest.mark.asyncio
+    async def test_rejects_over_100_string(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        """Regression: the split+filter counter must apply to the async path too."""
+        joined = ",".join(f"MKT-{i}" for i in range(101))
+        with pytest.raises(ValueError, match="at most 100"):
+            await markets.bulk_candlesticks(
+                market_tickers=joined,
+                start_ts=1, end_ts=2, period_interval=60,
+            )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_trailing_commas_do_not_inflate_count(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        """"A,B,," counts as 2 real tickers, not 4 — must not spuriously fail."""
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
+        ).mock(return_value=httpx.Response(200, json={"markets": []}))
+        # Does not raise even with trailing commas.
+        await markets.bulk_candlesticks(
+            market_tickers="A,B,,",
+            start_ts=1, end_ts=2, period_interval=60,
         )

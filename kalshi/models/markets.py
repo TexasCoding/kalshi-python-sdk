@@ -223,3 +223,19 @@ class Candlestick(BaseModel):
     period_start: datetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class MarketCandlesticks(BaseModel):
+    """Per-market candlestick bundle in a bulk response.
+
+    Spec schema ``MarketCandlesticksResponse`` — wraps a ticker and its
+    candlesticks. The outer bulk response is ``{markets: [...]}``.
+    """
+
+    market_ticker: str
+    # NullableList: Kalshi has returned JSON null for required list fields
+    # in other envelopes (v0.9.0 Series fix). Coerce None -> [] to match the
+    # pattern used on Orderbook.yes/no and envelope-level list fields.
+    candlesticks: NullableList[Candlestick] = []
+
+    model_config = {"extra": "allow"}

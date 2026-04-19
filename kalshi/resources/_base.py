@@ -19,6 +19,19 @@ def _params(**kwargs: Any) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
+def _bool_param(value: bool | None) -> str | None:
+    """Serialize a tri-state bool for query params.
+
+    ``True`` -> ``"true"``, ``False`` -> ``"false"``, ``None`` -> drop.
+    Explicit ``False`` must survive so callers can opt out when the
+    server default ever flips; a single ``"true" if x else None`` would
+    erase that distinction.
+    """
+    if value is None:
+        return None
+    return "true" if value else "false"
+
+
 def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
     """Serialize the `tickers` query param.
 

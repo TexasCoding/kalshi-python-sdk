@@ -2,6 +2,87 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [0.12.0] — 2026-04-19
+
+### Fixed (post-review)
+
+- **`include_latest_before_start` is now tri-state** — `candlesticks` and `bulk_candlesticks` (sync + async) previously mapped `False` to `None` (dropped), which meant callers explicitly opting out silently accepted whatever the server default happened to be. Now: `True → "true"`, `False → "false"`, `None → drop`. Same pattern `live_data` already uses; `_bool_param` promoted to `kalshi/resources/_base.py` as the shared helper. Two new wire-shape tests cover the `False` → `"false"` case (sync and async).
+- **`_orderbook_from_item` raises on missing per-item ticker** — previously returned `Orderbook(ticker="")`, silently corrupting caller-side lookups when the server response omitted the field. Now raises `ValueError` with the offending item. Regression test added.
+- **Upper-bound validation on bulk methods** — `bulk_candlesticks`, `bulk_orderbooks`, and `live_data.batch` now raise `ValueError` when passed > 100 entries (spec `maxItems`). Saves a wasted round-trip on a request the server would reject. Two new tests per resource. **Followup fix:** `bulk_candlesticks` originally only validated `list | tuple` inputs; a pre-joined comma-separated string with 150 tickers bypassed the guard. Validation now counts commas on the joined form and catches both input shapes uniformly. New test: `test_bulk_candlesticks_rejects_over_100_string`.
+- **API key leak sweep moved to `tests/integration/conftest.py`** — a `scope="session", autouse=True` fixture inside `test_api_keys.py` only applies to tests collected from that module. Moved to the integration `conftest.py` so the sweep runs on every integration session regardless of which test files are selected. `API_KEY_LEAK_PREFIX` also lives in conftest now; test_api_keys.py imports it.
+- **`_delete_with_retry` docstring** — said "3 attempts," but the loop iterates 4 times (`[0.0, 0.25, 0.5, 1.0]`). Docstring and module header now accurately say "4 attempts (immediate + 0.25s/0.5s/1.0s backoff)."
+- **Minor** — `import time` moved to the top of `tests/integration/test_markets.py`; async `LiveDataResource.batch` / `get_typed` / `game_stats` now have docstrings matching their sync counterparts; added a comment explaining the `milestones.get()` `data.get("milestone", data)` fallback.
+
+Followup polish (second review round):
+
+- **`_orderbook_from_item` dict fallback is now key-presence, not truthiness** — the previous `item.get("orderbook_fp") or item.get("orderbook", {}) or {}` treated an empty-dict `"orderbook_fp": {}` as falsy and fell through to the legacy `"orderbook"` key, quietly blending two different server shapes. Now checks `"orderbook_fp" in item` first and only uses the legacy key when `orderbook_fp` is actually absent.
+- **`LiveDataResource.get_typed` parameter rename** — `type` → `milestone_type` (sync + async). The former shadowed the Python built-in and bit in closures/lambdas. Value still populates the `{type}` path segment. **Breaking for pre-release callers** using the kwarg form (`live_data.get_typed(type=...)`); positional callers are unaffected. Drift test exclusions updated.
+- **Async `AsyncMarketsResource.bulk_candlesticks` docstring** — sync had the spec-constraint + wire-format note; async was missing it. Added.
+- **`_delete_with_retry` / `_async_delete_with_retry` last_exc sentinel** — `last_exc` was assigned only inside the `except` branch, technically unbound on an empty loop. Sentinel `RuntimeError("no delete attempts executed")` assigned pre-loop.
+
+Followup polish (third review round):
+
+- **`_orderbook_from_item` error wording** — `not ticker` catches both missing-key and empty-string cases. Error message now says "has empty or missing 'ticker' field" instead of "missing required 'ticker' field" to match both paths. Regression-test match string updated.
+- **`MilestonesResource.list` / `list_all` `type` rename** — same built-in-shadow fix as `get_typed`: `type` → `milestone_type` (sync + async). Wire still sends `?type=...`. Drift-test EXCLUSIONS updated for both methods. Internal unit test `test_list_sends_filters` updated to use the new kwarg name.
+- **`GetMilestonesResponse.milestones` now uses `NullableList[Milestone]`** — envelope-level list was a plain `list[Milestone]` while nested lists on `Milestone` itself used `NullableList`. Consistency fix: if Kalshi ever returns `{"milestones": null}` during an outage or empty result, parsing coerces to `[]` instead of raising Pydantic validation error.
+- **`AsyncMarketsResource.bulk_orderbooks` docstring** — sync had the spec-constraint + wire-format note; async was missing it. Added.
+- **`live_milestone` fixture exception collapse** — `except (KalshiNotFoundError, KalshiError)` had a dead first branch (`KalshiNotFoundError` is a subclass of `KalshiError`). Collapsed to `except KalshiError` with a comment explaining both paths are caught.
+
+Followup polish (fourth review round):
+
+- **`GetApiKeysResponse.api_keys` now uses `NullableList[ApiKey]`** — last remaining envelope-level list in this PR using plain `list[ApiKey]`. Brings the API Keys envelope in line with `GetMilestonesResponse`, `GetLiveDatasResponse`, and the Milestone/LiveData nested lists, so a server-sent `{"api_keys": null}` coerces to `[]` instead of raising a Pydantic `ValidationError`. Regression test added: `test_list_handles_null_api_keys`.
+- **`CreateApiKeyRequest.public_key` docstring** — now specifies "PEM-encoded RSA public key" so callers know the expected format without having to round-trip to the server.
+
+Followup polish (fifth review round):
+
+- **`ApiKey.scopes` and `MarketCandlesticks.candlesticks` now use `NullableList`** — last two remaining bare `list[T]` fields on response models in this PR. Swept for consistency with the rest of the SDK. Server-sent `null` for either field now coerces to `[]` instead of raising Pydantic `ValidationError`. Two new regression tests: `test_list_handles_null_scopes` and `test_bulk_candlesticks_handles_null_candlesticks`.
+
+Followup polish (sixth review round):
+
+- **`GenerateApiKeyResponse.private_key` is now `pydantic.SecretStr`** — the PEM private key field is returned once and never retrievable again. Plain `str` would appear verbatim in any `repr()`, `str()`, or incidental log call of the response model. Wrapping with `SecretStr` masks it as `'**********'` in those contexts; callers retrieve the PEM via `response.private_key.get_secret_value()`. Docstring updated with usage note. Breaking for pre-release callers accessing `response.private_key` directly as a string (integration test + 3 unit tests updated in this PR).
+- **`_orderbook_from_item` redundant `or []` removed** — `ob.get("yes", [])` already returned `[]` on missing key, making the third `or []` clause dead. Simplified to `ob.get("yes_dollars") or ob.get("yes") or []` for cleaner reading.
+- **`_iso()` docstring clarifies string passthrough** — callers passing pre-stringified dates must ensure RFC3339 compliance themselves. Only `datetime` inputs get the UTC coercion guarantee.
+
+Followup polish (seventh review round):
+
+- **`MilestonesResource.get()` now uses `GetMilestoneResponse`** — the envelope model existed only for contract-map purposes; the resource bypassed it via `data.get("milestone", data)`. Now uses `GetMilestoneResponse.model_validate(data).milestone` for consistency with every other envelope-in-use pattern. A server response missing `"milestone"` now raises Pydantic `ValidationError` naming the field — clearer than the old fallback's silent whole-dict revalidation.
+- **`_orderbook_from_item` now raises `KalshiError` instead of `ValueError`** — malformed server response is a protocol violation, not a user error. Matches the SDK-wide "catch `KalshiError` to handle SDK errors" contract. Regression test updated; three new direct unit tests for the helper cover missing-key, empty-string-ticker, and happy-path shapes.
+- **`bulk_candlesticks` ticker count now splits + filters empty segments** — a pre-joined string like `"A,B,,"` previously counted as 4 (comma count + 1); now counts 2 real tickers. Tightens the 100-ticker cap against trailing/consecutive comma bypasses without waiting on the deferred `_join_tickers` validation work.
+- **`MilestonesResource.list` RFC3339 docstring** — call-site now surfaces the `_iso()` string-passthrough limitation: pass `datetime` for guaranteed UTC, strings travel verbatim.
+
+Followup polish (eighth review round):
+
+- **[MED] Async `bulk_candlesticks` ticker-count bug** — the split+filter ticker-count fix from the seventh round only landed on the sync path; the async counterpart still used the naive `joined.count(",") + 1` formula. Trailing-comma strings like `"A,B,,"` would spuriously fail async calls with `ValueError` (counted as 4, not 2); `,`.join([""] * 99) + "A,B"` would wrongly pass (100 commas, 2 real tickers). Now sync and async share the same `sum(1 for t in joined.split(",") if t.strip())` counter. Three new async regression tests in `TestAsyncMarketsBulkCandlesticksValidation` cover over-100 list, over-100 string, and trailing-comma happy path.
+
+### Added
+
+- **API Keys resource** — `ApiKeysResource` + `AsyncApiKeysResource` covering all 4 `/api_keys` endpoints for programmatic credential management:
+  - `GET /api_keys` — list keys registered on the account
+  - `POST /api_keys` — register a caller-minted RSA public key
+  - `POST /api_keys/generate` — have Kalshi mint a fresh key pair; private key is returned ONCE and cannot be retrieved again
+  - `DELETE /api_keys/{api_key}` — remove a key
+- **Bulk / batch market endpoints** on `MarketsResource` — three multi-ticker read paths:
+  - `list_trades` + `list_trades_all` — `GET /markets/trades` (paginated Trade listing across all markets; reuses the existing `historical.Trade` model since the schema is shared)
+  - `bulk_candlesticks` — `GET /markets/candlesticks` (up to 100 tickers per call, comma-joined on wire per spec `type: string`)
+  - `bulk_orderbooks` — `GET /markets/orderbooks` (auth-required; `tickers` serialized as repeated params per spec `style: form, explode: true`)
+- **Milestones resource** — `MilestonesResource` + `AsyncMilestonesResource`:
+  - `GET /milestones` — paginated listing with filters for category, competition, type, related_event_ticker, source_id, minimum_start_date (RFC3339), min_updated_ts (Unix seconds). `limit` is required (1-500) per spec
+  - `GET /milestones/{milestone_id}` — single milestone lookup
+  - `list_all` paginator helper
+- **Live Data resource** — `LiveDataResource` + `AsyncLiveDataResource` covering 4 endpoints keyed by `milestone_id`:
+  - `get` — `GET /live_data/milestone/{milestone_id}` (preferred shape)
+  - `get_typed` — `GET /live_data/{type}/milestone/{milestone_id}` (legacy shape, retained for spec-completeness; docstring recommends `get`)
+  - `batch` — `GET /live_data/batch` (up to 100 milestone_ids; wire format `?milestone_ids=a&milestone_ids=b` via httpx list-explosion)
+  - `game_stats` — `GET /live_data/milestone/{milestone_id}/game_stats` (returns `pbp: None` for unsupported milestone types without a Sportradar ID)
+- **11 new Pydantic models** — `ApiKey` + 5 API-key request/response envelopes; `Milestone` + 2 response envelopes; `LiveData`, `PlayByPlay`, `PlayByPlayPeriod`, and 3 live-data response envelopes; `MarketCandlesticks` (per-market bundle in the bulk candlesticks response). Request models use `extra="forbid"`; response models use `extra="allow"`. Milestone `details` and LiveData `details` are `dict[str, Any]` per spec `additionalProperties: true` (shape varies by milestone type).
+- **82 new unit tests** — 25 for API Keys, 12 for Milestones, 16 for LiveData, 7 for bulk markets, 2 client-wiring additions. Plus real-lifecycle integration coverage: API Keys mints a throwaway RSA keypair in-test and runs `create → list → delete` on demo with try/finally cleanup; bulk methods + Milestones + LiveData all exercise against demo inventory.
+
+### Changed
+
+- **Test coverage** — FULL-covered endpoints 44 → 57 (64%). Meta-coverage test now expects 14 resource classes (was 11). Three new resources (`ApiKeysResource`, `MilestonesResource`, `LiveDataResource`) + 4 new methods on `MarketsResource` registered in `METHOD_ENDPOINT_MAP` (13 new entries), `BODY_MODEL_MAP` (2 new request-body entries for `CreateApiKeyRequest`/`GenerateApiKeyRequest`), `_contract_map.py` (8 new response-side entries), `coverage_harness.RESOURCE_MODULES` (3 new modules), and `test_coverage.py` import list.
+- **EXCLUSIONS expanded** — 2 new `cursor` paginator entries for `MarketsResource.list_trades_all` and `MilestonesResource.list_all` (paginator-handled; not caller-facing).
+- **Live-demo finding documented in the integration suite:** `GET /milestones?category=Sports` returns milestones with `category="sports"` (lowercase) in the response body even though the filter accepted the title-cased input and the spec example shows `"Sports"`. `test_list_with_category` asserts case-insensitively so future server-side case fixes don't regress.
+
 ## [0.11.0] — 2026-04-18
 
 ### Added
