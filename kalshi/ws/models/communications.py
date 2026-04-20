@@ -3,33 +3,52 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.types import DollarDecimal
+
 
 class RfqCreatedPayload(BaseModel):
-    """RFQ created notification payload."""
+    """RFQ created notification payload.
+
+    Wire format per AsyncAPI spec: ``created_ts`` is an RFC3339 date-time
+    string; ``target_cost_dollars`` is a dollar string; ``contracts_fp`` is a
+    2-decimal fixed-point count string.
+
+    TODO(v0.15.1): ``created_ts`` is spec-aligned but lacks live capture.
+    The v0.14.0 ``user_orders`` capture showed demo emitting
+    ``created_ts_ms`` as integer milliseconds instead of the spec's ISO
+    string. If Communications follows the same pattern, ``created_ts: str``
+    will reject frames that previously parsed as ``int``. Capture a live
+    frame on demo when the channel is active and confirm or adjust.
+    ``extra="allow"`` provides a soft landing for unexpected extras.
+    """
 
     id: str
     creator_id: str | None = None
     market_ticker: str | None = None
-    created_ts: int | None = None
+    created_ts: str | None = None
     event_ticker: str | None = None
     contracts: str | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_fp", "contracts"),
     )  # _fp format
-    target_cost: str | None = Field(
+    target_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
-    )  # dollar string
+    )
     model_config = {"extra": "allow"}
 
 
 class RfqDeletedPayload(BaseModel):
-    """RFQ deleted notification payload."""
+    """RFQ deleted notification payload.
+
+    ``deleted_ts`` is an RFC3339 date-time string per AsyncAPI spec.
+    Same ``created_ts_ms``-precedent caveat as :class:`RfqCreatedPayload`.
+    """
 
     id: str
     creator_id: str | None = None
     market_ticker: str | None = None
-    deleted_ts: int | None = None
+    deleted_ts: str | None = None
     model_config = {"extra": "allow"}
 
 
@@ -40,15 +59,15 @@ class QuoteCreatedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = Field(
+    yes_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
-    )  # dollar string
-    no_bid: str | None = Field(
+    )
+    no_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
-    )  # dollar string
-    created_ts: int | None = None
+    )
+    created_ts: str | None = None
     model_config = {"extra": "allow"}
 
 
@@ -59,11 +78,11 @@ class QuoteAcceptedPayload(BaseModel):
     rfq_id: str | None = None
     quote_creator_id: str | None = None
     market_ticker: str | None = None
-    yes_bid: str | None = Field(
+    yes_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    no_bid: str | None = Field(
+    no_bid: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
@@ -85,7 +104,7 @@ class QuoteExecutedPayload(BaseModel):
     order_id: str | None = None
     client_order_id: str | None = None
     market_ticker: str | None = None
-    executed_ts: int | None = None
+    executed_ts: str | None = None
     model_config = {"extra": "allow"}
 
 

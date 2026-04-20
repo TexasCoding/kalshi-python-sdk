@@ -107,7 +107,7 @@ class TestSubscribeOrderbookDelta:
                 "type": "orderbook_snapshot", "sid": 1, "seq": 1,
                 "msg": {
                     "market_ticker": "T1", "market_id": "x",
-                    "yes": [[50, 100]], "no": [],
+                    "yes": [["0.50", "100"]], "no": [],
                 },
             })
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
@@ -177,7 +177,7 @@ class TestOrderbookConvenience:
                 "type": "orderbook_snapshot", "sid": 1, "seq": 1,
                 "msg": {
                     "market_ticker": "T1", "market_id": "x",
-                    "yes": [[50, 100]], "no": [],
+                    "yes": [["0.50", "100"]], "no": [],
                 },
             })
 

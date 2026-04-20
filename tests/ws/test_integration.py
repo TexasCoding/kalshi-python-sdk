@@ -119,7 +119,7 @@ class TestIntegrationOrderbook:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "yes": [[50, 100], [55, 200]],
+                    "yes": [["0.50", "100"], ["0.55", "200"]],
                     "no": [],
                 },
             })
@@ -127,12 +127,10 @@ class TestIntegrationOrderbook:
             book = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert book.ticker == "T1"
             assert len(book.yes) == 2
-            # 100 cents = $1.00
-            assert book.yes[0].quantity == Decimal("1.00")
-            # 200 cents = $2.00
-            assert book.yes[1].quantity == Decimal("2.00")
+            assert book.yes[0].quantity == Decimal("100")
+            assert book.yes[1].quantity == Decimal("200")
 
-            # Server sends delta: add 50 cents to price level 50
+            # Server sends delta: add 50 contracts at $0.50
             await fake_ws.send_to_all({
                 "type": "orderbook_delta",
                 "sid": 1,
@@ -140,15 +138,14 @@ class TestIntegrationOrderbook:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "price": 50,
-                    "delta": 50,
+                    "price_dollars": "0.50",
+                    "delta_fp": "50",
                     "side": "yes",
                 },
             })
 
             book2 = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
-            # 100 + 50 = 150 cents = $1.50
-            assert book2.yes[0].quantity == Decimal("1.50")
+            assert book2.yes[0].quantity == Decimal("150")
 
     async def test_orderbook_delta_removes_level(
         self,
@@ -169,14 +166,14 @@ class TestIntegrationOrderbook:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "yes": [[50, 100]],
+                    "yes": [["0.50", "100"]],
                     "no": [],
                 },
             })
             book = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert len(book.yes) == 1
 
-            # Delta: subtract 100 cents (removes level)
+            # Delta: subtract 100 contracts (removes level)
             await fake_ws.send_to_all({
                 "type": "orderbook_delta",
                 "sid": 1,
@@ -184,8 +181,8 @@ class TestIntegrationOrderbook:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "price": 50,
-                    "delta": -100,
+                    "price_dollars": "0.50",
+                    "delta_fp": "-100",
                     "side": "yes",
                 },
             })
@@ -371,7 +368,7 @@ class TestIntegrationSequenceGap:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "yes": [[50, 100]],
+                    "yes": [["0.50", "100"]],
                     "no": [],
                 },
             })
@@ -385,8 +382,8 @@ class TestIntegrationSequenceGap:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "price": 50,
-                    "delta": 10,
+                    "price_dollars": "0.50",
+                    "delta_fp": "10",
                     "side": "yes",
                 },
             })
@@ -400,8 +397,8 @@ class TestIntegrationSequenceGap:
                 "msg": {
                     "market_ticker": "T1",
                     "market_id": "x",
-                    "price": 55,
-                    "delta": 20,
+                    "price_dollars": "0.55",
+                    "delta_fp": "20",
                     "side": "yes",
                 },
             })

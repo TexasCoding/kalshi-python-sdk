@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from kalshi.types import DollarDecimal
+
 
 class MarketLifecyclePayload(BaseModel):
     """Payload for market_lifecycle_v2 messages (public channel).
@@ -22,7 +24,7 @@ class MarketLifecyclePayload(BaseModel):
     close_ts: int | None = None
     result: str | None = None
     determination_ts: int | None = None
-    settlement_value: str | None = None
+    settlement_value: DollarDecimal | None = None
     settled_ts: int | None = None
     is_deactivated: bool | None = None
     fractional_trading_enabled: bool | None = None

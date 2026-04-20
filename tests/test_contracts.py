@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import typing
 import warnings
+from decimal import Decimal
 from pathlib import Path
+from types import UnionType
 from typing import Any, ClassVar
 
 import pytest
@@ -464,6 +467,152 @@ def _get_ws_required_fields(spec: dict[str, Any], schema_name: str) -> set[str]:
     return set(msg.get("required", []))
 
 
+def _unwrap_annotation(ann: Any) -> Any:
+    """Strip Optional/Union/Annotated wrappers, return the innermost concrete type.
+
+    Returns the generic alias (e.g. ``list[str]``) or the plain class
+    (e.g. ``int``, ``Decimal``). Suitable for kind-classification below.
+    """
+    # Annotated[X, ...] → X (DollarDecimal is Annotated[Decimal, ...]).
+    # typing.get_args is the public API — __origin__ is a dunder implementation
+    # detail that can drift across Python versions and Pydantic internals.
+    if hasattr(ann, "__metadata__"):
+        args = typing.get_args(ann)
+        if args:
+            return _unwrap_annotation(args[0])
+
+    # Union / X | None → first non-None arg (one-level unwrap).
+    # typing.get_origin does NOT normalize the two union syntaxes:
+    #   - typing.Union[X, None]  → get_origin returns typing.Union
+    #   - PEP 604 `X | None`     → get_origin returns types.UnionType
+    # The codebase uses PEP 604 pervasively, but legacy annotations exist in
+    # a few places, so both paths matter. isinstance(ann, UnionType) catches
+    # the PEP 604 case directly because the runtime value itself IS a
+    # UnionType instance.
+    origin = typing.get_origin(ann)
+    if origin is typing.Union or isinstance(ann, UnionType):
+        args = [a for a in typing.get_args(ann) if a is not type(None)]
+        if len(args) == 1:
+            return _unwrap_annotation(args[0])
+    return ann
+
+
+def _sdk_type_kind(ann: Any) -> str:
+    """Classify a Pydantic field annotation into a spec-aligned kind label.
+
+    Returns: ``'int'``, ``'str'``, ``'bool'``, ``'decimal'``, ``'list[<kind>]'``,
+    or ``'unknown'``. Decimals (DollarDecimal, FixedPointCount) count as
+    ``'decimal'`` — a Decimal-typed field is considered compatible with a
+    spec-declared dollar string.
+    """
+    base = _unwrap_annotation(ann)
+    if base is int:
+        return "int"
+    if base is str:
+        return "str"
+    if base is bool:
+        return "bool"
+    if base is Decimal:
+        return "decimal"
+    origin = typing.get_origin(base)
+    if origin is list:
+        args = typing.get_args(base)
+        if args:
+            return f"list[{_sdk_type_kind(args[0])}]"
+        return "list[unknown]"
+    if origin is tuple:
+        args = typing.get_args(base)
+        if args:
+            inner = ",".join(_sdk_type_kind(a) for a in args if a is not Ellipsis)
+            return f"tuple[{inner}]"
+        return "tuple[unknown]"
+    return "unknown"
+
+
+def _spec_property_kind(spec_prop: dict[str, Any]) -> str:
+    """Return the expected Python kind label for a JSON-schema property.
+
+    Mirrors ``_sdk_type_kind`` so the two can be compared directly.
+    """
+    t = spec_prop.get("type")
+    if t == "string":
+        return "str"
+    if t == "integer":
+        return "int"
+    if t == "boolean":
+        return "bool"
+    if t == "number":
+        return "decimal"
+    if t == "array":
+        items = spec_prop.get("items") or {}
+        return f"list[{_spec_property_kind(items)}]"
+    return "unknown"
+
+
+def _ws_field_type_violations(
+    sdk_name: str,
+    sdk_ann: Any,
+    spec_name: str,
+    spec_prop: dict[str, Any],
+) -> list[str]:
+    """Return human-readable type-drift violations for a single WS field.
+
+    Targets the specific class of bug surfaced during v0.14.0 integration
+    testing: ``_dollars``-aliased string fields on the wire are typed as
+    ``int`` in the SDK, and ISO ``date-time`` fields are typed as ``int``.
+    Both cause pydantic to reject real demo frames at ``model_validate``.
+    """
+    sdk_kind = _sdk_type_kind(sdk_ann)
+    spec_type = spec_prop.get("type")
+    spec_format = spec_prop.get("format")
+    problems: list[str] = []
+
+    # Rule 1: spec string with _dollars suffix (dollar-value wire) must be
+    # DollarDecimal (decimal) or str on the SDK. An int-typed SDK field
+    # rejects the wire string "0.0200".
+    if (
+        spec_type == "string"
+        and spec_name.endswith("_dollars")
+        and sdk_kind not in ("decimal", "str")
+    ):
+        problems.append(
+            f"{sdk_name!r}: spec '{spec_name}' is string (dollars), "
+            f"SDK typed as {sdk_kind}. Use DollarDecimal."
+        )
+
+    # Rule 2: spec string with format=date-time (ISO timestamp) must be str
+    # on the SDK. An int-typed SDK field rejects the wire string
+    # "2026-04-19T18:43:37.662364Z".
+    if (
+        spec_type == "string"
+        and spec_format == "date-time"
+        and sdk_kind not in ("str",)
+    ):
+        problems.append(
+            f"{sdk_name!r}: spec '{spec_name}' is string (date-time), "
+            f"SDK typed as {sdk_kind}. Use str."
+        )
+
+    # Rule 3: spec array of strings (e.g. orderbook snapshot rows of
+    # [price_dollars, count_fp]) must be list-of-string on SDK, not
+    # list-of-int.
+    if spec_type == "array":
+        expected = _spec_property_kind(spec_prop)
+        if (
+            sdk_kind.startswith("list[")
+            and expected.startswith("list[")
+            and sdk_kind != expected
+            and "int" in sdk_kind
+            and "str" in expected
+        ):
+            problems.append(
+                f"{sdk_name!r}: spec '{spec_name}' is {expected}, "
+                f"SDK typed as {sdk_kind}."
+            )
+
+    return problems
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -690,6 +839,46 @@ class TestWsSpecDrift:
                 f"  - {schema}: spec type='{st}', SDK {cls}.type='{sdk}'"
                 for schema, st, cls, sdk in unexpected
             )
+        )
+
+    @pytest.mark.parametrize(
+        "entry",
+        WS_CONTRACT_MAP,
+        ids=[e.sdk_model.rsplit(".", 1)[1] for e in WS_CONTRACT_MAP],
+    )
+    def test_ws_payload_field_type_drift(self, entry: ContractEntry) -> None:
+        """Hard-fail if SDK field type doesn't match AsyncAPI wire type.
+
+        Targets the class of bug surfaced during v0.14.0 Task 11 integration
+        tests: SDK models type ``_dollars``-aliased fields as ``int`` but demo
+        sends dollar-decimal strings (``"0.0200"``), and types ``ts`` as int
+        where the spec says ``string`` with ``format: date-time``. Both cases
+        cause pydantic to reject real frames at ``model_validate`` time, which
+        silently drops every matching message.
+
+        A drift flagged here would have blocked the v0.14.0 envelope-only PR.
+        """
+        spec_fields = _get_ws_msg_fields(self.spec, entry.spec_schema)
+        model_class = _get_sdk_model_class(entry.sdk_model)
+        reverse_map = _build_spec_to_sdk_map(model_class)
+
+        violations: list[str] = []
+        for spec_name, spec_prop in spec_fields.items():
+            if spec_name in entry.ignored_fields:
+                continue
+            sdk_name = reverse_map.get(spec_name)
+            if sdk_name is None or sdk_name not in model_class.model_fields:
+                continue
+            field_info = model_class.model_fields[sdk_name]
+            violations.extend(
+                _ws_field_type_violations(
+                    sdk_name, field_info.annotation, spec_name, spec_prop,
+                )
+            )
+
+        assert not violations, (
+            f"WS payload field type drift in {entry.sdk_model}:\n"
+            + "\n".join(f"  - {v}" for v in violations)
         )
 
     def test_ws_contract_map_completeness(self) -> None:
