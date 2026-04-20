@@ -235,6 +235,19 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetPortfolioRestingOrderTotalValueResponse",
         notes="Single int total_resting_order_value in cents",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.order_groups.OrderGroup",
+        spec_schema="OrderGroup",
+        notes="contracts_limit uses FixedPointCount with _fp alias",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.order_groups.GetOrderGroupResponse",
+        spec_schema="GetOrderGroupResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.order_groups.CreateOrderGroupResponse",
+        spec_schema="CreateOrderGroupResponse",
+    ),
     # Intentionally excluded from contract map:
     # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
     #   Nested/composite models, no direct 1:1 spec schema match

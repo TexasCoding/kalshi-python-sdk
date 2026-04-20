@@ -40,10 +40,31 @@ def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None
     string. ``None``, empty list, empty tuple, and empty string all return
     ``None`` so ``_params()`` drops the key entirely (sending ``?tickers=``
     has undefined server semantics).
+
+    List/tuple elements must be non-empty and must not contain a comma:
+    an empty element would poison the server filter (``"A,,B"`` is
+    interpreted as three tickers including an empty one) and an embedded
+    comma would silently expand the list in a way the caller didn't
+    intend (``["FOO", "BAR,EVIL"]`` → ``"FOO,BAR,EVIL"`` silently
+    queries three markets instead of two). Both cause silent data
+    corruption — the wrong markets come back and the caller has no
+    signal. Pre-joined string inputs are pass-through by design; the
+    caller owns that format.
     """
     if not value:
         return None
     if isinstance(value, (list, tuple)):
+        for i, elem in enumerate(value):
+            if not elem:
+                raise ValueError(
+                    f"tickers[{i}] is empty; empty elements would poison "
+                    f"the server-side filter (wire would be '...,,...')"
+                )
+            if "," in elem:
+                raise ValueError(
+                    f"tickers[{i}]={elem!r} contains a comma; embedded "
+                    f"commas would silently expand the ticker list"
+                )
         return ",".join(value)
     return value
 
@@ -110,7 +131,10 @@ class SyncResource:
         uses ``"next_cursor"``.
         """
         data = self._get(path, params=params)
-        raw_items = data.get(items_key, [])
+        # `or []` covers both missing key and explicit null (server sends
+        # `{"items_key": null}` occasionally; `.get(key, [])` only defaults
+        # on missing keys, not on a null value).
+        raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
         cursor = data.get(cursor_key)
         return Page(items=items, cursor=cursor if cursor else None)
@@ -201,7 +225,10 @@ class AsyncResource:
         cursor_key: str = "cursor",
     ) -> Page[T]:
         data = await self._get(path, params=params)
-        raw_items = data.get(items_key, [])
+        # `or []` covers both missing key and explicit null (server sends
+        # `{"items_key": null}` occasionally; `.get(key, [])` only defaults
+        # on missing keys, not on a null value).
+        raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
         cursor = data.get(cursor_key)
         return Page(items=items, cursor=cursor if cursor else None)
