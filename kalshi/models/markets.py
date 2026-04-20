@@ -112,6 +112,7 @@ class Market(BaseModel):
     expected_expiration_time: datetime | None = None
     expiration_time: datetime | None = None
     settlement_ts: datetime | None = None
+    occurrence_datetime: datetime | None = None
 
     # Metadata
     settlement_timer_seconds: int | None = None
