@@ -17,11 +17,11 @@ class OrderbookSnapshotPayload(BaseModel):
 
     market_ticker: str
     market_id: str
-    yes: list[list[str]] = Field(
+    yes: list[tuple[str, str]] = Field(
         default=[],
         validation_alias=AliasChoices("yes_dollars_fp", "yes"),
     )
-    no: list[list[str]] = Field(
+    no: list[tuple[str, str]] = Field(
         default=[],
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )

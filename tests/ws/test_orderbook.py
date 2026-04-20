@@ -14,8 +14,8 @@ from kalshi.ws.orderbook import OrderbookManager
 
 def make_snapshot(
     ticker: str = "T",
-    yes: list[list[str]] | None = None,
-    no: list[list[str]] | None = None,
+    yes: list[list[str]] | list[tuple[str, str]] | None = None,
+    no: list[list[str]] | list[tuple[str, str]] | None = None,
     seq: int = 1,
 ) -> OrderbookSnapshotMessage:
     return OrderbookSnapshotMessage(
@@ -46,7 +46,7 @@ def make_delta(
             market_ticker=ticker,
             market_id="id",
             price=Decimal(price),
-            delta=delta,
+            delta=Decimal(delta),
             side=side,
         ),
     )

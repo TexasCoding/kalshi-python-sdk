@@ -481,9 +481,16 @@ def _unwrap_annotation(ann: Any) -> Any:
         if args:
             return _unwrap_annotation(args[0])
 
-    # Union / X | None → first non-None arg (one-level unwrap)
+    # Union / X | None → first non-None arg (one-level unwrap).
+    # typing.get_origin does NOT normalize the two union syntaxes:
+    #   - typing.Union[X, None]  → get_origin returns typing.Union
+    #   - PEP 604 `X | None`     → get_origin returns types.UnionType
+    # The codebase uses PEP 604 pervasively, but legacy annotations exist in
+    # a few places, so both paths matter. isinstance(ann, UnionType) catches
+    # the PEP 604 case directly because the runtime value itself IS a
+    # UnionType instance.
     origin = typing.get_origin(ann)
-    if origin is typing.Union or (UnionType is not None and isinstance(ann, UnionType)):
+    if origin is typing.Union or isinstance(ann, UnionType):
         args = [a for a in typing.get_args(ann) if a is not type(None)]
         if len(args) == 1:
             return _unwrap_annotation(args[0])

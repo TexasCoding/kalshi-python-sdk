@@ -85,7 +85,7 @@ class TestOrderbookModels:
         assert msg.seq == 1
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert len(msg.msg.yes) == 2
-        assert msg.msg.yes[0] == ["0.50", "100.00"]
+        assert msg.msg.yes[0] == ("0.50", "100.00")
 
     def test_parse_delta(self) -> None:
         raw = {

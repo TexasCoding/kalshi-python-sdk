@@ -12,6 +12,14 @@ class RfqCreatedPayload(BaseModel):
     Wire format per AsyncAPI spec: ``created_ts`` is an RFC3339 date-time
     string; ``target_cost_dollars`` is a dollar string; ``contracts_fp`` is a
     2-decimal fixed-point count string.
+
+    TODO(v0.15.1): ``created_ts`` is spec-aligned but lacks live capture.
+    The v0.14.0 ``user_orders`` capture showed demo emitting
+    ``created_ts_ms`` as integer milliseconds instead of the spec's ISO
+    string. If Communications follows the same pattern, ``created_ts: str``
+    will reject frames that previously parsed as ``int``. Capture a live
+    frame on demo when the channel is active and confirm or adjust.
+    ``extra="allow"`` provides a soft landing for unexpected extras.
     """
 
     id: str
@@ -34,6 +42,7 @@ class RfqDeletedPayload(BaseModel):
     """RFQ deleted notification payload.
 
     ``deleted_ts`` is an RFC3339 date-time string per AsyncAPI spec.
+    Same ``created_ts_ms``-precedent caveat as :class:`RfqCreatedPayload`.
     """
 
     id: str
