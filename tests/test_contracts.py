@@ -520,6 +520,12 @@ def _sdk_type_kind(ann: Any) -> str:
         if args:
             return f"list[{_sdk_type_kind(args[0])}]"
         return "list[unknown]"
+    if origin is tuple:
+        args = typing.get_args(base)
+        if args:
+            inner = ",".join(_sdk_type_kind(a) for a in args if a is not Ellipsis)
+            return f"tuple[{inner}]"
+        return "tuple[unknown]"
     return "unknown"
 
 

@@ -14,8 +14,8 @@ from kalshi.ws.orderbook import OrderbookManager
 
 def make_snapshot(
     ticker: str = "T",
-    yes: list[list[str]] | list[tuple[str, str]] | None = None,
-    no: list[list[str]] | list[tuple[str, str]] | None = None,
+    yes: list[list[str]] | None = None,
+    no: list[list[str]] | None = None,
     seq: int = 1,
 ) -> OrderbookSnapshotMessage:
     return OrderbookSnapshotMessage(
@@ -155,3 +155,18 @@ class TestOrderbookManager:
         book = mgr.apply_delta(make_delta(price="0.50", delta="-30", side="yes"))
         assert book is not None
         assert book.yes[0].quantity == Decimal("70")  # 100 - 30
+
+    def test_fractional_delta_matches_wire_format(self) -> None:
+        """Live capture on demo shows delta_fp arrives as ``"1.00"`` (with
+        trailing .00), not bare ``"1"``. Lock in that Decimal arithmetic
+        handles the mixed-precision case cleanly.
+        """
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(make_snapshot(yes=[["0.0100", "0.00"]]))
+        book = mgr.apply_delta(
+            make_delta(price="0.0100", delta="1.00", side="yes")
+        )
+        assert book is not None
+        # Decimal("0.00") + Decimal("1.00") == Decimal("1.00"), not Decimal("1")
+        assert book.yes[0].quantity == Decimal("1.00")
+        assert book.yes[0].price == Decimal("0.0100")
