@@ -7,7 +7,6 @@ from kalshi.ws.models.orderbook_delta import (
     OrderbookDeltaMessage,
     OrderbookDeltaPayload,
     OrderbookSnapshotMessage,
-    OrderbookSnapshotPayload,
 )
 from kalshi.ws.orderbook import OrderbookManager
 
