@@ -33,23 +33,9 @@ def _bool_param(value: bool | None) -> str | None:
 
 
 def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
-    """Serialize the `tickers` query param.
+    """Serialize the `tickers` query param (spec: comma-joined string, not explode:true).
 
-    Spec (``TickersQuery``) says ``type: string``, comma-separated — NOT
-    ``style: form, explode: true``. Accept a list, tuple, or pre-joined
-    string. ``None``, empty list, empty tuple, and empty string all return
-    ``None`` so ``_params()`` drops the key entirely (sending ``?tickers=``
-    has undefined server semantics).
-
-    List/tuple elements must be non-empty and must not contain a comma:
-    an empty element would poison the server filter (``"A,,B"`` is
-    interpreted as three tickers including an empty one) and an embedded
-    comma would silently expand the list in a way the caller didn't
-    intend (``["FOO", "BAR,EVIL"]`` → ``"FOO,BAR,EVIL"`` silently
-    queries three markets instead of two). Both cause silent data
-    corruption — the wrong markets come back and the caller has no
-    signal. Pre-joined string inputs are pass-through by design; the
-    caller owns that format.
+    List/tuple elements must be non-empty and comma-free; pre-joined strings pass through.
     """
     if not value:
         return None
@@ -131,9 +117,7 @@ class SyncResource:
         uses ``"next_cursor"``.
         """
         data = self._get(path, params=params)
-        # `or []` covers both missing key and explicit null (server sends
-        # `{"items_key": null}` occasionally; `.get(key, [])` only defaults
-        # on missing keys, not on a null value).
+        # .get(key, []) misses explicit null; or [] coerces both.
         raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
         cursor = data.get(cursor_key)
@@ -225,9 +209,7 @@ class AsyncResource:
         cursor_key: str = "cursor",
     ) -> Page[T]:
         data = await self._get(path, params=params)
-        # `or []` covers both missing key and explicit null (server sends
-        # `{"items_key": null}` occasionally; `.get(key, [])` only defaults
-        # on missing keys, not on a null value).
+        # .get(key, []) misses explicit null; or [] coerces both.
         raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
         cursor = data.get(cursor_key)
