@@ -18,17 +18,21 @@ def make_snapshot(
     no: list[list[str]] | None = None,
     seq: int = 1,
 ) -> OrderbookSnapshotMessage:
-    return OrderbookSnapshotMessage(
-        type="orderbook_snapshot",
-        sid=1,
-        seq=seq,
-        msg=OrderbookSnapshotPayload(
-            market_ticker=ticker,
-            market_id="id",
-            yes=yes or [],
-            no=no or [],
-        ),
-    )
+    # Go through model_validate so Pydantic handles the list→tuple coercion
+    # that ``OrderbookSnapshotPayload.yes/no: list[tuple[str, str]]`` expects.
+    # Callers pass list-of-list literals for readability; direct constructor
+    # arguments would trip mypy strict on the list vs tuple mismatch.
+    return OrderbookSnapshotMessage.model_validate({
+        "type": "orderbook_snapshot",
+        "sid": 1,
+        "seq": seq,
+        "msg": {
+            "market_ticker": ticker,
+            "market_id": "id",
+            "yes": yes or [],
+            "no": no or [],
+        },
+    })
 
 
 def make_delta(
