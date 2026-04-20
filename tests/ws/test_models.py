@@ -104,7 +104,7 @@ class TestOrderbookModels:
         assert msg.type == "orderbook_delta"
         assert msg.seq == 2
         assert msg.msg.price == Decimal("0.55")
-        assert msg.msg.delta == "50"
+        assert msg.msg.delta == Decimal("50")
         assert msg.msg.side == "yes"
 
     def test_snapshot_empty_book(self) -> None:
@@ -136,7 +136,7 @@ class TestOrderbookModels:
         msg = OrderbookDeltaMessage.model_validate(raw)
         assert msg.msg.client_order_id == "my-order"
         assert msg.msg.ts == "2026-04-19T18:43:37.662364Z"
-        assert msg.msg.delta == "-20"  # negative delta = removal
+        assert msg.msg.delta == Decimal("-20")  # negative delta = removal
 
 
 # ---------- Ticker ----------
@@ -152,8 +152,8 @@ class TestTickerModel:
                 "market_id": "abc-123",
                 "yes_bid_dollars": "0.55",
                 "yes_ask_dollars": "0.60",
-                "no_bid": "0.40",
-                "no_ask": "0.45",
+                "no_bid_dollars": "0.40",
+                "no_ask_dollars": "0.45",
                 "volume": "1000",
                 "open_interest": "500",
                 "ts": 1700000000,

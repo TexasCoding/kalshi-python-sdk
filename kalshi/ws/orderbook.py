@@ -65,8 +65,8 @@ class OrderbookManager:
             logger.warning("Delta for unknown ticker %s (no snapshot yet)", ticker)
             return None
 
-        price = msg.msg.price  # already Decimal via DollarDecimal
-        delta = Decimal(msg.msg.delta)  # _fp string → Decimal contracts
+        price = msg.msg.price  # Decimal via DollarDecimal
+        delta = msg.msg.delta  # Decimal via FixedPointCount
         side = msg.msg.side
 
         levels = book.yes if side == "yes" else book.no

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class OrderbookSnapshotPayload(BaseModel):
@@ -42,7 +42,7 @@ class OrderbookDeltaPayload(BaseModel):
     price: DollarDecimal = Field(
         validation_alias=AliasChoices("price_dollars", "price"),
     )
-    delta: str = Field(
+    delta: FixedPointCount = Field(
         validation_alias=AliasChoices("delta_fp", "delta"),
     )
     side: str

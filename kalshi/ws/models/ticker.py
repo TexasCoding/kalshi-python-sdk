@@ -24,8 +24,14 @@ class TickerPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("yes_ask_dollars", "yes_ask"),
     )
-    no_bid: DollarDecimal | None = None
-    no_ask: DollarDecimal | None = None
+    no_bid: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
+    )
+    no_ask: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_ask_dollars", "no_ask"),
+    )
     volume: str | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),

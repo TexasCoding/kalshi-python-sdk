@@ -473,10 +473,13 @@ def _unwrap_annotation(ann: Any) -> Any:
     Returns the generic alias (e.g. ``list[str]``) or the plain class
     (e.g. ``int``, ``Decimal``). Suitable for kind-classification below.
     """
-    # Annotated[X, ...] → X (DollarDecimal is Annotated[Decimal, ...])
+    # Annotated[X, ...] → X (DollarDecimal is Annotated[Decimal, ...]).
+    # typing.get_args is the public API — __origin__ is a dunder implementation
+    # detail that can drift across Python versions and Pydantic internals.
     if hasattr(ann, "__metadata__"):
-        base = ann.__origin__ if hasattr(ann, "__origin__") else typing.get_args(ann)[0]
-        return _unwrap_annotation(base)
+        args = typing.get_args(ann)
+        if args:
+            return _unwrap_annotation(args[0])
 
     # Union / X | None → first non-None arg (one-level unwrap)
     origin = typing.get_origin(ann)
