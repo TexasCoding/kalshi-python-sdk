@@ -174,3 +174,21 @@ class TestAsyncListNullItemsCoercion:
             collected.append(item)
 
         assert collected == []
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_missing_items_key_still_returns_empty(
+        self, test_auth: KalshiAuth, config: KalshiConfig
+    ) -> None:
+        """Regression guard for the async path (mirrors the sync case).
+
+        Shared code with the sync `_list`, but the symmetry keeps future
+        refactors from accidentally breaking one path without the other.
+        """
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(200, json={"cursor": ""})
+        )
+        resource = AsyncResource(AsyncTransport(test_auth, config))
+        page = await resource._list("/things", _Item, "items")
+
+        assert page.items == []
