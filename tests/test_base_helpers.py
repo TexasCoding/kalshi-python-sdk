@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiError
 from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers
 
 
@@ -129,3 +130,80 @@ class TestAsyncListNullItemsCoercion:
         page = await resource._list("/things", _Item, "items")
 
         assert page.items == []
+
+
+class TestSyncListAllCursorLoopDetection:
+    @respx.mock
+    def test_repeated_cursor_raises(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """Server that returns the same cursor twice must bail fast, not retry 1000x."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(
+                200, json={"items": [{"id": "x"}], "cursor": "loop"}
+            )
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+
+        with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'loop'"):
+            list(resource._list_all("/things", _Item, "items"))
+
+        # First call (no cursor) fetches cursor="loop". Second call (cursor=loop) returns
+        # cursor="loop" again → loop detected before a third request. Total: 2 requests,
+        # not 1000.
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_multi_page_loop_raises(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """A → B → A revisit also trips detection."""
+        responses = [
+            httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
+            httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "B"}),
+            httpx.Response(200, json={"items": [{"id": "3"}], "cursor": "A"}),
+        ]
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            side_effect=responses
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+
+        with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'A'"):
+            list(resource._list_all("/things", _Item, "items"))
+
+    @respx.mock
+    def test_normal_pagination_does_not_trip(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """Regression guard: healthy two-page pagination must not raise."""
+        responses = [
+            httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
+            httpx.Response(200, json={"items": [{"id": "2"}], "cursor": ""}),
+        ]
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            side_effect=responses
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+
+        collected = list(resource._list_all("/things", _Item, "items"))
+        assert [item.id for item in collected] == ["1", "2"]
+
+
+class TestAsyncListAllCursorLoopDetection:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_repeated_cursor_raises(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(
+                200, json={"items": [{"id": "x"}], "cursor": "loop"}
+            )
+        )
+        resource = AsyncResource(AsyncTransport(test_auth, test_config))
+
+        with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'loop'"):
+            async for _ in resource._list_all("/things", _Item, "items"):
+                pass
+
+        assert route.call_count == 2

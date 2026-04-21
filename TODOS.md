@@ -64,14 +64,12 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 **Why:** Surfaced by PR #34 review. Both are minor and non-blocking — tracked so future cleanup passes don't silently drop them.
 **Added:** 2026-04-18 (PR #34 review round 2).
 
-### P4: Cursor-loop detection in paginators
-**What:** `_list_all` (sync + async) in `kalshi/resources/_base.py` caps iteration at `max_pages=1000` but has no detection for a cursor loop — if a buggy server returns the same cursor repeatedly, the SDK issues 1000 duplicate requests before bailing. Add: track seen cursors in a set; raise a `KalshiError` when a cursor repeats.
-**Why:** Flagged during v0.13.0 adversarial review. No evidence Kalshi actually does this, but the safety-cap pattern silently papers over a buggy-server class of issue. Would be nice to surface rather than hide.
-**Added:** 2026-04-19 (flagged by v0.13.0 adversarial review).
-
 ---
 
 ## Completed
+
+### ~~Cursor-loop detection in paginators~~
+**Completed:** 2026-04-21. `SyncResource._list_all` and `AsyncResource._list_all` (`kalshi/resources/_base.py`) now track outbound cursors in a `set[str]` and raise `KalshiError` when a cursor repeats, naming the endpoint path and the looped cursor value. Prior behavior silently issued 1000 duplicate requests (the `max_pages` safety cap) before bailing without signal. 4 new tests in `tests/test_base_helpers.py`: sync immediate-loop (2 requests → raise, verified via `respx.Route.call_count`), sync A→B→A multi-page revisit, sync normal-pagination regression guard, async immediate-loop. 1403 unit tests green; mypy strict + ruff clean.
 
 ### ~~Base `_list`/`_join_tickers` + Order Groups contract map hardening~~
 **Completed:** 2026-04-20. Closed three TODOS.md reliability items in one sweep (`kalshi/resources/_base.py` + `kalshi/_contract_map.py`). (1) Null envelope list coercion: `raw_items = data.get(items_key) or []` on both sync and async `_list` so `{"items_key": null}` from the server yields an empty Page rather than `TypeError: 'NoneType' object is not iterable`. Applies to every paginated resource. (2) `_join_tickers` input validation: raises `ValueError` with indexed error messages when a list/tuple element is empty (`["A", "", "B"]` → `"A,,B"` silent filter poisoning) or contains a comma (`["FOO", "BAR,EVIL"]` → silent list expansion). Pre-joined string inputs remain pass-through by design. (3) Registered `OrderGroup`, `GetOrderGroupResponse`, `CreateOrderGroupResponse` in `CONTRACT_MAP`. 11 new unit tests in `tests/test_base_helpers.py` covering both classes of bug plus regression guards on the happy path. Contract tests now warn on `GetOrderGroupResponse.orders` required-drift (expected — SDK uses `NullableList[str] = []` defensively, same pattern as `SportFilterDetails`). 1396 unit tests green; mypy strict + ruff clean.

@@ -8,7 +8,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from kalshi._base_client import AsyncTransport, SyncTransport
-from kalshi.errors import AuthRequiredError
+from kalshi.errors import AuthRequiredError, KalshiError
 from kalshi.models.common import Page
 
 T = TypeVar("T", bound=BaseModel)
@@ -138,16 +138,28 @@ class SyncResource:
         The outbound cursor query param is always named ``cursor`` (spec
         convention). ``cursor_key`` only affects how the response envelope
         is parsed.
+
+        Raises ``KalshiError`` if a cursor value repeats, which indicates
+        a server-side pagination bug that would otherwise cause the safety
+        cap to silently issue ``max_pages`` duplicate requests.
         """
         current_params = dict(params) if params else {}
+        seen_cursors: set[str] = set()
         for _ in range(max_pages):
             page = self._list(
                 path, model_cls, items_key,
                 params=current_params, cursor_key=cursor_key,
             )
             yield from page.items
-            if not page.has_next:
+            if not page.cursor:
                 break
+            if page.cursor in seen_cursors:
+                raise KalshiError(
+                    f"Cursor loop detected on {path}: server returned "
+                    f"cursor {page.cursor!r} which was already used. "
+                    f"This indicates a server-side pagination bug."
+                )
+            seen_cursors.add(page.cursor)
             current_params["cursor"] = page.cursor
 
 
@@ -225,7 +237,11 @@ class AsyncResource:
         max_pages: int = 1000,
         cursor_key: str = "cursor",
     ) -> AsyncIterator[T]:
+        """Async counterpart of ``SyncResource._list_all``. Raises
+        ``KalshiError`` on repeated cursor; see sync docstring.
+        """
         current_params = dict(params) if params else {}
+        seen_cursors: set[str] = set()
         for _ in range(max_pages):
             page = await self._list(
                 path, model_cls, items_key,
@@ -233,6 +249,13 @@ class AsyncResource:
             )
             for item in page.items:
                 yield item
-            if not page.has_next:
+            if not page.cursor:
                 break
+            if page.cursor in seen_cursors:
+                raise KalshiError(
+                    f"Cursor loop detected on {path}: server returned "
+                    f"cursor {page.cursor!r} which was already used. "
+                    f"This indicates a server-side pagination bug."
+                )
+            seen_cursors.add(page.cursor)
             current_params["cursor"] = page.cursor
