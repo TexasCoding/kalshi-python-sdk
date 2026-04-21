@@ -56,17 +56,17 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 **Depends on:** Integration test suite stable (done).
 **Added:** 2026-04-14
 
-### P4: v0.11.0 follow-ups from claude[bot] PR #34 review
-**What:**
-- Verify `json={}` on `communications.confirm_quote` (and `subaccounts.create`, order_groups reset/trigger) is still required under production creds, not just demo. Drop the workaround per-endpoint as production confirms each route accepts empty-body POST/PUT without it.
-- Consider an eager `ValueError` in `communications.list_quotes` / `list_all_quotes` when both `quote_creator_user_id` and `rfq_creator_user_id` are `None` (spec + demo require at least one). Currently the caller gets a `KalshiValidationError` round-trip. DX nit, not a correctness bug.
-
-**Why:** Surfaced by PR #34 review. Both are minor and non-blocking — tracked so future cleanup passes don't silently drop them.
-**Added:** 2026-04-18 (PR #34 review round 2).
+### P4: v0.11.0 follow-up from claude[bot] PR #34 review — prod-creds verification
+**What:** Verify `json={}` on `communications.confirm_quote` (and `subaccounts.create`, order_groups reset/trigger) is still required under production creds, not just demo. Drop the workaround per-endpoint as production confirms each route accepts empty-body POST/PUT without it.
+**Why:** Surfaced by PR #34 review. Blocked on prod-key access.
+**Added:** 2026-04-18 (PR #34 review round 2). Companion DX-nit sub-item (eager `ValueError` in `list_quotes` / `list_all_quotes`) shipped 2026-04-21.
 
 ---
 
 ## Completed
+
+### ~~Eager ValueError in list_quotes / list_all_quotes when creator filter missing~~
+**Completed:** 2026-04-21. `CommunicationsResource.list_quotes` / `list_all_quotes` + async counterparts now raise `ValueError` up front when both `quote_creator_user_id` and `rfq_creator_user_id` are `None`, saving the caller the demo 400 round-trip (`"Either creator_user_id or rfq_creator_user_id must be filled"`). `_require_quote_filter()` helper at the top of `kalshi/resources/communications.py`. `list_all_quotes` (sync + async) converted from generator-function to plain function returning the underlying `_list_all` iterator, so the validation fires at call time rather than first-iteration — the prior generator shape would have swallowed the raise until the caller started consuming. Auth-guard tests still pass because `_require_auth()` runs before the filter check. 6 new unit tests in `tests/test_communications.py` (sync: raise on no-filter, raise even with rfq_id-only, raise on `list_all_quotes` no-filter, rfq_creator_user_id-alone regression guard; async: raise on both entry points). 3 pre-existing unit tests updated to pass a minimal creator filter; 2 `integration_real_api_only` tests (`test_list_quotes_unfiltered`, `test_list_all_quotes`) updated to resolve `communications_id` via `get_id()` and pass as `quote_creator_user_id`. 1409 unit tests green; mypy strict + ruff clean.
 
 ### ~~Cursor-loop detection in paginators~~
 **Completed:** 2026-04-21. `SyncResource._list_all` and `AsyncResource._list_all` (`kalshi/resources/_base.py`) now track outbound cursors in a `set[str]` and raise `KalshiError` when a cursor repeats, naming the endpoint path and the looped cursor value. Prior behavior silently issued 1000 duplicate requests (the `max_pages` safety cap) before bailing without signal. 4 new tests in `tests/test_base_helpers.py`: sync immediate-loop (2 requests → raise, verified via `respx.Route.call_count`), sync A→B→A multi-page revisit, sync normal-pagination regression guard, async immediate-loop. 1403 unit tests green; mypy strict + ruff clean.

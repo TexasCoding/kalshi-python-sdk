@@ -22,6 +22,22 @@ from kalshi.models.communications import (
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
+def _require_quote_filter(
+    quote_creator_user_id: str | None, rfq_creator_user_id: str | None,
+) -> None:
+    """Spec + demo require one of these filters on GET /communications/quotes.
+
+    rfq_id alone is NOT sufficient (verified against demo during v0.11.0).
+    Fail fast locally instead of paying a network round trip for a 400.
+    """
+    if quote_creator_user_id is None and rfq_creator_user_id is None:
+        raise ValueError(
+            "list_quotes requires one of quote_creator_user_id or "
+            "rfq_creator_user_id (server-side requirement; rfq_id alone "
+            "is not sufficient)."
+        )
+
+
 class CommunicationsResource(SyncResource):
     """Sync communications / RFQ API."""
 
@@ -122,6 +138,7 @@ class CommunicationsResource(SyncResource):
         rfq_id: str | None = None,
     ) -> Page[Quote]:
         self._require_auth()
+        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
         params = _params(
             cursor=cursor,
             limit=limit,
@@ -148,6 +165,7 @@ class CommunicationsResource(SyncResource):
         rfq_id: str | None = None,
     ) -> Iterator[Quote]:
         self._require_auth()
+        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
         params = _params(
             limit=limit,
             event_ticker=event_ticker,
@@ -158,7 +176,7 @@ class CommunicationsResource(SyncResource):
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
         )
-        yield from self._list_all(
+        return self._list_all(
             "/communications/quotes", Quote, "quotes", params=params,
         )
 
@@ -309,6 +327,7 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_id: str | None = None,
     ) -> Page[Quote]:
         self._require_auth()
+        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
         params = _params(
             cursor=cursor,
             limit=limit,
@@ -324,7 +343,7 @@ class AsyncCommunicationsResource(AsyncResource):
             "/communications/quotes", Quote, "quotes", params=params,
         )
 
-    async def list_all_quotes(
+    def list_all_quotes(
         self,
         *,
         limit: int | None = None,
@@ -337,6 +356,7 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_id: str | None = None,
     ) -> AsyncIterator[Quote]:
         self._require_auth()
+        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
         params = _params(
             limit=limit,
             event_ticker=event_ticker,
@@ -347,10 +367,9 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
         )
-        async for item in self._list_all(
+        return self._list_all(
             "/communications/quotes", Quote, "quotes", params=params,
-        ):
-            yield item
+        )
 
     async def get_quote(self, quote_id: str) -> GetQuoteResponse:
         self._require_auth()

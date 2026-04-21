@@ -197,12 +197,20 @@ class TestCommunicationsRealApiOnly:
     """
 
     def test_list_quotes_unfiltered(self, sync_client: KalshiClient) -> None:
-        page = sync_client.communications.list_quotes(limit=10)
+        # SDK now requires a creator filter client-side (spec + demo requirement);
+        # "unfiltered" here means no rfq_id, not no creator.
+        comms_id = sync_client.communications.get_id().communications_id
+        page = sync_client.communications.list_quotes(
+            limit=10, quote_creator_user_id=comms_id,
+        )
         assert isinstance(page, Page)
 
     def test_list_all_quotes(self, sync_client: KalshiClient) -> None:
+        comms_id = sync_client.communications.get_id().communications_id
         for i, quote in enumerate(
-            sync_client.communications.list_all_quotes(limit=10),
+            sync_client.communications.list_all_quotes(
+                limit=10, quote_creator_user_id=comms_id,
+            ),
         ):
             assert isinstance(quote, Quote)
             if i >= 4:

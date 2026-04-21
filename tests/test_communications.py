@@ -388,19 +388,22 @@ class TestListQuotes:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
         ).mock(return_value=httpx.Response(200, json={"quotes": [_MINIMAL_QUOTE]}))
-        page = comms.list_quotes()
+        page = comms.list_quotes(quote_creator_user_id="u1")
         assert len(page.items) == 1
         assert isinstance(page.items[0], Quote)
 
     @respx.mock
-    def test_passes_rfq_id_filter(self, comms: CommunicationsResource) -> None:
+    def test_passes_filters(self, comms: CommunicationsResource) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
         ).mock(return_value=httpx.Response(200, json={"quotes": []}))
-        comms.list_quotes(rfq_id="rfq-1", status="accepted")
+        comms.list_quotes(
+            rfq_id="rfq-1", status="accepted", quote_creator_user_id="u1",
+        )
         params = route.calls[0].request.url.params
         assert params["rfq_id"] == "rfq-1"
         assert params["status"] == "accepted"
+        assert params["quote_creator_user_id"] == "u1"
 
     @respx.mock
     def test_list_all_quotes_auto_paginates(
@@ -419,8 +422,45 @@ class TestListQuotes:
                 ),
             ],
         )
-        items = list(comms.list_all_quotes())
+        items = list(comms.list_all_quotes(quote_creator_user_id="u1"))
         assert [q.id for q in items] == ["q-1", "q-2"]
+
+    def test_raises_without_creator_filter(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """Spec + demo require creator_user_id or rfq_creator_user_id.
+
+        Fail fast locally instead of paying a network round trip for a 400.
+        """
+        with pytest.raises(
+            ValueError,
+            match=r"quote_creator_user_id.*rfq_creator_user_id",
+        ):
+            comms.list_quotes()
+
+    def test_raises_without_creator_filter_even_with_rfq_id(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """rfq_id alone is not enough — v0.11.0 integration audit confirmed."""
+        with pytest.raises(ValueError):
+            comms.list_quotes(rfq_id="rfq-1")
+
+    @respx.mock
+    def test_rfq_creator_user_id_alone_is_sufficient(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        page = comms.list_quotes(rfq_creator_user_id="u1")
+        assert page.items == []
+
+    def test_list_all_quotes_raises_without_creator_filter(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """Generator-returning variant must raise eagerly, not on first yield."""
+        with pytest.raises(ValueError):
+            comms.list_all_quotes()
 
 
 class TestGetQuote:
@@ -649,6 +689,22 @@ class TestAsyncCommunications:
         ).mock(return_value=httpx.Response(204))
         await async_comms.delete_quote("q-1")
         assert route.called
+
+    async def test_list_quotes_raises_without_creator_filter(
+        self, async_comms: AsyncCommunicationsResource,
+    ) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"quote_creator_user_id.*rfq_creator_user_id",
+        ):
+            await async_comms.list_quotes()
+
+    async def test_list_all_quotes_raises_without_creator_filter(
+        self, async_comms: AsyncCommunicationsResource,
+    ) -> None:
+        """Must raise at call time, not on first iteration."""
+        with pytest.raises(ValueError):
+            async_comms.list_all_quotes()
 
 
 class TestCommunicationsAuthGuard:
