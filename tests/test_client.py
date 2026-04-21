@@ -129,6 +129,29 @@ class TestSyncTransportRetry:
         assert route.call_count == 2
 
     @respx.mock
+    def test_get_retries_on_500(self, transport: SyncTransport) -> None:
+        """500s are transient on GETs; demo routinely returns them mid-paginate."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(500, json={"message": "internal error"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_post_not_retried_on_500(self, transport: SyncTransport) -> None:
+        """POST must not retry on 500 even after adding 500 to retryable set."""
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders",
+        ).mock(return_value=httpx.Response(500, json={"message": "internal"}))
+        with pytest.raises(KalshiServerError):
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+
+    @respx.mock
     def test_post_not_retried(self, transport: SyncTransport) -> None:
         route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(502, text="Bad Gateway")

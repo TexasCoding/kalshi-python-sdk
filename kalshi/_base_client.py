@@ -27,7 +27,7 @@ from kalshi.errors import (
 
 logger = logging.getLogger("kalshi")
 
-RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 # DELETE excluded: cancel/batch_cancel are not safely idempotent
 RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS"}
 

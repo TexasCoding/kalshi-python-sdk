@@ -73,6 +73,36 @@ class TestAsyncTransportRetry:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_get_retries_on_500(self, transport: AsyncTransport) -> None:
+        """Async counterpart of the sync 500-retry test."""
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets",
+        ).mock(
+            side_effect=[
+                httpx.Response(500, json={"message": "internal error"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_not_retried_on_500(
+        self, transport: AsyncTransport,
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders",
+        ).mock(return_value=httpx.Response(500, json={"message": "internal"}))
+        with pytest.raises(KalshiServerError):
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"},
+            )
+        assert route.call_count == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_post_not_retried(self, transport: AsyncTransport) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders"

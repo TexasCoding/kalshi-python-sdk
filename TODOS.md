@@ -50,12 +50,6 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 
 ## Reliability (gates CI trust for integration tests)
 
-### P3: Integration test — handle transient 500 errors from demo API
-**What:** `TestOrdersSync::test_list_all` intermittently fails with `KalshiServerError: HTTP 500` when paginating orders on the demo server. Investigate whether this is a known demo server issue or a bug in cursor handling. Consider adding a retry wrapper or `pytest.mark.flaky` for demo-specific transient failures.
-**Why:** Transient 500s cause false test failures, making CI unreliable. The SDK's retry logic already handles 500s for GET requests, but `list_all()` re-raises after exhausting retries. Either retry count is too low for demo, or the demo server has a known instability on the orders list endpoint with cursors.
-**Depends on:** Integration test suite stable (done).
-**Added:** 2026-04-14
-
 ### P4: v0.11.0 follow-up from claude[bot] PR #34 review — prod-creds verification
 **What:** Verify `json={}` on `communications.confirm_quote` (and `subaccounts.create`, order_groups reset/trigger) is still required under production creds, not just demo. Drop the workaround per-endpoint as production confirms each route accepts empty-body POST/PUT without it.
 **Why:** Surfaced by PR #34 review. Blocked on prod-key access.
@@ -64,6 +58,9 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 ---
 
 ## Completed
+
+### ~~Retry HTTP 500 on idempotent GET requests~~
+**Completed:** 2026-04-21. Root cause of the `TestOrdersSync::test_list_all` demo flake: `RETRYABLE_STATUS_CODES` was `{429, 502, 503, 504}` — `500` was explicitly excluded, so a single transient demo 500 killed the paginator on the first attempt. Fix is a one-symbol change: `RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}` in `kalshi/_base_client.py`. The `RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS"}` gate is unchanged, so POST/PUT/DELETE on 500 still raise immediately (duplicate-order/cancel safety preserved). Matches common practice (OpenAI, Stripe SDKs retry 500 on idempotent ops). 4 new unit tests: `test_get_retries_on_500` (sync + async, retry to 200 on second attempt, call_count == 2) and `test_post_not_retried_on_500` (sync + async, raise immediately, call_count == 1). All 6 pre-existing 500-mocking tests (`test_exchange`, `test_communications`, `test_search`, `test_async_orders`, etc.) use per-test `max_retries=0` configs and continue to raise immediately — no regression. The TODO's premise ("SDK already handles 500s for GET") was incorrect; the fix closes the intended outcome (CI reliability) by addressing the actual root cause. 1413 unit tests green; mypy strict + ruff clean.
 
 ### ~~Eager ValueError in list_quotes / list_all_quotes when creator filter missing~~
 **Completed:** 2026-04-21. `CommunicationsResource.list_quotes` / `list_all_quotes` + async counterparts now raise `ValueError` up front when both `quote_creator_user_id` and `rfq_creator_user_id` are `None`, saving the caller the demo 400 round-trip (`"Either creator_user_id or rfq_creator_user_id must be filled"`). `_require_quote_filter()` helper at the top of `kalshi/resources/communications.py`. `list_all_quotes` (sync + async) converted from generator-function to plain function returning the underlying `_list_all` iterator, so the validation fires at call time rather than first-iteration — the prior generator shape would have swallowed the raise until the caller started consuming. Auth-guard tests still pass because `_require_auth()` runs before the filter check. 6 new unit tests in `tests/test_communications.py` (sync: raise on no-filter, raise even with rfq_id-only, raise on `list_all_quotes` no-filter, rfq_creator_user_id-alone regression guard; async: raise on both entry points). 3 pre-existing unit tests updated to pass a minimal creator filter; 2 `integration_real_api_only` tests (`test_list_quotes_unfiltered`, `test_list_all_quotes`) updated to resolve `communications_id` via `get_id()` and pass as `quote_creator_user_id`. 1409 unit tests green; mypy strict + ruff clean.
