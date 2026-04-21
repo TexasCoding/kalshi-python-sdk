@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -61,6 +62,23 @@ class TestDollarDecimalField:
         o = Order(order_id="x", yes_price="0.65", no_price="0.35")
         assert o.yes_price == Decimal("0.65")
         assert o.no_price == Decimal("0.35")
+
+
+class TestMarketOccurrenceDatetime:
+    """Round-trip the `occurrence_datetime` field added in spec v3.13.x.
+
+    Nullable `date-time` field; must parse ISO-8601 strings to `datetime`
+    and default to `None` when the server omits it.
+    """
+
+    def test_parses_iso_string(self) -> None:
+        m = Market(ticker="T", occurrence_datetime="2026-01-15T10:30:00Z")
+        assert isinstance(m.occurrence_datetime, datetime)
+        assert m.occurrence_datetime.year == 2026
+
+    def test_absent_defaults_to_none(self) -> None:
+        m = Market(ticker="T")
+        assert m.occurrence_datetime is None
 
 
 class TestDollarsAliasFields:

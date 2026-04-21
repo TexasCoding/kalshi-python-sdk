@@ -7143,6 +7143,13 @@ components:
         expiration_value:
           type: string
           description: The value that was considered for the settlement
+        occurrence_datetime:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            The recorded datetime when the underlying event occurred, if
+            available
         fee_waiver_expiration_time:
           type: string
           format: date-time
