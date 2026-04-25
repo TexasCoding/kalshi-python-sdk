@@ -8,7 +8,7 @@ current_phase_status: ready-to-execute
 plans_total: 6
 plans_completed: 0
 last_activity: 2026-04-25
-last_activity_summary: /gsd-plan-phase 1 complete — 6 wave-parallelized plans written, gsd-plan-checker APPROVED (9/10); ready for /gsd-execute-phase 1
+last_activity_summary: Plan layout reformatted to flat *-PLAN.md (gsd-sdk now sees all 6); deferred Wave 1 execution to a fresh session for full context budget. Run `/gsd-execute-phase 1 --wave 1` to start.
 ---
 
 # Project State
