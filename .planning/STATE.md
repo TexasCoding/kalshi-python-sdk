@@ -3,12 +3,12 @@ project: kalshi-python-sdk
 sdk_version: 0.15.0
 gsd_initialized: 2026-04-25
 current_phase: 1
-current_phase_name: cli-v1-cockpit
-current_phase_status: ready-to-plan
-plans_total: 0
+current_phase_name: cli-v1-conviction-cockpit
+current_phase_status: ready-to-execute
+plans_total: 6
 plans_completed: 0
 last_activity: 2026-04-25
-last_activity_summary: GSD initialized via /gsd-new-project synthesis from existing gstack artifacts (office-hours design + plan-eng-review test plan); ready to run /gsd-plan-phase 1
+last_activity_summary: /gsd-plan-phase 1 complete — 6 wave-parallelized plans written, gsd-plan-checker APPROVED (9/10); ready for /gsd-execute-phase 1
 ---
 
 # Project State
@@ -23,11 +23,19 @@ See: `.planning/PROJECT.md` (updated 2026-04-25)
 ## Current Position
 
 Phase: 1 of TBD (CLI v1 Conviction Cockpit)
-Plan: 0 of TBD (not yet planned)
-Status: Ready to plan — run `/gsd-plan-phase 1`
-Last activity: 2026-04-25 — GSD initialized; design doc + test plan + eng-review decisions synthesized into PROJECT.md / REQUIREMENTS.md / ROADMAP.md
+Plan: 0 of 6
+Status: Ready to execute — run `/gsd-execute-phase 1`
+Last activity: 2026-04-25 — /gsd-plan-phase 1 complete; gsd-pattern-mapper produced PATTERNS.md (resolved both architecture-gate spikes); gsd-planner produced 6 wave-parallelized plans; gsd-plan-checker APPROVED 9/10
 
 Progress: [░░░░░░░░░░] 0%
+
+Plans (6, wave-parallelized):
+- [ ] **Wave 1:** 01-01-state-edge-and-contracts (state.py + edge.py + test_contracts.py)
+- [ ] **Wave 2:** 01-02-lifecycle-app-skeleton (lifecycle.py + main.py + watch.py + app.py with header only)
+- [ ] **Wave 3:** 01-03-orderbook-rule-tape-too-small (4 widgets)
+- [ ] **Wave 4:** 01-04-positions-and-orders (2 widgets, read-only)
+- [ ] **Wave 5:** 01-05-integration-demo-e2e (4 critical-path E2E tests against demo)
+- [ ] **Wave 6:** 01-06-launch-readme-changelog-issue (README screenshot+GIF + CHANGELOG + close issue #11)
 
 ## Performance Metrics
 
