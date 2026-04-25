@@ -6,6 +6,54 @@ See `TODOS.md` for the active coverage plan and the north-star definition.
 
 ---
 
+## CLI v2 (deferred from phase-cli-v1)
+
+### P3: Order entry / ticket modal (`b`/`s` keys)
+**What:** Add `kalshi/cli/widgets/ticket.py` modal: preview-then-confirm flow on highlighted level, worker-dispatched `client.orders.create`, demo single-key vs `--live` typed-word confirm, idempotency via `client_order_id`, REST reconciliation for in-flight orders if WS confirmation is missed.
+**Why:** v1 ships read-only per Codex plan-review pushback ("v1 is trying to be a screenshot toy and a trading client at the same time"). Order entry is the highest-complexity, highest-risk piece. v2 adds it once cockpit foundation is real.
+**Pros:** Full trading workflow without leaving terminal. Closes the "place order from TUI" use case.
+**Cons:** Brings reconciliation, idempotency, error UX, optimistic vs. pessimistic state, live-mode safety chrome. Real engineering.
+**Depends on:** phase-cli-v1 shipped + battle-tested for >1 month before adding write paths.
+**Added:** 2026-04-24 via /plan-eng-review (Codex outside voice).
+
+### P3: Microstructure event labeler (`microstructure.py`)
+**What:** Classify WS orderbook deltas as sweep / pull / reload / spread-widen / resync. Tunable thresholds. Display labeled events in tape widget.
+**Why:** Makes the tape visually richer ("a 500-lot just swept through 0.5610-0.5615" reads better than raw deltas). Genuine differentiation against pmcli/stand.trade.
+**Process:** Capture 1-2 hours of demo orderbook_delta with `scripts/ws_capture.py` against a high-volume market, manually label ~100 events, tune thresholds against ground truth, replay tests with captured fixtures.
+**Initial heuristic targets** (to be tuned, not gospel): sweep = ≥3 levels in same direction within ≤500ms; pull = level drops to 0; reload = ≥2x prior top size; spread-widen = expand by ≥3 ticks in <1s; resync = sequence gap.
+**Depends on:** phase-cli-v1 shipped + capture fixtures available.
+**Added:** 2026-04-24 via /office-hours design + /plan-eng-review (Codex flagged as architecture gate, deferred from v1).
+
+### P3: Sibling-market navigation
+**What:** Keybinding (`[` / `]` or `Tab` / `Shift+Tab`) to flip through `event.markets` from inside `kalshi watch`. Cockpit re-mounts widgets on ticker change.
+**Why:** Lets a user check related markets in the same event without restarting the TUI.
+**Pros:** Natural workflow extension once cockpit is proven on single-ticker.
+**Cons:** UX is undefined at design time; needs feel testing in real use.
+**Depends on:** phase-cli-v1 shipped.
+**Added:** 2026-04-24 via /office-hours design (deferred from v1).
+
+### P3: Multi-ticker grid view (`kalshi watch` no args)
+**What:** `kalshi watch` (no ticker) opens Bloomberg-style overview grid: 5-10 watchlist tickers with live prices, spreads, your positions, P&L per row. Different aesthetic from per-ticker deep view.
+**Why:** Different use case (overview vs. focus). Either a sibling command or a default mode.
+**Depends on:** phase-cli-v1 shipped.
+**Added:** 2026-04-24 via /office-hours design (deferred from v1).
+
+### P3: REPL mode (`kalshi shell`)
+**What:** `kalshi shell` drops into a Python REPL with `client` pre-built and authenticated. Tab completion on resource methods, JSON pretty-print, table rendering.
+**Why:** Closes the gap between scripting and interactive exploration.
+**Cons:** Different UX paradigm from the cockpit; requires `prompt_toolkit` or similar.
+**Depends on:** phase-cli-v1 shipped.
+**Added:** 2026-04-24 via /office-hours design (rejected for v1, parked here).
+
+### P3: Optional anon WS support (SDK-side change)
+**What:** Modify `KalshiWebSocket` and `WebSocketConnection` to accept `auth: KalshiAuth | None`. Verify Kalshi's WS server supports unauth subscribe at the protocol level (likely not for private channels; possibly for public orderbook). If protocol supports it, anon mode in the cockpit becomes feasible.
+**Why:** v1 cockpit dropped anon mode because `KalshiWebSocket.__init__` hard-requires `KalshiAuth`. Restoring anon mode would re-enable the "casual install-and-watch" use case Discord-degens-without-creds want.
+**Cons:** Requires Kalshi protocol verification before any code change. May be wasted work if Kalshi requires auth on all WS subscriptions.
+**Depends on:** Kalshi protocol behavior verification (test against demo with no auth headers).
+**Added:** 2026-04-24 via /plan-eng-review (Codex flagged WS auth requirement as plan blocker; deferred to BACKLOG since not on critical path).
+
+---
+
 ## Code quality / architecture
 
 ### P3: Standardize `test_list_all` iteration idiom across sync/async

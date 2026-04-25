@@ -44,7 +44,15 @@ Re-run with `uv run python scripts/audit_demo_feasibility.py` before any phase i
 
 ## Active phases
 
-*(none — v0.15.0 closed, WS parity complete.)*
+### phase-cli-v1: Conviction Cockpit TUI (Issue #11 reframe)
+**What:** `kalshi watch TICKER --fair 0.63` — Textual-based read-only TUI cockpit shipped as `kalshi-sdk[cli]` extras. Ships live YES/NO ladder with edge coloring vs. user's stated fair probability, position/balance/resting-orders panels, event-rule pinning, close countdown, raw WS delta tape, connection-state indicator. **Read-only in v1** — no order entry; users place orders via the SDK directly or web UI and use the cockpit to monitor. **Auth required always** — no anon mode, since `KalshiWebSocket` requires `KalshiAuth`.
+**Why:** Marketing artifact for the SDK's WebSocket quality (post-v0.14/v0.15 parity work). Discord/Twitter screenshot funnel for Python developers building Kalshi bots.
+**Design doc:** `~/.gstack/projects/kalshi-python-sdk/jeffreywest-main-design-20260424-190736.md` (APPROVED, post-Codex revision).
+**Plan-eng-review:** 2026-04-24 (4 architecture decisions + 4 cross-model tensions resolved; see `~/.gstack/projects/kalshi-python-sdk/jeffreywest-main-eng-review-test-plan-20260424-192732.md`).
+**Effort:** ~2 weekends solo, ~3-4 hours focused CC time. Bonus feature, not core SDK.
+**Spike-first:** OrderbookManager read-API surface + WS-lifecycle seam against demo BEFORE building widgets (architecture gates per Codex review).
+**v2 backlog:** see `BACKLOG.md` (order entry, microstructure labeler, sibling-market navigation, multi-ticker grid, REPL, optional anon WS).
+**Added:** 2026-04-24.
 
 ---
 
