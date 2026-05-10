@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build sdist and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Verify tag matches pyproject version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PROJECT_VERSION="$(uv run python -c 'import tomllib,sys;print(tomllib.loads(open("pyproject.toml","rb").read().decode())["project"]["version"])')"
+          if [ "$TAG" != "$PROJECT_VERSION" ]; then
+            echo "::error::Git tag v$TAG does not match pyproject.toml version $PROJECT_VERSION"
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: Check artifacts
+        run: uv run --with twine twine check dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/kalshi-sdk/
+    permissions:
+      id-token: write  # required for PyPI trusted publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so we can extract the tag's CHANGELOG section
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # Pull the section between this version's heading and the next ## heading.
+          # Tolerates both "## 1.0.0 — date" and "## [1.0.0] - date" formats.
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[?"v"\\]?( |$)" {flag=1; next}
+            flag && /^## / {exit}
+            flag {print}
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "::warning::No CHANGELOG section found for v$VERSION; using a stub"
+            echo "Release v$VERSION" > release_notes.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
