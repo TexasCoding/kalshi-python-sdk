@@ -25,8 +25,11 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/TexasCoding/kalshi-python-sdk"
-Documentation = "https://github.com/TexasCoding/kalshi-python-sdk"
+Documentation = "https://github.com/TexasCoding/kalshi-python-sdk#readme"
 Repository = "https://github.com/TexasCoding/kalshi-python-sdk"
+Issues = "https://github.com/TexasCoding/kalshi-python-sdk/issues"
+Changelog = "https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md"
+PyPI = "https://pypi.org/project/kalshi-sdk/"
 
 [build-system]
 requires = ["hatchling"]
