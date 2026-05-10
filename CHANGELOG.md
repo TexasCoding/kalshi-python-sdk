@@ -2,6 +2,40 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 1.0.0 — 2026-05-10
+
+First stable release. No behavioral changes from 0.15.0 — this release marks
+the public API surface as stable for semantic versioning.
+
+### Added
+- `LICENSE` file (MIT) — declared in `pyproject.toml` since 0.1.0 but not
+  shipped as a file; now included at repo root and in both wheel
+  (`dist-info/licenses/LICENSE`) and sdist artifacts (#42).
+- `README.md` — install, sync + async quickstart, env-var auth, demo vs
+  production, public/unauthenticated usage, order placement, WebSocket
+  streaming, error hierarchy, retry policy, pagination (#41).
+- `docs/RELEASING.md` — one-time PyPI trusted-publisher setup runbook plus
+  cut-a-release procedure.
+- `.github/workflows/release.yml` — tag-triggered release pipeline:
+  tag/version drift check, `uv build`, `twine check`, PyPI publish via
+  trusted publishing (OIDC, no token in repo secrets), GitHub Release
+  with CHANGELOG-extracted body and artifacts attached (#15).
+- `[project.urls]` extended from 3 → 6 keys (`Issues`, `Changelog`,
+  `PyPI`); `Documentation` retargeted to README anchor (#44).
+
+### Changed
+- `Development Status` classifier bumped from `3 - Alpha` to
+  `5 - Production/Stable` (#43).
+
+### Coverage at 1.0.0
+- 89/89 REST endpoints implemented (sync + async). 67 with live
+  integration tests; 20 SDK+unit only; 2 auth-gated (demo cannot
+  authenticate); 1 demo-broken (server-side).
+- 12 WebSocket message types dispatched with spec-aligned envelope and
+  payload types. 14 integration tests; 3 frame types live-verified.
+- 899 unit tests, mypy `--strict` clean, ruff clean, contract drift
+  tests on query/path/body/WS-payload schemas.
+
 ## 0.15.0 — 2026-04-19
 
 ### Fixed — WebSocket payload type drift
