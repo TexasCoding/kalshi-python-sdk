@@ -36,6 +36,8 @@ class RecordingTransport(httpx.BaseTransport):
         # httpx streams response bodies; read so we can serialize the full body.
         response.read()
         method, path, _query = fingerprint(request)
+        # load → append → save is not atomic across concurrent requests to the
+        # same endpoint. Recordings are expected to run sequentially.
         pairs = load_pairs(self._dir, method, path)
         pairs.append(record_pair(request, response))
         save_pairs(self._dir, method, path, pairs)
@@ -63,6 +65,8 @@ class AsyncRecordingTransport(httpx.AsyncBaseTransport):
         response = await self._real.handle_async_request(request)
         await response.aread()
         method, path, _query = fingerprint(request)
+        # load → append → save is not atomic across concurrent requests to the
+        # same endpoint. Recordings are expected to run sequentially.
         pairs = load_pairs(self._dir, method, path)
         pairs.append(record_pair(request, response))
         save_pairs(self._dir, method, path, pairs)

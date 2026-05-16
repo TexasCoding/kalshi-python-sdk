@@ -88,14 +88,12 @@ class SyncTransport:
     ) -> None:
         self._auth = auth
         self._config = config
-        client_kwargs: dict[str, Any] = {
-            "base_url": config.base_url,
-            "timeout": config.timeout,
-            "headers": config.extra_headers,
-        }
-        if transport is not None:
-            client_kwargs["transport"] = transport
-        self._client = httpx.Client(**client_kwargs)
+        self._client = httpx.Client(
+            base_url=config.base_url,
+            timeout=config.timeout,
+            headers=config.extra_headers,
+            transport=transport,
+        )
 
     @property
     def is_authenticated(self) -> bool:
@@ -201,14 +199,12 @@ class AsyncTransport:
     ) -> None:
         self._auth = auth
         self._config = config
-        client_kwargs: dict[str, Any] = {
-            "base_url": config.base_url,
-            "timeout": config.timeout,
-            "headers": config.extra_headers,
-        }
-        if transport is not None:
-            client_kwargs["transport"] = transport
-        self._client = httpx.AsyncClient(**client_kwargs)
+        self._client = httpx.AsyncClient(
+            base_url=config.base_url,
+            timeout=config.timeout,
+            headers=config.extra_headers,
+            transport=transport,
+        )
 
     @property
     def is_authenticated(self) -> bool:

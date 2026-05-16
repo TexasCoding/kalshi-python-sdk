@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import httpx
@@ -35,6 +36,19 @@ def _make_stub_transport(responses: dict[tuple[str, str], httpx.Response]) -> ht
         )
 
     return httpx.MockTransport(handler)
+
+
+class _AsyncStubTransport(httpx.AsyncBaseTransport):
+    """Async transport stub — proper AsyncBaseTransport subtype so the typed
+    ``real_transport: httpx.AsyncBaseTransport`` hint is satisfied without
+    relying on ``httpx.MockTransport`` happening to implement both interfaces.
+    """
+
+    def __init__(self, handler: Callable[[httpx.Request], httpx.Response]) -> None:
+        self._handler = handler
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return self._handler(request)
 
 
 def test_fingerprint_ignores_headers_and_body() -> None:
@@ -210,7 +224,7 @@ async def test_async_record_then_replay_roundtrip(tmp_path: Path) -> None:
         200, content=json.dumps({"exchange_active": True, "trading_active": True}).encode("utf-8")
     )
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/trade-api/v2/exchange/status"
         return httpx.Response(
             status_code=canned.status_code,
@@ -218,7 +232,7 @@ async def test_async_record_then_replay_roundtrip(tmp_path: Path) -> None:
             content=canned.content,
         )
 
-    async_stub = httpx.MockTransport(handler)
+    async_stub = _AsyncStubTransport(handler)
     fixtures_dir = tmp_path / "fixtures"
 
     rec = AsyncRecordingTransport(fixtures_dir, real_transport=async_stub)
@@ -309,4 +323,26 @@ def test_recording_transport_close_propagates_to_real_transport(tmp_path: Path) 
 
     rec = RecordingTransport(tmp_path, real_transport=TrackingTransport())
     rec.close()
+    assert closed["value"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_recording_transport_aclose_propagates(tmp_path: Path) -> None:
+    """``AsyncRecordingTransport.aclose()`` must await the wrapped real
+    transport's aclose so callers don't leak connections. Mirrors the
+    sync sibling.
+    """
+    closed = {"value": False}
+
+    class TrackingAsyncTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(
+            self, request: httpx.Request
+        ) -> httpx.Response:  # pragma: no cover
+            raise AssertionError("not called in this test")
+
+        async def aclose(self) -> None:
+            closed["value"] = True
+
+    rec = AsyncRecordingTransport(tmp_path, real_transport=TrackingAsyncTransport())
+    await rec.aclose()
     assert closed["value"] is True
