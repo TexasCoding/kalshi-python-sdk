@@ -850,16 +850,17 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
         ).mock(return_value=httpx.Response(200, json={}))
 
+        # patch.object + wraps forwards every call to the real method,
+        # so the respx mock above still resolves; the spy only records.
         with patch.object(
             orders, "_delete_with_body",
             wraps=orders._delete_with_body,
         ) as spy:
             orders.batch_cancel(["ord-1", "ord-2"])
-
-        spy.assert_called_once_with(
-            "/portfolio/orders/batched",
-            json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
-        )
+            spy.assert_called_once_with(
+                "/portfolio/orders/batched",
+                json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
+            )
 
     @respx.mock
     def test_batch_cancel_parses_200_with_json_body(
@@ -874,6 +875,40 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
         ).mock(return_value=httpx.Response(200, json={"cancelled": 2}))
 
         orders.batch_cancel(["ord-1", "ord-2"])  # must not raise on JSON body
+
+    @respx.mock
+    def test_batch_cancel_handles_204_no_content(
+        self, orders: OrdersResource
+    ) -> None:
+        """Helper returns None on 204 — verifies sync goes through the
+        shared response-handling path, not a raw ``transport.request`` call.
+        Mirrors the async sibling.
+        """
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(204))
+
+        orders.batch_cancel(["ord-1"])  # must not raise on empty body
+
+    @respx.mock
+    def test_batch_cancel_200_with_empty_body_raises(
+        self, orders: OrdersResource
+    ) -> None:
+        """Documents an intentional behavior change: the old local helper
+        discarded the response, so a hypothetical 200 with an empty body
+        would have been silent. The new shared helper parses JSON on
+        non-204, so the same case now surfaces as a JSONDecodeError.
+        Kalshi's spec returns either 200-with-JSON or 204; this test
+        pins the new failure mode rather than letting it regress silently.
+        """
+        import json as _json
+
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200))
+
+        with pytest.raises(_json.JSONDecodeError):
+            orders.batch_cancel(["ord-1"])
 
 
 class TestAmendWireShape:

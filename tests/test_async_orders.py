@@ -940,17 +940,19 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
         ).mock(return_value=httpx.Response(200, json={}))
 
+        # AsyncMock + wraps forwards every call to the real async method,
+        # so the respx mock above still resolves and the helper's
+        # status-code branching runs end-to-end; the spy only records.
         with patch.object(
             orders, "_delete_with_body",
             wraps=orders._delete_with_body,
             new_callable=AsyncMock,
         ) as spy:
             await orders.batch_cancel(["ord-1", "ord-2"])
-
-        spy.assert_called_once_with(
-            "/portfolio/orders/batched",
-            json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
-        )
+            spy.assert_called_once_with(
+                "/portfolio/orders/batched",
+                json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
+            )
 
     @respx.mock
     @pytest.mark.asyncio
