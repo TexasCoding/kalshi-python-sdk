@@ -11,7 +11,11 @@ from kalshi.models.api_keys import (
     GenerateApiKeyResponse,
     GetApiKeysResponse,
 )
-from kalshi.resources._base import AsyncResource, SyncResource
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _check_request_exclusive,
+)
 
 
 class ApiKeysResource(SyncResource):
@@ -30,25 +34,44 @@ class ApiKeysResource(SyncResource):
     def create(
         self,
         *,
-        name: str,
-        public_key: str,
+        request: CreateApiKeyRequest | None = None,
+        name: str | None = None,
+        public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
-        req = CreateApiKeyRequest(name=name, public_key=public_key, scopes=scopes)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(
+            request, name=name, public_key=public_key, scopes=scopes,
+        )
+        if request is None:
+            if name is None or public_key is None:
+                raise TypeError(
+                    "create() requires `name` and `public_key` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateApiKeyRequest(
+                name=name, public_key=public_key, scopes=scopes,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/api_keys", json=body)
         return CreateApiKeyResponse.model_validate(data)
 
     def generate(
         self,
         *,
-        name: str,
+        request: GenerateApiKeyRequest | None = None,
+        name: str | None = None,
         scopes: builtins.list[str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
-        req = GenerateApiKeyRequest(name=name, scopes=scopes)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, name=name, scopes=scopes)
+        if request is None:
+            if name is None:
+                raise TypeError(
+                    "generate() requires `name` (or pass `request=...`)"
+                )
+            request = GenerateApiKeyRequest(name=name, scopes=scopes)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/api_keys/generate", json=body)
         return GenerateApiKeyResponse.model_validate(data)
 
@@ -68,25 +91,44 @@ class AsyncApiKeysResource(AsyncResource):
     async def create(
         self,
         *,
-        name: str,
-        public_key: str,
+        request: CreateApiKeyRequest | None = None,
+        name: str | None = None,
+        public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
-        req = CreateApiKeyRequest(name=name, public_key=public_key, scopes=scopes)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(
+            request, name=name, public_key=public_key, scopes=scopes,
+        )
+        if request is None:
+            if name is None or public_key is None:
+                raise TypeError(
+                    "create() requires `name` and `public_key` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateApiKeyRequest(
+                name=name, public_key=public_key, scopes=scopes,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/api_keys", json=body)
         return CreateApiKeyResponse.model_validate(data)
 
     async def generate(
         self,
         *,
-        name: str,
+        request: GenerateApiKeyRequest | None = None,
+        name: str | None = None,
         scopes: builtins.list[str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
-        req = GenerateApiKeyRequest(name=name, scopes=scopes)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, name=name, scopes=scopes)
+        if request is None:
+            if name is None:
+                raise TypeError(
+                    "generate() requires `name` (or pass `request=...`)"
+                )
+            request = GenerateApiKeyRequest(name=name, scopes=scopes)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/api_keys/generate", json=body)
         return GenerateApiKeyResponse.model_validate(data)
 

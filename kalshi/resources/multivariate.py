@@ -15,7 +15,12 @@ from kalshi.models.multivariate import (
     MultivariateEventCollection,
     TickerPair,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _check_request_exclusive,
+    _params,
+)
 
 
 class MultivariateCollectionsResource(SyncResource):
@@ -75,15 +80,27 @@ class MultivariateCollectionsResource(SyncResource):
         self,
         collection_ticker: str,
         *,
-        selected_markets: builtins.list[TickerPair],
+        request: CreateMarketInMultivariateEventCollectionRequest | None = None,
+        selected_markets: builtins.list[TickerPair] | None = None,
         with_market_payload: bool | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
-        req = CreateMarketInMultivariateEventCollectionRequest(
-            selected_markets=list(selected_markets),
+        _check_request_exclusive(
+            request,
+            selected_markets=selected_markets,
             with_market_payload=with_market_payload,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if selected_markets is None:
+                raise TypeError(
+                    "create_market() requires `selected_markets` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateMarketInMultivariateEventCollectionRequest(
+                selected_markets=list(selected_markets),
+                with_market_payload=with_market_payload,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
             f"/multivariate_event_collections/{collection_ticker}",
             json=body,
@@ -94,13 +111,23 @@ class MultivariateCollectionsResource(SyncResource):
         self,
         collection_ticker: str,
         *,
-        selected_markets: builtins.list[TickerPair],
+        request: (
+            LookupTickersForMarketInMultivariateEventCollectionRequest | None
+        ) = None,
+        selected_markets: builtins.list[TickerPair] | None = None,
     ) -> LookupTickersResponse:
         self._require_auth()
-        req = LookupTickersForMarketInMultivariateEventCollectionRequest(
-            selected_markets=list(selected_markets),
-        )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, selected_markets=selected_markets)
+        if request is None:
+            if selected_markets is None:
+                raise TypeError(
+                    "lookup_tickers() requires `selected_markets` "
+                    "(or pass `request=...`)"
+                )
+            request = LookupTickersForMarketInMultivariateEventCollectionRequest(
+                selected_markets=list(selected_markets),
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._put(
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,
@@ -186,15 +213,27 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         self,
         collection_ticker: str,
         *,
-        selected_markets: builtins.list[TickerPair],
+        request: CreateMarketInMultivariateEventCollectionRequest | None = None,
+        selected_markets: builtins.list[TickerPair] | None = None,
         with_market_payload: bool | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
-        req = CreateMarketInMultivariateEventCollectionRequest(
-            selected_markets=list(selected_markets),
+        _check_request_exclusive(
+            request,
+            selected_markets=selected_markets,
             with_market_payload=with_market_payload,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if selected_markets is None:
+                raise TypeError(
+                    "create_market() requires `selected_markets` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateMarketInMultivariateEventCollectionRequest(
+                selected_markets=list(selected_markets),
+                with_market_payload=with_market_payload,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
             f"/multivariate_event_collections/{collection_ticker}",
             json=body,
@@ -205,13 +244,23 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         self,
         collection_ticker: str,
         *,
-        selected_markets: builtins.list[TickerPair],
+        request: (
+            LookupTickersForMarketInMultivariateEventCollectionRequest | None
+        ) = None,
+        selected_markets: builtins.list[TickerPair] | None = None,
     ) -> LookupTickersResponse:
         self._require_auth()
-        req = LookupTickersForMarketInMultivariateEventCollectionRequest(
-            selected_markets=list(selected_markets),
-        )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, selected_markets=selected_markets)
+        if request is None:
+            if selected_markets is None:
+                raise TypeError(
+                    "lookup_tickers() requires `selected_markets` "
+                    "(or pass `request=...`)"
+                )
+            request = LookupTickersForMarketInMultivariateEventCollectionRequest(
+                selected_markets=list(selected_markets),
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._put(
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,

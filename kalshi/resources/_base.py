@@ -32,6 +32,23 @@ def _bool_param(value: bool | None) -> str | None:
     return "true" if value else "false"
 
 
+def _check_request_exclusive(request: Any, **kwargs: Any) -> None:
+    """Validate the model-first overload: if ``request`` is provided, no
+    individual kwargs may also be set. Raises ``TypeError`` otherwise.
+
+    Used by resource methods that accept either ``request=ModelType(...)``
+    or the corresponding individual kwargs. Issue #56.
+    """
+    if request is None:
+        return
+    provided = [k for k, v in kwargs.items() if v is not None]
+    if provided:
+        raise TypeError(
+            "Pass either `request=...` or individual kwargs, not both. "
+            f"Got both `request` and: {sorted(provided)}"
+        )
+
+
 def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
     """Serialize the `tickers` query param (spec: comma-joined string, not explode:true).
 
