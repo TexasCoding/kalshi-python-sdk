@@ -39,6 +39,8 @@ def _find_match(
     for idx in matches:
         if idx not in used:
             return idx
+    # All matching pairs already consumed — wrap to the first match. Callers
+    # that want strict one-shot replay should record more pairs instead.
     return matches[0]
 
 
@@ -55,7 +57,7 @@ class ReplayTransport(httpx.BaseTransport):
 
     def __init__(self, dir_path: str | Path) -> None:
         self._dir = Path(dir_path)
-        self._used: dict[tuple[str, str], set[int]] = {}
+        self._used: dict[tuple[str, str, tuple[tuple[str, str], ...]], set[int]] = {}
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         method, path, query = fingerprint(request)
@@ -65,7 +67,7 @@ class ReplayTransport(httpx.BaseTransport):
                 f"No fixture file for {method} {path}. "
                 f"Expected file under {self._dir} — record one first."
             )
-        used = self._used.setdefault((method, path), set())
+        used = self._used.setdefault((method, path, query), set())
         idx = _find_match(pairs, method, path, query, used)
         if idx is None:
             raise FixtureNotFoundError(
@@ -76,7 +78,7 @@ class ReplayTransport(httpx.BaseTransport):
         return build_response(pairs[idx], request)
 
     def close(self) -> None:
-        return None
+        pass
 
 
 class AsyncReplayTransport(httpx.AsyncBaseTransport):
@@ -84,7 +86,7 @@ class AsyncReplayTransport(httpx.AsyncBaseTransport):
 
     def __init__(self, dir_path: str | Path) -> None:
         self._dir = Path(dir_path)
-        self._used: dict[tuple[str, str], set[int]] = {}
+        self._used: dict[tuple[str, str, tuple[tuple[str, str], ...]], set[int]] = {}
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         method, path, query = fingerprint(request)
@@ -94,7 +96,7 @@ class AsyncReplayTransport(httpx.AsyncBaseTransport):
                 f"No fixture file for {method} {path}. "
                 f"Expected file under {self._dir} — record one first."
             )
-        used = self._used.setdefault((method, path), set())
+        used = self._used.setdefault((method, path, query), set())
         idx = _find_match(pairs, method, path, query, used)
         if idx is None:
             raise FixtureNotFoundError(
@@ -105,4 +107,4 @@ class AsyncReplayTransport(httpx.AsyncBaseTransport):
         return build_response(pairs[idx], request)
 
     async def aclose(self) -> None:
-        return None
+        pass

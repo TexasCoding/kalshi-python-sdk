@@ -8,6 +8,14 @@ Requests are matched by HTTP method + URL path + sorted query parameters. The
 ``KALSHI-ACCESS-SIGNATURE`` and ``KALSHI-ACCESS-TIMESTAMP`` headers are ignored,
 so signature drift between record and replay does not cause misses.
 
+.. warning::
+
+    Recorded fixtures contain the full response body returned by Kalshi. If you
+    record against an account with real funds you will write balances, positions,
+    order history, and any PII the API returns to disk. **Always ``.gitignore``
+    the fixture directory unless you have manually scrubbed the JSON, and prefer
+    recording against the demo environment whenever possible.**
+
 Usage::
 
     from pathlib import Path

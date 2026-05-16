@@ -128,8 +128,12 @@ def test_replay_raises_when_query_mismatches(tmp_path: Path) -> None:
         client.markets.list(status="closed", limit=1)
 
 
-def test_replay_ignores_signature_drift(tmp_path: Path) -> None:
-    """Auth signature/timestamp drift between record & replay must not break matching."""
+def test_replay_ignores_signature_drift(tmp_path: Path, pem_bytes: bytes) -> None:
+    """Auth signature/timestamp drift between record & replay must not break matching.
+
+    Uses the shared ``pem_bytes`` fixture from ``tests/conftest.py`` to mint
+    throwaway credentials.
+    """
     canned = httpx.Response(
         200, content=json.dumps({"exchange_active": True, "trading_active": True}).encode("utf-8")
     )
@@ -144,21 +148,9 @@ def test_replay_ignores_signature_drift(tmp_path: Path) -> None:
 
     # Replay with synthetic credentials → signature header is now present and different,
     # but the fingerprint ignores it.
-    key_id = "test-id"
-    # Generate a throwaway PEM in-process via the test helper key.
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
-
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    pem = key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-
     with KalshiClient(
-        key_id=key_id,
-        private_key=pem,
+        key_id="test-id",
+        private_key=pem_bytes,
         transport=ReplayTransport(fixtures_dir),
     ) as client:
         resp = client.exchange.status()
@@ -250,3 +242,71 @@ async def test_async_replay_raises_when_no_fixture(tmp_path: Path) -> None:
     async with AsyncKalshiClient(transport=AsyncReplayTransport(fixtures_dir)) as client:
         with pytest.raises(FixtureNotFoundError):
             await client.exchange.status()
+
+
+def test_multiple_pairs_wrap_around_after_exhaustion(tmp_path: Path) -> None:
+    """A third call to a 2-pair fixture wraps to pair 0 rather than raising.
+
+    Documents the loop-on-exhaustion behavior promised by ``_find_match``.
+    """
+    fixtures_dir = tmp_path / "fixtures"
+    fixtures_dir.mkdir()
+    file_path = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+
+    def _pair(exchange_active: bool) -> dict[str, object]:
+        return {
+            "request": {
+                "method": "GET",
+                "url": "https://x/trade-api/v2/exchange/status",
+                "path": "/trade-api/v2/exchange/status",
+                "query": [],
+            },
+            "response": {
+                "status_code": 200,
+                "headers": [],
+                "body_kind": "json",
+                "body": {"exchange_active": exchange_active, "trading_active": exchange_active},
+            },
+        }
+
+    file_path.write_text(json.dumps([_pair(True), _pair(False)]))
+
+    with KalshiClient(transport=ReplayTransport(fixtures_dir)) as client:
+        first = client.exchange.status()
+        second = client.exchange.status()
+        third = client.exchange.status()  # exhausted both — must wrap to pair 0
+    assert first.exchange_active is True
+    assert second.exchange_active is False
+    assert third.exchange_active is True
+
+
+def test_replay_raises_on_malformed_fixture_file(tmp_path: Path) -> None:
+    """A fixture file whose JSON root is not a list must surface a clear error,
+    not silently degrade to "no matches"."""
+    fixtures_dir = tmp_path / "fixtures"
+    fixtures_dir.mkdir()
+    file_path = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    file_path.write_text(json.dumps({"not": "a list"}))
+
+    with (
+        KalshiClient(transport=ReplayTransport(fixtures_dir)) as client,
+        pytest.raises(ValueError),
+    ):
+        client.exchange.status()
+
+
+def test_recording_transport_close_propagates_to_real_transport(tmp_path: Path) -> None:
+    """``RecordingTransport.close()`` must close the wrapped real transport
+    so callers don't leak connections."""
+    closed = {"value": False}
+
+    class TrackingTransport(httpx.BaseTransport):
+        def handle_request(self, request: httpx.Request) -> httpx.Response:  # pragma: no cover
+            raise AssertionError("not called in this test")
+
+        def close(self) -> None:
+            closed["value"] = True
+
+    rec = RecordingTransport(tmp_path, real_transport=TrackingTransport())
+    rec.close()
+    assert closed["value"] is True
