@@ -79,13 +79,20 @@ def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
 class SyncTransport:
     """Synchronous HTTP transport using httpx.Client."""
 
-    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
+    def __init__(
+        self,
+        auth: KalshiAuth | None,
+        config: KalshiConfig,
+        *,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._auth = auth
         self._config = config
         self._client = httpx.Client(
             base_url=config.base_url,
             timeout=config.timeout,
             headers=config.extra_headers,
+            transport=transport,
         )
 
     @property
@@ -183,13 +190,20 @@ class SyncTransport:
 class AsyncTransport:
     """Asynchronous HTTP transport using httpx.AsyncClient."""
 
-    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
+    def __init__(
+        self,
+        auth: KalshiAuth | None,
+        config: KalshiConfig,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._auth = auth
         self._config = config
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             timeout=config.timeout,
             headers=config.extra_headers,
+            transport=transport,
         )
 
     @property
