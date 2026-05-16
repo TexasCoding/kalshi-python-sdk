@@ -32,3 +32,6 @@ kalshi/_generated/models.py
 # Note: specs/openapi.yaml IS committed as a pinned snapshot for deterministic PR builds.
 specs/asyncapi.yaml
 .gitnexus
+
+# MkDocs build output
+site/
