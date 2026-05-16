@@ -83,54 +83,54 @@ jobs:
         run: |
           set -euo pipefail
 
-          extract_openapi() {
-            uv run python - "$1" <<'PY'
-          import sys, yaml, pathlib
-          p = pathlib.Path(sys.argv[1])
-          if not p.exists():
-              print("\t0")
-              raise SystemExit
-          d = yaml.safe_load(p.read_text()) or {}
-          version = (d.get("info") or {}).get("version", "")
-          paths = sorted((d.get("paths") or {}).keys())
-          print(f"{version}\t{len(paths)}")
-          for path in paths:
-              print(path)
-          PY
-          }
+          old_openapi=$(uv run python scripts/extract_spec_meta.py /tmp/openapi.yaml.old)
+          new_openapi=$(uv run python scripts/extract_spec_meta.py specs/openapi.yaml)
+          old_asyncapi=$(uv run python scripts/extract_spec_meta.py /tmp/asyncapi.yaml.old)
+          new_asyncapi=$(uv run python scripts/extract_spec_meta.py specs/asyncapi.yaml)
 
-          old_meta=$(extract_openapi /tmp/openapi.yaml.old)
-          new_meta=$(extract_openapi specs/openapi.yaml)
+          old_version=$(echo "$old_openapi" | jq -r '.version')
+          new_version=$(echo "$new_openapi" | jq -r '.version')
+          old_path_count=$(echo "$old_openapi" | jq -r '.paths | length')
+          new_path_count=$(echo "$new_openapi" | jq -r '.paths | length')
+          old_channel_count=$(echo "$old_asyncapi" | jq -r '.channels | length')
+          new_channel_count=$(echo "$new_asyncapi" | jq -r '.channels | length')
 
-          old_header=$(echo "$old_meta" | head -1)
-          new_header=$(echo "$new_meta" | head -1)
-          old_version=$(echo "$old_header" | cut -f1)
-          new_version=$(echo "$new_header" | cut -f1)
-          old_path_count=$(echo "$old_header" | cut -f2)
-          new_path_count=$(echo "$new_header" | cut -f2)
-
-          old_paths=$(mktemp); new_paths=$(mktemp)
-          echo "$old_meta" | tail -n +2 | sort -u > "$old_paths"
-          echo "$new_meta" | tail -n +2 | sort -u > "$new_paths"
-
-          added_paths=$(comm -13 "$old_paths" "$new_paths" || true)
-          removed_paths=$(comm -23 "$old_paths" "$new_paths" || true)
+          added_paths=$(comm -13 \
+            <(echo "$old_openapi" | jq -r '.paths[]' | sort -u) \
+            <(echo "$new_openapi" | jq -r '.paths[]' | sort -u) \
+            || true)
+          removed_paths=$(comm -23 \
+            <(echo "$old_openapi" | jq -r '.paths[]' | sort -u) \
+            <(echo "$new_openapi" | jq -r '.paths[]' | sort -u) \
+            || true)
+          added_channels=$(comm -13 \
+            <(echo "$old_asyncapi" | jq -r '.channels[]' | sort -u) \
+            <(echo "$new_asyncapi" | jq -r '.channels[]' | sort -u) \
+            || true)
+          removed_channels=$(comm -23 \
+            <(echo "$old_asyncapi" | jq -r '.channels[]' | sort -u) \
+            <(echo "$new_asyncapi" | jq -r '.channels[]' | sort -u) \
+            || true)
 
           {
             echo "old_version=${old_version}"
             echo "new_version=${new_version}"
             echo "old_path_count=${old_path_count}"
             echo "new_path_count=${new_path_count}"
+            echo "old_channel_count=${old_channel_count}"
+            echo "new_channel_count=${new_channel_count}"
           } >> "$GITHUB_OUTPUT"
 
-          {
-            echo "added_paths<<EOF"
-            if [ -n "$added_paths" ]; then echo "$added_paths"; else echo "(none)"; fi
-            echo "EOF"
-            echo "removed_paths<<EOF"
-            if [ -n "$removed_paths" ]; then echo "$removed_paths"; else echo "(none)"; fi
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          emit_list() {
+            local name="$1" value="$2"
+            echo "${name}<<EOF" >> "$GITHUB_OUTPUT"
+            if [ -n "$value" ]; then echo "$value"; else echo "(none)"; fi >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          }
+          emit_list added_paths "$added_paths"
+          emit_list removed_paths "$removed_paths"
+          emit_list added_channels "$added_channels"
+          emit_list removed_channels "$removed_channels"
 
       - name: Regenerate models
         if: steps.diff.outputs.changed == 'true'
@@ -159,8 +159,9 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/spec-sync-${{ steps.date.outputs.today }}
-          commit-message: "chore: sync OpenAPI spec (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
-          title: "chore: weekly spec sync (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
+          delete-branch: true
+          commit-message: "chore: sync Kalshi specs (OpenAPI ${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
+          title: "chore: weekly spec sync (OpenAPI ${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
           body: |
             Automated weekly spec sync from `https://docs.kalshi.com/openapi.yaml`
             and `https://docs.kalshi.com/asyncapi.yaml`.
@@ -168,26 +169,37 @@ jobs:
             - OpenAPI changed: `${{ steps.diff.outputs.openapi_changed }}`
             - AsyncAPI changed: `${{ steps.diff.outputs.asyncapi_changed }}`
 
-            ## Spec version (OpenAPI)
+            ## OpenAPI
 
-            - Previous: `${{ steps.meta.outputs.old_version }}`
-            - New: `${{ steps.meta.outputs.new_version }}`
+            - Version: `${{ steps.meta.outputs.old_version }}` → `${{ steps.meta.outputs.new_version }}`
+            - Endpoints: ${{ steps.meta.outputs.old_path_count }} → ${{ steps.meta.outputs.new_path_count }} paths
 
-            ## Endpoint counts (OpenAPI)
-
-            - Previous: ${{ steps.meta.outputs.old_path_count }} paths
-            - New: ${{ steps.meta.outputs.new_path_count }} paths
-
-            ## Added endpoints
+            ### Added endpoints
 
             ```
             ${{ steps.meta.outputs.added_paths }}
             ```
 
-            ## Removed endpoints
+            ### Removed endpoints
 
             ```
             ${{ steps.meta.outputs.removed_paths }}
+            ```
+
+            ## AsyncAPI
+
+            - Channels: ${{ steps.meta.outputs.old_channel_count }} → ${{ steps.meta.outputs.new_channel_count }}
+
+            ### Added channels
+
+            ```
+            ${{ steps.meta.outputs.added_channels }}
+            ```
+
+            ### Removed channels
+
+            ```
+            ${{ steps.meta.outputs.removed_channels }}
             ```
 
             ## Changes included
