@@ -1,0 +1,151 @@
+name: Weekly Spec Sync
+
+on:
+  schedule:
+    # Mondays at 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  spec-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Snapshot current spec
+        id: snapshot
+        run: |
+          if [ -f specs/openapi.yaml ]; then
+            cp specs/openapi.yaml /tmp/openapi.yaml.old
+            echo "had_old=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "had_old=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download latest spec
+        run: uv run python scripts/sync_spec.py
+
+      - name: Detect spec changes
+        id: diff
+        run: |
+          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ] \
+             && cmp -s /tmp/openapi.yaml.old specs/openapi.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "openapi.yaml unchanged — nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "openapi.yaml changed — proceeding with regeneration."
+          fi
+
+      - name: Extract spec metadata for PR body
+        if: steps.diff.outputs.changed == 'true'
+        id: meta
+        run: |
+          set -euo pipefail
+
+          old_version=""
+          old_path_count=0
+          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ]; then
+            old_version=$(grep -E '^  version:' /tmp/openapi.yaml.old | head -1 | sed -E 's/^  version:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//' || echo "")
+            old_path_count=$(grep -cE "^  /" /tmp/openapi.yaml.old || true)
+          fi
+          new_version=$(grep -E '^  version:' specs/openapi.yaml | head -1 | sed -E 's/^  version:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//' || echo "")
+          new_path_count=$(grep -cE "^  /" specs/openapi.yaml || true)
+
+          old_paths=$(mktemp)
+          new_paths=$(mktemp)
+          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ]; then
+            grep -E "^  /" /tmp/openapi.yaml.old | sed -E 's/^  //; s/:$//' | sort -u > "$old_paths" || true
+          fi
+          grep -E "^  /" specs/openapi.yaml | sed -E 's/^  //; s/:$//' | sort -u > "$new_paths" || true
+
+          added_paths=$(comm -13 "$old_paths" "$new_paths" || true)
+          removed_paths=$(comm -23 "$old_paths" "$new_paths" || true)
+
+          {
+            echo "old_version=${old_version}"
+            echo "new_version=${new_version}"
+            echo "old_path_count=${old_path_count}"
+            echo "new_path_count=${new_path_count}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "added_paths<<EOF"
+            if [ -n "$added_paths" ]; then echo "$added_paths"; else echo "(none)"; fi
+            echo "EOF"
+            echo "removed_paths<<EOF"
+            if [ -n "$removed_paths" ]; then echo "$removed_paths"; else echo "(none)"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate models
+        if: steps.diff.outputs.changed == 'true'
+        run: uv run python scripts/generate.py
+
+      - name: Run tests
+        if: steps.diff.outputs.changed == 'true'
+        run: uv run pytest tests/ -v
+
+      - name: Compute PR branch date
+        if: steps.diff.outputs.changed == 'true'
+        id: date
+        run: echo "today=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update spec-sync PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/spec-sync-${{ steps.date.outputs.today }}
+          commit-message: "chore: sync OpenAPI spec (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
+          title: "chore: weekly spec sync (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
+          body: |
+            Automated weekly OpenAPI spec sync from `https://docs.kalshi.com/openapi.yaml`.
+
+            ## Spec version
+
+            - Previous: `${{ steps.meta.outputs.old_version }}`
+            - New: `${{ steps.meta.outputs.new_version }}`
+
+            ## Endpoint counts
+
+            - Previous: ${{ steps.meta.outputs.old_path_count }} paths
+            - New: ${{ steps.meta.outputs.new_path_count }} paths
+
+            ## Added endpoints
+
+            ```
+            ${{ steps.meta.outputs.added_paths }}
+            ```
+
+            ## Removed endpoints
+
+            ```
+            ${{ steps.meta.outputs.removed_paths }}
+            ```
+
+            ## Changes included
+
+            - Updated `specs/openapi.yaml` (and `specs/asyncapi.yaml` if also changed upstream).
+            - Regenerated `kalshi/_generated/models.py` via `scripts/generate.py`.
+            - Full test suite (`uv run pytest tests/ -v`) passed on the bot's branch.
+
+            Review the diff for breaking vs non-breaking changes before merging. Contract
+            tests (`tests/test_contracts.py`) will surface any drift between the spec and
+            the hand-crafted SDK surface.
+          labels: |
+            spec-drift
+            automated
