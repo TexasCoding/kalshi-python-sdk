@@ -1146,9 +1146,9 @@ def _extract_nested_basemodel(annotation: Any) -> type[PydanticBase] | None:
     require iterating ``get_args`` recursively — keep simple until needed.
     """
     inner = _unwrap_annotation(annotation)
-    # list[X], builtins.list[X], typing.List[X] — get_origin returns the
-    # parameterized container; get_args returns its type arguments.
-    if typing.get_origin(inner) in (list, typing.List):  # noqa: UP006
+    # list[X], builtins.list[X], typing.List[X] all resolve to `list` via
+    # get_origin on Python 3.9+.
+    if typing.get_origin(inner) is list:
         args = typing.get_args(inner)
         if args:
             inner = _unwrap_annotation(args[0])
@@ -1162,14 +1162,15 @@ def _iter_nested_body_models(
     spec_schema: dict[str, Any],
     spec: dict[str, Any],
 ) -> list[tuple[str, type[PydanticBase], dict[str, Any]]]:
-    """Yield ``(field_name, nested_model_cls, nested_spec_schema)`` triples
+    """Return ``(field_name, nested_model_cls, nested_spec_schema)`` triples
     for top-level fields whose value type is a ``BaseModel`` subclass (or a
     list thereof). Used by ``TestRequestBodyDrift`` to extend drift detection
     one level deeper into nested request bodies (issue #52).
 
     Resolves the nested spec schema via the property's ``items.$ref`` (array
-    form) or ``$ref`` (object form). Properties that don't carry a ``$ref``
-    are skipped — they're scalars or inline schemas we don't drift-check.
+    form) or ``$ref`` (object form). Properties without a ``$ref`` — scalars,
+    inline schemas, ``oneOf`` / ``anyOf`` unions — are intentionally skipped
+    here; extending the recursion to them is out of scope for #52.
     """
     spec_props = spec_schema.get("properties", {})
     pairs: list[tuple[str, type[PydanticBase], dict[str, Any]]] = []
