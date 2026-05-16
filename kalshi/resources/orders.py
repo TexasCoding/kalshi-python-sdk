@@ -5,7 +5,6 @@ from __future__ import annotations
 import builtins
 from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
-from typing import Any
 
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
@@ -182,10 +181,6 @@ class OrdersResource(SyncResource):
         req = BatchCancelOrdersRequest(orders=normalized)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._delete_with_body("/portfolio/orders/batched", json=body)
-
-    def _delete_with_body(self, path: str, *, json: dict[str, Any]) -> None:
-        """DELETE with a request body (batch cancel)."""
-        self._transport.request("DELETE", path, json=json)
 
     def fills(
         self,
@@ -477,9 +472,7 @@ class AsyncOrdersResource(AsyncResource):
         ]
         req = BatchCancelOrdersRequest(orders=normalized)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        # NOTE: keep in sync with OrdersResource.batch_cancel's
-        # _delete_with_body call; no async helper yet (tracked in issue #47).
-        await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
+        await self._delete_with_body("/portfolio/orders/batched", json=body)
 
     async def fills(
         self,

@@ -923,6 +923,57 @@ class TestBatchCancelWireShapeAsync:
         ]
 
 
+class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
+    """Regression for issue #47: async batch_cancel must route through the
+    shared ``AsyncResource._delete_with_body`` helper so any future
+    retry / error-mapping behavior added to the helper applies to the
+    async path. Sync and async paths must stay symmetric.
+    """
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_batch_cancel_uses_delete_with_body_helper(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        calls: list[tuple[str, str, dict[str, object] | None]] = []
+        original = orders._delete_with_body
+
+        async def spy(path: str, *, json: dict[str, object]) -> dict[str, object] | None:
+            calls.append(("DELETE", path, json))
+            return await original(path, json=json)
+
+        orders._delete_with_body = spy  # type: ignore[method-assign]
+        try:
+            await orders.batch_cancel(["ord-1", "ord-2"])
+        finally:
+            del orders._delete_with_body  # restore method on class
+
+        assert len(calls) == 1
+        assert calls[0][0] == "DELETE"
+        assert calls[0][1] == "/portfolio/orders/batched"
+        assert calls[0][2] == {
+            "orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}],
+        }
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_batch_cancel_handles_204_no_content(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Helper returns None on 204 — verifies it goes through the
+        shared response-handling path, not a raw ``transport.request`` call.
+        """
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(204))
+
+        await orders.batch_cancel(["ord-1"])  # must not raise on empty body
+
+
 class TestAmendWireShapeAsync:
     """v0.8.0: async orders.amend() builds AmendOrderRequest internally and
     serializes via model_dump. Price fields must use _dollars suffix;
