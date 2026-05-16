@@ -10,14 +10,22 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: spec-sync
+  cancel-in-progress: false
+
 jobs:
   spec-sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Third-party actions pinned to SHA (not tag) because this workflow holds
+      # contents:write + pull-requests:write. A compromised mutable tag could
+      # weaponize the auto-PR flow. Other workflows in this repo use bare tags
+      # because their permissions are narrower.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@bd01e18f51369d5a26f1651c3cb451d3417e3bba  # v6.3.1
 
       - name: Set up Python
         run: uv python install 3.12
@@ -25,29 +33,48 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Snapshot current spec
+      - name: Snapshot current specs
         id: snapshot
         run: |
+          set -euo pipefail
+          had_old_openapi=false
+          had_old_asyncapi=false
           if [ -f specs/openapi.yaml ]; then
             cp specs/openapi.yaml /tmp/openapi.yaml.old
-            echo "had_old=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "had_old=false" >> "$GITHUB_OUTPUT"
+            had_old_openapi=true
           fi
+          if [ -f specs/asyncapi.yaml ]; then
+            cp specs/asyncapi.yaml /tmp/asyncapi.yaml.old
+            had_old_asyncapi=true
+          fi
+          echo "had_old_openapi=${had_old_openapi}" >> "$GITHUB_OUTPUT"
+          echo "had_old_asyncapi=${had_old_asyncapi}" >> "$GITHUB_OUTPUT"
 
-      - name: Download latest spec
+      - name: Download latest specs
         run: uv run python scripts/sync_spec.py
 
       - name: Detect spec changes
         id: diff
         run: |
-          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ] \
+          set -euo pipefail
+          openapi_changed=true
+          asyncapi_changed=true
+          if [ "${{ steps.snapshot.outputs.had_old_openapi }}" = "true" ] \
              && cmp -s /tmp/openapi.yaml.old specs/openapi.yaml; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "openapi.yaml unchanged — nothing to do."
-          else
+            openapi_changed=false
+          fi
+          if [ "${{ steps.snapshot.outputs.had_old_asyncapi }}" = "true" ] \
+             && cmp -s /tmp/asyncapi.yaml.old specs/asyncapi.yaml; then
+            asyncapi_changed=false
+          fi
+          if $openapi_changed || $asyncapi_changed; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "openapi.yaml changed — proceeding with regeneration."
+            echo "openapi_changed=${openapi_changed}" >> "$GITHUB_OUTPUT"
+            echo "asyncapi_changed=${asyncapi_changed}" >> "$GITHUB_OUTPUT"
+            echo "Spec changes detected — openapi=${openapi_changed}, asyncapi=${asyncapi_changed}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Both specs unchanged — nothing to do."
           fi
 
       - name: Extract spec metadata for PR body
@@ -56,21 +83,35 @@ jobs:
         run: |
           set -euo pipefail
 
-          old_version=""
-          old_path_count=0
-          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ]; then
-            old_version=$(grep -E '^  version:' /tmp/openapi.yaml.old | head -1 | sed -E 's/^  version:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//' || echo "")
-            old_path_count=$(grep -cE "^  /" /tmp/openapi.yaml.old || true)
-          fi
-          new_version=$(grep -E '^  version:' specs/openapi.yaml | head -1 | sed -E 's/^  version:[[:space:]]*//; s/^["'"'"']//; s/["'"'"']$//' || echo "")
-          new_path_count=$(grep -cE "^  /" specs/openapi.yaml || true)
+          extract_openapi() {
+            uv run python - "$1" <<'PY'
+          import sys, yaml, pathlib
+          p = pathlib.Path(sys.argv[1])
+          if not p.exists():
+              print("\t0")
+              raise SystemExit
+          d = yaml.safe_load(p.read_text()) or {}
+          version = (d.get("info") or {}).get("version", "")
+          paths = sorted((d.get("paths") or {}).keys())
+          print(f"{version}\t{len(paths)}")
+          for path in paths:
+              print(path)
+          PY
+          }
 
-          old_paths=$(mktemp)
-          new_paths=$(mktemp)
-          if [ "${{ steps.snapshot.outputs.had_old }}" = "true" ]; then
-            grep -E "^  /" /tmp/openapi.yaml.old | sed -E 's/^  //; s/:$//' | sort -u > "$old_paths" || true
-          fi
-          grep -E "^  /" specs/openapi.yaml | sed -E 's/^  //; s/:$//' | sort -u > "$new_paths" || true
+          old_meta=$(extract_openapi /tmp/openapi.yaml.old)
+          new_meta=$(extract_openapi specs/openapi.yaml)
+
+          old_header=$(echo "$old_meta" | head -1)
+          new_header=$(echo "$new_meta" | head -1)
+          old_version=$(echo "$old_header" | cut -f1)
+          new_version=$(echo "$new_header" | cut -f1)
+          old_path_count=$(echo "$old_header" | cut -f2)
+          new_path_count=$(echo "$new_header" | cut -f2)
+
+          old_paths=$(mktemp); new_paths=$(mktemp)
+          echo "$old_meta" | tail -n +2 | sort -u > "$old_paths"
+          echo "$new_meta" | tail -n +2 | sort -u > "$new_paths"
 
           added_paths=$(comm -13 "$old_paths" "$new_paths" || true)
           removed_paths=$(comm -23 "$old_paths" "$new_paths" || true)
@@ -95,6 +136,14 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: uv run python scripts/generate.py
 
+      - name: Lint
+        if: steps.diff.outputs.changed == 'true'
+        run: uv run ruff check .
+
+      - name: Type check
+        if: steps.diff.outputs.changed == 'true'
+        run: uv run mypy kalshi/
+
       - name: Run tests
         if: steps.diff.outputs.changed == 'true'
         run: uv run pytest tests/ -v
@@ -106,21 +155,25 @@ jobs:
 
       - name: Create or update spec-sync PR
         if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/spec-sync-${{ steps.date.outputs.today }}
           commit-message: "chore: sync OpenAPI spec (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
           title: "chore: weekly spec sync (${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
           body: |
-            Automated weekly OpenAPI spec sync from `https://docs.kalshi.com/openapi.yaml`.
+            Automated weekly spec sync from `https://docs.kalshi.com/openapi.yaml`
+            and `https://docs.kalshi.com/asyncapi.yaml`.
 
-            ## Spec version
+            - OpenAPI changed: `${{ steps.diff.outputs.openapi_changed }}`
+            - AsyncAPI changed: `${{ steps.diff.outputs.asyncapi_changed }}`
+
+            ## Spec version (OpenAPI)
 
             - Previous: `${{ steps.meta.outputs.old_version }}`
             - New: `${{ steps.meta.outputs.new_version }}`
 
-            ## Endpoint counts
+            ## Endpoint counts (OpenAPI)
 
             - Previous: ${{ steps.meta.outputs.old_path_count }} paths
             - New: ${{ steps.meta.outputs.new_path_count }} paths
@@ -139,13 +192,13 @@ jobs:
 
             ## Changes included
 
-            - Updated `specs/openapi.yaml` (and `specs/asyncapi.yaml` if also changed upstream).
+            - Updated `specs/openapi.yaml` and/or `specs/asyncapi.yaml`.
             - Regenerated `kalshi/_generated/models.py` via `scripts/generate.py`.
-            - Full test suite (`uv run pytest tests/ -v`) passed on the bot's branch.
+            - `uv run ruff check .`, `uv run mypy kalshi/`, and `uv run pytest tests/ -v`
+              all passed on the bot's branch.
 
-            Review the diff for breaking vs non-breaking changes before merging. Contract
-            tests (`tests/test_contracts.py`) will surface any drift between the spec and
-            the hand-crafted SDK surface.
+            Review the diff for breaking vs non-breaking changes before merging.
+            Contract tests (`tests/test_contracts.py`) will surface any drift
+            between the spec and the hand-crafted SDK surface.
           labels: |
             spec-drift
-            automated
