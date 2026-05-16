@@ -54,8 +54,9 @@ class TestContractSupportInfra:
         with pytest.raises(TypeError):
             Exclusion()  # type: ignore[call-arg]
 
-        e = Exclusion(reason="because")
+        e = Exclusion(reason="because", kind="wire_normalization")
         assert e.reason == "because"
+        assert e.kind == "wire_normalization"
         assert dataclasses.is_dataclass(e)
 
     def test_exclusions_bootstrap_has_cursor_entries(self) -> None:
@@ -77,7 +78,7 @@ class TestContractSupportInfra:
             f"Orphaned cursor exclusions: {sorted(covered - paginator_methods)}."
         )
         for key in cursor_keys:
-            assert "paginator" in EXCLUSIONS[key].reason.lower()
+            assert EXCLUSIONS[key].kind == "paginator_handled"
 
     def test_exclusions_bootstrap_has_create_order_request_entries(self) -> None:
         create_keys = [
@@ -1126,15 +1127,114 @@ def _model_aliases(model_cls: type[PydanticBase]) -> set[str]:
     set, else the field name. Compared to spec schema property names by
     ``TestRequestBodyDrift``.
 
-    Known gap: iterates only top-level fields. Nested Pydantic models
-    (e.g., ``TickerPair`` inside ``selected_markets: list[TickerPair]``)
-    are not recursively checked. Tracked in issue #52.
+    Top-level only. For nested ``BaseModel`` fields, see
+    ``_iter_nested_body_models`` which walks one level deeper.
     """
     names: set[str] = set()
     for field_name, field in model_cls.model_fields.items():
         alias = field.serialization_alias or field_name
         names.add(alias)
     return names
+
+
+def _extract_nested_basemodel(annotation: Any) -> type[PydanticBase] | None:
+    """Return the inner ``BaseModel`` subclass from ``Foo``, ``list[Foo]``,
+    ``Foo | None``, etc. ``None`` if the annotation does not wrap a model.
+
+    Only one wrapper level is unwrapped (sufficient for current request body
+    shapes: ``list[TickerPair]``, optional fields). Deeper nesting would
+    require iterating ``get_args`` recursively — keep simple until needed.
+    """
+    inner = _unwrap_annotation(annotation)
+    # list[X], builtins.list[X], typing.List[X] — get_origin returns the
+    # parameterized container; get_args returns its type arguments.
+    if typing.get_origin(inner) in (list, typing.List):  # noqa: UP006
+        args = typing.get_args(inner)
+        if args:
+            inner = _unwrap_annotation(args[0])
+    if isinstance(inner, type) and issubclass(inner, PydanticBase):
+        return inner
+    return None
+
+
+def _iter_nested_body_models(
+    model_cls: type[PydanticBase],
+    spec_schema: dict[str, Any],
+    spec: dict[str, Any],
+) -> list[tuple[str, type[PydanticBase], dict[str, Any]]]:
+    """Yield ``(field_name, nested_model_cls, nested_spec_schema)`` triples
+    for top-level fields whose value type is a ``BaseModel`` subclass (or a
+    list thereof). Used by ``TestRequestBodyDrift`` to extend drift detection
+    one level deeper into nested request bodies (issue #52).
+
+    Resolves the nested spec schema via the property's ``items.$ref`` (array
+    form) or ``$ref`` (object form). Properties that don't carry a ``$ref``
+    are skipped — they're scalars or inline schemas we don't drift-check.
+    """
+    spec_props = spec_schema.get("properties", {})
+    pairs: list[tuple[str, type[PydanticBase], dict[str, Any]]] = []
+    for field_name, field in model_cls.model_fields.items():
+        nested_cls = _extract_nested_basemodel(field.annotation)
+        if nested_cls is None:
+            continue
+        wire_name = field.serialization_alias or field_name
+        prop = spec_props.get(wire_name)
+        if not isinstance(prop, dict):
+            continue
+        ref: str | None = None
+        if prop.get("type") == "array":
+            items = prop.get("items", {})
+            if isinstance(items, dict):
+                ref = items.get("$ref")
+        else:
+            ref = prop.get("$ref")
+        if ref is None:
+            continue
+        nested_schema = _resolve_ref(spec, ref)
+        pairs.append((field_name, nested_cls, nested_schema))
+    return pairs
+
+
+def _check_model_drift(
+    *,
+    model_cls: type[PydanticBase],
+    model_fqn: str,
+    spec_schema: dict[str, Any],
+    errors: list[str],
+    context: str | None = None,
+) -> None:
+    """Compare SDK model wire names to spec schema properties, append errors.
+
+    Pulled out so ``TestRequestBodyDrift`` can run the same drift check on a
+    top-level body model AND on any nested ``BaseModel`` field one level
+    down (issue #52). ``context`` prefixes nested-pair errors so the failure
+    message points at the parent field that owns the nested model.
+    """
+    spec_props = set(spec_schema.get("properties", {}).keys())
+    sdk_wire_names = _model_aliases(model_cls)
+
+    # ADD drift: spec has property SDK model doesn't emit
+    missing = spec_props - sdk_wire_names
+    missing_unallowed = {
+        p for p in missing if (model_fqn, p) not in EXCLUSIONS
+    }
+    # REMOVE drift: SDK emits wire name spec doesn't have
+    extra = sdk_wire_names - spec_props
+    extra_unallowed = {
+        p for p in extra if (model_fqn, p) not in EXCLUSIONS
+    }
+
+    prefix = f"[nested {context} -> {model_fqn}] " if context else ""
+    if missing_unallowed:
+        errors.append(
+            f"{prefix}[ADD drift] spec has properties SDK model missing: "
+            f"{sorted(missing_unallowed)}"
+        )
+    if extra_unallowed:
+        errors.append(
+            f"{prefix}[REMOVE drift] SDK model emits wire names spec doesn't: "
+            f"{sorted(extra_unallowed)}"
+        )
 
 
 _BODY_ENTRIES = [
@@ -1184,31 +1284,28 @@ class TestRequestBodyDrift:
             f"Spec has no body schema for {entry.http_method} "
             f"{entry.path_template}"
         )
-        spec_props = set(schema.get("properties", {}).keys())
-        sdk_wire_names = _model_aliases(model_cls)
-
-        # ADD drift: spec has property SDK model doesn't emit
-        missing = spec_props - sdk_wire_names
-        missing_unallowed = {
-            p for p in missing if (model_fqn, p) not in EXCLUSIONS
-        }
-        # REMOVE drift: SDK emits wire name spec doesn't have
-        extra = sdk_wire_names - spec_props
-        extra_unallowed = {
-            p for p in extra if (model_fqn, p) not in EXCLUSIONS
-        }
 
         errors: list[str] = []
-        if missing_unallowed:
-            errors.append(
-                f"[ADD drift] spec has properties SDK model missing: "
-                f"{sorted(missing_unallowed)}"
+        _check_model_drift(
+            model_cls=model_cls,
+            model_fqn=model_fqn,
+            spec_schema=schema,
+            errors=errors,
+        )
+
+        # Issue #52: also drift-check nested BaseModel fields (one level deep).
+        for field_name, nested_cls, nested_schema in _iter_nested_body_models(
+            model_cls, schema, self.spec,
+        ):
+            nested_fqn = f"{nested_cls.__module__}.{nested_cls.__qualname__}"
+            _check_model_drift(
+                model_cls=nested_cls,
+                model_fqn=nested_fqn,
+                spec_schema=nested_schema,
+                errors=errors,
+                context=f"{model_fqn}.{field_name}",
             )
-        if extra_unallowed:
-            errors.append(
-                f"[REMOVE drift] SDK model emits wire names spec doesn't: "
-                f"{sorted(extra_unallowed)}"
-            )
+
         if errors:
             pytest.fail(
                 f"{model_fqn} <-> {entry.request_body_schema}\n"
@@ -1278,17 +1375,14 @@ def test_exclusion_map_is_current() -> None:
                 continue
             # For resource-method exclusions, 'name' is the param name the SDK
             # should NOT have. If sdk_params DOES contain it, the entry is
-            # stale — UNLESS it's a body-param exclusion (like batch_cancel's
-            # 'orders'), in which case the kwarg legitimately exists in the
-            # signature. Distinguish by checking whether the entry's reason
-            # references a body parameter.
-            reason_lower = excl.reason.lower()
-            is_body_param_exclusion = (
-                "body param" in reason_lower
-                or "body param," in reason_lower
-                or "not query/path" in reason_lower
-            )
-            if name in sdk_params and not is_body_param_exclusion:
+            # stale — UNLESS the exclusion documents a deliberate kwarg shape
+            # mismatch (body param like batch_cancel's 'orders', or a renamed
+            # kwarg like 'milestone_type' for spec's 'type'), in which case the
+            # kwarg legitimately exists in the signature. Distinguish by the
+            # typed ``kind`` field (issue #51).
+            sig_mismatch_kinds = {"body_param", "wire_normalization"}
+            allowed_in_sig = excl.kind in sig_mismatch_kinds
+            if name in sdk_params and not allowed_in_sig:
                 stale.append(
                     f"EXCLUSIONS[{(fqn, name)}] claims SDK omits {name!r} from "
                     f"{fqn}, but the method DOES accept it as a kwarg — "
@@ -1303,3 +1397,63 @@ def test_exclusion_map_is_current() -> None:
 
     if stale:
         pytest.fail("\n".join(stale))
+
+
+def test_nested_body_drift_detects_phantom_field_on_nested_model() -> None:
+    """Regression for issue #52: prove ``_check_model_drift`` catches a
+    phantom field on a nested ``BaseModel`` reached via ``_iter_nested_body_models``.
+
+    Constructs a one-off Pydantic model that wraps a ``TickerPair``-shaped
+    nested model with an extra ``ghost_field`` not in the spec, then asserts
+    the drift check reports it. This locks in the nested-recursion behavior
+    introduced by issue #52 — if a future refactor accidentally drops the
+    recursion, this test fails loudly instead of silently letting nested
+    drift slip through.
+    """
+    from pydantic import create_model
+
+    # Phantom nested model: real spec ``TickerPair`` plus ``ghost_field``.
+    phantom_nested = create_model(
+        "_PhantomTickerPair",
+        market_ticker=(str, ...),
+        event_ticker=(str, ...),
+        side=(str, ...),
+        ghost_field=(str, "spook"),
+    )
+    # Wrapping model that places the phantom in ``selected_markets`` so it
+    # is reached the same way ``CreateMarketIn...Request`` reaches TickerPair.
+    phantom_parent = create_model(
+        "_PhantomCreateMarketRequest",
+        selected_markets=(list[phantom_nested], ...),  # type: ignore[valid-type]
+    )
+
+    spec = _load_spec()
+    # Real spec schema for the parent — we drift-check the phantom model
+    # against it. The phantom nested model differs from spec TickerPair by
+    # exactly one field (``ghost_field``).
+    parent_schema = spec["components"]["schemas"][
+        "CreateMarketInMultivariateEventCollectionRequest"
+    ]
+
+    nested_pairs = _iter_nested_body_models(phantom_parent, parent_schema, spec)
+    assert nested_pairs, (
+        "Expected _iter_nested_body_models to surface the nested model from "
+        "selected_markets: list[_PhantomTickerPair] — regression in nested "
+        "model traversal."
+    )
+
+    errors: list[str] = []
+    for field_name, nested_cls, nested_schema in nested_pairs:
+        _check_model_drift(
+            model_cls=nested_cls,
+            model_fqn="tests.test_contracts._PhantomTickerPair",
+            spec_schema=nested_schema,
+            errors=errors,
+            context=f"_PhantomCreateMarketRequest.{field_name}",
+        )
+
+    assert any("ghost_field" in e for e in errors), (
+        "Nested drift check failed to surface the phantom 'ghost_field' on "
+        "the nested model. _check_model_drift / _iter_nested_body_models is "
+        "no longer recursing into nested BaseModel fields. errors=" + repr(errors)
+    )

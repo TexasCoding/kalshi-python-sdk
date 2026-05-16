@@ -16,7 +16,14 @@ with identical method names. Do NOT add separate async entries to the map.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
+
+ExclusionKind = Literal[
+    "body_param",
+    "spec_deprecated",
+    "paginator_handled",
+    "wire_normalization",
+]
 
 
 @dataclass(frozen=True)
@@ -38,13 +45,25 @@ class MethodEndpointEntry:
 
 @dataclass(frozen=True)
 class Exclusion:
-    """Intentional deviation from the OpenAPI spec, with a human-readable reason.
+    """Intentional deviation from the OpenAPI spec, with a typed category and reason.
 
-    Values in ``EXCLUSIONS`` carry this dataclass. The ``reason`` field is
-    required — nameless deviations are a bug we refuse to ship.
+    Values in ``EXCLUSIONS`` carry this dataclass. ``reason`` is a free-text
+    human note. ``kind`` is the machine-readable category used by the
+    drift-classifier in ``test_exclusion_map_is_current`` — classifying by
+    substring-match on ``reason`` is fragile, so the kind is explicit.
+
+    Categories (see issue #51):
+      - ``body_param``: kwarg is a body field, not a query/path param.
+      - ``spec_deprecated``: spec field marked deprecated; SDK omits it.
+      - ``paginator_handled``: ``cursor`` on a ``list_all`` method,
+        handled internally by the paginator (not a caller kwarg).
+      - ``wire_normalization``: SDK emits a different wire shape than the
+        spec field (e.g., ``count`` → ``count_fp``, cent form vs ``_dollars``,
+        integer vs ``_fp`` variant, kwarg rename to avoid Python builtin shadow).
     """
 
     reason: str
+    kind: ExclusionKind
 
 
 METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
@@ -673,53 +692,68 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "cent form redundant with yes_price_dollars; caller passes dollars, "
             "wire carries dollars"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.orders.CreateOrderRequest", "no_price"): Exclusion(
         reason=(
             "cent form redundant with no_price_dollars; caller passes dollars, "
             "wire carries dollars"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.orders.CreateOrderRequest", "sell_position_floor"): Exclusion(
         reason="deprecated in spec (only accepts 0); superseded by reduce_only",
+        kind="spec_deprecated",
     ),
     # --- cursor exclusions on list_all variants (paginator-handled) ---
     ("kalshi.resources.markets.MarketsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.events.EventsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.events.EventsResource.list_all_multivariate", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.historical.HistoricalResource.markets_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.historical.HistoricalResource.fills_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.historical.HistoricalResource.orders_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.historical.HistoricalResource.trades_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.orders.OrdersResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.orders.OrdersResource.fills_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.portfolio.PortfolioResource.settlements_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.multivariate.MultivariateCollectionsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- batch_cancel body param (not a query/path param) ---
     ("kalshi.resources.orders.OrdersResource.batch_cancel", "orders"): Exclusion(
         reason="body param (BatchCancelOrdersRequest.orders); not query/path",
+        kind="body_param",
     ),
     # --- AmendOrderRequest spec fields deliberately not on the model ---
     ("kalshi.models.orders.AmendOrderRequest", "yes_price"): Exclusion(
@@ -727,12 +761,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "cent form redundant with yes_price_dollars; caller passes dollars, "
             "wire carries dollars"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.orders.AmendOrderRequest", "no_price"): Exclusion(
         reason=(
             "cent form redundant with no_price_dollars; caller passes dollars, "
             "wire carries dollars"
         ),
+        kind="wire_normalization",
     ),
     # --- count wire normalization (v0.8.0) ---
     # Spec has both count (int) and count_fp (FixedPointCount); SDK commits to
@@ -744,12 +780,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "SDK emits count_fp (serialization_alias) instead of count; "
             "Kalshi accepts either; normalized to count_fp per v0.8.0 wire shape decision"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.orders.AmendOrderRequest", "count"): Exclusion(
         reason=(
             "SDK emits count_fp (serialization_alias) instead of count; "
             "Kalshi accepts either; amend() used count_fp pre-v0.8.0 already"
         ),
+        kind="wire_normalization",
     ),
     # --- DecreaseOrderRequest _fp variants not implemented ---
     # Spec has reduce_by_fp and reduce_to_fp (FixedPointCount string) as
@@ -762,12 +800,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "FixedPointCount variant of reduce_by; SDK emits integer reduce_by only; "
             "spec accepts either form; _fp variant deferred post-v0.8.0"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.orders.DecreaseOrderRequest", "reduce_to_fp"): Exclusion(
         reason=(
             "FixedPointCount variant of reduce_to; SDK emits integer reduce_to only; "
             "spec accepts either form; _fp variant deferred post-v0.8.0"
         ),
+        kind="wire_normalization",
     ),
     # --- BatchCancelOrdersRequest deprecated ids field ---
     # Spec has ids (array of strings, marked deprecated) as an alternative to
@@ -778,6 +818,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "deprecated spec field; SDK v0.8.0 migrated to preferred 'orders' field; "
             "intentional REMOVE drift documented in CHANGELOG"
         ),
+        kind="spec_deprecated",
     ),
     # --- CreateOrderGroupRequest / UpdateOrderGroupLimitRequest _fp variants ---
     # Spec has both contracts_limit (int) and contracts_limit_fp (FixedPointCount
@@ -789,19 +830,23 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "FixedPointCount variant of contracts_limit; SDK emits integer contracts_limit only; "
             "Kalshi accepts either form; _fp variant intentionally omitted (v0.10.0)"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.order_groups.UpdateOrderGroupLimitRequest", "contracts_limit_fp"): Exclusion(
         reason=(
             "FixedPointCount variant of contracts_limit; SDK emits integer contracts_limit only; "
             "Kalshi accepts either form; _fp variant intentionally omitted (v0.10.0)"
         ),
+        kind="wire_normalization",
     ),
     # --- list_all cursor exclusions for communications paginators ---
     ("kalshi.resources.communications.CommunicationsResource.list_all_rfqs", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.communications.CommunicationsResource.list_all_quotes", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- CreateRFQRequest deviations (v0.11.0) ---
     # Same count / count_fp precedent as order_groups: SDK commits to integer form.
@@ -810,29 +855,35 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "FixedPointCount variant of contracts; SDK emits integer contracts only; "
             "Kalshi accepts either form; _fp variant intentionally omitted (v0.11.0)"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.models.communications.CreateRFQRequest", "target_cost_centi_cents"): Exclusion(
         reason=(
             "deprecated in spec; superseded by target_cost_dollars which SDK ships as "
             "target_cost (serialization_alias='target_cost_dollars')"
         ),
+        kind="spec_deprecated",
     ),
     # --- list_all cursor exclusions for subaccounts paginator ---
     ("kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- list_all cursor exclusions for markets/milestones paginators ---
     ("kalshi.resources.markets.MarketsResource.list_trades_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- live_data.get_typed: `type` path param renamed to `milestone_type` ---
     # SDK exposes `milestone_type` (not `type`) to avoid shadowing the Python
     # built-in; the value still populates the spec's `{type}` path segment.
     ("kalshi.resources.live_data.LiveDataResource.get_typed", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     ("kalshi.resources.live_data.LiveDataResource.get_typed", "milestone_type"): Exclusion(
         reason=(
@@ -840,11 +891,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same value, "
             "different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     # --- milestones.list/list_all: `type` query param renamed to `milestone_type` ---
     # Same rationale as get_typed above. Wire still sends `?type=...`.
     ("kalshi.resources.milestones.MilestonesResource.list", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list", "milestone_type"): Exclusion(
         reason=(
@@ -852,9 +905,11 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "milestone_type"): Exclusion(
         reason=(
@@ -862,6 +917,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     # --- structured_targets.list/list_all: `type` query param renamed to `target_type` ---
     # Same shadow-avoidance rationale as milestones + live_data. Wire still sends `?type=...`.
@@ -870,6 +926,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         "type",
     ): Exclusion(
         reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list",
@@ -880,12 +937,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
         "type",
     ): Exclusion(
         reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
@@ -896,16 +955,19 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
         "cursor",
     ): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- fcm.orders_all: cursor paginator-handled ---
     ("kalshi.resources.fcm.FcmResource.orders_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
     # --- incentive_programs: `type` query param renamed to `incentive_type` ---
     # Same shadow-avoidance rationale as milestones / structured_targets.
@@ -914,6 +976,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         "type",
     ): Exclusion(
         reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
@@ -924,12 +987,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
         "type",
     ): Exclusion(
         reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
@@ -940,12 +1005,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
+        kind="wire_normalization",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
         "cursor",
     ): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
     ),
 }
 
