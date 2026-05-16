@@ -41,6 +41,9 @@ class TestToDataframe:
         assert list(df.columns) == ["ticker", "price", "volume"]
         assert df["ticker"].tolist() == ["MKT-A", "MKT-B", "MKT-C"]
         assert df["volume"].tolist() == [100, 250, 10]
+        # Pin the model_dump(mode="python") promise: Decimal stays Decimal,
+        # not coerced to str (which mode="json" would have produced).
+        assert df["price"].tolist() == [Decimal("0.55"), Decimal("0.42"), Decimal("0.91")]
 
     def test_empty_page(self) -> None:
         pd = pytest.importorskip("pandas")
@@ -89,6 +92,9 @@ class TestToPolars:
         assert df.columns == ["ticker", "price", "volume"]
         assert df["ticker"].to_list() == ["MKT-A", "MKT-B", "MKT-C"]
         assert df["volume"].to_list() == [100, 250, 10]
+        # polars maps Python Decimal → polars.Decimal; values round-trip
+        # back to Decimal via to_list().
+        assert df["price"].to_list() == [Decimal("0.55"), Decimal("0.42"), Decimal("0.91")]
 
     def test_empty_page(self) -> None:
         pl = pytest.importorskip("polars")

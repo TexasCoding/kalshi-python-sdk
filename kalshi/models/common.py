@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     import pandas
     import polars
 
-T = TypeVar("T")
+T = TypeVar("T", bound=BaseModel)
 
 
 class Page(BaseModel, Generic[T]):
@@ -43,10 +43,11 @@ class Page(BaseModel, Generic[T]):
     def to_dataframe(self) -> pandas.DataFrame:
         """Return the page items as a pandas DataFrame.
 
-        Each item is serialized via ``BaseModel.model_dump(mode="json")``,
+        Each item is serialized via ``BaseModel.model_dump(mode="python")``,
         producing one row per item with columns matching the model fields.
         ``Decimal`` and ``datetime`` values are preserved as native Python
-        types in object columns.
+        types in object columns; numeric ops require an explicit cast
+        (``df["price"].astype(float).mean()`` or ``pd.to_numeric``).
 
         Requires ``pandas`` to be installed::
 
@@ -59,23 +60,22 @@ class Page(BaseModel, Generic[T]):
         """
         try:
             import pandas as pd
-        except ImportError as exc:  # pragma: no cover - exercised via monkeypatch
+        except ImportError as exc:
             raise ImportError(
                 "pandas is required for Page.to_dataframe(). "
                 "Install it with: pip install 'kalshi-sdk[pandas]'"
             ) from exc
 
-        records = [
-            item.model_dump(mode="json") if isinstance(item, BaseModel) else item
-            for item in self.items
-        ]
+        records = [item.model_dump(mode="python") for item in self.items]
         return pd.DataFrame(records)
 
     def to_polars(self) -> polars.DataFrame:
         """Return the page items as a polars DataFrame.
 
-        Each item is serialized via ``BaseModel.model_dump(mode="json")``,
+        Each item is serialized via ``BaseModel.model_dump(mode="python")``,
         producing one row per item with columns matching the model fields.
+        ``Decimal`` and ``datetime`` are passed to polars as native Python
+        objects; polars maps them to its own ``Decimal`` / ``Datetime`` types.
 
         Requires ``polars`` to be installed::
 
@@ -88,14 +88,11 @@ class Page(BaseModel, Generic[T]):
         """
         try:
             import polars as pl
-        except ImportError as exc:  # pragma: no cover - exercised via monkeypatch
+        except ImportError as exc:
             raise ImportError(
                 "polars is required for Page.to_polars(). "
                 "Install it with: pip install 'kalshi-sdk[polars]'"
             ) from exc
 
-        records = [
-            item.model_dump(mode="json") if isinstance(item, BaseModel) else item
-            for item in self.items
-        ]
+        records = [item.model_dump(mode="python") for item in self.items]
         return pl.DataFrame(records)
