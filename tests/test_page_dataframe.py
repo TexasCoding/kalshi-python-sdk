@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import sys
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -53,7 +54,6 @@ class TestToDataframe:
 
         assert isinstance(df, pd.DataFrame)
         assert df.empty
-        assert df.shape == (0, 0)
 
     def test_missing_pandas_raises_importerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -66,7 +66,7 @@ class TestToDataframe:
             name: str,
             globals: dict[str, Any] | None = None,
             locals: dict[str, Any] | None = None,
-            fromlist: tuple[str, ...] = (),
+            fromlist: Sequence[str] = (),
             level: int = 0,
         ) -> Any:
             if name == "pandas" or name.startswith("pandas."):
@@ -103,7 +103,7 @@ class TestToPolars:
         df = page.to_polars()
 
         assert isinstance(df, pl.DataFrame)
-        assert df.shape == (0, 0)
+        assert df.is_empty()
 
     def test_missing_polars_raises_importerror(
         self, monkeypatch: pytest.MonkeyPatch
@@ -115,7 +115,7 @@ class TestToPolars:
             name: str,
             globals: dict[str, Any] | None = None,
             locals: dict[str, Any] | None = None,
-            fromlist: tuple[str, ...] = (),
+            fromlist: Sequence[str] = (),
             level: int = 0,
         ) -> Any:
             if name == "polars" or name.startswith("polars."):

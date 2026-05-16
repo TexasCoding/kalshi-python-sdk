@@ -41,23 +41,7 @@ class Page(BaseModel, Generic[T]):
         return len(self.items)
 
     def to_dataframe(self) -> pandas.DataFrame:
-        """Return the page items as a pandas DataFrame.
-
-        Each item is serialized via ``BaseModel.model_dump(mode="python")``,
-        producing one row per item with columns matching the model fields.
-        ``Decimal`` and ``datetime`` values are preserved as native Python
-        types in object columns; numeric ops require an explicit cast
-        (``df["price"].astype(float).mean()`` or ``pd.to_numeric``).
-
-        Requires ``pandas`` to be installed::
-
-            pip install "kalshi-sdk[pandas]"
-
-        Usage:
-            page = client.markets.list(limit=100)
-            df = page.to_dataframe()
-            df.head()
-        """
+        """Return page items as a pandas DataFrame (requires kalshi-sdk[pandas])."""
         try:
             import pandas as pd
         except ImportError as exc:
@@ -70,22 +54,7 @@ class Page(BaseModel, Generic[T]):
         return pd.DataFrame(records)
 
     def to_polars(self) -> polars.DataFrame:
-        """Return the page items as a polars DataFrame.
-
-        Each item is serialized via ``BaseModel.model_dump(mode="python")``,
-        producing one row per item with columns matching the model fields.
-        ``Decimal`` and ``datetime`` are passed to polars as native Python
-        objects; polars maps them to its own ``Decimal`` / ``Datetime`` types.
-
-        Requires ``polars`` to be installed::
-
-            pip install "kalshi-sdk[polars]"
-
-        Usage:
-            page = client.markets.list(limit=100)
-            df = page.to_polars()
-            df.head()
-        """
+        """Return page items as a polars DataFrame (requires kalshi-sdk[polars])."""
         try:
             import polars as pl
         except ImportError as exc:
