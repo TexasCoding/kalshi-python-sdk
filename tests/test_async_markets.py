@@ -11,7 +11,7 @@ import respx
 from kalshi._base_client import AsyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiNotFoundError
+from kalshi.errors import AuthRequiredError, KalshiNotFoundError
 from kalshi.resources.markets import AsyncMarketsResource
 
 
@@ -316,6 +316,12 @@ class TestAsyncMarketsOrderbook:
         )
         await markets.orderbook("TEST-MKT", depth=10)
         assert route.calls[0].request.url.params["depth"] == "10"
+
+    @pytest.mark.asyncio
+    async def test_orderbook_requires_auth(self, config: KalshiConfig) -> None:
+        unauth = AsyncMarketsResource(AsyncTransport(None, config))
+        with pytest.raises(AuthRequiredError):
+            await unauth.orderbook("TEST-MKT")
 
 
 class TestAsyncMarketsCandlesticks:
