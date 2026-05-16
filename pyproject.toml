@@ -23,6 +23,10 @@ dependencies = [
     "websockets>=14,<17",
 ]
 
+[project.optional-dependencies]
+pandas = ["pandas>=2,<3"]
+polars = ["polars>=1,<2"]
+
 [project.urls]
 Homepage = "https://github.com/TexasCoding/kalshi-python-sdk"
 Documentation = "https://github.com/TexasCoding/kalshi-python-sdk#readme"
@@ -56,6 +60,11 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+# Optional DataFrame extras — stubs intentionally not added to project deps.
+module = ["pandas", "polars"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
@@ -74,6 +83,8 @@ dev = [
     "datamodel-code-generator>=0.26",
     "pyyaml>=6",
     "python-dotenv>=1",
+    "pandas>=2,<3",
+    "polars>=1,<2",
 ]
 docs = [
     "mkdocs>=1.6,<2",
