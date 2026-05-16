@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -921,6 +922,51 @@ class TestBatchCancelWireShapeAsync:
             {"order_id": "ord-1", "subaccount": 5},
             {"order_id": "ord-2"},
         ]
+
+
+class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
+    """Regression for issue #47: async batch_cancel must route through the
+    shared ``AsyncResource._delete_with_body`` helper so any future
+    retry / error-mapping behavior added to the helper applies to the
+    async path. Sync and async paths must stay symmetric.
+    """
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_batch_cancel_uses_delete_with_body_helper(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        # AsyncMock + wraps forwards every call to the real async method,
+        # so the respx mock above still resolves and the helper's
+        # status-code branching runs end-to-end; the spy only records.
+        with patch.object(
+            orders, "_delete_with_body",
+            wraps=orders._delete_with_body,
+            new_callable=AsyncMock,
+        ) as spy:
+            await orders.batch_cancel(["ord-1", "ord-2"])
+            spy.assert_called_once_with(
+                "/portfolio/orders/batched",
+                json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
+            )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_batch_cancel_handles_204_no_content(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Helper returns None on 204 — verifies it goes through the
+        shared response-handling path, not a raw ``transport.request`` call.
+        """
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(204))
+
+        await orders.batch_cancel(["ord-1"])  # must not raise on empty body
 
 
 class TestAmendWireShapeAsync:
