@@ -1,0 +1,98 @@
+name: Integration tests (demo API, nightly)
+
+on:
+  schedule:
+    # Nightly at 03:00 UTC. Offset from spec-drift (06:00 UTC) and CI on push/PR.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    # Skip cleanly on forks / when secrets are absent rather than failing loud.
+    if: ${{ github.repository == 'TexasCoding/kalshi-python-sdk' }}
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # Pin to demo so the SDK never points at prod.
+      KALSHI_DEMO: "true"
+    steps:
+      - name: Guard — skip if Kalshi demo secrets are not configured
+        id: guard
+        env:
+          KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
+        run: |
+          if [ -z "${KALSHI_KEY_ID}" ]; then
+            echo "KALSHI_KEY_ID secret is not set; skipping integration job."
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.has_secrets == 'true'
+
+      - name: Install uv
+        if: steps.guard.outputs.has_secrets == 'true'
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        if: steps.guard.outputs.has_secrets == 'true'
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        if: steps.guard.outputs.has_secrets == 'true'
+        run: uv sync
+
+      - name: Write Kalshi private key to temp file
+        if: steps.guard.outputs.has_secrets == 'true'
+        env:
+          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/kalshi_private_key.pem"
+          # Write via printenv so multi-line PEM content is preserved verbatim,
+          # without risking heredoc-delimiter collisions or shell expansion.
+          printenv KALSHI_PRIVATE_KEY > "${KEY_PATH}"
+          chmod 600 "${KEY_PATH}"
+          echo "KALSHI_PRIVATE_KEY_PATH=${KEY_PATH}" >> "$GITHUB_ENV"
+
+      - name: Run integration tests
+        id: pytest
+        if: steps.guard.outputs.has_secrets == 'true'
+        env:
+          KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
+        run: uv run pytest tests/integration/ -v
+
+      - name: Report failure to GitHub Issue
+        if: failure() && steps.guard.outputs.has_secrets == 'true' && steps.pytest.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="Integration tests failing on demo API"
+          # Find an existing open issue with the stable title (exact match) to avoid duplicates.
+          EXISTING=$(gh issue list \
+              --state open \
+              --search "in:title \"${TITLE}\"" \
+              --json number,title \
+              --jq ".[] | select(.title == \"${TITLE}\") | .number" \
+              | head -n1)
+          BODY=$(printf '%s\n' \
+            "The nightly integration test run failed." \
+            "" \
+            "- Workflow: \`${GITHUB_WORKFLOW}\`" \
+            "- Run: ${RUN_URL}" \
+            "- Commit: \`${GITHUB_SHA}\`" \
+            "- Triggered by: \`${GITHUB_EVENT_NAME}\`" \
+            "" \
+            "See the run logs above for the failing tests. This issue is reused across nightly runs;" \
+            "close it once the integration suite is green again.")
+          if [ -n "${EXISTING}" ]; then
+            echo "Updating existing issue #${EXISTING}"
+            gh issue comment "${EXISTING}" --body "${BODY}"
+          else
+            echo "Opening new issue"
+            gh issue create --title "${TITLE}" --body "${BODY}" --label "bug,testing"
+          fi
