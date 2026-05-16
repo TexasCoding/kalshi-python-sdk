@@ -103,12 +103,6 @@ class SyncResource:
     def _delete_with_body(
         self, path: str, *, json: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """DELETE with a request body (Kalshi's batch-cancel pattern).
-
-        Kept symmetric with ``AsyncResource._delete_with_body`` so any future
-        retry / error-mapping behavior added to the helper applies to both
-        sync and async transports at once.
-        """
         response = self._transport.request("DELETE", path, json=json)
         if response.status_code == 204:
             return None
@@ -229,10 +223,6 @@ class AsyncResource:
     async def _delete_with_body(
         self, path: str, *, json: dict[str, Any]
     ) -> dict[str, Any] | None:
-        """Async DELETE with a request body. Mirrors
-        ``SyncResource._delete_with_body`` so retry / error-mapping behavior
-        added to either helper stays in sync across transports.
-        """
         response = await self._transport.request("DELETE", path, json=json)
         if response.status_code == 204:
             return None

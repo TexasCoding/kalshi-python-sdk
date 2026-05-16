@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -832,6 +833,47 @@ class TestBatchCancelWireShape:
             {"order_id": "ord-1", "subaccount": 5},
             {"order_id": "ord-2"},
         ]
+
+
+class TestBatchCancelRoutesThroughDeleteWithBody:
+    """Regression for issue #47: sync batch_cancel must route through the
+    shared ``SyncResource._delete_with_body`` helper so retry / error-mapping
+    behavior added to the helper applies to the sync path. Symmetric with
+    ``test_async_orders.py::TestAsyncBatchCancelRoutesThroughDeleteWithBody``.
+    """
+
+    @respx.mock
+    def test_batch_cancel_uses_delete_with_body_helper(
+        self, orders: OrdersResource
+    ) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={}))
+
+        with patch.object(
+            orders, "_delete_with_body",
+            wraps=orders._delete_with_body,
+        ) as spy:
+            orders.batch_cancel(["ord-1", "ord-2"])
+
+        spy.assert_called_once_with(
+            "/portfolio/orders/batched",
+            json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
+        )
+
+    @respx.mock
+    def test_batch_cancel_parses_200_with_json_body(
+        self, orders: OrdersResource
+    ) -> None:
+        """New base-class helper reads the response body on non-204; the
+        old local helper discarded it. Confirms the sync path parses JSON
+        without raising when the server returns 200 with content.
+        """
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={"cancelled": 2}))
+
+        orders.batch_cancel(["ord-1", "ord-2"])  # must not raise on JSON body
 
 
 class TestAmendWireShape:

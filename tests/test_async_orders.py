@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -939,25 +940,17 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
         ).mock(return_value=httpx.Response(200, json={}))
 
-        calls: list[tuple[str, str, dict[str, object] | None]] = []
-        original = orders._delete_with_body
-
-        async def spy(path: str, *, json: dict[str, object]) -> dict[str, object] | None:
-            calls.append(("DELETE", path, json))
-            return await original(path, json=json)
-
-        orders._delete_with_body = spy  # type: ignore[method-assign]
-        try:
+        with patch.object(
+            orders, "_delete_with_body",
+            wraps=orders._delete_with_body,
+            new_callable=AsyncMock,
+        ) as spy:
             await orders.batch_cancel(["ord-1", "ord-2"])
-        finally:
-            del orders._delete_with_body  # restore method on class
 
-        assert len(calls) == 1
-        assert calls[0][0] == "DELETE"
-        assert calls[0][1] == "/portfolio/orders/batched"
-        assert calls[0][2] == {
-            "orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}],
-        }
+        spy.assert_called_once_with(
+            "/portfolio/orders/batched",
+            json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
+        )
 
     @respx.mock
     @pytest.mark.asyncio
