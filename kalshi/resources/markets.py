@@ -146,6 +146,7 @@ class MarketsResource(SyncResource):
         return Market.model_validate(market)
 
     def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+        self._require_auth()
         params = _params(depth=depth)
         data = self._get(f"/markets/{ticker}/orderbook", params=params)
         # API returns {orderbook_fp: {yes_dollars: [...], no_dollars: [...]}}
@@ -370,6 +371,7 @@ class AsyncMarketsResource(AsyncResource):
         return Market.model_validate(market)
 
     async def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+        self._require_auth()
         params = _params(depth=depth)
         data = await self._get(f"/markets/{ticker}/orderbook", params=params)
         ob = data.get("orderbook_fp") or data.get("orderbook", data)

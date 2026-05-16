@@ -289,6 +289,11 @@ class TestMarketsOrderbook:
         markets.orderbook("TEST-MKT", depth=10)
         assert route.calls[0].request.url.params["depth"] == "10"
 
+    def test_orderbook_requires_auth(self, config: KalshiConfig) -> None:
+        unauth = MarketsResource(SyncTransport(None, config))
+        with pytest.raises(AuthRequiredError):
+            unauth.orderbook("TEST-MKT")
+
 
 class TestMarketsCandlesticks:
     @respx.mock
