@@ -2,7 +2,7 @@
 
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API. Full coverage of the REST API (89 endpoints across 19 resources) and the
-WebSocket API (12 message types), with sync and async clients sharing one transport,
+WebSocket API (11 channels), with sync and async clients sharing one transport,
 typed end-to-end with Pydantic v2 and `mypy --strict` clean.
 
 ## Install

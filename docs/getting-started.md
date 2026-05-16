@@ -13,11 +13,19 @@ Requires Python 3.12 or newer.
 
 ## Create an API key
 
-1. Sign in to your Kalshi account (use the [demo environment](https://demo.kalshi.co)
-   for development).
-2. Visit [account settings](https://kalshi.com/account/profile) and create an API key.
+1. Sign in to your Kalshi account. Demo and production are **separate accounts** with
+   **separate API keys** — pick one for now and create the account there:
+    - Demo (recommended for development): [demo.kalshi.co](https://demo.kalshi.co)
+    - Production: [kalshi.com](https://kalshi.com)
+2. From the same environment you signed into, open your account settings and create
+   an API key:
+    - Demo: [demo.kalshi.co/account/profile](https://demo.kalshi.co/account/profile)
+    - Production: [kalshi.com/account/profile](https://kalshi.com/account/profile)
 3. Download the private key PEM file and store it somewhere safe, e.g.
    `~/.kalshi/private_key.pem`. Treat it like a password.
+
+A demo key cannot authenticate against production and vice versa. The rest of this
+guide assumes a demo key and `demo=True`.
 
 You do **not** need an API key to read public market data — skip ahead to
 ["Hello, markets" (no auth)](#hello-markets-no-auth) if you just want to browse.
