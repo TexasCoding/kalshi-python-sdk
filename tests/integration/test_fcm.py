@@ -22,9 +22,8 @@ register("FcmResource", ["orders", "orders_all", "positions"])
 # Tolerated errors on demo for non-FCM accounts:
 #   - 401/403 → KalshiAuthError (expected: demo account lacks FCM role)
 #   - 404     → KalshiNotFoundError (subtrader not on this account)
-#   - 5xx     → KalshiServerError (known demo flake on paginated list endpoints,
-#               tracked as P3 in TODOS.md — same pattern as
-#               TestOrdersSync::test_list_all intermittent failures)
+#   - 5xx     → KalshiServerError (known demo flake on paginated list endpoints;
+#               retry-on-500 for idempotent GETs landed in _base_client.py)
 # Intentionally NOT including the KalshiError base class — parse errors,
 # timeouts, and validation errors should surface as real failures.
 _TOLERATED_FCM_ERRORS: tuple[type[Exception], ...] = (

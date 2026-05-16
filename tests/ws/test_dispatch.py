@@ -199,8 +199,7 @@ async def test_dispatch_routes_market_position_singular() -> None:
     Regression guard: dispatcher must parse singular form. No direct live
     capture on demo 2026-04-19 (demo account had no open positions during
     the capture window), but aligns to the spec, matching the confirmed
-    pattern on the user_orders sibling channel. See
-    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    pattern on the user_orders sibling channel.
     """
     mgr = FakeSubManager()
     sub = mgr.add(42, "market_positions")
@@ -224,8 +223,7 @@ async def test_dispatch_routes_multivariate_lookup() -> None:
 
     Regression guard. No direct live capture on demo (no active
     collections emitting); aligns to spec matching the user_orders
-    pattern. See
-    docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md.
+    pattern.
     """
     mgr = FakeSubManager()
     sub = mgr.add(17, "multivariate")

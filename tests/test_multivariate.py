@@ -319,10 +319,10 @@ class TestCreateMarketWireShape:
         """Pin the carve-out: ``TickerPair.extra="allow"`` means phantom keys
         inside a TickerPair bypass the outer model's ``extra="forbid"``.
 
-        This is a known gap tracked in TODOS.md for v0.9 (nested-model drift
-        coverage + typed `TickerPair.extra="forbid"` migration). If a future
-        Pydantic upgrade or code change tightens this behavior implicitly, this
-        test will fail and force the change to be deliberate.
+        This is a known gap tracked in issue #52 (nested-model drift coverage
+        + typed `TickerPair.extra="forbid"` migration). If a future Pydantic
+        upgrade or code change tightens this behavior implicitly, this test
+        will fail and force the change to be deliberate.
         """
         import json
 

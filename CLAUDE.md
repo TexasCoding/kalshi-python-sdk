@@ -128,60 +128,18 @@ tests/
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2
 - Auth: RSA-PSS / SHA256 / MGF1(SHA256) / salt_length=DIGEST_LENGTH / base64
 
-## Skill routing — three-layer stack
+## Issue tracking
 
-We compose three frameworks deliberately. Each constrains a different dimension;
-don't install-and-invoke everything.
+All work — bugs, enhancements, polish, spec drift — is tracked in **GitHub Issues**
+on `TexasCoding/kalshi-python-sdk`. Use the `gh` CLI or the GitHub UI; do not add
+markdown trackers (TODOS/BACKLOG) back to the repo.
 
-> **gstack thinks → GSD stabilizes → Superpowers executes**
+- Active milestone: `v1.1` (post-1.0 enhancements and polish)
+- Labels in use: `bug`, `enhancement`, `documentation`, `polish`, `breaking`, `spec-drift`, `testing`, `infra`, `ws`, `cli`
+- `ROADMAP.md` — short pointer to the active milestone
+- `CHANGELOG.md` — release-facing history; updated per release
 
-Heuristics for picking a layer:
-- Requirements still fuzzy → start with **gstack** (decision)
-- Work keeps diverging across sessions → add **GSD** (context)
-- You want execution steady and closed-loop → lean on **Superpowers** (execution)
-
-When a request matches a skill, invoke it via the Skill tool BEFORE answering or
-running other tools. Avoid running the full ceremony on trivial asks (a two-line
-config fix doesn't need brainstorm → plan → TDD).
-
-### Layer 1 — Decision → gstack
-Decide *what* to build and *whether* to build it before touching code.
-- Fuzzy requirements / "is this worth building" → `office-hours`
-- Stress-test scope and ambition → `plan-ceo-review`
-- Lock architecture, data flow, edge cases → `plan-eng-review`
-- UI/UX in scope → `plan-design-review`
-- Run the full decision gauntlet → `autoplan`
-
-### Layer 2 — Context → GSD
-Anchor specs, status, and boundaries in `.planning/` so context doesn't rot
-across sessions. Atomic commits, fresh context per task, persisted state.
-- New project / new milestone → `gsd-new-project`, `gsd-new-milestone`
-- Plan / execute a phase → `gsd-plan-phase`, `gsd-execute-phase`
-- Resume after a break or context reset → `gsd-resume-work`, `checkpoint`
-- Pause mid-phase → `gsd-pause-work`
-- Cross-AI peer review of a plan → `gsd-review`
-- Systematic debugging across context resets → `gsd-debug`
-- Ship the phase (PR + verification) → `gsd-ship`
-- Verify / validate a completed phase → `gsd-verify-work`, `gsd-validate-phase`
-
-### Layer 3 — Execution → Superpowers
-Closed loop: brainstorm → plan → TDD → review → finalize. TDD is mandatory —
-write the test first; code written before tests gets deleted.
-- Any creative work, before designing → `superpowers:brainstorming`
-- Multi-step task with a spec → `superpowers:writing-plans` → `superpowers:executing-plans`
-- Implementing any feature or bugfix → `superpowers:test-driven-development`
-- 2+ independent tasks → `superpowers:dispatching-parallel-agents` or `superpowers:subagent-driven-development`
-- Before claiming "done" → `superpowers:verification-before-completion`
-- Asking for review → `superpowers:requesting-code-review`
-- Receiving review feedback → `superpowers:receiving-code-review`
-- Closing out work → `superpowers:finishing-a-development-branch`
-- Worktree-isolated branch work → `superpowers:using-git-worktrees`
-
-### Cross-cutting (use as needed)
-- Bug, error, "why is this broken" → `investigate` (light) or `gsd-debug` (multi-session)
-- Code review of a diff → `review`, `superpowers:requesting-code-review`, or `gsd-code-review`
-- Update docs after shipping → `document-release` or `gsd-docs-update`
-- Code health / quality dashboard → `health`
+Reference issues from PRs via `Closes #N` so the issue closes on merge.
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

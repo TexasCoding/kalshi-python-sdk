@@ -1128,8 +1128,7 @@ def _model_aliases(model_cls: type[PydanticBase]) -> set[str]:
 
     Known gap: iterates only top-level fields. Nested Pydantic models
     (e.g., ``TickerPair`` inside ``selected_markets: list[TickerPair]``)
-    are not recursively checked. See TODOS.md — v0.9 nested-model drift
-    coverage.
+    are not recursively checked. Tracked in issue #52.
     """
     names: set[str] = set()
     for field_name, field in model_cls.model_fields.items():

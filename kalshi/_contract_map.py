@@ -296,8 +296,7 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="userOrderPayload",
         notes="Aligned to spec v0.14.0 (2026-04-19): envelope type is "
         "singular 'user_order' on the wire; channel name stays plural "
-        "'user_orders'. Live-captured on demo -- see "
-        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
+        "'user_orders'. Live-captured on demo.",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.market_lifecycle.MarketLifecyclePayload",
@@ -312,8 +311,7 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         "singular 'market_position' on the wire; channel name stays plural "
         "'market_positions'. Pattern matches the directly-confirmed "
         "user_order drift. No direct demo capture (demo account idle for "
-        "positions during capture window) -- see "
-        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
+        "positions during capture window).",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",
@@ -322,8 +320,7 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         "'multivariate_lookup' on the wire; channel name stays 'multivariate'. "
         "MultivariateLifecycleMessage (type 'multivariate_market_lifecycle') "
         "is unaffected -- separate spec-aligned sibling. No direct demo "
-        "capture (no active collections emitting); see "
-        "docs/superpowers/plans/2026-04-19-ws-parity-v0.14.0-capture-notes.md",
+        "capture (no active collections emitting).",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.order_group.OrderGroupPayload",

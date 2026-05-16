@@ -478,7 +478,7 @@ class AsyncOrdersResource(AsyncResource):
         req = BatchCancelOrdersRequest(orders=normalized)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         # NOTE: keep in sync with OrdersResource.batch_cancel's
-        # _delete_with_body call; no async helper yet (tracked in TODOS.md).
+        # _delete_with_body call; no async helper yet (tracked in issue #47).
         await self._transport.request("DELETE", "/portfolio/orders/batched", json=body)
 
     async def fills(
