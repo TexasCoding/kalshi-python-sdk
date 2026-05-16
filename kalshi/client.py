@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from types import TracebackType
 
+import httpx
+
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
@@ -59,6 +61,7 @@ class KalshiClient:
         base_url: str | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
         # Build auth (optional — None means unauthenticated)
         # Reject empty strings that look like misconfigured credentials
@@ -91,7 +94,7 @@ class KalshiClient:
             self._config = KalshiConfig(**config_kwargs)  # type: ignore[arg-type]
 
         # Build transport and resources
-        self._transport = SyncTransport(self._auth, self._config)
+        self._transport = SyncTransport(self._auth, self._config, transport=transport)
         self.account = AccountResource(self._transport)
         self.api_keys = ApiKeysResource(self._transport)
         self.communications = CommunicationsResource(self._transport)

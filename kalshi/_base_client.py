@@ -79,14 +79,23 @@ def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
 class SyncTransport:
     """Synchronous HTTP transport using httpx.Client."""
 
-    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
+    def __init__(
+        self,
+        auth: KalshiAuth | None,
+        config: KalshiConfig,
+        *,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._auth = auth
         self._config = config
-        self._client = httpx.Client(
-            base_url=config.base_url,
-            timeout=config.timeout,
-            headers=config.extra_headers,
-        )
+        client_kwargs: dict[str, Any] = {
+            "base_url": config.base_url,
+            "timeout": config.timeout,
+            "headers": config.extra_headers,
+        }
+        if transport is not None:
+            client_kwargs["transport"] = transport
+        self._client = httpx.Client(**client_kwargs)
 
     @property
     def is_authenticated(self) -> bool:
@@ -183,14 +192,23 @@ class SyncTransport:
 class AsyncTransport:
     """Asynchronous HTTP transport using httpx.AsyncClient."""
 
-    def __init__(self, auth: KalshiAuth | None, config: KalshiConfig) -> None:
+    def __init__(
+        self,
+        auth: KalshiAuth | None,
+        config: KalshiConfig,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._auth = auth
         self._config = config
-        self._client = httpx.AsyncClient(
-            base_url=config.base_url,
-            timeout=config.timeout,
-            headers=config.extra_headers,
-        )
+        client_kwargs: dict[str, Any] = {
+            "base_url": config.base_url,
+            "timeout": config.timeout,
+            "headers": config.extra_headers,
+        }
+        if transport is not None:
+            client_kwargs["transport"] = transport
+        self._client = httpx.AsyncClient(**client_kwargs)
 
     @property
     def is_authenticated(self) -> bool:
