@@ -35,11 +35,12 @@ class TestEventsSync:
         assert event.event_ticker == demo_event_ticker
 
     def test_list_all(self, sync_client: KalshiClient) -> None:
-        for count, event in enumerate(sync_client.events.list_all(limit=2)):
+        count = 0
+        for event in sync_client.events.list_all(limit=2):
             assert isinstance(event, Event)
             assert_model_fields(event)
-
-            if count >= 2:
+            count += 1
+            if count >= 3:
                 break
         assert count > 0
 
@@ -53,10 +54,12 @@ class TestEventsSync:
             assert event.event_ticker
 
     def test_list_all_multivariate(self, sync_client: KalshiClient) -> None:
-        for count, event in enumerate(sync_client.events.list_all_multivariate(limit=2)):
+        count = 0
+        for event in sync_client.events.list_all_multivariate(limit=2):
             assert isinstance(event, Event)
             assert_model_fields(event)
-            if count >= 1:
+            count += 1  # noqa: SIM113
+            if count >= 2:
                 break
 
     def test_metadata(self, sync_client: KalshiClient, demo_event_ticker: str) -> None:

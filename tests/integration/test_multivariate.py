@@ -89,12 +89,12 @@ class TestMultivariateSync:
             assert page.items[0].collection_ticker
 
     def test_list_all(self, sync_client: KalshiClient) -> None:
-        for count, collection in enumerate(
-            sync_client.multivariate_collections.list_all(limit=2)
-        ):
+        count = 0
+        for collection in sync_client.multivariate_collections.list_all(limit=2):
             assert isinstance(collection, MultivariateEventCollection)
             assert_model_fields(collection)
-            if count >= 1:
+            count += 1  # noqa: SIM113
+            if count >= 2:
                 break
 
     def test_get(
