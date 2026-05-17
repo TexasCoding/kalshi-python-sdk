@@ -119,7 +119,7 @@ class MilestonesResource(SyncResource):
             related_event_ticker=related_event_ticker,
             cursor=None, min_updated_ts=min_updated_ts,
         )
-        yield from self._list_all(
+        return self._list_all(
             "/milestones", Milestone, "milestones",
             params=params, max_pages=max_pages,
         )

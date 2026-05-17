@@ -66,7 +66,7 @@ class StructuredTargetsResource(SyncResource):
             competition=competition,
             page_size=page_size,
         )
-        yield from self._list_all(
+        return self._list_all(
             "/structured_targets",
             StructuredTarget,
             "structured_targets",

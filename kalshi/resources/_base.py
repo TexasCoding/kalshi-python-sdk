@@ -173,24 +173,24 @@ class SyncResource:
         convention). ``cursor_key`` only affects how the response envelope
         is parsed.
 
-        ``max_pages`` caps the number of pages fetched as a safety net for
-        servers that never repeat a cursor but never return empty either.
-        ``None`` (default) means the built-in ceiling of 1000. Callers that
-        need a tighter cap (e.g. a quick preview) pass it explicitly.
+        ``max_pages`` is an optional hard cap on pages fetched. ``None``
+        (default) iterates until the server returns an empty cursor; the
+        cursor-repeat guard below provides the safety net against
+        infinite loops.
 
         Raises ``KalshiError`` if a cursor value repeats, which indicates
-        a server-side pagination bug that would otherwise cause the safety
-        cap to silently issue ``max_pages`` duplicate requests.
+        a server-side pagination bug.
         """
-        page_cap = 1000 if max_pages is None else max_pages
         current_params = dict(params) if params else {}
         seen_cursors: set[str] = set()
-        for _ in range(page_cap):
+        pages_fetched = 0
+        while max_pages is None or pages_fetched < max_pages:
             page = self._list(
                 path, model_cls, items_key,
                 params=current_params, cursor_key=cursor_key,
             )
             yield from page.items
+            pages_fetched += 1
             if not page.cursor:
                 break
             if page.cursor in seen_cursors:
@@ -286,20 +286,18 @@ class AsyncResource:
         max_pages: int | None = None,
         cursor_key: str = "cursor",
     ) -> AsyncIterator[T]:
-        """Async counterpart of ``SyncResource._list_all``. ``max_pages``
-        semantics mirror the sync version (``None`` -> 1000 default).
-        Raises ``KalshiError`` on repeated cursor; see sync docstring.
-        """
-        page_cap = 1000 if max_pages is None else max_pages
+        """Async counterpart of :meth:`SyncResource._list_all`."""
         current_params = dict(params) if params else {}
         seen_cursors: set[str] = set()
-        for _ in range(page_cap):
+        pages_fetched = 0
+        while max_pages is None or pages_fetched < max_pages:
             page = await self._list(
                 path, model_cls, items_key,
                 params=current_params, cursor_key=cursor_key,
             )
             for item in page.items:
                 yield item
+            pages_fetched += 1
             if not page.cursor:
                 break
             if page.cursor in seen_cursors:

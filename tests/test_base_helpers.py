@@ -154,7 +154,7 @@ class TestSyncListAllCursorLoopDetection:
     def test_repeated_cursor_raises(
         self, test_auth: KalshiAuth, test_config: KalshiConfig
     ) -> None:
-        """Server that returns the same cursor twice must bail fast, not retry 1000x."""
+        """Server that returns the same cursor twice must bail fast on the 2nd request."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
             return_value=httpx.Response(
                 200, json={"items": [{"id": "x"}], "cursor": "loop"}
@@ -166,8 +166,7 @@ class TestSyncListAllCursorLoopDetection:
             list(resource._list_all("/things", _Item, "items"))
 
         # First call (no cursor) fetches cursor="loop". Second call (cursor=loop) returns
-        # cursor="loop" again → loop detected before a third request. Total: 2 requests,
-        # not 1000.
+        # cursor="loop" again → loop detected before a third request.
         assert route.call_count == 2
 
     @respx.mock
@@ -376,3 +375,74 @@ class TestValidateMaxPages:
     def test_negative_rejected(self) -> None:
         with pytest.raises(ValueError, match=r"max_pages must be positive"):
             _validate_max_pages(-3)
+
+
+class TestMaxPagesEagerValidation:
+    """Regression: ``_validate_max_pages`` must fire at call time, not on first iteration.
+
+    Methods that were previously written with ``yield from``/``async for ... yield``
+    silently became generators — their body didn't execute until the caller advanced
+    the iterator, so `max_pages=0` got deferred. All `*_all()` methods must now use
+    `return self._list_all(...)` so the validator runs eagerly.
+    """
+
+    def test_sync_milestones_list_all_validates_eagerly(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        from kalshi.resources.milestones import MilestonesResource
+        resource = MilestonesResource(SyncTransport(test_auth, test_config))
+        with pytest.raises(ValueError, match=r"max_pages must be positive"):
+            resource.list_all(limit=10, max_pages=0)
+
+    def test_sync_subaccounts_list_all_transfers_validates_eagerly(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        from kalshi.resources.subaccounts import SubaccountsResource
+        resource = SubaccountsResource(SyncTransport(test_auth, test_config))
+        with pytest.raises(ValueError, match=r"max_pages must be positive"):
+            resource.list_all_transfers(max_pages=0)
+
+    @pytest.mark.asyncio
+    async def test_async_subaccounts_list_all_transfers_validates_eagerly(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        from kalshi.resources.subaccounts import AsyncSubaccountsResource
+        resource = AsyncSubaccountsResource(AsyncTransport(test_auth, test_config))
+        with pytest.raises(ValueError, match=r"max_pages must be positive"):
+            resource.list_all_transfers(max_pages=0)
+
+    @pytest.mark.asyncio
+    async def test_async_communications_list_all_rfqs_validates_eagerly(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        from kalshi.resources.communications import AsyncCommunicationsResource
+        resource = AsyncCommunicationsResource(AsyncTransport(test_auth, test_config))
+        with pytest.raises(ValueError, match=r"max_pages must be positive"):
+            resource.list_all_rfqs(max_pages=0)
+
+
+class TestMaxPagesNoneIsUnbounded:
+    """``max_pages=None`` must iterate until the server returns no cursor.
+
+    The 1000-page default was removed: cursor-repeat guard is the real safety net.
+    """
+
+    @respx.mock
+    def test_sync_iterates_past_1000_pages(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        # Page N returns cursor str(N+1) for the first 1100 pages, then empty.
+        call_counter = {"n": 0}
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            call_counter["n"] += 1
+            n = call_counter["n"]
+            cursor = str(n) if n < 1100 else ""
+            return httpx.Response(
+                200, json={"items": [{"id": f"i{n}"}], "cursor": cursor},
+            )
+
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responder)
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+        items = list(resource._list_all("/things", _Item, "items"))
+        assert len(items) == 1100, f"Expected 1100 items, got {len(items)} (cap leaked?)"

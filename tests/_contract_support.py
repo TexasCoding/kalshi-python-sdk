@@ -1061,6 +1061,26 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
     "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
     "kalshi.resources.multivariate.MultivariateCollectionsResource.list_all",
+    # Async counterparts — same kwarg, same client-only semantics.
+    "kalshi.resources.markets.AsyncMarketsResource.list_all",
+    "kalshi.resources.markets.AsyncMarketsResource.list_trades_all",
+    "kalshi.resources.milestones.AsyncMilestonesResource.list_all",
+    "kalshi.resources.events.AsyncEventsResource.list_all",
+    "kalshi.resources.events.AsyncEventsResource.list_all_multivariate",
+    "kalshi.resources.historical.AsyncHistoricalResource.markets_all",
+    "kalshi.resources.historical.AsyncHistoricalResource.fills_all",
+    "kalshi.resources.historical.AsyncHistoricalResource.orders_all",
+    "kalshi.resources.historical.AsyncHistoricalResource.trades_all",
+    "kalshi.resources.orders.AsyncOrdersResource.list_all",
+    "kalshi.resources.orders.AsyncOrdersResource.fills_all",
+    "kalshi.resources.communications.AsyncCommunicationsResource.list_all_rfqs",
+    "kalshi.resources.communications.AsyncCommunicationsResource.list_all_quotes",
+    "kalshi.resources.subaccounts.AsyncSubaccountsResource.list_all_transfers",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.settlements_all",
+    "kalshi.resources.fcm.AsyncFcmResource.orders_all",
+    "kalshi.resources.incentive_programs.AsyncIncentiveProgramsResource.list_all",
+    "kalshi.resources.structured_targets.AsyncStructuredTargetsResource.list_all",
+    "kalshi.resources.multivariate.AsyncMultivariateCollectionsResource.list_all",
 )
 for _fqn in _MAX_PAGES_FQNS:
     EXCLUSIONS[(_fqn, "max_pages")] = Exclusion(

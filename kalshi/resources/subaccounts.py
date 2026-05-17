@@ -160,7 +160,7 @@ class SubaccountsResource(SyncResource):
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _params(limit=limit)
-        yield from self._list_all(
+        return self._list_all(
             "/portfolio/subaccounts/transfers",
             SubaccountTransfer,
             "transfers",
@@ -254,23 +254,24 @@ class AsyncSubaccountsResource(AsyncResource):
             params=params,
         )
 
-    async def list_all_transfers(
+    def list_all_transfers(
         self,
         *,
         limit: int | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[SubaccountTransfer]:
+        # Plain `def` (not `async def`) so _require_auth and _validate_max_pages
+        # run at call time, not when the returned AsyncIterator is awaited.
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _params(limit=limit)
-        async for item in self._list_all(
+        return self._list_all(
             "/portfolio/subaccounts/transfers",
             SubaccountTransfer,
             "transfers",
             params=params,
             max_pages=max_pages,
-        ):
-            yield item
+        )
 
     @overload
     async def update_netting(

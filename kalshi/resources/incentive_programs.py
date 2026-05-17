@@ -62,7 +62,7 @@ class IncentiveProgramsResource(SyncResource):
     ) -> Iterator[IncentiveProgram]:
         _validate_max_pages(max_pages)
         params = _params(status=status, type=incentive_type, limit=limit)
-        yield from self._list_all(
+        return self._list_all(
             "/incentive_programs",
             IncentiveProgram,
             "incentive_programs",
