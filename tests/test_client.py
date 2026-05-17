@@ -277,6 +277,83 @@ class TestSyncTransportRetry:
         assert resp.status_code == 200
         assert resp.json()["markets"][0]["ticker"] == "TEST"
 
+    @respx.mock
+    def test_429_retry_after_caps_at_retry_max_delay(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Hostile/misconfigured Retry-After is clamped to retry_max_delay."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "9999"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        # config fixture: retry_max_delay=0.1 — must clamp to that, NOT 9999.
+        assert sleeps == [0.1], (
+            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
+        )
+
+    @respx.mock
+    def test_429_retry_after_http_date_falls_back_to_backoff(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """HTTP-date Retry-After unparseable; transport still retries via backoff."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+                    json={"message": "rl"},
+                ),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+        # Backoff is Full Jitter: uniform(0, min(base*2**0, max)) = uniform(0, 0.01).
+        assert len(sleeps) == 1
+        assert 0.0 <= sleeps[0] <= 0.01, (
+            f"Expected backoff sleep in [0, 0.01], got {sleeps[0]!r}"
+        )
+
+    @respx.mock
+    def test_get_retries_on_timeout(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET retries on httpx.TimeoutException (idempotent method)."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.TimeoutException("read timed out"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+        # Confirm a backoff delay happened between attempts — without this
+        # assertion, removing the time.sleep(delay) line would still pass.
+        assert len(sleeps) == 1
+        assert sleeps[0] >= 0.0
+
+    @respx.mock
+    def test_post_not_retried_on_timeout(self, transport: SyncTransport) -> None:
+        """POST timeout raises immediately; no retry (duplicate-order risk)."""
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.TimeoutException("read timed out"))
+        with pytest.raises(KalshiError, match="timed out"):
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+
 
 class TestSyncTransportContextManager:
     def test_close(self, test_auth: KalshiAuth, config: KalshiConfig) -> None:

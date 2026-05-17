@@ -19,6 +19,7 @@ from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
     KalshiAuthError,
+    KalshiError,
     KalshiServerError,
     KalshiValidationError,
 )
@@ -202,6 +203,101 @@ class TestAsyncTransportRetry:
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
         assert resp.json()["markets"][0]["ticker"] == "TEST"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_429_retry_after_caps_at_retry_max_delay(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Async cap: Retry-After: 9999 must clamp to retry_max_delay=0.1."""
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "9999"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert sleeps == [0.1], (
+            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_429_retry_after_http_date_falls_back_to_backoff(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Async: HTTP-date unparseable; transport retries via computed backoff."""
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+                    json={"message": "rl"},
+                ),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+        assert len(sleeps) == 1
+        assert 0.0 <= sleeps[0] <= 0.01, (
+            f"Expected backoff sleep in [0, 0.01], got {sleeps[0]!r}"
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_get_retries_on_timeout(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Async GET retries on httpx.TimeoutException."""
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.TimeoutException("read timed out"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+        # Confirm a backoff delay happened between attempts — without this
+        # assertion, removing the asyncio.sleep(delay) line would still pass.
+        assert len(sleeps) == 1
+        assert sleeps[0] >= 0.0
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_not_retried_on_timeout(
+        self, transport: AsyncTransport
+    ) -> None:
+        """Async POST timeout raises immediately; no retry."""
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.TimeoutException("read timed out"))
+        with pytest.raises(KalshiError, match="timed out"):
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"}
+            )
+        assert route.call_count == 1
 
 
 class TestAsyncTransportContextManager:
