@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -324,6 +325,71 @@ def test_recording_transport_close_propagates_to_real_transport(tmp_path: Path) 
     rec = RecordingTransport(tmp_path, real_transport=TrackingTransport())
     rec.close()
     assert closed["value"] is True
+
+
+def test_recording_transport_buffers_until_close(tmp_path: Path) -> None:
+    """Regression for #105: many requests to one endpoint must not rewrite the
+    fixture file on every request. Count save_pairs calls — should be exactly
+    one per (method, path) at flush time, not one per request."""
+    import kalshi.testing._recorder as _rec
+
+    canned = httpx.Response(
+        200,
+        headers=[("content-type", "application/json")],
+        content=json.dumps({"exchange_active": True, "trading_active": True}).encode("utf-8"),
+    )
+    stub = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    fixtures_dir = tmp_path / "fixtures"
+
+    save_calls: list[tuple[str, str, int]] = []
+    real_save = _rec.save_pairs
+
+    def counting_save(dir_path: Path, method: str, path: str, pairs: list[Any]) -> None:
+        save_calls.append((method, path, len(pairs)))
+        real_save(dir_path, method, path, pairs)
+
+    monkey_target = _rec
+    monkey_target.save_pairs = counting_save  # type: ignore[assignment]
+    try:
+        rec = RecordingTransport(fixtures_dir, real_transport=stub)
+        with KalshiClient(transport=rec) as client:
+            for _ in range(50):
+                client.exchange.status()
+            # No flush yet — buffer holds pairs in memory.
+            assert save_calls == []
+        # Client context exit → transport close → single flush per touched key.
+        assert save_calls == [("GET", "/trade-api/v2/exchange/status", 50)]
+    finally:
+        monkey_target.save_pairs = real_save  # type: ignore[assignment]
+
+    # On-disk fixture must contain all 50 pairs, replayable end-to-end.
+    expected_file = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    stored = json.loads(expected_file.read_text())
+    assert len(stored) == 50
+
+
+def test_recording_transport_extends_prior_session(tmp_path: Path) -> None:
+    """Re-recording into the same fixtures dir must append to prior pairs,
+    not clobber them — preserves the original load → append → save semantics."""
+    canned = httpx.Response(
+        200,
+        headers=[("content-type", "application/json")],
+        content=json.dumps({"exchange_active": True, "trading_active": True}).encode("utf-8"),
+    )
+    fixtures_dir = tmp_path / "fixtures"
+
+    stub1 = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    with KalshiClient(transport=RecordingTransport(fixtures_dir, real_transport=stub1)) as c:
+        c.exchange.status()
+
+    stub2 = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    with KalshiClient(transport=RecordingTransport(fixtures_dir, real_transport=stub2)) as c:
+        c.exchange.status()
+        c.exchange.status()
+
+    expected_file = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    stored = json.loads(expected_file.read_text())
+    assert len(stored) == 3
 
 
 @pytest.mark.asyncio

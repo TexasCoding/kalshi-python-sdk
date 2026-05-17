@@ -41,6 +41,9 @@ class MessageQueue(Generic[T]):
         self._buffer: collections.deque[T | object] = collections.deque(maxlen=None)
         self._event = asyncio.Event()
         self._closed = False
+        # O(1) size tracking: counts real items only (excludes sentinel).
+        # Kept in sync with _buffer on every put/popleft path.
+        self._size = 0
 
     async def put(self, item: T) -> None:
         """Add an item to the queue, applying overflow strategy if full."""
@@ -50,6 +53,7 @@ class MessageQueue(Generic[T]):
         if len(self._buffer) >= self._maxsize:
             if self._overflow is OverflowStrategy.DROP_OLDEST:
                 self._buffer.popleft()
+                self._size -= 1
             elif self._overflow is OverflowStrategy.ERROR:
                 raise KalshiBackpressureError(
                     f"Message queue full ({self._maxsize} items). "
@@ -58,6 +62,7 @@ class MessageQueue(Generic[T]):
                 )
 
         self._buffer.append(item)
+        self._size += 1
         self._event.set()
 
     async def put_sentinel(self) -> None:
@@ -75,11 +80,12 @@ class MessageQueue(Generic[T]):
         item = self._buffer.popleft()
         if item is _SENTINEL:
             raise StopAsyncIteration
+        self._size -= 1
         return item  # type: ignore[return-value]
 
     def qsize(self) -> int:
-        """Number of items currently in the queue (excludes sentinel)."""
-        return sum(1 for item in self._buffer if item is not _SENTINEL)
+        """Number of items currently in the queue (excludes sentinel). O(1)."""
+        return self._size
 
     def __aiter__(self) -> AsyncIterator[T]:
         return self
@@ -92,4 +98,5 @@ class MessageQueue(Generic[T]):
         item = self._buffer.popleft()
         if item is _SENTINEL:
             raise StopAsyncIteration
+        self._size -= 1
         return item  # type: ignore[return-value]
