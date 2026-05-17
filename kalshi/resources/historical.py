@@ -6,7 +6,11 @@ import builtins
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
-from kalshi.models.historical import HistoricalCutoff, Trade
+from kalshi.models.historical import (
+    HistoricalCutoff,
+    MveHistoricalFilterLiteral,
+    Trade,
+)
 from kalshi.models.markets import Candlestick, Market
 from kalshi.models.orders import Fill, Order
 from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
@@ -27,7 +31,7 @@ class HistoricalResource(SyncResource):
         tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
-        mve_filter: str | None = None,
+        mve_filter: MveHistoricalFilterLiteral | None = None,
     ) -> Page[Market]:
         params = _params(
             limit=limit,
@@ -46,7 +50,7 @@ class HistoricalResource(SyncResource):
         tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
-        mve_filter: str | None = None,
+        mve_filter: MveHistoricalFilterLiteral | None = None,
     ) -> Iterator[Market]:
         params = _params(
             limit=limit,
@@ -168,7 +172,7 @@ class AsyncHistoricalResource(AsyncResource):
         tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
-        mve_filter: str | None = None,
+        mve_filter: MveHistoricalFilterLiteral | None = None,
     ) -> Page[Market]:
         params = _params(
             limit=limit,
@@ -187,7 +191,7 @@ class AsyncHistoricalResource(AsyncResource):
         tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         series_ticker: str | None = None,
-        mve_filter: str | None = None,
+        mve_filter: MveHistoricalFilterLiteral | None = None,
     ) -> AsyncIterator[Market]:
         params = _params(
             limit=limit,

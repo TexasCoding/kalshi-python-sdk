@@ -9,10 +9,17 @@ dollars by dividing by 10 000). Fractional values come through
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
 from kalshi.types import FixedPointCount, NullableList
+
+IncentiveProgramStatusLiteral = Literal["all", "active", "upcoming", "closed", "paid_out"]
+"""Incentive program status filter. Spec: GetIncentivePrograms.status query enum."""
+
+IncentiveProgramTypeLiteral = Literal["all", "liquidity", "volume"]
+"""Incentive program type filter. Spec: GetIncentivePrograms.type query enum."""
 
 
 class IncentiveProgram(BaseModel):

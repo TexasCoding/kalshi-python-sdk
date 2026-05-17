@@ -10,7 +10,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
-from kalshi.models.incentive_programs import IncentiveProgram
+from kalshi.models.incentive_programs import (
+    IncentiveProgram,
+    IncentiveProgramStatusLiteral,
+    IncentiveProgramTypeLiteral,
+)
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
@@ -24,8 +28,8 @@ class IncentiveProgramsResource(SyncResource):
     def list(
         self,
         *,
-        status: str | None = None,
-        incentive_type: str | None = None,
+        status: IncentiveProgramStatusLiteral | None = None,
+        incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
@@ -46,8 +50,8 @@ class IncentiveProgramsResource(SyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
-        incentive_type: str | None = None,
+        status: IncentiveProgramStatusLiteral | None = None,
+        incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
     ) -> Iterator[IncentiveProgram]:
         params = _params(status=status, type=incentive_type, limit=limit)
@@ -66,8 +70,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
     async def list(
         self,
         *,
-        status: str | None = None,
-        incentive_type: str | None = None,
+        status: IncentiveProgramStatusLiteral | None = None,
+        incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
@@ -88,8 +92,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
-        incentive_type: str | None = None,
+        status: IncentiveProgramStatusLiteral | None = None,
+        incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""

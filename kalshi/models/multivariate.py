@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -12,6 +13,12 @@ from kalshi.types import NullableList
 # Side constants (use str, not StrEnum, for forward-compat)
 SIDE_YES = "yes"
 SIDE_NO = "no"
+
+MultivariateCollectionStatusLiteral = Literal["unopened", "open", "closed"]
+"""Multivariate collection status filter.
+
+Spec: GetMultivariateEventCollections.status query enum.
+"""
 
 
 class AssociatedEvent(BaseModel):

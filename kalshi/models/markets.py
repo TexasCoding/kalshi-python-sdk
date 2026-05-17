@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, NullableList
+
+MarketStatusLiteral = Literal["unopened", "open", "paused", "closed", "settled"]
+"""Market status filter for GET /markets. Spec: MarketStatusQuery enum."""
+
+MveFilterLiteral = Literal["only", "exclude"]
+"""Multivariate-event filter for GET /markets. Spec: MveFilterQuery enum."""
 
 
 class Market(BaseModel):

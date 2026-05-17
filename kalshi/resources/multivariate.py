@@ -13,6 +13,7 @@ from kalshi.models.multivariate import (
     LookupPoint,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
+    MultivariateCollectionStatusLiteral,
     MultivariateEventCollection,
     TickerPair,
 )
@@ -30,7 +31,7 @@ class MultivariateCollectionsResource(SyncResource):
     def list(
         self,
         *,
-        status: str | None = None,
+        status: MultivariateCollectionStatusLiteral | None = None,
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,
@@ -53,7 +54,7 @@ class MultivariateCollectionsResource(SyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
+        status: MultivariateCollectionStatusLiteral | None = None,
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,
@@ -192,7 +193,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
     async def list(
         self,
         *,
-        status: str | None = None,
+        status: MultivariateCollectionStatusLiteral | None = None,
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,
@@ -215,7 +216,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
+        status: MultivariateCollectionStatusLiteral | None = None,
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,

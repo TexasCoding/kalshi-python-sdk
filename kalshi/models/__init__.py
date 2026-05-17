@@ -25,7 +25,13 @@ from kalshi.models.communications import (
     MveSelectedLeg,
     Quote,
 )
-from kalshi.models.events import Event, EventMetadata, MarketMetadata, SettlementSource
+from kalshi.models.events import (
+    Event,
+    EventMetadata,
+    EventStatusLiteral,
+    MarketMetadata,
+    SettlementSource,
+)
 from kalshi.models.exchange import (
     Announcement,
     DailySchedule,
@@ -35,10 +41,12 @@ from kalshi.models.exchange import (
     UserDataTimestamp,
     WeeklySchedule,
 )
-from kalshi.models.historical import HistoricalCutoff, Trade
+from kalshi.models.historical import HistoricalCutoff, MveHistoricalFilterLiteral, Trade
 from kalshi.models.incentive_programs import (
     GetIncentiveProgramsResponse,
     IncentiveProgram,
+    IncentiveProgramStatusLiteral,
+    IncentiveProgramTypeLiteral,
 )
 from kalshi.models.live_data import (
     GetGameStatsResponse,
@@ -53,6 +61,8 @@ from kalshi.models.markets import (
     Candlestick,
     Market,
     MarketCandlesticks,
+    MarketStatusLiteral,
+    MveFilterLiteral,
     Orderbook,
     OrderbookLevel,
     PriceDistribution,
@@ -69,6 +79,7 @@ from kalshi.models.multivariate import (
     LookupPoint,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
+    MultivariateCollectionStatusLiteral,
     MultivariateEventCollection,
     TickerPair,
 )
@@ -80,6 +91,7 @@ from kalshi.models.order_groups import (
     UpdateOrderGroupLimitRequest,
 )
 from kalshi.models.orders import (
+    ActionLiteral,
     AmendOrderRequest,
     AmendOrderResponse,
     BatchCancelOrdersRequest,
@@ -90,6 +102,10 @@ from kalshi.models.orders import (
     Fill,
     Order,
     OrderQueuePosition,
+    OrderStatusLiteral,
+    SelfTradePreventionTypeLiteral,
+    SideLiteral,
+    TimeInForceLiteral,
 )
 from kalshi.models.portfolio import (
     Balance,
@@ -97,6 +113,7 @@ from kalshi.models.portfolio import (
     MarketPosition,
     PositionsResponse,
     Settlement,
+    SettlementStatusLiteral,
     TotalRestingOrderValue,
 )
 from kalshi.models.search import (
@@ -132,6 +149,7 @@ __all__ = [
     "RFQ",
     "AcceptQuoteRequest",
     "AccountApiLimits",
+    "ActionLiteral",
     "AmendOrderRequest",
     "AmendOrderResponse",
     "Announcement",
@@ -162,6 +180,7 @@ __all__ = [
     "EventCandlesticks",
     "EventMetadata",
     "EventPosition",
+    "EventStatusLiteral",
     "ExchangeStatus",
     "Fill",
     "ForecastPercentilesPoint",
@@ -188,6 +207,8 @@ __all__ = [
     "GetTagsForSeriesCategoriesResponse",
     "HistoricalCutoff",
     "IncentiveProgram",
+    "IncentiveProgramStatusLiteral",
+    "IncentiveProgramTypeLiteral",
     "LiveData",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
@@ -197,12 +218,17 @@ __all__ = [
     "MarketCandlesticks",
     "MarketMetadata",
     "MarketPosition",
+    "MarketStatusLiteral",
     "Milestone",
+    "MultivariateCollectionStatusLiteral",
     "MultivariateEventCollection",
+    "MveFilterLiteral",
+    "MveHistoricalFilterLiteral",
     "MveSelectedLeg",
     "Order",
     "OrderGroup",
     "OrderQueuePosition",
+    "OrderStatusLiteral",
     "Orderbook",
     "OrderbookLevel",
     "Page",
@@ -214,16 +240,20 @@ __all__ = [
     "Quote",
     "Schedule",
     "ScopeList",
+    "SelfTradePreventionTypeLiteral",
     "Series",
     "SeriesFeeChange",
     "Settlement",
     "SettlementSource",
+    "SettlementStatusLiteral",
+    "SideLiteral",
     "SportFilterDetails",
     "StructuredTarget",
     "SubaccountBalance",
     "SubaccountNettingConfig",
     "SubaccountTransfer",
     "TickerPair",
+    "TimeInForceLiteral",
     "TotalRestingOrderValue",
     "Trade",
     "UpdateOrderGroupLimitRequest",
