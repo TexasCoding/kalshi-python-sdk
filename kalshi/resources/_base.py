@@ -33,12 +33,7 @@ def _bool_param(value: bool | None) -> str | None:
 
 
 def _check_request_exclusive(request: Any, **kwargs: Any) -> None:
-    """Validate the model-first overload: if ``request`` is provided, no
-    individual kwargs may also be set. Raises ``TypeError`` otherwise.
-
-    Used by resource methods that accept either ``request=ModelType(...)``
-    or the corresponding individual kwargs. Issue #56.
-    """
+    """Raise TypeError if ``request`` is set together with any individual kwarg."""
     if request is None:
         return
     provided = [k for k, v in kwargs.items() if v is not None]

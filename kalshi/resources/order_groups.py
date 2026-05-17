@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+from typing import overload
 
 from kalshi.models.order_groups import (
     CreateOrderGroupRequest,
@@ -38,6 +39,14 @@ class OrderGroupsResource(SyncResource):
         data = self._get(f"/portfolio/order_groups/{order_group_id}", params=params)
         return GetOrderGroupResponse.model_validate(data)
 
+    @overload
+    def create(
+        self, *, request: CreateOrderGroupRequest,
+    ) -> CreateOrderGroupResponse: ...
+    @overload
+    def create(
+        self, *, contracts_limit: int, subaccount: int | None = ...,
+    ) -> CreateOrderGroupResponse: ...
     def create(
         self,
         *,
@@ -84,6 +93,14 @@ class OrderGroupsResource(SyncResource):
             f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
         )
 
+    @overload
+    def update_limit(
+        self, order_group_id: str, *, request: UpdateOrderGroupLimitRequest,
+    ) -> None: ...
+    @overload
+    def update_limit(
+        self, order_group_id: str, *, contracts_limit: int,
+    ) -> None: ...
     def update_limit(
         self,
         order_group_id: str,
@@ -125,6 +142,14 @@ class AsyncOrderGroupsResource(AsyncResource):
         )
         return GetOrderGroupResponse.model_validate(data)
 
+    @overload
+    async def create(
+        self, *, request: CreateOrderGroupRequest,
+    ) -> CreateOrderGroupResponse: ...
+    @overload
+    async def create(
+        self, *, contracts_limit: int, subaccount: int | None = ...,
+    ) -> CreateOrderGroupResponse: ...
     async def create(
         self,
         *,
@@ -175,6 +200,14 @@ class AsyncOrderGroupsResource(AsyncResource):
             f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
         )
 
+    @overload
+    async def update_limit(
+        self, order_group_id: str, *, request: UpdateOrderGroupLimitRequest,
+    ) -> None: ...
+    @overload
+    async def update_limit(
+        self, order_group_id: str, *, contracts_limit: int,
+    ) -> None: ...
     async def update_limit(
         self,
         order_group_id: str,

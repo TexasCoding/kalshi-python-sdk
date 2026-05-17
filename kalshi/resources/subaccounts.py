@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from typing import overload
 from uuid import UUID
 
 from kalshi.models.common import Page
@@ -39,6 +40,17 @@ class SubaccountsResource(SyncResource):
         data = self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
+    @overload
+    def transfer(self, *, request: ApplySubaccountTransferRequest) -> None: ...
+    @overload
+    def transfer(
+        self,
+        *,
+        client_transfer_id: UUID | str,
+        from_subaccount: int,
+        to_subaccount: int,
+        amount_cents: int,
+    ) -> None: ...
     def transfer(
         self,
         *,
@@ -110,6 +122,14 @@ class SubaccountsResource(SyncResource):
             params=params,
         )
 
+    @overload
+    def update_netting(
+        self, *, request: UpdateSubaccountNettingRequest,
+    ) -> None: ...
+    @overload
+    def update_netting(
+        self, *, subaccount_number: int, enabled: bool,
+    ) -> None: ...
     def update_netting(
         self,
         *,
@@ -149,6 +169,19 @@ class AsyncSubaccountsResource(AsyncResource):
         data = await self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
+    @overload
+    async def transfer(
+        self, *, request: ApplySubaccountTransferRequest,
+    ) -> None: ...
+    @overload
+    async def transfer(
+        self,
+        *,
+        client_transfer_id: UUID | str,
+        from_subaccount: int,
+        to_subaccount: int,
+        amount_cents: int,
+    ) -> None: ...
     async def transfer(
         self,
         *,
@@ -219,6 +252,14 @@ class AsyncSubaccountsResource(AsyncResource):
         ):
             yield item
 
+    @overload
+    async def update_netting(
+        self, *, request: UpdateSubaccountNettingRequest,
+    ) -> None: ...
+    @overload
+    async def update_netting(
+        self, *, subaccount_number: int, enabled: bool,
+    ) -> None: ...
     async def update_netting(
         self,
         *,

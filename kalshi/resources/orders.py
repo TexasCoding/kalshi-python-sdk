@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
+from typing import overload
 
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
@@ -33,6 +34,29 @@ from kalshi.types import to_decimal
 class OrdersResource(SyncResource):
     """Sync orders API."""
 
+    @overload
+    def create(self, *, request: CreateOrderRequest) -> Order: ...
+    @overload
+    def create(
+        self,
+        *,
+        ticker: str,
+        side: str,
+        action: str | None = ...,
+        count: int | None = ...,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        client_order_id: str | None = ...,
+        expiration_ts: int | None = ...,
+        buy_max_cost: int | None = ...,
+        time_in_force: str | None = ...,
+        post_only: bool | None = ...,
+        reduce_only: bool | None = ...,
+        self_trade_prevention_type: str | None = ...,
+        order_group_id: str | None = ...,
+        cancel_order_on_pause: bool | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
     def create(
         self,
         *,
@@ -169,6 +193,17 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
+    @overload
+    def batch_create(
+        self,
+        *,
+        request: BatchCreateOrdersRequest,
+    ) -> builtins.list[Order]: ...
+    @overload
+    def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest],
+    ) -> builtins.list[Order]: ...
     def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
@@ -188,6 +223,17 @@ class OrdersResource(SyncResource):
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
+    @overload
+    def batch_cancel(
+        self,
+        *,
+        request: BatchCancelOrdersRequest,
+    ) -> None: ...
+    @overload
+    def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None: ...
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
@@ -270,6 +316,25 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
+    @overload
+    def amend(
+        self, order_id: str, *, request: AmendOrderRequest,
+    ) -> AmendOrderResponse: ...
+    @overload
+    def amend(
+        self,
+        order_id: str,
+        *,
+        ticker: str,
+        side: str,
+        action: str,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        count: int | None = ...,
+        client_order_id: str | None = ...,
+        updated_client_order_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> AmendOrderResponse: ...
     def amend(
         self,
         order_id: str,
@@ -319,6 +384,19 @@ class OrdersResource(SyncResource):
         data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
+    @overload
+    def decrease(
+        self, order_id: str, *, request: DecreaseOrderRequest,
+    ) -> Order: ...
+    @overload
+    def decrease(
+        self,
+        order_id: str,
+        *,
+        reduce_by: int | None = ...,
+        reduce_to: int | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
     def decrease(
         self,
         order_id: str,
@@ -384,6 +462,29 @@ class OrdersResource(SyncResource):
 class AsyncOrdersResource(AsyncResource):
     """Async orders API."""
 
+    @overload
+    async def create(self, *, request: CreateOrderRequest) -> Order: ...
+    @overload
+    async def create(
+        self,
+        *,
+        ticker: str,
+        side: str,
+        action: str | None = ...,
+        count: int | None = ...,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        client_order_id: str | None = ...,
+        expiration_ts: int | None = ...,
+        buy_max_cost: int | None = ...,
+        time_in_force: str | None = ...,
+        post_only: bool | None = ...,
+        reduce_only: bool | None = ...,
+        self_trade_prevention_type: str | None = ...,
+        order_group_id: str | None = ...,
+        cancel_order_on_pause: bool | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
     async def create(
         self,
         *,
@@ -521,6 +622,17 @@ class AsyncOrdersResource(AsyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
+    @overload
+    async def batch_create(
+        self,
+        *,
+        request: BatchCreateOrdersRequest,
+    ) -> builtins.list[Order]: ...
+    @overload
+    async def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest],
+    ) -> builtins.list[Order]: ...
     async def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
@@ -540,6 +652,17 @@ class AsyncOrdersResource(AsyncResource):
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
+    @overload
+    async def batch_cancel(
+        self,
+        *,
+        request: BatchCancelOrdersRequest,
+    ) -> None: ...
+    @overload
+    async def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None: ...
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
@@ -622,6 +745,25 @@ class AsyncOrdersResource(AsyncResource):
         )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
+    @overload
+    async def amend(
+        self, order_id: str, *, request: AmendOrderRequest,
+    ) -> AmendOrderResponse: ...
+    @overload
+    async def amend(
+        self,
+        order_id: str,
+        *,
+        ticker: str,
+        side: str,
+        action: str,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        count: int | None = ...,
+        client_order_id: str | None = ...,
+        updated_client_order_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> AmendOrderResponse: ...
     async def amend(
         self,
         order_id: str,
@@ -671,6 +813,19 @@ class AsyncOrdersResource(AsyncResource):
         data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
+    @overload
+    async def decrease(
+        self, order_id: str, *, request: DecreaseOrderRequest,
+    ) -> Order: ...
+    @overload
+    async def decrease(
+        self,
+        order_id: str,
+        *,
+        reduce_by: int | None = ...,
+        reduce_to: int | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
     async def decrease(
         self,
         order_id: str,

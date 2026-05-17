@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+from typing import overload
 
 from kalshi.models.api_keys import (
     CreateApiKeyRequest,
@@ -31,6 +32,16 @@ class ApiKeysResource(SyncResource):
         data = self._get("/api_keys")
         return GetApiKeysResponse.model_validate(data)
 
+    @overload
+    def create(self, *, request: CreateApiKeyRequest) -> CreateApiKeyResponse: ...
+    @overload
+    def create(
+        self,
+        *,
+        name: str,
+        public_key: str,
+        scopes: builtins.list[str] | None = ...,
+    ) -> CreateApiKeyResponse: ...
     def create(
         self,
         *,
@@ -56,6 +67,15 @@ class ApiKeysResource(SyncResource):
         data = self._post("/api_keys", json=body)
         return CreateApiKeyResponse.model_validate(data)
 
+    @overload
+    def generate(self, *, request: GenerateApiKeyRequest) -> GenerateApiKeyResponse: ...
+    @overload
+    def generate(
+        self,
+        *,
+        name: str,
+        scopes: builtins.list[str] | None = ...,
+    ) -> GenerateApiKeyResponse: ...
     def generate(
         self,
         *,
@@ -88,6 +108,16 @@ class AsyncApiKeysResource(AsyncResource):
         data = await self._get("/api_keys")
         return GetApiKeysResponse.model_validate(data)
 
+    @overload
+    async def create(self, *, request: CreateApiKeyRequest) -> CreateApiKeyResponse: ...
+    @overload
+    async def create(
+        self,
+        *,
+        name: str,
+        public_key: str,
+        scopes: builtins.list[str] | None = ...,
+    ) -> CreateApiKeyResponse: ...
     async def create(
         self,
         *,
@@ -113,6 +143,17 @@ class AsyncApiKeysResource(AsyncResource):
         data = await self._post("/api_keys", json=body)
         return CreateApiKeyResponse.model_validate(data)
 
+    @overload
+    async def generate(
+        self, *, request: GenerateApiKeyRequest,
+    ) -> GenerateApiKeyResponse: ...
+    @overload
+    async def generate(
+        self,
+        *,
+        name: str,
+        scopes: builtins.list[str] | None = ...,
+    ) -> GenerateApiKeyResponse: ...
     async def generate(
         self,
         *,

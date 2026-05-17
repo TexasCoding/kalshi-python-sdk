@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, overload
 
 from kalshi.models.common import Page
 from kalshi.models.communications import (
@@ -100,6 +100,20 @@ class CommunicationsResource(SyncResource):
         data = self._get(f"/communications/rfqs/{rfq_id}")
         return GetRFQResponse.model_validate(data)
 
+    @overload
+    def create_rfq(self, *, request: CreateRFQRequest) -> CreateRFQResponse: ...
+    @overload
+    def create_rfq(
+        self,
+        *,
+        market_ticker: str,
+        rest_remainder: bool,
+        contracts: int | None = ...,
+        target_cost: Decimal | str | float | int | None = ...,
+        replace_existing: bool | None = ...,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> CreateRFQResponse: ...
     def create_rfq(
         self,
         *,
@@ -204,6 +218,18 @@ class CommunicationsResource(SyncResource):
         data = self._get(f"/communications/quotes/{quote_id}")
         return GetQuoteResponse.model_validate(data)
 
+    @overload
+    def create_quote(self, *, request: CreateQuoteRequest) -> CreateQuoteResponse: ...
+    @overload
+    def create_quote(
+        self,
+        *,
+        rfq_id: str,
+        yes_bid: Decimal | str | float | int,
+        no_bid: Decimal | str | float | int,
+        rest_remainder: bool,
+        subaccount: int | None = ...,
+    ) -> CreateQuoteResponse: ...
     def create_quote(
         self,
         *,
@@ -243,6 +269,14 @@ class CommunicationsResource(SyncResource):
         self._require_auth()
         self._delete(f"/communications/quotes/{quote_id}")
 
+    @overload
+    def accept_quote(
+        self, quote_id: str, *, request: AcceptQuoteRequest,
+    ) -> None: ...
+    @overload
+    def accept_quote(
+        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+    ) -> None: ...
     def accept_quote(
         self,
         quote_id: str,
@@ -328,6 +362,20 @@ class AsyncCommunicationsResource(AsyncResource):
         data = await self._get(f"/communications/rfqs/{rfq_id}")
         return GetRFQResponse.model_validate(data)
 
+    @overload
+    async def create_rfq(self, *, request: CreateRFQRequest) -> CreateRFQResponse: ...
+    @overload
+    async def create_rfq(
+        self,
+        *,
+        market_ticker: str,
+        rest_remainder: bool,
+        contracts: int | None = ...,
+        target_cost: Decimal | str | float | int | None = ...,
+        replace_existing: bool | None = ...,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> CreateRFQResponse: ...
     async def create_rfq(
         self,
         *,
@@ -434,6 +482,20 @@ class AsyncCommunicationsResource(AsyncResource):
         data = await self._get(f"/communications/quotes/{quote_id}")
         return GetQuoteResponse.model_validate(data)
 
+    @overload
+    async def create_quote(
+        self, *, request: CreateQuoteRequest,
+    ) -> CreateQuoteResponse: ...
+    @overload
+    async def create_quote(
+        self,
+        *,
+        rfq_id: str,
+        yes_bid: Decimal | str | float | int,
+        no_bid: Decimal | str | float | int,
+        rest_remainder: bool,
+        subaccount: int | None = ...,
+    ) -> CreateQuoteResponse: ...
     async def create_quote(
         self,
         *,
@@ -473,6 +535,14 @@ class AsyncCommunicationsResource(AsyncResource):
         self._require_auth()
         await self._delete(f"/communications/quotes/{quote_id}")
 
+    @overload
+    async def accept_quote(
+        self, quote_id: str, *, request: AcceptQuoteRequest,
+    ) -> None: ...
+    @overload
+    async def accept_quote(
+        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+    ) -> None: ...
     async def accept_quote(
         self,
         quote_id: str,

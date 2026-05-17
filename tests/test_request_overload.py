@@ -218,6 +218,38 @@ class TestCreateApiKeyRequestOverload:
         assert kwarg_body == model_body
 
 
+class TestMissingRequiredKwargsRaisesTypeError:
+    """Calling a dispatcher with no request= and missing required kwargs.
+
+    One test per dispatcher shape (single-required, multi-required,
+    list-required) — locks in the runtime guard mypy's overloads enforce
+    statically.
+    """
+
+    def test_single_required_kwarg_missing(
+        self, api_keys: ApiKeysResource,
+    ) -> None:
+        # generate() requires `name` (one required kwarg).
+        with pytest.raises(TypeError, match=r"generate\(\) requires `name`"):
+            api_keys.generate()
+
+    def test_multi_required_kwargs_missing(
+        self, orders: OrdersResource,
+    ) -> None:
+        # create() requires `ticker` and `side`. Passing only one raises.
+        with pytest.raises(TypeError, match=r"create\(\) requires `ticker` and `side`"):
+            orders.create(ticker="MKT")
+
+    def test_list_required_kwarg_missing(
+        self, orders: OrdersResource,
+    ) -> None:
+        # batch_create() requires `orders` (the list). Zero-args raises.
+        with pytest.raises(
+            TypeError, match=r"batch_create\(\) requires `orders`",
+        ):
+            orders.batch_create()
+
+
 class TestCreateMarketRequestOverload:
     """`multivariate.create_market` — nested-list model + positional path param."""
 
