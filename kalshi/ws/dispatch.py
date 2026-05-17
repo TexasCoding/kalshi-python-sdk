@@ -215,8 +215,7 @@ class MessageDispatcher:
             except Exception as exc:
                 # Drop exc_info: Pydantic's ValidationError __str__ echoes the
                 # full input including trade payload (price, count, user fields)
-                # straight into log sinks. Surface type + exception class only;
-                # the underlying exception is preserved on __cause__ for debug.
+                # straight into log sinks. Surface type + exception class only.
                 logger.warning(
                     "Failed to parse %s message: %s",
                     msg_type, type(exc).__name__,
