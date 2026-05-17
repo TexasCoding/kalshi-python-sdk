@@ -7,11 +7,15 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (89 endpoints across 19 resources) and WebSocket API (12 message types).
+- **Full coverage** of the Kalshi REST API (90 endpoints across 19 resources) and WebSocket API (11 channels).
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
-- **Typed end-to-end**: Pydantic v2 models, `mypy --strict` clean, ships `py.typed`.
+- **Typed end-to-end**: Pydantic v2 models, `mypy --strict` clean, ships `py.typed`. `Literal` types on fixed-enum kwargs.
 - **Spec-aligned with drift guards**: hard-fail contract tests catch query, body, and WebSocket payload drift on every commit.
 - **Safe defaults**: only idempotent verbs (`GET`/`HEAD`/`OPTIONS`) retry; `POST`/`DELETE` never retry to avoid duplicate orders or cancels.
+- **DataFrame-ready**: optional `pandas` / `polars` extras for analysis workflows.
+- **Offline-testable**: record/replay mock transport (`kalshi.testing`) for SDK consumers building integration tests.
+
+📖 Full documentation: <https://texascoding.github.io/kalshi-python-sdk/>
 
 ## Install
 
@@ -120,6 +124,19 @@ with KalshiClient.from_env() as client:
 Prices are decimal dollars (e.g. `"0.65"`) per the Kalshi spec. Internally
 the SDK uses `Decimal` via the `DollarDecimal` type — never `float`.
 
+Every POST/PUT/DELETE-with-body method also accepts a pre-built request model
+as an alternative to individual kwargs (useful for programmatic order
+construction):
+
+```python
+from kalshi import CreateOrderRequest
+
+client.orders.create(request=CreateOrderRequest(
+    ticker="EXAMPLE-25-T", side="yes", action="buy",
+    count=10, yes_price="0.65",
+))
+```
+
 ## WebSocket streaming
 
 ```python
@@ -140,7 +157,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels: `ticker`, `trade`, `orderbook_delta`, `fill`,
+Available channels (11): `ticker`, `trade`, `orderbook_delta`, `fill`,
 `market_positions`, `user_orders`, `order_group`, `market_lifecycle`,
 `multivariate`, `multivariate_lifecycle`, `communications`.
 
@@ -213,10 +230,46 @@ for market in client.markets.list_all(status="open"):
     ...
 ```
 
+`Page[T]` also converts to a DataFrame when the optional extras are installed:
+
+```bash
+pip install 'kalshi-sdk[pandas]'   # or [polars] or [all]
+```
+
+```python
+df = client.markets.list(status="open", limit=100).to_dataframe()
+# Decimal and datetime preserved as native types in object columns.
+```
+
+## Testing against the SDK (no live API)
+
+For SDK consumers who want offline integration tests, `kalshi.testing` ships
+record-and-replay transports:
+
+```python
+from kalshi import KalshiClient
+from kalshi.testing import RecordingTransport, ReplayTransport
+
+# Record once against the real demo API:
+with KalshiClient.from_env(transport=RecordingTransport("fixtures")) as c:
+    c.exchange.status()
+
+# Replay in tests — no network:
+with KalshiClient(transport=ReplayTransport("fixtures")) as c:
+    c.exchange.status()  # served from fixtures/GET_*.json
+```
+
+Fixtures are JSON; the fingerprint ignores `KALSHI-ACCESS-SIGNATURE` and
+`KALSHI-ACCESS-TIMESTAMP` so signature drift between record and replay does not
+break matching. **Always `.gitignore` the fixture directory when recording
+against an authenticated account** — fixtures contain the full response body
+(balances, positions, PII).
+
 ## Resources
 
 | | |
 |---|---|
+| **Documentation site** | https://texascoding.github.io/kalshi-python-sdk/ |
 | **Kalshi REST OpenAPI spec** | https://docs.kalshi.com/openapi.yaml |
 | **Kalshi WebSocket AsyncAPI spec** | https://docs.kalshi.com/asyncapi.yaml |
 | **Production base URL** | `https://api.elections.kalshi.com/trade-api/v2` |
