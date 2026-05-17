@@ -9,7 +9,6 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiNotFoundError
 from kalshi.models.order_groups import (
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
