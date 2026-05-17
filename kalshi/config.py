@@ -6,6 +6,8 @@ import logging
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
+import httpx
+
 PRODUCTION_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 DEMO_BASE_URL = "https://demo-api.kalshi.co/trade-api/v2"
 
@@ -34,6 +36,10 @@ class KalshiConfig:
         max_retries: Max retry attempts for transient errors. Defaults to 3.
         retry_base_delay: Base delay in seconds for exponential backoff. Defaults to 0.5.
         retry_max_delay: Maximum delay in seconds for backoff. Defaults to 30.
+        http2: Enable HTTP/2 for REST requests. Off by default for compat.
+            Requires the ``h2`` package (install ``httpx[http2]`` or ``h2``).
+        limits: Custom ``httpx.Limits`` for connection pool tuning. ``None``
+            uses httpx defaults.
     """
 
     base_url: str = PRODUCTION_BASE_URL  # trailing slash is stripped automatically
@@ -44,6 +50,8 @@ class KalshiConfig:
     extra_headers: dict[str, str] = field(default_factory=dict)
     ws_base_url: str = PRODUCTION_WS_URL  # trailing slash is stripped automatically
     ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
+    http2: bool = False
+    limits: httpx.Limits | None = None
 
     def __post_init__(self) -> None:
         # Strip trailing slash to prevent double-slash in auth signing paths

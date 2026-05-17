@@ -64,6 +64,14 @@ jobs:
           KALSHI_KEY_ID: ${{ secrets.KALSHI_KEY_ID }}
         run: uv run pytest tests/integration/ -v
 
+      - name: Shred Kalshi private key
+        if: always() && steps.guard.outputs.has_secrets == 'true'
+        run: |
+          KEY_PATH="${RUNNER_TEMP}/kalshi_private_key.pem"
+          if [ -f "${KEY_PATH}" ]; then
+            shred -u "${KEY_PATH}" || rm -f "${KEY_PATH}"
+          fi
+
       - name: Report failure to GitHub Issue
         if: failure() && steps.guard.outputs.has_secrets == 'true' && steps.pytest.outcome == 'failure'
         env:

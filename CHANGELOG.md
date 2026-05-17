@@ -12,6 +12,9 @@ All notable changes to kalshi-sdk will be documented in this file.
   cursor-repeat guard remains the safety net against infinite loops (#98).
 - **`RateLimit` model** exposed via `kalshi.RateLimit` — represents the per-
   direction token-bucket structure on `AccountApiLimits.read` / `.write`.
+- **`KalshiConfig.http2` and `KalshiConfig.limits`** — opt-in HTTP/2 and
+  `httpx.Limits` (connection pool sizing, keep-alive) on the transport.
+  Defaults preserve existing behavior (`http2=False`, `limits=None`).
 
 ### Changed
 

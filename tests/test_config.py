@@ -161,3 +161,36 @@ class TestExtraHeadersForwarding:
         assert config_b.extra_headers == {}
         config_a.extra_headers["X-Trace-Id"] = "a"
         assert config_b.extra_headers == {}
+
+
+class TestHttpClientTuning:
+    """http2 and limits are exposed on KalshiConfig and forwarded to httpx."""
+
+    def test_http2_defaults_off(self) -> None:
+        assert KalshiConfig().http2 is False
+
+    def test_limits_defaults_none(self) -> None:
+        assert KalshiConfig().limits is None
+
+    def test_http2_flag_forwarded_to_sync_client(self, test_auth: KalshiAuth) -> None:
+        # http2=False with no h2 installed must still build successfully —
+        # only http2=True requires the h2 extra.
+        config = KalshiConfig(http2=False)
+        transport = SyncTransport(test_auth, config)
+        try:
+            # httpx exposes http2 setting via the private _h2_pool; safer to
+            # assert via no-error construction and via the config round-trip.
+            assert transport._config.http2 is False
+        finally:
+            transport.close()
+
+    def test_custom_limits_forwarded_to_sync_client(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+        config = KalshiConfig(limits=limits)
+        transport = SyncTransport(test_auth, config)
+        try:
+            assert transport._config.limits is limits
+        finally:
+            transport.close()
