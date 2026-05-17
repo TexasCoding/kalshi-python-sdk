@@ -203,7 +203,7 @@ class TestPauseDoesNotDropFrames:
 
             # Restore original dispatch and resume
             session._dispatcher.dispatch = original_dispatch  # type: ignore[method-assign]
-            session._resume_recv_loop()
+            session._ensure_recv_loop()
 
 
 # ---------------------------------------------------------------------------

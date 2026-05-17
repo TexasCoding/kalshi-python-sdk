@@ -128,8 +128,11 @@ class ConnectionManager:
             # F-O-09: don't interpolate the underlying exception string —
             # it may include the full ws URL with query params and leak into
             # uncaught-exception sinks. The cause is preserved via `__cause__`.
+            # Include the path (no query string) for debug context; per
+            # F-O-09 the original exception's URL stays out of __str__.
+            ws_path = urlparse(self._config.ws_base_url).path
             raise KalshiConnectionError(
-                "WebSocket connection failed"
+                f"WebSocket connection failed: {ws_path}"
             ) from e
 
     async def reconnect(self) -> None:

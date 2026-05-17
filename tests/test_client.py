@@ -386,8 +386,12 @@ class TestErrorMessageDoesNotLeakUrl:
         ))
         with pytest.raises(KalshiError) as exc_info:
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
-        assert "SUPER_SECRET_TOKEN" not in str(exc_info.value)
-        assert "kalshi.com" not in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert "SUPER_SECRET_TOKEN" not in msg
+        assert "kalshi.com" not in msg
+        # Method + relative path are safe debug context and SHOULD appear.
+        assert "POST" in msg
+        assert "/portfolio/orders" in msg
 
     @respx.mock
     def test_httperror_message_does_not_contain_url(
@@ -402,8 +406,12 @@ class TestErrorMessageDoesNotLeakUrl:
         ))
         with pytest.raises(KalshiError) as exc_info:
             transport.request("GET", "/markets")
-        assert "LEAKY" not in str(exc_info.value)
-        assert "kalshi.com" not in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert "LEAKY" not in msg
+        assert "kalshi.com" not in msg
+        # Method + relative path are safe debug context and SHOULD appear.
+        assert "GET" in msg
+        assert "/markets" in msg
 
 
 class TestKalshiClientConstructor:

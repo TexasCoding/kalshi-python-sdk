@@ -9,7 +9,7 @@ from typing import Any
 
 from websockets.exceptions import ConnectionClosed
 
-from kalshi.errors import KalshiConnectionError
+from kalshi.errors import KalshiConnectionError, KalshiSubscriptionError
 from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
 from kalshi.ws.connection import ConnectionManager
 
@@ -86,7 +86,6 @@ class SubscriptionManager:
         while True:
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-                from kalshi.errors import KalshiSubscriptionError
 
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}"
@@ -138,7 +137,6 @@ class SubscriptionManager:
         # Read frames until we get our subscribe ack (by matching id)
         data = await self._wait_for_response(msg_id)
         if data.get("type") == "error":
-            from kalshi.errors import KalshiSubscriptionError
 
             error_msg = data.get("msg", {})
             raise KalshiSubscriptionError(
@@ -192,7 +190,6 @@ class SubscriptionManager:
         """Add or remove markets from an existing subscription."""
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
-            from kalshi.errors import KalshiSubscriptionError
 
             raise KalshiSubscriptionError("Subscription not found or not active")
 
@@ -238,7 +235,6 @@ class SubscriptionManager:
 
                 data = await self._wait_for_response(msg_id)
                 if data.get("type") == "error":
-                    from kalshi.errors import KalshiSubscriptionError
 
                     error_msg = data.get("msg", {})
                     raise KalshiSubscriptionError(

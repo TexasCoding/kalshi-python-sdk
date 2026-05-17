@@ -108,8 +108,13 @@ class TestConnectionManagerConnect:
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         with pytest.raises(KalshiConnectionError) as exc_info:
             await mgr.connect()
-        assert "SUPER_SECRET_TOKEN" not in str(exc_info.value)
-        assert "127.0.0.1" not in str(exc_info.value)
+        msg = str(exc_info.value)
+        assert "SUPER_SECRET_TOKEN" not in msg
+        assert "127.0.0.1" not in msg
+        # The ws path (no query) is safe context and SHOULD appear.
+        # Our test config sets ws_base_url to a URL without an explicit path,
+        # so urlparse returns "" — assert by not crashing rather than substring.
+        assert "WebSocket connection failed" in msg
 
     async def test_close_when_already_disconnected(
         self, test_auth: object

@@ -144,10 +144,6 @@ class KalshiWebSocket:
                 await self._recv_task
             self._recv_task = None
 
-    def _resume_recv_loop(self) -> None:
-        """Resume the recv loop after subscribe finishes."""
-        self._ensure_recv_loop()
-
     async def _recv_loop(self) -> None:
         """Background task: read frames, dispatch, handle reconnect."""
         assert self._connection is not None
@@ -172,11 +168,18 @@ class KalshiWebSocket:
             # frame has been read off the socket, we MUST dispatch it before
             # honoring cancellation, otherwise the frame is silently dropped
             # (seq trackers miss the gap, ticker frames vanish, etc.).
+            #
+            # IMPORTANT: hold the inner task in a local. `asyncio.shield(coro)`
+            # creates a detached background task and returns control on outer
+            # cancel — without the explicit `await inner`, dispatch keeps
+            # running after `break` and races a subsequent subscribe.
+            inner = asyncio.ensure_future(self._process_frame(raw))
             try:
-                await asyncio.shield(self._process_frame(raw))
+                await asyncio.shield(inner)
             except asyncio.CancelledError:
-                # Frame has been dispatched (shield protected the inner work).
-                # Now honor the outer cancellation.
+                # Block until the shielded dispatch actually finishes, then
+                # honor cancellation. Loop exit now strictly post-dispatch.
+                await inner
                 break
             except (KalshiBackpressureError, KalshiSubscriptionError):
                 # #83: these signal real consumer-visible problems. Propagate
@@ -255,7 +258,9 @@ class KalshiWebSocket:
                     # ConnectionManager's name-mangled _set_state.
                     await self._connection.mark_streaming()
             except Exception as reconnect_err:
-                logger.error("Reconnect failed: %s", reconnect_err)
+                logger.error(
+                    "Reconnect failed: %s", reconnect_err, exc_info=True,
+                )
                 if self._sub_mgr:
                     for sub in self._sub_mgr.active_subscriptions.values():
                         await sub.queue.put_sentinel()
@@ -300,8 +305,8 @@ class KalshiWebSocket:
                     channel, params=params, overflow=overflow, maxsize=maxsize,
                 )
             finally:
-                # Always restart/resume recv loop, even if subscribe fails
-                self._resume_recv_loop()
+                # Always restart/resume recv loop, even if subscribe fails.
+                self._ensure_recv_loop()
         return sub.queue
 
     # ------------------------------------------------------------------
