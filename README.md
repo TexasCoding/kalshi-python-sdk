@@ -7,7 +7,7 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (90 endpoints across 19 resources) and WebSocket API (11 channels).
+- **Full coverage** of the Kalshi REST API (89 endpoints across 19 resources) and WebSocket API (11 channels).
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
 - **Typed end-to-end**: Pydantic v2 models, `mypy --strict` clean, ships `py.typed`. `Literal` types on fixed-enum kwargs.
 - **Spec-aligned with drift guards**: hard-fail contract tests catch query, body, and WebSocket payload drift on every commit.

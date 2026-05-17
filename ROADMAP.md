@@ -20,5 +20,5 @@ See `CHANGELOG.md` for full release history.
   record/replay mock transport, MkDocs documentation site, `Literal` enum
   kwargs, sync/async dedup refactor, weekly spec sync + nightly integration
   CI workflows.
-- **v1.0.0 (2026-05-10)** — public API stable. 89/89 REST endpoints, 12 WS
-  message types, contract drift tests, PyPI trusted-publisher release pipeline.
+- **v1.0.0 (2026-05-10)** — public API stable. 89/89 REST endpoints, 11 WS
+  channels, contract drift tests, PyPI trusted-publisher release pipeline.

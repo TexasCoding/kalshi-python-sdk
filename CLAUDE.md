@@ -79,7 +79,7 @@ tests/
   _contract_support.py     # Contract test helpers
   integration/             # Live API integration tests
   ws/                      # WebSocket tests
-  test_*.py                # Per-resource + per-feature tests (827 total)
+  test_*.py                # Per-resource + per-feature tests
 ```
 
 ## Key conventions
@@ -116,7 +116,7 @@ tests/
 
 ## Testing
 
-- pytest + pytest-asyncio + respx (httpx mock); 917 tests.
+- pytest + pytest-asyncio + respx (httpx mock); 1455 tests collected (1407 passing, 48 skipped without live credentials).
 - Use `respx.mock` for HTTP mocking. Generate test RSA keys via conftest.py fixtures.
 - New function → write a test. Bug fix → write a regression test. New error path → write a test that triggers it.
 

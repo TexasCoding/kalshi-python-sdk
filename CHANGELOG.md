@@ -150,12 +150,12 @@ runtime anyway (or that were always wrong but mypy couldn't see it).
 
 ### Coverage at 1.1.0
 
-- 90/90 REST endpoints implemented (sync + async); auth-guard audit complete
+- 89/89 REST endpoints implemented (sync + async); auth-guard audit complete
   across public resources.
 - 11 WebSocket channels with sequence-gap detection, configurable backpressure,
   and automatic reconnection.
-- **1407 unit tests** (up from 899 at 1.0.0), mypy `--strict` clean (75 source
-  files), ruff clean.
+- **1407 unit tests passing** (1455 collected, 48 skipped — up from 899 at
+  1.0.0), mypy `--strict` clean (76 source files), ruff clean.
 - Drift tests now detect query/path/body/WS-payload schema drift _and_ nested
   body-model drift.
 - Optional extras: `pandas`, `polars`, `all`, `docs`.
