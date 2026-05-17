@@ -431,13 +431,15 @@ class TestMaxPagesNoneIsUnbounded:
     def test_sync_iterates_past_1000_pages(
         self, test_auth: KalshiAuth, test_config: KalshiConfig,
     ) -> None:
-        # Page N returns cursor str(N+1) for the first 1100 pages, then empty.
+        # 1010 just exceeds the old 1000 cap — proves the cap is gone without
+        # making the test 100x slower than a normal pagination test.
+        total = 1010
         call_counter = {"n": 0}
 
         def responder(request: httpx.Request) -> httpx.Response:
             call_counter["n"] += 1
             n = call_counter["n"]
-            cursor = str(n) if n < 1100 else ""
+            cursor = str(n) if n < total else ""
             return httpx.Response(
                 200, json={"items": [{"id": f"i{n}"}], "cursor": cursor},
             )
@@ -445,4 +447,4 @@ class TestMaxPagesNoneIsUnbounded:
         respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responder)
         resource = SyncResource(SyncTransport(test_auth, test_config))
         items = list(resource._list_all("/things", _Item, "items"))
-        assert len(items) == 1100, f"Expected 1100 items, got {len(items)} (cap leaked?)"
+        assert len(items) == total, f"Expected {total} items, got {len(items)} (cap leaked?)"

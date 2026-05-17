@@ -286,7 +286,10 @@ class AsyncResource:
         max_pages: int | None = None,
         cursor_key: str = "cursor",
     ) -> AsyncIterator[T]:
-        """Async counterpart of :meth:`SyncResource._list_all`."""
+        """Async counterpart of :meth:`SyncResource._list_all`.
+
+        Raises ``KalshiError`` on repeated cursor; see sync docstring.
+        """
         current_params = dict(params) if params else {}
         seen_cursors: set[str] = set()
         pages_fetched = 0
