@@ -275,6 +275,55 @@ class TestKalshiClientConstructor:
         client.close()
 
 
+class TestBaseUrlValidation:
+    """Regression: issue #94.
+
+    KALSHI_API_BASE_URL is reachable via env var on any deployment plane;
+    accepting an arbitrary scheme/host lets an attacker route signed
+    requests with the KALSHI-ACCESS-KEY header to a host they control.
+    Config must reject non-http(s) schemes and plaintext-to-remote-host;
+    warn (but allow) when the host isn't the known Kalshi production or
+    demo endpoint.
+    """
+
+    def test_https_to_known_host_is_silent(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(base_url=PRODUCTION_BASE_URL)
+        assert "is not a known Kalshi endpoint" not in caplog.text
+
+    def test_https_to_unknown_host_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(base_url="https://attacker.example/trade-api/v2")
+        assert "not a known Kalshi endpoint" in caplog.text
+
+    def test_http_to_loopback_is_allowed(self) -> None:
+        # Local mock servers (e.g., respx, fake-API harnesses) must keep working.
+        for host in ("localhost", "127.0.0.1", "[::1]"):
+            cfg = KalshiConfig(base_url=f"http://{host}:8000/trade-api/v2")
+            assert cfg.base_url.startswith("http://")
+
+    def test_http_to_remote_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="https://"):
+            KalshiConfig(base_url="http://api.elections.kalshi.com/trade-api/v2")
+
+    def test_http_to_attacker_rejected(self) -> None:
+        with pytest.raises(ValueError, match="https://"):
+            KalshiConfig(base_url="http://attacker.example/trade-api/v2")
+
+    def test_non_http_scheme_rejected(self) -> None:
+        with pytest.raises(ValueError, match="http://"):
+            KalshiConfig(base_url="ftp://api.elections.kalshi.com/trade-api/v2")
+
+    def test_file_scheme_rejected(self) -> None:
+        # urlparse on file:///etc/passwd yields scheme=file, no host.
+        with pytest.raises(ValueError):
+            KalshiConfig(base_url="file:///etc/passwd")
+
+    def test_missing_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="missing a host"):
+            KalshiConfig(base_url="https:///trade-api/v2")
+
+
 class TestSyncTransportUnauthenticated:
     """Tests for SyncTransport with auth=None (unauthenticated mode)."""
 
