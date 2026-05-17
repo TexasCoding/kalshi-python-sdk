@@ -181,7 +181,7 @@ class BidAskDistribution(BaseModel):
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
-    model_config = {"populate_by_name": True, "extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class PriceDistribution(BaseModel):
@@ -207,7 +207,7 @@ class PriceDistribution(BaseModel):
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
-    model_config = {"populate_by_name": True, "extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class Candlestick(BaseModel):
