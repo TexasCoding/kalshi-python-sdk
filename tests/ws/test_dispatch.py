@@ -181,6 +181,66 @@ class TestMessageDispatcher:
         await dispatcher.dispatch(raw)
         assert len(errors) == 1
 
+    async def test_channel_level_error_routed_to_on_error(self) -> None:
+        """Regression for #82: error semantics on a typed envelope reach on_error.
+
+        Previously a message with type other than "error" but carrying an
+        `error` payload fell through to the unknown-type log path and was
+        silently dropped.
+        """
+        mgr = FakeSubManager()
+        errors: list[object] = []
+
+        async def on_error(err: object) -> None:
+            errors.append(err)
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr, on_error=on_error)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {
+                "type": "ticker",
+                "sid": 1,
+                "error": {"code": 7, "msg": "schema violation"},
+            }
+        )
+        await dispatcher.dispatch(raw)
+        assert len(errors) == 1
+
+    async def test_channel_level_error_logged_when_no_handler(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Without on_error, a channel-level error is logged at WARNING (#82)."""
+        import logging
+
+        mgr = FakeSubManager()
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {"type": "ticker", "sid": 1, "error": {"code": 7, "msg": "boom"}}
+        )
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            await dispatcher.dispatch(raw)
+        assert any(
+            "Channel-level error envelope" in r.message for r in caplog.records
+        )
+
+    async def test_channel_level_error_unrecognized_sid_still_surfaced(self) -> None:
+        """Error with a sid the dispatcher no longer knows still reaches on_error."""
+        mgr = FakeSubManager()  # no subs
+        errors: list[object] = []
+
+        async def on_error(err: object) -> None:
+            errors.append(err)
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr, on_error=on_error)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {
+                "type": "ticker",
+                "sid": 12345,  # post-unsubscribe race
+                "error": {"code": 9, "msg": "stale sid"},
+            }
+        )
+        await dispatcher.dispatch(raw)
+        assert len(errors) == 1
+
     async def test_all_channel_types_have_models(self) -> None:
         """Verify every expected channel type is in the dispatch map."""
         expected = {

@@ -123,6 +123,45 @@ class MessageDispatcher:
                 sub.channel, sid, client_id,
             )
 
+    async def _surface_channel_error(
+        self, msg_type: str, data: dict[str, Any]
+    ) -> None:
+        """Route a channel-level error envelope to on_error (#82).
+
+        AsyncAPI allows errors to ride on a typed message (e.g. a payload
+        with an `error` field, or an unrecognized type that still carries
+        error semantics) rather than the top-level type="error" envelope.
+        Previously these fell through to a debug log and were silently
+        dropped; surface them via on_error if registered, or log at
+        WARNING with the envelope contents so the user has a signal.
+        """
+        if self._on_error is not None:
+            # Best-effort: synthesize an ErrorMessage. If the payload
+            # doesn't match the strict schema, fall back to a logged warning.
+            try:
+                synthesized = {
+                    "id": data.get("id", 0),
+                    "type": "error",
+                    "msg": data.get("error")
+                    if isinstance(data.get("error"), dict)
+                    else data.get("msg"),
+                }
+                error = ErrorMessage.model_validate(synthesized)
+            except Exception:
+                logger.warning(
+                    "Channel-level error envelope (type=%s) could not be "
+                    "coerced to ErrorMessage: %s",
+                    msg_type, data,
+                )
+                return
+            await self._on_error(error)
+        else:
+            logger.warning(
+                "Channel-level error envelope (type=%s) with no on_error "
+                "handler registered: %s",
+                msg_type, data,
+            )
+
     async def dispatch(self, raw: str) -> None:
         """Parse a raw JSON frame and route it."""
         try:
@@ -140,6 +179,14 @@ class MessageDispatcher:
                 await self._on_error(error)
             elif msg_type == "unsubscribed":
                 await self._handle_server_unsubscribe(data)
+            return
+
+        # Channel-level error semantics on a non-"error" envelope (#82):
+        # AsyncAPI permits a typed message to carry an `error` field, or
+        # the server may emit an unknown type with error semantics. Route
+        # those to on_error rather than dropping them silently.
+        if "error" in data:
+            await self._surface_channel_error(msg_type, data)
             return
 
         # Parse into typed model
