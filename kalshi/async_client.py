@@ -122,6 +122,21 @@ class AsyncKalshiClient:
     def ws(self) -> KalshiWebSocket:
         """WebSocket client for real-time streaming.
 
+        .. note::
+            Each access returns a **new** ``KalshiWebSocket`` instance.
+            Per-instance state (callbacks registered via ``.on()``,
+            pending subscriptions) does not carry across accesses —
+            assign the property to a local variable if you need to share
+            state across multiple operations::
+
+                ws = client.ws  # capture once
+                @ws.on("ticker_v2")
+                async def handle(msg): ...
+                async with ws.connect() as session: ...
+
+            The sync ``KalshiClient`` does not expose ``.ws``; WebSocket
+            access is async-only.
+
         Usage::
 
             async with client.ws.connect() as session:
