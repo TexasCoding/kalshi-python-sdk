@@ -18,23 +18,36 @@ logger = logging.getLogger("kalshi.ws")
 class _BookState:
     """Internal mutable state for one ticker's orderbook.
 
+    Levels are stored price-indexed (``dict[Decimal, Decimal]``) so delta
+    application is O(1) regardless of book depth. The sorted
+    ``list[OrderbookLevel]`` exposed via :class:`Orderbook` is materialized
+    lazily in :meth:`to_orderbook` (O(n log n), but only when a snapshot is
+    actually emitted to a consumer).
+
     Kept separate from the public :class:`Orderbook` model so the manager can
     mutate freely without leaking changes to previously-handed-out snapshots.
     """
 
     ticker: str
-    yes: list[OrderbookLevel] = field(default_factory=list)
-    no: list[OrderbookLevel] = field(default_factory=list)
+    yes: dict[Decimal, Decimal] = field(default_factory=dict)
+    no: dict[Decimal, Decimal] = field(default_factory=dict)
 
     def to_orderbook(self) -> Orderbook:
         """Build a fresh ``Orderbook`` snapshot from the current state.
 
-        Lists are copied so subsequent mutations of internal state do not
-        affect the returned model. ``OrderbookLevel`` instances themselves
-        are immutable in practice (we replace rather than mutate them) so
-        they can be shared by reference.
+        Levels are emitted price-ascending to match the historical wire-order
+        contract that the previous list-backed implementation maintained via
+        ``list.sort`` after every insert.
         """
-        return Orderbook(ticker=self.ticker, yes=list(self.yes), no=list(self.no))
+        yes_levels = [
+            OrderbookLevel(price=price, quantity=qty)
+            for price, qty in sorted(self.yes.items())
+        ]
+        no_levels = [
+            OrderbookLevel(price=price, quantity=qty)
+            for price, qty in sorted(self.no.items())
+        ]
+        return Orderbook(ticker=self.ticker, yes=yes_levels, no=no_levels)
 
 
 class OrderbookManager:
@@ -63,14 +76,8 @@ class OrderbookManager:
     def apply_snapshot(self, msg: OrderbookSnapshotMessage) -> Orderbook:
         """Initialize (or reset) a book from a full snapshot."""
         ticker = msg.msg.market_ticker
-        yes_levels = [
-            OrderbookLevel(price=Decimal(p), quantity=Decimal(q))
-            for p, q in msg.msg.yes
-        ]
-        no_levels = [
-            OrderbookLevel(price=Decimal(p), quantity=Decimal(q))
-            for p, q in msg.msg.no
-        ]
+        yes_levels = {Decimal(p): Decimal(q) for p, q in msg.msg.yes}
+        no_levels = {Decimal(p): Decimal(q) for p, q in msg.msg.no}
         state = _BookState(ticker=ticker, yes=yes_levels, no=no_levels)
         self._books[ticker] = state
         logger.debug(
@@ -83,6 +90,10 @@ class OrderbookManager:
 
     def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:
         """Apply an incremental delta to an existing book.
+
+        O(1) on the update itself (price-indexed dict lookup); the returned
+        Orderbook is materialized at O(n log n) only because consumers expect
+        a sorted level list.
 
         Returns the updated Orderbook, or None if no book exists for this ticker
         (delta arrived before snapshot -- should not happen in normal flow).
@@ -98,28 +109,16 @@ class OrderbookManager:
         side = msg.msg.side
 
         levels = state.yes if side == "yes" else state.no
+        existing_qty = levels.get(price)
 
-        # Find existing level at this price
-        existing_idx = -1
-        for i, level in enumerate(levels):
-            if level.price == price:
-                existing_idx = i
-                break
-
-        if existing_idx >= 0:
-            existing = levels[existing_idx]
-            new_qty = existing.quantity + delta
+        if existing_qty is not None:
+            new_qty = existing_qty + delta
             if new_qty <= 0:
-                # Remove the level
-                levels.pop(existing_idx)
+                del levels[price]
             else:
-                levels[existing_idx] = OrderbookLevel(price=price, quantity=new_qty)
-        else:
-            if delta > 0:
-                # Add new level
-                levels.append(OrderbookLevel(price=price, quantity=delta))
-                # Keep sorted by price
-                levels.sort(key=lambda lv: lv.price)
+                levels[price] = new_qty
+        elif delta > 0:
+            levels[price] = delta
 
         return state.to_orderbook()
 

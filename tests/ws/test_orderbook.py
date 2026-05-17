@@ -186,6 +186,74 @@ class TestOrderbookManager:
         mgr.apply_delta(make_delta(price="0.50", delta="25", side="yes"))
         assert get_book.yes[0].quantity == Decimal("150")  # unchanged
 
+    def test_apply_delta_is_constant_time_in_book_depth(self) -> None:
+        """Regression for #87: apply_delta must touch at most a constant
+        number of levels per delta, not scan the whole book.
+
+        We swap the internal price->qty mapping for a counting dict that
+        records every key access (``get`` / ``__getitem__`` /
+        ``__setitem__`` / ``__delitem__`` / ``__contains__``). The old
+        list-scan implementation iterated the level container once per
+        level (O(n) accesses); the new dict-backed implementation does
+        O(1) accesses regardless of book depth.
+
+        This is an *invariant* test (access count grows like O(1), not
+        O(n)), not a wall-clock budget -- stable on slow CI.
+        """
+        from kalshi.ws.orderbook import _BookState
+
+        class CountingDict(dict[Decimal, Decimal]):
+            def __init__(self, *a: object, **kw: object) -> None:
+                super().__init__(*a, **kw)  # type: ignore[arg-type]
+                self.accesses = 0
+
+            def get(self, key: object, default: object = None) -> object:  # type: ignore[override]
+                self.accesses += 1
+                return super().get(key, default)  # type: ignore[arg-type]
+
+            def __getitem__(self, key: Decimal) -> Decimal:
+                self.accesses += 1
+                return super().__getitem__(key)
+
+            def __setitem__(self, key: Decimal, value: Decimal) -> None:
+                self.accesses += 1
+                super().__setitem__(key, value)
+
+            def __delitem__(self, key: Decimal) -> None:
+                self.accesses += 1
+                super().__delitem__(key)
+
+            def __contains__(self, key: object) -> bool:
+                self.accesses += 1
+                return super().__contains__(key)
+
+        # Two probe sizes -- a small book and a large book. If the
+        # implementation is O(n), the second number is ~50x the first.
+        # If O(1), they're identical.
+        def measure(n: int) -> int:
+            mgr = OrderbookManager()
+            mgr.apply_snapshot(
+                make_snapshot(yes=[[f"0.{i:04d}", "100"] for i in range(1, n + 1)])
+            )
+            counting = CountingDict(mgr._books["T"].yes)
+            mgr._books["T"] = _BookState(
+                ticker="T", yes=counting, no=mgr._books["T"].no
+            )
+            mgr.apply_delta(
+                make_delta(price=f"0.{n // 2:04d}", delta="1", side="yes")
+            )
+            return counting.accesses
+
+        small = measure(10)
+        large = measure(500)
+
+        # Allow generous slack but reject anything that scales with n.
+        # O(1) -> equal counts; O(n) -> large is ~50x small.
+        assert large <= small + 2, (
+            f"apply_delta access count grew from {small} (n=10) to "
+            f"{large} (n=500) -- expected O(1), looks O(n)"
+        )
+
     def test_fractional_delta_matches_wire_format(self) -> None:
         """Live capture on demo shows delta_fp arrives as ``"1.00"`` (with
         trailing .00), not bare ``"1"``. Lock in that Decimal arithmetic
