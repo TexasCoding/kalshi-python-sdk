@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Iterator
 
@@ -19,6 +18,7 @@ from kalshi.models.order_groups import (
 from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
+from tests.integration.helpers import await_resource, wait_for_resource
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,10 @@ class TestOrderGroupsSync:
     def test_create_and_get(
         self, sync_client: KalshiClient, ephemeral_group: str,
     ) -> None:
-        resp = sync_client.order_groups.get(ephemeral_group)
+        # Demo query-exchange lags writes by ~10s after create.
+        resp = wait_for_resource(
+            lambda: sync_client.order_groups.get(ephemeral_group),
+        )
         assert isinstance(resp, GetOrderGroupResponse)
         assert_model_fields(resp)
 
@@ -77,7 +80,9 @@ class TestOrderGroupsSync:
         self, sync_client: KalshiClient, ephemeral_group: str,
     ) -> None:
         sync_client.order_groups.update_limit(ephemeral_group, contracts_limit=5)
-        resp = sync_client.order_groups.get(ephemeral_group)
+        resp = wait_for_resource(
+            lambda: sync_client.order_groups.get(ephemeral_group),
+        )
         # Server may normalize the limit — just assert round-trip works
         assert resp.contracts_limit is not None
 
@@ -117,9 +122,10 @@ class TestOrderGroupsAsync:
         resp = await async_client.order_groups.create(contracts_limit=1)
         assert isinstance(resp, CreateOrderGroupResponse)
         try:
-            # Demo server may need a moment to propagate the new group.
-            await asyncio.sleep(0.5)
-            got = await async_client.order_groups.get(resp.order_group_id)
+            # Demo query-exchange lags writes by ~10s after create.
+            got = await await_resource(
+                lambda: async_client.order_groups.get(resp.order_group_id),
+            )
             assert isinstance(got, GetOrderGroupResponse)
         finally:
             await async_client.order_groups.delete(resp.order_group_id)

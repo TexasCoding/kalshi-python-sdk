@@ -15,7 +15,7 @@ from kalshi.types import to_decimal
 from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
-from tests.integration.helpers import fill_guarantee
+from tests.integration.helpers import await_resource, fill_guarantee, wait_for_resource
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +92,10 @@ class TestOrdersSync:
         )
 
         # Check order statuses — on demo, self-trade prevention may
-        # cancel one side immediately
-        buy_order = sync_client.orders.get(buy_id)
-        sell_order = sync_client.orders.get(sell_id)
+        # cancel one side immediately. Demo's query-exchange replica
+        # lags writes by ~10s, so poll for visibility.
+        buy_order = wait_for_resource(lambda: sync_client.orders.get(buy_id))
+        sell_order = wait_for_resource(lambda: sync_client.orders.get(sell_id))
         assert_model_fields(buy_order)
         assert_model_fields(sell_order)
 
@@ -151,7 +152,9 @@ class TestOrdersSync:
         assert order.order_id
 
         try:
-            retrieved = sync_client.orders.get(order.order_id)
+            retrieved = wait_for_resource(
+                lambda: sync_client.orders.get(order.order_id),
+            )
             assert isinstance(retrieved, Order)
             assert_model_fields(retrieved)
             assert retrieved.order_id == order.order_id
@@ -262,7 +265,9 @@ class TestOrdersAsync:
         assert order.order_id
 
         try:
-            retrieved = await async_client.orders.get(order.order_id)
+            retrieved = await await_resource(
+                lambda: async_client.orders.get(order.order_id),
+            )
             assert isinstance(retrieved, Order)
             assert_model_fields(retrieved)
             assert retrieved.order_id == order.order_id

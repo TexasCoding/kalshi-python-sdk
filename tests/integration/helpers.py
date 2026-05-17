@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from collections.abc import Callable
+import time
+from collections.abc import Awaitable, Callable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, TypeVar
 
@@ -13,7 +14,51 @@ import pytest
 from websockets.exceptions import ConnectionClosed
 
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiConnectionError, KalshiError
+from kalshi.errors import KalshiConnectionError, KalshiError, KalshiNotFoundError
+
+T = TypeVar("T")
+
+
+def wait_for_resource(
+    fetch: Callable[[], T],
+    *,
+    timeout: float = 15.0,
+    interval: float = 0.5,
+) -> T:
+    """Poll ``fetch()`` until it stops raising KalshiNotFoundError.
+
+    Demo's ``query-exchange`` replica lags writes by ~10 seconds: orders
+    and order_groups created via POST are not immediately readable via
+    GET-by-id. Use this anywhere a test writes a resource and then
+    immediately reads it back.
+    """
+    deadline = time.monotonic() + timeout
+    last_error: KalshiNotFoundError | None = None
+    while True:
+        try:
+            return fetch()
+        except KalshiNotFoundError as exc:
+            last_error = exc
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(interval)
+
+
+async def await_resource(
+    fetch: Callable[[], Awaitable[T]],
+    *,
+    timeout: float = 15.0,
+    interval: float = 0.5,
+) -> T:
+    """Async counterpart of :func:`wait_for_resource`."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return await fetch()
+        except KalshiNotFoundError:
+            if time.monotonic() >= deadline:
+                raise
+            await asyncio.sleep(interval)
 
 logger = logging.getLogger(__name__)
 
