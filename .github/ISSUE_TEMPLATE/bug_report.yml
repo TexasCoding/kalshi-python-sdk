@@ -1,0 +1,80 @@
+name: Bug report
+description: The SDK does something unexpected, crashes, or contradicts its docs.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in everything you can — the more
+        reproducible the bug, the faster it gets fixed.
+
+        **For security issues, please use [Private Vulnerability Reporting](https://github.com/TexasCoding/kalshi-python-sdk/security/advisories/new) instead.**
+
+  - type: input
+    id: sdk_version
+    attributes:
+      label: SDK version
+      description: Output of `python -c "import kalshi; print(kalshi.__version__)"`.
+      placeholder: "2.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: "3.12.10"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Kalshi environment
+      options:
+        - demo
+        - production
+        - unknown / both
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did the SDK do? What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproducer
+      description: |
+        A short script we can run to see the bug. Redact any keys / IDs.
+        Wrap in a Python code fence.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or relevant log output
+      description: Full traceback if any. Redact URLs that contain tokens.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I'm on the latest published version (`pip install --upgrade kalshi-sdk`), or noted my version above if not.
+          required: true
+        - label: This is not a security issue (those go through Private Vulnerability Reporting).
+          required: true
