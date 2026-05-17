@@ -28,7 +28,11 @@ jobs:
         run: uv python install 3.12
 
       - name: Install dependencies
-        run: uv sync
+        run: |
+          uv sync
+          # `uv sync` does not seed `pip` into the venv (uv has its own
+          # resolver). pip-audit needs `pip` to introspect installed packages.
+          uv pip install pip
 
       - name: Run pip-audit
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266  # v1.1.0
