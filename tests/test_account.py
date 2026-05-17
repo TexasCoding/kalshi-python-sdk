@@ -52,15 +52,17 @@ class TestAccountLimits:
                 200,
                 json={
                     "usage_tier": "standard",
-                    "read_limit": 100,
-                    "write_limit": 10,
+                    "read": {"bucket_capacity": 200, "refill_rate": 100},
+                    "write": {"bucket_capacity": 20, "refill_rate": 10},
                 },
             )
         )
         limits = account.limits()
         assert limits.usage_tier == "standard"
-        assert limits.read_limit == 100
-        assert limits.write_limit == 10
+        assert limits.read.bucket_capacity == 200
+        assert limits.read.refill_rate == 100
+        assert limits.write.bucket_capacity == 20
+        assert limits.write.refill_rate == 10
 
     def test_requires_auth(self, unauth_account: AccountResource) -> None:
         with pytest.raises(AuthRequiredError):
@@ -86,15 +88,17 @@ class TestAsyncAccountLimits:
                 200,
                 json={
                     "usage_tier": "elevated",
-                    "read_limit": 500,
-                    "write_limit": 50,
+                    "read": {"bucket_capacity": 1000, "refill_rate": 500},
+                    "write": {"bucket_capacity": 100, "refill_rate": 50},
                 },
             )
         )
         limits = await async_account.limits()
         assert limits.usage_tier == "elevated"
-        assert limits.read_limit == 500
-        assert limits.write_limit == 50
+        assert limits.read.bucket_capacity == 1000
+        assert limits.read.refill_rate == 500
+        assert limits.write.bucket_capacity == 100
+        assert limits.write.refill_rate == 50
 
     @pytest.mark.asyncio
     async def test_requires_auth(

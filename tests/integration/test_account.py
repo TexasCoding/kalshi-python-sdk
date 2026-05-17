@@ -19,8 +19,10 @@ class TestAccountSync:
         result = sync_client.account.limits()
         assert isinstance(result, AccountApiLimits)
         assert_model_fields(result)
-        assert result.read_limit >= 0
-        assert result.write_limit >= 0
+        assert result.read.bucket_capacity > 0
+        assert result.read.refill_rate > 0
+        assert result.write.bucket_capacity > 0
+        assert result.write.refill_rate > 0
         assert result.usage_tier
 
 

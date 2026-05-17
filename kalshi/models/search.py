@@ -40,9 +40,14 @@ class SportFilterDetails(BaseModel):
 
 
 class GetTagsForSeriesCategoriesResponse(BaseModel):
-    """Response from GET /search/tags_by_categories."""
+    """Response from GET /search/tags_by_categories.
 
-    tags_by_categories: dict[str, list[str]] = {}
+    NullableList collapses server-side nulls into empty lists, so consumers
+    can always iterate ``tags_by_categories[category]`` without a None check.
+    Observed in the wild: the ``Social`` category currently returns null.
+    """
+
+    tags_by_categories: dict[str, NullableList[str]] = {}
 
     model_config = {"extra": "allow"}
 
