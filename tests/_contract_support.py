@@ -24,6 +24,7 @@ ExclusionKind = Literal[
     "paginator_handled",
     "wire_normalization",
     "kwarg_rename",
+    "client_only",
 ]
 
 
@@ -65,6 +66,9 @@ class Exclusion:
         shadowing a Python built-in (e.g., spec's ``type`` becomes
         ``milestone_type`` / ``target_type`` / ``incentive_type``). The wire
         value is unchanged; only the Python signature differs.
+      - ``client_only``: SDK kwarg with no wire counterpart — purely a
+        client-side knob (e.g., ``max_pages`` cap on ``*_all`` paginators).
+        Legitimately present in the signature; not drift.
     """
 
     reason: str
@@ -1032,6 +1036,37 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         kind="paginator_handled",
     ),
 }
+
+
+# --- max_pages: client-side cap on every public *_all() method (#98) ---
+# Not a wire param — pure paginator safety knob. Every public *_all()
+# accepts it; the kwarg legitimately exists in the signature.
+_MAX_PAGES_FQNS: tuple[str, ...] = (
+    "kalshi.resources.markets.MarketsResource.list_all",
+    "kalshi.resources.markets.MarketsResource.list_trades_all",
+    "kalshi.resources.milestones.MilestonesResource.list_all",
+    "kalshi.resources.events.EventsResource.list_all",
+    "kalshi.resources.events.EventsResource.list_all_multivariate",
+    "kalshi.resources.historical.HistoricalResource.markets_all",
+    "kalshi.resources.historical.HistoricalResource.fills_all",
+    "kalshi.resources.historical.HistoricalResource.orders_all",
+    "kalshi.resources.historical.HistoricalResource.trades_all",
+    "kalshi.resources.orders.OrdersResource.list_all",
+    "kalshi.resources.orders.OrdersResource.fills_all",
+    "kalshi.resources.communications.CommunicationsResource.list_all_rfqs",
+    "kalshi.resources.communications.CommunicationsResource.list_all_quotes",
+    "kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers",
+    "kalshi.resources.portfolio.PortfolioResource.settlements_all",
+    "kalshi.resources.fcm.FcmResource.orders_all",
+    "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
+    "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
+    "kalshi.resources.multivariate.MultivariateCollectionsResource.list_all",
+)
+for _fqn in _MAX_PAGES_FQNS:
+    EXCLUSIONS[(_fqn, "max_pages")] = Exclusion(
+        reason="client-side max_pages cap on *_all() paginator; not a wire param (#98)",
+        kind="client_only",
+    )
 
 
 def _resolve_ref(

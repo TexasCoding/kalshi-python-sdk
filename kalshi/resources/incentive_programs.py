@@ -15,7 +15,12 @@ from kalshi.models.incentive_programs import (
     IncentiveProgramStatusLiteral,
     IncentiveProgramTypeLiteral,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _params,
+    _validate_max_pages,
+)
 
 
 class IncentiveProgramsResource(SyncResource):
@@ -53,13 +58,16 @@ class IncentiveProgramsResource(SyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[IncentiveProgram]:
+        _validate_max_pages(max_pages)
         params = _params(status=status, type=incentive_type, limit=limit)
         yield from self._list_all(
             "/incentive_programs",
             IncentiveProgram,
             "incentive_programs",
             params=params,
+            max_pages=max_pages,
             cursor_key="next_cursor",
         )
 
@@ -95,13 +103,16 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""
+        _validate_max_pages(max_pages)
         params = _params(status=status, type=incentive_type, limit=limit)
         return self._list_all(
             "/incentive_programs",
             IncentiveProgram,
             "incentive_programs",
             params=params,
+            max_pages=max_pages,
             cursor_key="next_cursor",
         )

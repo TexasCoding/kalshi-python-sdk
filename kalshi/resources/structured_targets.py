@@ -10,7 +10,12 @@ from kalshi.models.structured_targets import (
     GetStructuredTargetResponse,
     StructuredTarget,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _params,
+    _validate_max_pages,
+)
 
 
 class StructuredTargetsResource(SyncResource):
@@ -52,7 +57,9 @@ class StructuredTargetsResource(SyncResource):
         target_type: str | None = None,
         competition: str | None = None,
         page_size: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[StructuredTarget]:
+        _validate_max_pages(max_pages)
         params = _params(
             ids=ids,
             type=target_type,
@@ -64,6 +71,7 @@ class StructuredTargetsResource(SyncResource):
             StructuredTarget,
             "structured_targets",
             params=params,
+            max_pages=max_pages,
         )
 
     def get(self, structured_target_id: str) -> StructuredTarget | None:
@@ -104,8 +112,10 @@ class AsyncStructuredTargetsResource(AsyncResource):
         target_type: str | None = None,
         competition: str | None = None,
         page_size: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[StructuredTarget]:
         """Returns an async iterator — use ``async for``."""
+        _validate_max_pages(max_pages)
         params = _params(
             ids=ids,
             type=target_type,
@@ -117,6 +127,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
             StructuredTarget,
             "structured_targets",
             params=params,
+            max_pages=max_pages,
         )
 
     async def get(self, structured_target_id: str) -> StructuredTarget | None:

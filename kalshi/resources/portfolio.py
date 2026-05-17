@@ -12,7 +12,12 @@ from kalshi.models.portfolio import (
     Settlement,
     TotalRestingOrderValue,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _params,
+    _validate_max_pages,
+)
 
 # Shared param builders (issue #46).
 
@@ -112,14 +117,19 @@ class PortfolioResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Settlement]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _settlements_params(
             limit=limit, cursor=None, ticker=ticker,
             event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
             subaccount=subaccount,
         )
-        return self._list_all("/portfolio/settlements", Settlement, "settlements", params=params)
+        return self._list_all(
+            "/portfolio/settlements", Settlement, "settlements",
+            params=params, max_pages=max_pages,
+        )
 
     def total_resting_order_value(self) -> TotalRestingOrderValue:
         """Total value of resting orders in cents. FCM-members only.
@@ -189,15 +199,18 @@ class AsyncPortfolioResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Settlement]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _settlements_params(
             limit=limit, cursor=None, ticker=ticker,
             event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/settlements", Settlement, "settlements", params=params
+            "/portfolio/settlements", Settlement, "settlements",
+            params=params, max_pages=max_pages,
         )
 
     async def total_resting_order_value(self) -> TotalRestingOrderValue:

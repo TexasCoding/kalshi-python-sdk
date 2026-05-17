@@ -8,7 +8,12 @@ from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.milestones import GetMilestoneResponse, Milestone
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _params,
+    _validate_max_pages,
+)
 
 
 def _iso(dt: datetime | str | None) -> str | None:
@@ -104,7 +109,9 @@ class MilestonesResource(SyncResource):
         milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Milestone]:
+        _validate_max_pages(max_pages)
         params = _list_milestones_params(
             limit=limit, minimum_start_date=minimum_start_date,
             category=category, competition=competition,
@@ -113,7 +120,8 @@ class MilestonesResource(SyncResource):
             cursor=None, min_updated_ts=min_updated_ts,
         )
         yield from self._list_all(
-            "/milestones", Milestone, "milestones", params=params,
+            "/milestones", Milestone, "milestones",
+            params=params, max_pages=max_pages,
         )
 
     def get(self, milestone_id: str) -> Milestone:
@@ -159,8 +167,10 @@ class AsyncMilestonesResource(AsyncResource):
         milestone_type: str | None = None,
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Milestone]:
         """Returns an async iterator — use ``async for``."""
+        _validate_max_pages(max_pages)
         params = _list_milestones_params(
             limit=limit, minimum_start_date=minimum_start_date,
             category=category, competition=competition,
@@ -169,7 +179,8 @@ class AsyncMilestonesResource(AsyncResource):
             cursor=None, min_updated_ts=min_updated_ts,
         )
         return self._list_all(
-            "/milestones", Milestone, "milestones", params=params,
+            "/milestones", Milestone, "milestones",
+            params=params, max_pages=max_pages,
         )
 
     async def get(self, milestone_id: str) -> Milestone:

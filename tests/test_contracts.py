@@ -1381,7 +1381,9 @@ def test_exclusion_map_is_current() -> None:
             # kwarg like 'milestone_type' for spec's 'type'), in which case the
             # kwarg legitimately exists in the signature. Distinguish by the
             # typed ``kind`` field (issue #51).
-            sig_mismatch_kinds = {"body_param", "wire_normalization", "kwarg_rename"}
+            sig_mismatch_kinds = {
+                "body_param", "wire_normalization", "kwarg_rename", "client_only",
+            }
             allowed_in_sig = excl.kind in sig_mismatch_kinds
             if name in sdk_params and not allowed_in_sig:
                 stale.append(

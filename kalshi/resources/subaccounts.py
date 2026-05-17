@@ -20,6 +20,7 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _validate_max_pages,
 )
 
 # Shared body builders (issue #46).
@@ -151,15 +152,20 @@ class SubaccountsResource(SyncResource):
         )
 
     def list_all_transfers(
-        self, *, limit: int | None = None,
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[SubaccountTransfer]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _params(limit=limit)
         yield from self._list_all(
             "/portfolio/subaccounts/transfers",
             SubaccountTransfer,
             "transfers",
             params=params,
+            max_pages=max_pages,
         )
 
     @overload
@@ -249,15 +255,20 @@ class AsyncSubaccountsResource(AsyncResource):
         )
 
     async def list_all_transfers(
-        self, *, limit: int | None = None,
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[SubaccountTransfer]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _params(limit=limit)
         async for item in self._list_all(
             "/portfolio/subaccounts/transfers",
             SubaccountTransfer,
             "transfers",
             params=params,
+            max_pages=max_pages,
         ):
             yield item
 
