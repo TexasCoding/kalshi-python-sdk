@@ -18,6 +18,13 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ### Changed
 
+- **All response models uniformly use `extra="allow"` (#114).** Previously
+  5 response models (`Page`, `Orderbook`, `OrderbookLevel`,
+  `BidAskDistribution`, `PriceDistribution`) fell back to Pydantic's default
+  `extra="ignore"`, silently dropping unknown fields — while the 80 sibling
+  response models exposed them via `__pydantic_extra__`. Instances of those
+  5 classes will now preserve unknown fields. Request bodies remain
+  `extra="forbid"` (unchanged).
 - **Count/size/volume response fields retyped from `DollarDecimal` to
   `FixedPointCount` (#90).** Fields with `_fp` wire aliases were annotated
   as `DollarDecimal` — the type that signals "dollar amount." Runtime

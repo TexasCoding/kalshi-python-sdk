@@ -29,6 +29,7 @@ class Page(BaseModel, Generic[T]):
 
     items: list[T]
     cursor: str | None = None
+    model_config = {"extra": "allow"}
 
     @property
     def has_next(self) -> bool:

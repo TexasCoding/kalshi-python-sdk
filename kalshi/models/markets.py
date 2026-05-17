@@ -148,6 +148,8 @@ class OrderbookLevel(BaseModel):
     price: DollarDecimal
     quantity: FixedPointCount
 
+    model_config = {"extra": "allow"}
+
 
 class Orderbook(BaseModel):
     """Orderbook for a market."""
@@ -155,6 +157,8 @@ class Orderbook(BaseModel):
     ticker: str
     yes: NullableList[OrderbookLevel] = []
     no: NullableList[OrderbookLevel] = []
+
+    model_config = {"extra": "allow"}
 
 
 class BidAskDistribution(BaseModel):
@@ -177,7 +181,7 @@ class BidAskDistribution(BaseModel):
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
-    model_config = {"populate_by_name": True}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class PriceDistribution(BaseModel):
@@ -203,7 +207,7 @@ class PriceDistribution(BaseModel):
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
-    model_config = {"populate_by_name": True}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class Candlestick(BaseModel):
