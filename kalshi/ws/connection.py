@@ -89,6 +89,16 @@ class ConnectionManager:
         if self._on_state_change is not None:
             await self._on_state_change(old, new_state)
 
+    async def mark_streaming(self) -> None:
+        """Public transition from CONNECTED to STREAMING.
+
+        The recv loop calls this after a successful reconnect+resubscribe
+        so the manager can fire `on_state_change` with the right caller.
+        Replaces the previous reach-through to the name-mangled
+        `_set_state` (#88).
+        """
+        await self._set_state(ConnectionState.STREAMING)
+
     def _build_auth_headers(self) -> dict[str, str]:
         """Build RSA-PSS auth headers for the WebSocket upgrade request."""
         ws_path = urlparse(self._config.ws_base_url).path

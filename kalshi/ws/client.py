@@ -251,7 +251,9 @@ class KalshiWebSocket:
                     if self._orderbook_mgr:
                         self._orderbook_mgr.clear()
                     await self._sub_mgr.resubscribe_all()
-                    await self._connection._set_state(ConnectionState.STREAMING)
+                    # #88: use the public transition; no reach-through to
+                    # ConnectionManager's name-mangled _set_state.
+                    await self._connection.mark_streaming()
             except Exception as reconnect_err:
                 logger.error("Reconnect failed: %s", reconnect_err)
                 if self._sub_mgr:

@@ -74,6 +74,27 @@ class TestConnectionManagerConnect:
             await mgr.connect()
         assert mgr.state == ConnectionState.CLOSED
 
+    async def test_mark_streaming_transitions_state(
+        self, fake_ws: FakeKalshiWS, test_auth: object
+    ) -> None:
+        """Issue #88: public mark_streaming() transitions CONNECTED ->
+        STREAMING and fires the state-change callback."""
+        states: list[tuple[ConnectionState, ConnectionState]] = []
+
+        async def on_state(old: ConnectionState, new: ConnectionState) -> None:
+            states.append((old, new))
+
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        mgr = ConnectionManager(
+            auth=test_auth, config=config, on_state_change=on_state,  # type: ignore[arg-type]
+        )
+        await mgr.connect()
+        states.clear()
+        await mgr.mark_streaming()
+        assert mgr.state == ConnectionState.STREAMING
+        assert states == [(ConnectionState.CONNECTED, ConnectionState.STREAMING)]
+        await mgr.close()
+
     async def test_connect_error_does_not_leak_url(
         self, test_auth: object
     ) -> None:
