@@ -19,16 +19,27 @@ class FakeSubManager:
 
     def __init__(self) -> None:
         self._subs: dict[int, Subscription] = {}
+        # Mirror the real manager so dispatcher's cleanup paths work.
+        self._subscriptions: dict[int, Subscription] = self._subs
+        self._sid_to_client: dict[int, int] = {}
 
     def add(self, sid: int, channel: str) -> Subscription:
         queue: MessageQueue[object] = MessageQueue(maxsize=100)
         sub = Subscription(client_id=sid, channel=channel, params={}, queue=queue)
         sub.server_sid = sid
         self._subs[sid] = sub
+        self._sid_to_client[sid] = sid
         return sub
 
     def get_subscription_by_sid(self, sid: int) -> Subscription | None:
-        return self._subs.get(sid)
+        client_id = self._sid_to_client.get(sid)
+        if client_id is None:
+            return None
+        return self._subs.get(client_id)
+
+    @property
+    def active_subscriptions(self) -> dict[int, Subscription]:
+        return dict(self._subs)
 
 
 @pytest.mark.asyncio
@@ -90,6 +101,7 @@ class TestMessageDispatcher:
         await dispatcher.dispatch(raw)  # should not crash
 
     async def test_callback_mode(self) -> None:
+        """Callback AND queue both receive the message (fan-out, see #80)."""
         mgr = FakeSubManager()
         sub = mgr.add(1, "ticker")
         received: list[object] = []
@@ -104,7 +116,58 @@ class TestMessageDispatcher:
         )
         await dispatcher.dispatch(raw)
         assert len(received) == 1
-        assert sub.queue.qsize() == 0  # callback consumed it, not queue
+        assert sub.queue.qsize() == 1  # also fanned out to the iterator queue
+
+    async def test_callback_and_iterator_same_channel(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Regression for #80: callback + iterator on same channel.
+
+        Both must receive every message; the iterator must not silently
+        stop. A WARNING is logged at register time so the fan-out is not
+        invisible.
+        """
+        import logging
+
+        mgr = FakeSubManager()
+        sub = mgr.add(1, "ticker")
+        received: list[object] = []
+
+        async def on_ticker(msg: object) -> None:
+            received.append(msg)
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            dispatcher.register_callback("ticker", on_ticker)
+        assert any("active subscription exists" in r.message for r in caplog.records)
+
+        raw = json.dumps(
+            {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T", "market_id": "x"}}
+        )
+        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(raw)
+
+        # Both sinks observed both messages.
+        assert len(received) == 2
+        assert sub.queue.qsize() == 2
+
+    async def test_register_callback_without_active_sub_no_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No warning when callback is registered before any subscription."""
+        import logging
+
+        mgr = FakeSubManager()  # no subs
+
+        async def cb(msg: object) -> None:
+            return None
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            dispatcher.register_callback("ticker", cb)
+        assert not any(
+            "active subscription exists" in r.message for r in caplog.records
+        )
 
     async def test_error_callback(self) -> None:
         mgr = FakeSubManager()

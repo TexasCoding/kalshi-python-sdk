@@ -58,7 +58,23 @@ class MessageDispatcher:
     def register_callback(
         self, channel: str, callback: Callable[[Any], Awaitable[None]]
     ) -> None:
-        """Register a callback for a specific channel type."""
+        """Register a callback for a specific channel type.
+
+        Messages on this channel are fanned out to BOTH the callback and any
+        active subscription queue for the same channel. If an active
+        subscription queue exists, a warning is logged so users know the
+        callback was registered after the fact.
+        """
+        if any(
+            sub.channel == channel
+            for sub in self._sub_mgr.active_subscriptions.values()
+        ):
+            logger.warning(
+                "register_callback(%r): an active subscription exists on this "
+                "channel; messages will be delivered to BOTH the callback and "
+                "the existing iterator queue.",
+                channel,
+            )
         self._callbacks[channel] = callback
 
     def unregister_callback(self, channel: str) -> None:
@@ -105,9 +121,9 @@ class MessageDispatcher:
             logger.debug("Message for unknown sid %d (may be stale)", sid)
             return
 
-        # Check for callback first
+        # Fan out: deliver to the callback (if any) AND the subscription queue.
+        # Previously the queue was skipped when a callback was registered,
+        # which silently stranded any iterator on the same channel (#80).
         if sub.channel in self._callbacks:
             await self._callbacks[sub.channel](parsed)
-        else:
-            # Route to queue
-            await sub.queue.put(parsed)
+        await sub.queue.put(parsed)
