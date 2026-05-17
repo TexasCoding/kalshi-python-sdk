@@ -16,10 +16,8 @@ from websockets.exceptions import ConnectionClosed
 from kalshi.client import KalshiClient
 from kalshi.errors import KalshiConnectionError, KalshiError, KalshiNotFoundError
 
-T = TypeVar("T")
 
-
-def wait_for_resource(
+def wait_for_resource[T](
     fetch: Callable[[], T],
     *,
     timeout: float = 15.0,
@@ -33,24 +31,22 @@ def wait_for_resource(
     immediately reads it back.
     """
     deadline = time.monotonic() + timeout
-    last_error: KalshiNotFoundError | None = None
     while True:
         try:
             return fetch()
-        except KalshiNotFoundError as exc:
-            last_error = exc
+        except KalshiNotFoundError:
             if time.monotonic() >= deadline:
                 raise
             time.sleep(interval)
 
 
-async def await_resource(
+async def await_resource[T](
     fetch: Callable[[], Awaitable[T]],
     *,
     timeout: float = 15.0,
     interval: float = 0.5,
 ) -> T:
-    """Async counterpart of :func:`wait_for_resource`."""
+    """Async counterpart of :func:`wait_for_resource` — same ~10s demo lag rationale."""
     deadline = time.monotonic() + timeout
     while True:
         try:
