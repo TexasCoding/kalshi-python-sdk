@@ -1,6 +1,6 @@
 # Roadmap
 
-## v1.2 — Audit-driven hardening (planned)
+## v1.2 — Audit-driven hardening (in progress)
 
 30 issues opened from the post-v1.1.0 audit swarm (`#77`–`#106`). Implementation
 plan below mirrors the wave-based parallel execution that produced v1.1: each
@@ -8,23 +8,32 @@ wave is a set of disjoint-file branches worked by parallel agents off `main`,
 reviewed and merged one PR at a time. Sequential waves depend on prior waves
 landing first.
 
-### Wave 1 — Independent, low-risk fixes (parallel, 5 agents)
+### Wave 1 — ✅ Shipped (2026-05-17)
 
-All touch disjoint files. No dependency between any item.
+5 PRs squash-merged, closing 10 issues. All disjoint-file work landed in one
+day via parallel agents off `main`.
 
-| Branch | Issues | Scope |
+| PR | Closes | Scope |
 |---|---|---|
-| `feat/issue-89-export-models` | [#89](https://github.com/TexasCoding/kalshi-python-sdk/issues/89) | Re-export 23 missing model classes from `kalshi.__all__` |
-| `fix/issues-91-94-96-correctness` | [#91](https://github.com/TexasCoding/kalshi-python-sdk/issues/91) [#94](https://github.com/TexasCoding/kalshi-python-sdk/issues/94) [#96](https://github.com/TexasCoding/kalshi-python-sdk/issues/96) | `Order.type` cleanup + bool-param consistency, `KALSHI_API_BASE_URL` validation, `Retry-After` negative/NaN |
-| `perf/issues-103-104-105` | [#103](https://github.com/TexasCoding/kalshi-python-sdk/issues/103) [#104](https://github.com/TexasCoding/kalshi-python-sdk/issues/104) [#105](https://github.com/TexasCoding/kalshi-python-sdk/issues/105) | `MessageQueue.qsize()` O(1), Full Jitter retry, `RecordingTransport` in-memory buffer |
-| `infra/issues-93-95-pinning` | [#93](https://github.com/TexasCoding/kalshi-python-sdk/issues/93) [#95](https://github.com/TexasCoding/kalshi-python-sdk/issues/95) | SHA-pin Claude workflows, add Dependabot + `pip-audit` |
-| `infra/issue-92-spec-sync-hardening` | [#92](https://github.com/TexasCoding/kalshi-python-sdk/issues/92) | Spec-sync supply-chain mitigations |
+| [#108](https://github.com/TexasCoding/kalshi-python-sdk/pull/108) | [#93](https://github.com/TexasCoding/kalshi-python-sdk/issues/93) [#95](https://github.com/TexasCoding/kalshi-python-sdk/issues/95) | SHA-pin Claude workflows, add Dependabot + `pip-audit` |
+| [#109](https://github.com/TexasCoding/kalshi-python-sdk/pull/109) | [#92](https://github.com/TexasCoding/kalshi-python-sdk/issues/92) | Spec-sync supply-chain mitigations (drift now opens per-fingerprint issues, not auto-PRs) |
+| [#110](https://github.com/TexasCoding/kalshi-python-sdk/pull/110) | [#89](https://github.com/TexasCoding/kalshi-python-sdk/issues/89) | Re-export 23 model classes from `kalshi.__all__` + dynamic parity test |
+| [#111](https://github.com/TexasCoding/kalshi-python-sdk/pull/111) | [#103](https://github.com/TexasCoding/kalshi-python-sdk/issues/103) [#104](https://github.com/TexasCoding/kalshi-python-sdk/issues/104) [#105](https://github.com/TexasCoding/kalshi-python-sdk/issues/105) | `MessageQueue.qsize()` O(1), AWS Full Jitter retry, buffered `RecordingTransport` |
+| [#112](https://github.com/TexasCoding/kalshi-python-sdk/pull/112) | [#91](https://github.com/TexasCoding/kalshi-python-sdk/issues/91) [#94](https://github.com/TexasCoding/kalshi-python-sdk/issues/94) [#96](https://github.com/TexasCoding/kalshi-python-sdk/issues/96) | ⚠️ **Breaking** `Order.type` → `Order.order_type` + base URL validation (http/https + ws/wss) + `Retry-After` NaN/negative/zero handling |
+| [#120](https://github.com/TexasCoding/kalshi-python-sdk/pull/120) | (CI hotfix) | `uv pip install pip` so pip-audit can introspect the uv-managed venv |
 
-### Wave 2 — Test coverage backfill (parallel, 6 agents, after Wave 1)
+**Wave 1 learnings worth carrying forward:**
 
-Wave 2 lands after Wave 1 so `#97` can write tests against the fixed
-`Retry-After` validator and `#98`'s `max_pages` work has the surrounding
-correctness fixes already merged.
+- Bot review iterates multiple passes. Spec-sync (#109) needed 4 rounds — the long-lived tracking-issue pattern was the wrong shape; per-drift fingerprint-deduped issues replaced it.
+- The `Order.type` rename in #112 is the only breaking change in Wave 1 and triggers the v1.2 vs v2.0 release decision (see Release-cut criteria below).
+- Worktree CWD slips between Bash calls in the harness — agents that don't pass an explicit `cd` to every Bash call leak files into the parent repo. Reinforce in agent prompts.
+- pip-audit needs `pip` seeded into the uv venv; uv doesn't put it there by default.
+
+### Wave 2 — Test coverage backfill (⏸ paused; planned next)
+
+Paused — interim work in flight (see *Interim work* below). Resume when those
+items land. Wave 2 still depends on Wave 1's correctness fixes (already in
+main), so unblocked technically; the pause is scope ordering, not dependency.
 
 | Branch | Issues |
 |---|---|
@@ -34,6 +43,17 @@ correctness fixes already merged.
 | `test/issue-100-recorder-html` | [#100](https://github.com/TexasCoding/kalshi-python-sdk/issues/100) |
 | `test/issue-101-dataframe-nested` | [#101](https://github.com/TexasCoding/kalshi-python-sdk/issues/101) |
 | `test/issue-102-ws-backlog` | [#102](https://github.com/TexasCoding/kalshi-python-sdk/issues/102) |
+
+### Interim work (before Wave 2)
+
+Items in flight after Wave 1 landed. List grows / shrinks as work is scoped.
+
+- TBD — fill in as items are scoped.
+
+### Follow-ups opened during Wave 1 review
+
+- [#114](https://github.com/TexasCoding/kalshi-python-sdk/issues/114) — audit response models for consistent `extra=` policy. Opened during #112 review; pre-existing gap unrelated to #91's scope. Candidate for Wave 5 polish.
+- [#113](https://github.com/TexasCoding/kalshi-python-sdk/issues/113) — closed as superseded by #109's per-drift fingerprint pattern.
 
 ### Wave 3 — WebSocket overhaul (parallel by file boundary, 3 agents)
 
@@ -69,16 +89,30 @@ orderbook-apply happen relative to dispatch.
 
 ### Release-cut criteria
 
-v1.2 is ready to tag when:
+Ready to tag when:
 
-- All **HIGH** severity items (`#77`, `#78`, `#79`, `#89`, `#92`, `#97`) are
-  merged.
-- All **MEDIUM** items are merged or explicitly deferred with a comment in
-  `ROADMAP.md`.
-- `CHANGELOG.md` has a `## 1.2.0` section.
-- `pyproject.toml` and `kalshi/__init__.py` version bumped to `1.2.0`.
+- All **HIGH** severity items merged:
+  - ✅ `#89` (Wave 1, #110), ✅ `#92` (Wave 1, #109)
+  - ⏳ `#77`, `#78`, `#79` (Waves 3 + 4)
+  - ⏳ `#97` (Wave 2)
+- All **MEDIUM** items merged or explicitly deferred with a comment in `ROADMAP.md`.
+- `CHANGELOG.md` `[Unreleased]` section finalized into a versioned section.
+- `pyproject.toml` and `kalshi/__init__.py` version bumped.
 
-Then `git tag v1.2.0 && git push origin v1.2.0` per `docs/RELEASING.md`.
+**Version-bump decision: v1.2.0 vs v2.0.0** — Wave 1 #112 renamed
+`Order.type` → `Order.order_type` (wire format preserved via
+`validation_alias`, but the Python attribute changed). The breaking-change
+entry is already in `CHANGELOG.md` under `[Unreleased] → Breaking`. Decide
+at tag time:
+
+- **v1.2.0** treats it as a small-blast-radius break (the attribute is on
+  a return-only model; no user-constructed `Order.type=` to migrate). Risk:
+  semver-strict consumers on `^1.x` pins get an `AttributeError` with no
+  deprecation period.
+- **v2.0.0** is the semver-clean call. Heavier release narrative for what
+  is otherwise mostly hardening work.
+
+Then `git tag <vX.Y.Z> && git push origin <vX.Y.Z>` per `docs/RELEASING.md`.
 
 ### Execution conventions
 
