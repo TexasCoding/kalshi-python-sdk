@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal, NullableList
+from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
 MarketStatusLiteral = Literal["unopened", "open", "paused", "closed", "settled"]
 """Market status filter for GET /markets. Spec: MarketStatusQuery enum."""
@@ -81,31 +81,31 @@ class Market(BaseModel):
     )
 
     # Size/volume fields (FixedPointCount)
-    yes_bid_size: DollarDecimal | None = Field(
+    yes_bid_size: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
     )
-    yes_ask_size: DollarDecimal | None = Field(
+    yes_ask_size: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
     )
-    no_bid_size: DollarDecimal | None = Field(
+    no_bid_size: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("no_bid_size_fp", "no_bid_size"),
     )
-    no_ask_size: DollarDecimal | None = Field(
+    no_ask_size: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("no_ask_size_fp", "no_ask_size"),
     )
-    volume: DollarDecimal | None = Field(
+    volume: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
-    volume_24h: DollarDecimal | None = Field(
+    volume_24h: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_24h_fp", "volume_24h"),
     )
-    open_interest: DollarDecimal | None = Field(
+    open_interest: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )
@@ -141,12 +141,12 @@ class Market(BaseModel):
 class OrderbookLevel(BaseModel):
     """A single price level in the orderbook.
 
-    Quantity is DollarDecimal to support fractional contracts
-    (FixedPointCount strings like ``"100.50"`` from the API).
+    Quantity is FixedPointCount — fractional contract counts are sent as
+    FixedPointCount strings like ``"100.50"`` from the API.
     """
 
     price: DollarDecimal
-    quantity: DollarDecimal
+    quantity: FixedPointCount
 
 
 class Orderbook(BaseModel):
@@ -217,11 +217,11 @@ class Candlestick(BaseModel):
     yes_bid: BidAskDistribution | None = None
     yes_ask: BidAskDistribution | None = None
     price: PriceDistribution | None = None
-    volume: DollarDecimal | None = Field(
+    volume: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
-    open_interest: DollarDecimal | None = Field(
+    open_interest: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )

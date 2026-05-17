@@ -15,6 +15,19 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ### Changed
 
+- **Count/size/volume response fields retyped from `DollarDecimal` to
+  `FixedPointCount` (#90).** Fields with `_fp` wire aliases were annotated
+  as `DollarDecimal` — the type that signals "dollar amount." Runtime
+  behavior is unchanged (both validators are byte-identical and parse the
+  same wire strings into `Decimal`), but the annotation now communicates
+  the correct semantics and prevents silent corruption if either parser
+  ever diverges. Affected: `Market.{yes_bid_size, yes_ask_size, no_bid_size,
+  no_ask_size, volume, volume_24h, open_interest}`, `Candlestick.{volume,
+  open_interest}`, `OrderbookLevel.quantity`, `Fill.count`, `Trade.count`,
+  `MarketPosition.position`, `EventPosition.total_cost_shares`,
+  `Settlement.{yes_count, no_count}`, `Series.volume`. Both types resolve
+  to `Decimal` at the type level, so user code that handles these fields
+  as `Decimal` is unaffected.
 - **`*_all()` methods are now unbounded by default.** Previously, internal
   `_list_all` had an invisible 1000-page safety cap that silently truncated
   callers iterating beyond ~100k items. The cap is gone; the cursor-repeat
