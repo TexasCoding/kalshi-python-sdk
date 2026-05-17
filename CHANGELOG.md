@@ -21,6 +21,15 @@ All notable changes to kalshi-sdk will be documented in this file.
   guard (`KalshiError` on a repeating cursor) provides the runaway protection
   it always did. Callers who want a cap pass `max_pages=N` explicitly. No
   user-visible change for anyone iterating <1000 pages (#98).
+- **WS callbacks no longer suppress queue delivery (#80).** Previously,
+  registering a callback for a channel silently disabled the iterator queue
+  for that channel — a user who held both an `@on()` callback AND an
+  `async for msg in subscription` consumer would never see the iterator
+  fire. Now messages fan out to both. A WARNING is logged at
+  `register_callback` time if an active subscription already exists, so
+  users relying on the suppress-side-effect are alerted. Callback-only
+  users now accumulate up to the queue's `maxsize=1000`; existing
+  `DROP_OLDEST` backpressure prevents unbounded growth.
 
 ### Fixed
 
