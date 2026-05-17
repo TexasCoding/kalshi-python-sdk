@@ -229,13 +229,25 @@ class KalshiWebSocket:
                 raise
 
     async def _process_frame(self, raw: str) -> None:
-        """Parse, track seq, update orderbook, and dispatch a single frame."""
+        """Parse, track seq, update orderbook, and dispatch a single frame.
+
+        Seq tracking + orderbook-apply are provisional with respect to the
+        downstream dispatch. If dispatch raises ``KalshiBackpressureError``
+        (ERROR-strategy queue overflow), the seq watermark is rolled back
+        so the dropped message stays visible as a future gap rather than
+        being silently treated as already-seen. Orderbook state isn't
+        rolled back — the recv loop tears down via sentinel broadcast on
+        this error, so the local book becomes orphaned but is never
+        desynced-and-still-consumed.
+        """
         assert self._dispatcher is not None
         data = json.loads(raw)
         sid = data.get("sid")
         seq = data.get("seq")
         msg_type = data.get("type", "")
 
+        prev_seq: int | None = None
+        tracked = False
         if sid is not None and seq is not None and self._seq_tracker:
             channel = ""
             sub = (
@@ -245,6 +257,7 @@ class KalshiWebSocket:
             )
             if sub:
                 channel = sub.channel
+            prev_seq = self._seq_tracker.peek(sid)
             ok = await self._seq_tracker.track(
                 sid, seq, msg_type if msg_type else channel
             )
@@ -252,6 +265,8 @@ class KalshiWebSocket:
                 # Gap detected — skip dispatching this message.
                 # The gap handler will trigger resync.
                 return
+            # Only meaningful once we know we'll dispatch (and might roll back).
+            tracked = True
 
         # Check for orderbook messages
         if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
@@ -261,7 +276,17 @@ class KalshiWebSocket:
             delta = OrderbookDeltaMessage.model_validate(data)
             self._orderbook_mgr.apply_delta(delta)
 
-        await self._dispatcher.dispatch(raw)
+        try:
+            await self._dispatcher.dispatch(raw)
+        except KalshiBackpressureError:
+            # Dispatch failed -> the consumer never saw this message. Roll
+            # the seq watermark back so the dropped seq is treated as a
+            # future gap (not silently as already-seen). Re-raise so the
+            # recv loop's existing handler broadcasts sentinels and tears
+            # the loop down.
+            if tracked and sid is not None and self._seq_tracker:
+                self._seq_tracker.rollback(sid, prev_seq)
+            raise
 
     async def _handle_reconnect(self) -> None:
         """Reconnect after ConnectionClosed and re-establish subscriptions.
@@ -295,7 +320,14 @@ class KalshiWebSocket:
                 self._running = False
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
-        """Handle a sequence gap by logging and triggering resync."""
+        """Handle a sequence gap by logging and triggering resync.
+
+        A single ``orderbook_delta`` subscription can cover multiple tickers
+        under one sid. The gap envelope doesn't identify which ticker
+        missed an update, so we clear EVERY ticker on the affected
+        subscription — clearing only ``tickers[0]`` would leave the other
+        books silently diverged from server truth.
+        """
         logger.warning(
             "Sequence gap on sid %d: expected %d, got %d. Triggering resync.",
             gap.sid, gap.expected, gap.received,
@@ -303,10 +335,12 @@ class KalshiWebSocket:
         if self._sub_mgr:
             sub = self._sub_mgr.get_subscription_by_sid(gap.sid)
             if sub and sub.channel == "orderbook_delta":
-                # Clear orderbook state for this ticker and reset sequence tracking
+                # Clear orderbook state for ALL tickers in the sub and reset
+                # sequence tracking so the next snapshot rebootstraps cleanly.
                 tickers = sub.params.get("market_tickers", [])
-                if tickers and self._orderbook_mgr:
-                    self._orderbook_mgr.remove(tickers[0])
+                if self._orderbook_mgr:
+                    for ticker in tickers:
+                        self._orderbook_mgr.remove(ticker)
                 if self._seq_tracker:
                     self._seq_tracker.reset(gap.sid)
 
