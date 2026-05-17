@@ -2,6 +2,164 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 1.1.0 — 2026-05-16
+
+Post-1.0 enhancements and polish. 17 issues closed across four parallel waves of
+work. No breaking changes to runtime behavior; two mypy-level type-system
+tightenings are called out below.
+
+### Added
+
+- **Model-first request API.** Every POST/PUT/DELETE-with-body resource method
+  now accepts a pre-built request model as an alternative to individual kwargs.
+  Backward-compatible — the existing kwarg form continues to work unchanged
+  (#56).
+
+  ```python
+  client.orders.amend(request=AmendOrderRequest(order_id=..., yes_price=...))
+  client.orders.amend(order_id=..., yes_price=...)  # also works
+  ```
+
+  Each method has typed `@overload` stubs (32 methods × 2 = 64 stubs) so mypy
+  catches misuse at type-check time, not runtime.
+
+- **DataFrame integration.** `Page[T]` gained `.to_dataframe()` and
+  `.to_polars()` methods with optional dependency extras (#12):
+
+  ```bash
+  pip install 'kalshi-sdk[pandas]'   # or [polars] or [all]
+  ```
+
+  ```python
+  page = client.markets.list(limit=100)
+  df = page.to_dataframe()
+  ```
+
+  Lazy imports; `Decimal` and `datetime` preserved as native types via
+  `model_dump(mode="python")`.
+
+- **Record / replay mock transport** (`kalshi.testing`) for offline integration
+  testing (#13). `RecordingTransport` proxies real calls and saves
+  request/response pairs as JSON; `ReplayTransport` serves the fixtures with
+  no network. Sync and async transports both supported; signature/timestamp
+  headers are excluded from fingerprinting so signatures can drift between
+  record and replay.
+
+  ```python
+  with KalshiClient.from_env(transport=RecordingTransport("fixtures")) as c:
+      c.exchange.status()  # records once
+
+  with KalshiClient(transport=ReplayTransport("fixtures")) as c:
+      c.exchange.status()  # offline replay
+  ```
+
+- **Typed `Literal` aliases for fixed-enum kwargs** (#50). 13 new aliases
+  exported from `kalshi` and `kalshi.models`: `SideLiteral`, `ActionLiteral`,
+  `TimeInForceLiteral`, `SelfTradePreventionTypeLiteral`, `OrderStatusLiteral`,
+  `EventStatusLiteral`, `MarketStatusLiteral`, `MveFilterLiteral`,
+  `MveHistoricalFilterLiteral`, `MultivariateCollectionStatusLiteral`,
+  `IncentiveProgramStatusLiteral`, `IncentiveProgramTypeLiteral`,
+  `SettlementStatusLiteral`. mypy now catches typos in resource kwargs at
+  authoring time.
+
+- **MkDocs documentation site** (#14, #57). Material theme + mkdocstrings;
+  Getting Started, Authentication, WebSockets, Resources, Errors, Migration
+  guides plus auto-generated API reference. GitHub Pages deploy workflow at
+  `.github/workflows/docs.yml`.
+
+- **Constructor-variant integration tests** (#54). Exercises every supported
+  `KalshiClient` construction path against the demo API (`from_env`,
+  `key_id + private_key_path`, in-memory PEM string, pre-built `KalshiAuth`,
+  `demo=True`). Includes an async sibling test to catch signing-path drift.
+
+- **Per-method auth guards on `markets.orderbook`** (#49). Spec walk confirmed
+  this was the only public-resource GET endpoint missing `_require_auth()`;
+  unauthenticated callers now get a clear `AuthRequiredError` instead of a
+  confusing 401 from Kalshi.
+
+### Changed
+
+- **Sync/async dedup refactor** (#46). Extracted shared body-builder,
+  query-param-builder, and response-parser helpers across 13 resource modules.
+  Dispatcher logic and request-model construction now exist once per
+  method-pair instead of twice. Sync/async signatures, `@overload` stubs, and
+  the `async for item in client.markets.list_all():` ergonomic are all
+  preserved.
+
+- **Async `OrdersResource.batch_cancel` routed through shared
+  `_delete_with_body` helper** (#47). Previously called the transport directly,
+  bypassing the sync path's helper; any future retry / error-mapping change to
+  the helper now applies to both transports symmetrically.
+
+- **Sync `test_list_all` iteration idiom standardized** (#48). Sync tests now
+  use the same manual-counter loop as their async siblings; cosmetic only.
+
+### Fixed
+
+- **Async `multivariate.lookup_tickers` 204 spec-drift guard** (#72). Sync had
+  a clear `RuntimeError("spec drift: ...")` on an unexpected 204; async would
+  surface a confusing `TypeError` from `model_validate(None)`. Extracted a
+  shared `_parse_lookup_tickers_response` helper so both paths share the
+  guard.
+
+### Test infrastructure
+
+- **Typed `ExclusionKind`** discriminator on contract drift exclusions (#51).
+  Replaces the free-text `reason` substring matching in
+  `test_exclusion_map_is_current` with explicit
+  `Literal["body_param", "spec_deprecated", "paginator_handled",
+  "wire_normalization", "kwarg_rename"]` classification. All 47 existing
+  exclusions reclassified.
+
+- **Nested-model body-drift detection** (#52). The drift test now recurses
+  into nested `BaseModel` fields (e.g. `TickerPair` inside
+  `CreateMarketInMultivariateEventCollectionRequest.selected_markets`).
+  `TickerPair.extra="allow"` intentionally preserved because `LookupPoint`
+  responses echo provider keys; the existing pin test documents the carve-out.
+
+- **`kwarg_rename` `ExclusionKind`** split out of `wire_normalization` (#68).
+  Python-naming-hygiene renames (`milestone_type`, `target_type`,
+  `incentive_type` — spec field `type` shadows the builtin) are now
+  classified separately from wire-format normalization.
+
+### Infrastructure
+
+- **Weekly OpenAPI + AsyncAPI spec sync CI** (#16). Cron + manual dispatch
+  workflow snapshots both specs, regenerates models, runs ruff / mypy /
+  pytest, opens a PR with version + endpoint diff if any changes detected.
+  Third-party actions pinned to commit SHAs because the workflow holds
+  `contents: write` + `pull-requests: write`. Concurrency-guarded against
+  same-branch races.
+
+- **Nightly integration CI** against the demo API (#55). Secret-gated, skips
+  cleanly on forks, dedupes failure issues by stable title.
+
+### mypy-only breaking changes
+
+These tighten types without changing runtime behavior. Existing valid calls are
+unaffected; the type system will now reject calls that would have failed at
+runtime anyway (or that were always wrong but mypy couldn't see it).
+
+- `Page[T]` TypeVar tightened from `TypeVar("T")` to
+  `TypeVar("T", bound=BaseModel)`. Matches the bound already used inside
+  `kalshi/resources/_base.py` and the actual usage pattern across the SDK
+  (every concrete `Page[X]` parameterizes with a `BaseModel` subclass).
+- Resource-method kwargs for the 13 enum fields above are now `Literal[...]`
+  instead of `str | None`. Callers passing arbitrary strings (typos, in-flight
+  variable values) now fail at mypy-check time.
+
+### Coverage at 1.1.0
+
+- 89/89 REST endpoints implemented (sync + async); auth-guard audit complete
+  across public resources.
+- 11 WebSocket channels with sequence-gap detection, configurable backpressure,
+  and automatic reconnection.
+- **1407 unit tests passing** (1455 collected, 48 skipped — up from 899 at
+  1.0.0), mypy `--strict` clean (76 source files), ruff clean.
+- Drift tests now detect query/path/body/WS-payload schema drift _and_ nested
+  body-model drift.
+- Optional extras: `pandas`, `polars`, `all`, `docs`.
+
 ## 1.0.0 — 2026-05-10
 
 First stable release. No behavioral changes from 0.15.0 — this release marks
