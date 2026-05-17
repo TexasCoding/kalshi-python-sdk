@@ -108,7 +108,7 @@ ws = KalshiWebSocket(auth=auth, config=config)
 
 @ws.on("ticker")
 async def on_ticker(msg: TickerMessage) -> None:
-    print(msg.payload.yes_bid)
+    print(msg.msg.yes_bid)
 
 async with ws.connect():
     await ws.run_forever()
