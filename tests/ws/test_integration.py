@@ -333,6 +333,66 @@ class TestIntegrationReconnect:
             msg2 = await asyncio.wait_for(stream.__anext__(), timeout=3.0)
             assert msg2.msg.yes_bid == 75
 
+    async def test_reconnect_failure_broadcasts_sentinel_to_iterators(
+        self,
+        fake_ws: FakeKalshiWS,
+        test_auth: KalshiAuth,
+    ) -> None:
+        """Recv loop must broadcast a sentinel when reconnect permanently fails.
+
+        Covers ``ws/client.py:197-203``: when ``_connection.reconnect()`` raises,
+        iterators must receive a sentinel so ``async for`` exits cleanly via
+        ``StopAsyncIteration`` instead of hanging forever.
+
+        Flow: connect -> subscribe -> server forces disconnect after one
+        message -> fake server rejects all reconnect attempts -> recv loop
+        catches the reconnect exception -> sentinel broadcast -> iterator
+        exits cleanly.
+        """
+        # Fast retries, single attempt so the test doesn't drag.
+        config = KalshiConfig(
+            ws_base_url=fake_ws.url,
+            timeout=2.0,
+            retry_base_delay=0.01,
+            retry_max_delay=0.05,
+            ws_max_retries=1,
+        )
+        # Disconnect after the first broadcast; then make all reconnects fail.
+        fake_ws.disconnect_after = 1
+
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+
+            # Reject any subsequent handshake -> reconnect() will exhaust
+            # its single retry and raise KalshiConnectionError.
+            fake_ws.reject_auth = True
+
+            # First message arrives, then the server closes the connection.
+            await fake_ws.send_to_all({
+                "type": "ticker", "sid": 1,
+                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 42},
+            })
+
+            # We should get the first message via the iterator,
+            # then the sentinel — async-for exits with no further items.
+            received: list[int] = []
+            try:
+                async with asyncio.timeout(5.0):
+                    async for msg in stream:
+                        received.append(msg.msg.yes_bid)
+            except TimeoutError:
+                pytest.fail(
+                    "Iterator hung after reconnect failure; sentinel was "
+                    "not broadcast — iterators would never exit."
+                )
+
+            # The pre-disconnect message may or may not have been queued
+            # depending on dispatch timing relative to the disconnect.
+            # The contract under test is that iteration *terminates*, not
+            # what's in the buffer first.
+            assert received == [42] or received == []
+
 
 # ---------------------------------------------------------------------------
 # 5. Sequence gap detection
@@ -348,9 +408,11 @@ class TestIntegrationSequenceGap:
     ) -> None:
         """Sequence gap: server sends seq 1, 2, 5 (skipping 3, 4)."""
         gaps: list[SequenceGap] = []
+        got_gap = asyncio.Event()
 
         async def on_gap(gap: SequenceGap) -> None:
             gaps.append(gap)
+            got_gap.set()
 
         ws = KalshiWebSocket(auth=test_auth, config=ws_config)
         async with ws.connect() as session:
@@ -404,8 +466,8 @@ class TestIntegrationSequenceGap:
             })
 
             # Gap message is NOT dispatched (skipped by recv loop).
-            # Give recv loop time to invoke the gap callback.
-            await asyncio.sleep(0.3)
+            # Deterministic wait: gap handler signals us; no blind sleep.
+            await asyncio.wait_for(got_gap.wait(), timeout=2.0)
 
             assert len(gaps) == 1
             assert gaps[0].sid == 1
@@ -428,12 +490,14 @@ class TestIntegrationCallbackAndIterator:
         """Iterator for ticker, callback for fill -- both receive messages."""
         ws = KalshiWebSocket(auth=test_auth, config=ws_config)
         callback_received: list[object] = []
+        got_fill = asyncio.Event()
 
         async with ws.connect() as session:
             # Register callback for fill BEFORE subscribing
             @session.on("fill")
             async def on_fill(msg: object) -> None:
                 callback_received.append(msg)
+                got_fill.set()
 
             # Subscribe to ticker via iterator
             ticker_stream = await session.subscribe_ticker(tickers=["T1"])
@@ -460,8 +524,8 @@ class TestIntegrationCallbackAndIterator:
             assert ticker_msg.msg.market_ticker == "T1"
             assert ticker_msg.msg.yes_bid == 55
 
-            # Wait for callback to fire
-            await asyncio.sleep(0.3)
+            # Wait for callback to fire (signaled by the callback itself).
+            await asyncio.wait_for(got_fill.wait(), timeout=2.0)
             assert len(callback_received) == 1
 
 
@@ -533,9 +597,11 @@ class TestIntegrationErrorCallback:
     ) -> None:
         """Server error message fires the on_error callback."""
         errors: list[ErrorMessage] = []
+        got_error = asyncio.Event()
 
         async def on_error(err: ErrorMessage) -> None:
             errors.append(err)
+            got_error.set()
 
         ws = KalshiWebSocket(
             auth=test_auth, config=ws_config, on_error=on_error,
@@ -550,7 +616,8 @@ class TestIntegrationErrorCallback:
                 "msg": {"code": 5, "msg": "something went wrong"},
             })
 
-            await asyncio.sleep(0.3)
+            # Deterministic wait: callback signals; no blind sleep.
+            await asyncio.wait_for(got_error.wait(), timeout=2.0)
             assert len(errors) == 1
             assert errors[0].msg.code == 5
             assert errors[0].msg.msg == "something went wrong"

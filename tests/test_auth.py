@@ -251,6 +251,47 @@ class TestFromKeyPath:
                 KalshiAuth.from_key_path("my-key", f.name)
         os.unlink(f.name)
 
+    @pytest.mark.skipif(
+        os.geteuid() == 0, reason="root bypasses file permission checks"
+    )
+    def test_permission_denied_wraps_with_helpful_message(
+        self, pem_bytes: bytes
+    ) -> None:
+        """A key file the user can't read raises KalshiAuthError, not PermissionError."""
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(pem_bytes)
+            f.flush()
+            path = f.name
+        try:
+            os.chmod(path, 0o000)
+            with pytest.raises(KalshiAuthError, match="Permission denied"):
+                KalshiAuth.from_key_path("my-key", path)
+        finally:
+            os.chmod(path, 0o600)
+            os.unlink(path)
+
+    def test_passphrase_protected_key_raises_helpful_error(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        """Encrypted keys produce a KalshiAuthError pointing at the openssl fix."""
+        encrypted_pem = rsa_private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(b"pw"),
+        )
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(encrypted_pem)
+            f.flush()
+            path = f.name
+        try:
+            with pytest.raises(KalshiAuthError) as exc_info:
+                KalshiAuth.from_key_path("my-key", path)
+            msg = str(exc_info.value)
+            assert "Passphrase-protected" in msg
+            assert "openssl pkey" in msg
+        finally:
+            os.unlink(path)
+
 
 class TestFromPem:
     def test_accepts_bytes(self, pem_bytes: bytes) -> None:
