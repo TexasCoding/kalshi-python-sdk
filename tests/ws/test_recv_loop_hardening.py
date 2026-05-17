@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from typing import Any
 
 import pytest
 
@@ -168,10 +169,12 @@ class TestPauseDoesNotDropFrames:
             dispatch_started = asyncio.Event()
             allow_dispatch_finish = asyncio.Event()
 
-            async def slow_dispatch(raw: str) -> None:
+            async def slow_dispatch(
+                data: dict[str, Any], *, pre_validated: Any = None,
+            ) -> None:
                 dispatch_started.set()
                 await allow_dispatch_finish.wait()
-                await original_dispatch(raw)
+                await original_dispatch(data, pre_validated=pre_validated)
 
             session._dispatcher.dispatch = slow_dispatch  # type: ignore[method-assign]
 
@@ -388,7 +391,7 @@ class TestRecvLoopExceptionPolicy:
             # Monkey-patch dispatch to raise an unexpected exception class
             # (AttributeError is neither in the JSON/Validation/Key bucket
             # nor in the KalshiBackpressure/Subscription bucket).
-            async def boom(_raw: str) -> None:
+            async def boom(_data: dict[str, Any], **_kw: Any) -> None:
                 raise AttributeError("simulated user-callback bug")
 
             session._dispatcher.dispatch = boom  # type: ignore[method-assign]
