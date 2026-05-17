@@ -1,5 +1,20 @@
 name: Weekly Spec Sync
 
+# Security model (see issue #92, audit finding F-O-01):
+#
+# This workflow fetches OpenAPI/AsyncAPI specs from `docs.kalshi.com`, an
+# external source we do not control. A compromise of upstream (MITM,
+# malicious commit to Kalshi's published spec, etc.) must NOT translate
+# into writable code in this repo. Therefore:
+#
+#   - `permissions:` grants only `contents: read` + `issues: write`.
+#     We never push a branch, never open a PR, never touch repo contents.
+#   - Detected drift is reported as an issue comment on a tracking issue.
+#     A maintainer reads the diff, manually runs `scripts/sync_spec.py`
+#     locally, audits `_generated/models.py`, and opens a PR by hand.
+#   - Third-party actions are pinned to full commit SHAs so a compromised
+#     mutable tag cannot escalate this workflow's narrow read scope.
+
 on:
   schedule:
     # Mondays at 06:00 UTC
@@ -7,21 +22,22 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  issues: write
 
 concurrency:
   group: spec-sync
   cancel-in-progress: false
 
+env:
+  # Tracking issue where the spec-sync bot posts diff reports as comments.
+  # Maintainers subscribe to this issue; comments do NOT mutate the repo.
+  SPEC_SYNC_TRACKING_ISSUE: "92"
+
 jobs:
   spec-sync:
     runs-on: ubuntu-latest
     steps:
-      # Third-party actions pinned to SHA (not tag) because this workflow holds
-      # contents:write + pull-requests:write. A compromised mutable tag could
-      # weaponize the auto-PR flow. Other workflows in this repo use bare tags
-      # because their permissions are narrower.
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Install uv
@@ -77,7 +93,7 @@ jobs:
             echo "Both specs unchanged — nothing to do."
           fi
 
-      - name: Extract spec metadata for PR body
+      - name: Extract spec metadata for report
         if: steps.diff.outputs.changed == 'true'
         id: meta
         run: |
@@ -132,85 +148,93 @@ jobs:
           emit_list added_channels "$added_channels"
           emit_list removed_channels "$removed_channels"
 
-      - name: Regenerate models
+      - name: Compute spec checksums
         if: steps.diff.outputs.changed == 'true'
-        run: uv run python scripts/generate.py
+        id: checksums
+        run: |
+          set -euo pipefail
+          openapi_sha=$(sha256sum specs/openapi.yaml | awk '{print $1}')
+          asyncapi_sha=$(sha256sum specs/asyncapi.yaml | awk '{print $1}')
+          echo "openapi_sha=${openapi_sha}" >> "$GITHUB_OUTPUT"
+          echo "asyncapi_sha=${asyncapi_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Lint
+      - name: Report drift on tracking issue
         if: steps.diff.outputs.changed == 'true'
-        run: uv run ruff check .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRACKING_ISSUE: ${{ env.SPEC_SYNC_TRACKING_ISSUE }}
+          OPENAPI_CHANGED: ${{ steps.diff.outputs.openapi_changed }}
+          ASYNCAPI_CHANGED: ${{ steps.diff.outputs.asyncapi_changed }}
+          OLD_VERSION: ${{ steps.meta.outputs.old_version }}
+          NEW_VERSION: ${{ steps.meta.outputs.new_version }}
+          OLD_PATH_COUNT: ${{ steps.meta.outputs.old_path_count }}
+          NEW_PATH_COUNT: ${{ steps.meta.outputs.new_path_count }}
+          OLD_CHANNEL_COUNT: ${{ steps.meta.outputs.old_channel_count }}
+          NEW_CHANNEL_COUNT: ${{ steps.meta.outputs.new_channel_count }}
+          ADDED_PATHS: ${{ steps.meta.outputs.added_paths }}
+          REMOVED_PATHS: ${{ steps.meta.outputs.removed_paths }}
+          ADDED_CHANNELS: ${{ steps.meta.outputs.added_channels }}
+          REMOVED_CHANNELS: ${{ steps.meta.outputs.removed_channels }}
+          OPENAPI_SHA: ${{ steps.checksums.outputs.openapi_sha }}
+          ASYNCAPI_SHA: ${{ steps.checksums.outputs.asyncapi_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body=$(cat <<EOF
+          ## Weekly spec sync drift report
 
-      - name: Type check
-        if: steps.diff.outputs.changed == 'true'
-        run: uv run mypy kalshi/
+          Upstream specs changed since last sync. This workflow runs with
+          \`contents: read\` only — it does NOT push a branch or open a PR.
+          A maintainer must locally run \`uv run python scripts/sync_spec.py\`
+          and \`uv run python scripts/generate.py\`, audit the diff
+          (including \`kalshi/_generated/models.py\`), and open a PR by hand.
 
-      - name: Run tests
-        if: steps.diff.outputs.changed == 'true'
-        run: uv run pytest tests/ -v
+          - OpenAPI changed: \`${OPENAPI_CHANGED}\`
+          - AsyncAPI changed: \`${ASYNCAPI_CHANGED}\`
+          - Workflow run: ${RUN_URL}
 
-      - name: Compute PR branch date
-        if: steps.diff.outputs.changed == 'true'
-        id: date
-        run: echo "today=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          ### Spec checksums (sha256 of fetched upstream content)
 
-      - name: Create or update spec-sync PR
-        if: steps.diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e  # v7.0.8
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: chore/spec-sync-${{ steps.date.outputs.today }}
-          delete-branch: true
-          commit-message: "chore: sync Kalshi specs (OpenAPI ${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
-          title: "chore: weekly spec sync (OpenAPI ${{ steps.meta.outputs.old_version }} -> ${{ steps.meta.outputs.new_version }})"
-          body: |
-            Automated weekly spec sync from `https://docs.kalshi.com/openapi.yaml`
-            and `https://docs.kalshi.com/asyncapi.yaml`.
+          - \`specs/openapi.yaml\`: \`${OPENAPI_SHA}\`
+          - \`specs/asyncapi.yaml\`: \`${ASYNCAPI_SHA}\`
 
-            - OpenAPI changed: `${{ steps.diff.outputs.openapi_changed }}`
-            - AsyncAPI changed: `${{ steps.diff.outputs.asyncapi_changed }}`
+          Reproduce locally and verify the same hashes before generating
+          models.
 
-            ## OpenAPI
+          ## OpenAPI
 
-            - Version: `${{ steps.meta.outputs.old_version }}` → `${{ steps.meta.outputs.new_version }}`
-            - Endpoints: ${{ steps.meta.outputs.old_path_count }} → ${{ steps.meta.outputs.new_path_count }} paths
+          - Version: \`${OLD_VERSION}\` → \`${NEW_VERSION}\`
+          - Endpoints: ${OLD_PATH_COUNT} → ${NEW_PATH_COUNT} paths
 
-            ### Added endpoints
+          ### Added endpoints
 
-            ```
-            ${{ steps.meta.outputs.added_paths }}
-            ```
+          \`\`\`
+          ${ADDED_PATHS}
+          \`\`\`
 
-            ### Removed endpoints
+          ### Removed endpoints
 
-            ```
-            ${{ steps.meta.outputs.removed_paths }}
-            ```
+          \`\`\`
+          ${REMOVED_PATHS}
+          \`\`\`
 
-            ## AsyncAPI
+          ## AsyncAPI
 
-            - Channels: ${{ steps.meta.outputs.old_channel_count }} → ${{ steps.meta.outputs.new_channel_count }}
+          - Channels: ${OLD_CHANNEL_COUNT} → ${NEW_CHANNEL_COUNT}
 
-            ### Added channels
+          ### Added channels
 
-            ```
-            ${{ steps.meta.outputs.added_channels }}
-            ```
+          \`\`\`
+          ${ADDED_CHANNELS}
+          \`\`\`
 
-            ### Removed channels
+          ### Removed channels
 
-            ```
-            ${{ steps.meta.outputs.removed_channels }}
-            ```
-
-            ## Changes included
-
-            - Updated `specs/openapi.yaml` and/or `specs/asyncapi.yaml`.
-            - Regenerated `kalshi/_generated/models.py` via `scripts/generate.py`.
-            - `uv run ruff check .`, `uv run mypy kalshi/`, and `uv run pytest tests/ -v`
-              all passed on the bot's branch.
-
-            Review the diff for breaking vs non-breaking changes before merging.
-            Contract tests (`tests/test_contracts.py`) will surface any drift
-            between the spec and the hand-crafted SDK surface.
-          labels: |
-            spec-drift
+          \`\`\`
+          ${REMOVED_CHANNELS}
+          \`\`\`
+          EOF
+          )
+          gh issue comment "${TRACKING_ISSUE}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --body "${body}"
