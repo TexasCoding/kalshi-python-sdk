@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, NullableList
+
+SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
+"""Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
 
 
 class Balance(BaseModel):

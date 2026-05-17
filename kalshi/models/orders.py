@@ -4,10 +4,31 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount
+
+# Literal aliases for fixed-enum kwargs on order resource methods.
+# Source of truth: OpenAPI spec v3.13.0 (specs/openapi.yaml).
+# The Pydantic request models leave these fields as ``str`` to remain tolerant
+# of spec drift; the static-type narrowing happens at the resource-method
+# boundary where users actually pass values.
+SideLiteral = Literal["yes", "no"]
+"""Order side. Spec: CreateOrderRequest.side / AmendOrderRequest.side enum."""
+
+ActionLiteral = Literal["buy", "sell"]
+"""Order action. Spec: CreateOrderRequest.action / AmendOrderRequest.action enum."""
+
+TimeInForceLiteral = Literal["fill_or_kill", "good_till_canceled", "immediate_or_cancel"]
+"""Order time-in-force. Spec: CreateOrderRequest.time_in_force enum."""
+
+SelfTradePreventionTypeLiteral = Literal["taker_at_cross", "maker"]
+"""Self-trade prevention behavior. Spec: SelfTradePreventionType enum."""
+
+OrderStatusLiteral = Literal["resting", "canceled", "executed"]
+"""Order status filter for GET /portfolio/orders and /fcm/orders. Spec: OrderStatus enum."""
 
 
 class Order(BaseModel):

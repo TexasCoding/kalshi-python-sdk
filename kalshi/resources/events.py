@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
-from kalshi.models.events import Event, EventMetadata
+from kalshi.models.events import Event, EventMetadata, EventStatusLiteral
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
@@ -15,7 +15,7 @@ class EventsResource(SyncResource):
     def list(
         self,
         *,
-        status: str | None = None,
+        status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
@@ -39,7 +39,7 @@ class EventsResource(SyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
+        status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
@@ -115,7 +115,7 @@ class AsyncEventsResource(AsyncResource):
     async def list(
         self,
         *,
-        status: str | None = None,
+        status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
@@ -139,7 +139,7 @@ class AsyncEventsResource(AsyncResource):
     def list_all(
         self,
         *,
-        status: str | None = None,
+        status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,

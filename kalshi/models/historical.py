@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal
+
+MveHistoricalFilterLiteral = Literal["exclude"]
+"""Multivariate-event filter for GET /historical/markets.
+
+Spec: MveHistoricalFilterQuery enum (single value: ``exclude``).
+"""
 
 
 class HistoricalCutoff(BaseModel):

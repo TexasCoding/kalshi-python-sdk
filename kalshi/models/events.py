@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from kalshi.models.markets import Market
 from kalshi.types import NullableList
+
+EventStatusLiteral = Literal["unopened", "open", "closed", "settled"]
+"""Event status filter for GET /events. Spec: GetEvents.status query enum."""
 
 
 class Event(BaseModel):

@@ -15,8 +15,8 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
-from kalshi.models.orders import Order
-from kalshi.models.portfolio import PositionsResponse
+from kalshi.models.orders import Order, OrderStatusLiteral
+from kalshi.models.portfolio import PositionsResponse, SettlementStatusLiteral
 from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
@@ -29,7 +29,7 @@ class FcmResource(SyncResource):
         subtrader_id: str,
         ticker: str | None = None,
         event_ticker: str | None = None,
-        status: str | None = None,
+        status: OrderStatusLiteral | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
@@ -54,7 +54,7 @@ class FcmResource(SyncResource):
         subtrader_id: str,
         ticker: str | None = None,
         event_ticker: str | None = None,
-        status: str | None = None,
+        status: OrderStatusLiteral | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
@@ -78,7 +78,7 @@ class FcmResource(SyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         count_filter: str | None = None,
-        settlement_status: str | None = None,
+        settlement_status: SettlementStatusLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> PositionsResponse:
@@ -105,7 +105,7 @@ class AsyncFcmResource(AsyncResource):
         subtrader_id: str,
         ticker: str | None = None,
         event_ticker: str | None = None,
-        status: str | None = None,
+        status: OrderStatusLiteral | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
@@ -130,7 +130,7 @@ class AsyncFcmResource(AsyncResource):
         subtrader_id: str,
         ticker: str | None = None,
         event_ticker: str | None = None,
-        status: str | None = None,
+        status: OrderStatusLiteral | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
@@ -155,7 +155,7 @@ class AsyncFcmResource(AsyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         count_filter: str | None = None,
-        settlement_status: str | None = None,
+        settlement_status: SettlementStatusLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> PositionsResponse:
