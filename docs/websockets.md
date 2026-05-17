@@ -97,14 +97,18 @@ async with ws.connect() as session:
 
 ### Callback style
 
-If you'd rather register handlers than iterate, use `ws.on(channel)`:
+If you'd rather register handlers than iterate, use `ws.on(channel)`. The
+message passed to your callback is the typed Pydantic model for that channel
+— `TickerMessage` here, `FillMessage` for `fill`, etc. — not a raw `dict`.
 
 ```python
+from kalshi.ws.models import TickerMessage
+
 ws = KalshiWebSocket(auth=auth, config=config)
 
 @ws.on("ticker")
-async def on_ticker(msg: dict) -> None:
-    print(msg)
+async def on_ticker(msg: TickerMessage) -> None:
+    print(msg.payload.yes_bid)
 
 async with ws.connect():
     await ws.run_forever()
@@ -112,6 +116,10 @@ async with ws.connect():
 
 `on()` works both before and after `connect()`; callbacks registered before
 the socket opens are buffered and applied when the session starts.
+
+Registering a callback for a channel **takes over routing** for that channel —
+messages on that channel won't appear in an iterator returned by
+`subscribe_<channel>()`. Pick one style per channel.
 
 ## Channel reference
 
@@ -197,9 +205,9 @@ Field aliases match the AsyncAPI wire format (`yes_bid_dollars` →
 
 ## Sequence-gap detection
 
-Three channels carry monotonic `seq` numbers: `orderbook_delta`,
-`orderbook_snapshot`, and `order_group_updates`. The SDK tracks the last
-`seq` per `sid` and flags a gap when it sees `seq > last + 1`.
+The `orderbook_delta` subscription (which delivers both snapshot and delta
+messages) and `order_group_updates` carry monotonic `seq` numbers. The SDK
+tracks the last `seq` per `sid` and flags a gap when it sees `seq > last + 1`.
 
 When a gap is detected:
 
