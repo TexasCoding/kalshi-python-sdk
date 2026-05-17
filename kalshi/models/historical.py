@@ -9,11 +9,10 @@ from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal
 
+# Single-value enum per spec (MveHistoricalFilterQuery). mypy rejects plain
+# `str` here even if it holds "exclude" at runtime — pass the literal directly.
 MveHistoricalFilterLiteral = Literal["exclude"]
-"""Multivariate-event filter for GET /historical/markets.
-
-Spec: MveHistoricalFilterQuery enum (single value: ``exclude``).
-"""
+"""Multivariate-event filter for GET /historical/markets. Spec: MveHistoricalFilterQuery."""
 
 
 class HistoricalCutoff(BaseModel):

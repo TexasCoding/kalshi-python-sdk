@@ -15,9 +15,7 @@ from pydantic import BaseModel
 
 from kalshi.types import FixedPointCount, NullableList
 
-IncentiveProgramStatusLiteral = Literal[
-    "all", "active", "upcoming", "closed", "paid_out",
-]
+IncentiveProgramStatusLiteral = Literal["all", "active", "upcoming", "closed", "paid_out"]
 """Incentive program status filter. Spec: GetIncentivePrograms.status query enum."""
 
 IncentiveProgramTypeLiteral = Literal["all", "liquidity", "volume"]
