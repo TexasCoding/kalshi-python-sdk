@@ -102,6 +102,58 @@ class TestErrorMapping:
         assert isinstance(err, KalshiValidationError)
         assert err.details == {"ticker": "required"}
 
+    # --- Regression: issue #96 -------------------------------------------
+    # Retry-After must reject negative, NaN, and infinity values so the
+    # transport never calls time.sleep with a non-positive or non-finite
+    # delay (busy-loop or ValueError crash respectively).
+
+    def test_429_retry_after_negative_falls_back(self) -> None:
+        """Negative Retry-After is rejected so backoff isn't bypassed."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "-1"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_nan_falls_back(self) -> None:
+        """NaN Retry-After is rejected so time.sleep never raises ValueError."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "nan"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_infinity_falls_back(self) -> None:
+        """Infinity Retry-After is rejected (would survive min() cap math)."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "inf"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_zero_is_kept(self) -> None:
+        """Zero is a valid 'retry immediately' value; only <0 is rejected."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "0"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after == 0.0
+
+    def test_429_retry_after_http_date_falls_back(self) -> None:
+        """HTTP-date format isn't parsed; should fall through to backoff."""
+        resp = httpx.Response(
+            429,
+            json={"message": "slow"},
+            headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
 
 class TestSyncTransportRetry:
     @respx.mock

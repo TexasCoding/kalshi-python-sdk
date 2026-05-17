@@ -7,6 +7,7 @@ and dispatch to whichever transport the client was constructed with.
 from __future__ import annotations
 
 import logging
+import math
 import random
 import time
 from typing import Any
@@ -59,6 +60,13 @@ def _map_error(response: httpx.Response) -> KalshiError:
         if retry_after:
             try:
                 retry_after_val = float(retry_after)
+                # Reject negative, NaN, and infinity. Negative would make
+                # ``min(retry_after, retry_max_delay)`` go negative and turn
+                # ``time.sleep`` into a no-op (busy-loop). NaN propagates
+                # through ``min`` and crashes ``time.sleep`` with ValueError.
+                # Fall back to computed backoff in either case.
+                if retry_after_val < 0 or not math.isfinite(retry_after_val):
+                    retry_after_val = None
             except ValueError:
                 retry_after_val = None  # HTTP-date format, fall back to computed backoff
         return KalshiRateLimitError(
