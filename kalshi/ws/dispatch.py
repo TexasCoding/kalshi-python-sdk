@@ -20,6 +20,7 @@ from kalshi.ws.models.orderbook_delta import OrderbookDeltaMessage, OrderbookSna
 from kalshi.ws.models.ticker import TickerMessage
 from kalshi.ws.models.trade import TradeMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
+from kalshi.ws.sequence import SequenceTracker
 
 logger = logging.getLogger("kalshi.ws")
 
@@ -50,9 +51,11 @@ class MessageDispatcher:
         self,
         sub_mgr: SubscriptionManager,
         on_error: Callable[[ErrorMessage], Awaitable[None]] | None = None,
+        seq_tracker: SequenceTracker | None = None,
     ) -> None:
         self._sub_mgr = sub_mgr
         self._on_error = on_error
+        self._seq_tracker = seq_tracker
         self._callbacks: dict[str, Callable[[Any], Awaitable[None]]] = {}
 
     def register_callback(
@@ -81,6 +84,45 @@ class MessageDispatcher:
         """Remove a callback for a channel type."""
         self._callbacks.pop(channel, None)
 
+    async def _handle_server_unsubscribe(self, data: dict[str, Any]) -> None:
+        """Reap state for a server-initiated unsubscribe envelope (#81).
+
+        Client-initiated unsubscribes consume the ack inside
+        SubscriptionManager._wait_for_response, so any unsubscribed frame
+        that reaches the dispatcher is server-initiated (admin action,
+        session expiry) or a late ack after teardown. In either case the
+        sid mappings, seq tracker state, and any held iterator must be
+        cleaned up so they don't leak across reconnects.
+        """
+        # The envelope can carry sid at the top level or nested under msg.
+        sid = data.get("sid")
+        if sid is None:
+            msg_body = data.get("msg")
+            if isinstance(msg_body, dict):
+                sid = msg_body.get("sid")
+        if sid is None:
+            logger.debug("server unsubscribed envelope without sid: %s", data)
+            return
+
+        client_id = self._sub_mgr._sid_to_client.pop(sid, None)
+        if self._seq_tracker is not None:
+            self._seq_tracker.reset(sid)
+
+        if client_id is None:
+            logger.debug(
+                "server unsubscribed for unknown sid %d (already reaped)", sid
+            )
+            return
+
+        sub = self._sub_mgr._subscriptions.pop(client_id, None)
+        if sub is not None:
+            # Wake any held iterator so async-for exits cleanly.
+            await sub.queue.put_sentinel()
+            logger.info(
+                "Server-initiated unsubscribe: channel=%s sid=%d client_id=%d",
+                sub.channel, sid, client_id,
+            )
+
     async def dispatch(self, raw: str) -> None:
         """Parse a raw JSON frame and route it."""
         try:
@@ -96,6 +138,8 @@ class MessageDispatcher:
             if msg_type == "error" and self._on_error is not None:
                 error = ErrorMessage.model_validate(data)
                 await self._on_error(error)
+            elif msg_type == "unsubscribed":
+                await self._handle_server_unsubscribe(data)
             return
 
         # Parse into typed model

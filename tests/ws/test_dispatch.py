@@ -222,6 +222,70 @@ class TestMessageDispatcher:
         assert len(received) == 0  # callback was removed
         assert sub.queue.qsize() == 1  # routed to queue instead
 
+    async def test_server_unsubscribe_reaps_state(self) -> None:
+        """Regression for #81: server-initiated unsubscribe reaps sid maps.
+
+        Previously the dispatcher logged and dropped the unsubscribed
+        envelope, leaking _sid_to_client entries. Now it must pop both
+        the sid-mapping and the subscription, and push a sentinel so any
+        held iterator exits cleanly.
+        """
+        mgr = FakeSubManager()
+        sub = mgr.add(7, "ticker")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        assert 7 in mgr._sid_to_client and 7 in mgr._subscriptions
+
+        raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 7}})
+        await dispatcher.dispatch(raw)
+
+        assert 7 not in mgr._sid_to_client
+        assert 7 not in mgr._subscriptions
+
+        # Held iterator exits cleanly via the pushed sentinel.
+        with pytest.raises(StopAsyncIteration):
+            await sub.queue.get()
+
+    async def test_server_unsubscribe_top_level_sid(self) -> None:
+        """Server can also send sid at the top level (UnsubscribedMessage shape)."""
+        mgr = FakeSubManager()
+        sub = mgr.add(8, "ticker")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+
+        raw = json.dumps({"type": "unsubscribed", "sid": 8, "seq": 0})
+        await dispatcher.dispatch(raw)
+
+        assert 8 not in mgr._sid_to_client
+        assert 8 not in mgr._subscriptions
+        with pytest.raises(StopAsyncIteration):
+            await sub.queue.get()
+
+    async def test_server_unsubscribe_resets_seq_tracker(self) -> None:
+        """If a SequenceTracker is wired in, reset(sid) is called."""
+        from kalshi.ws.sequence import SequenceTracker
+
+        mgr = FakeSubManager()
+        mgr.add(9, "orderbook_delta")
+        tracker = SequenceTracker()
+        # Seed the tracker as if a delta had been processed.
+        await tracker.track(9, 5, "orderbook_delta")
+        assert 9 in tracker._last_seq
+
+        dispatcher = MessageDispatcher(
+            sub_mgr=mgr,  # type: ignore[arg-type]
+            seq_tracker=tracker,
+        )
+        raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 9}})
+        await dispatcher.dispatch(raw)
+
+        assert 9 not in tracker._last_seq
+
+    async def test_server_unsubscribe_unknown_sid_no_crash(self) -> None:
+        """A late/duplicate unsubscribed for an already-reaped sid is a no-op."""
+        mgr = FakeSubManager()
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 999}})
+        await dispatcher.dispatch(raw)  # should not crash
+
     async def test_dispatch_message_without_sid(self) -> None:
         """Messages without sid are logged but don't crash."""
         mgr = FakeSubManager()
