@@ -2,107 +2,217 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## [Unreleased]
+## 2.0.0 — 2026-05-17
 
-### Added
-
-- **`max_pages: int | None` kwarg on every public `*_all()` method** — sync and
-  async (19 + 19 method signatures). Bounded iteration without manual pagination.
-  `None` (default) iterates until the server returns no cursor; the existing
-  cursor-repeat guard remains the safety net against infinite loops (#98).
-- **`RateLimit` model** exposed via `kalshi.RateLimit` — represents the per-
-  direction token-bucket structure on `AccountApiLimits.read` / `.write`.
-- **`KalshiConfig.http2` and `KalshiConfig.limits`** — opt-in HTTP/2 and
-  `httpx.Limits` (connection pool sizing, keep-alive) on the transport.
-  Defaults preserve existing behavior (`http2=False`, `limits=None`).
-
-### Changed
-
-- **All response models uniformly use `extra="allow"` (#114).** Previously
-  5 response models (`Page`, `Orderbook`, `OrderbookLevel`,
-  `BidAskDistribution`, `PriceDistribution`) fell back to Pydantic's default
-  `extra="ignore"`, silently dropping unknown fields — while the 80 sibling
-  response models exposed them via `__pydantic_extra__`. Instances of those
-  5 classes will now preserve unknown fields. Request bodies remain
-  `extra="forbid"` (unchanged).
-- **Count/size/volume response fields retyped from `DollarDecimal` to
-  `FixedPointCount` (#90).** Fields with `_fp` wire aliases were annotated
-  as `DollarDecimal` — the type that signals "dollar amount." Runtime
-  behavior is unchanged (both validators are byte-identical and parse the
-  same wire strings into `Decimal`), but the annotation now communicates
-  the correct semantics and prevents silent corruption if either parser
-  ever diverges. Affected: `Market.{yes_bid_size, yes_ask_size, no_bid_size,
-  no_ask_size, volume, volume_24h, open_interest}`, `Candlestick.{volume,
-  open_interest}`, `OrderbookLevel.quantity`, `Fill.count`, `Trade.count`,
-  `MarketPosition.position`, `EventPosition.total_cost_shares`,
-  `Settlement.{yes_count, no_count}`, `Series.volume`. Both types resolve
-  to `Decimal` at the type level, so user code that handles these fields
-  as `Decimal` is unaffected.
-- **`*_all()` methods are now unbounded by default.** Previously, internal
-  `_list_all` had an invisible 1000-page safety cap that silently truncated
-  callers iterating beyond ~100k items. The cap is gone; the cursor-repeat
-  guard (`KalshiError` on a repeating cursor) provides the runaway protection
-  it always did. Callers who want a cap pass `max_pages=N` explicitly. No
-  user-visible change for anyone iterating <1000 pages (#98).
-- **WS callbacks no longer suppress queue delivery (#80).** Previously,
-  registering a callback for a channel silently disabled the iterator queue
-  for that channel — a user who held both an `@on()` callback AND an
-  `async for msg in subscription` consumer would never see the iterator
-  fire. Now messages fan out to both. A WARNING is logged at
-  `register_callback` time if an active subscription already exists, so
-  users relying on the suppress-side-effect are alerted. Callback-only
-  users now accumulate up to the queue's `maxsize=1000`; existing
-  `DROP_OLDEST` backpressure prevents unbounded growth.
-
-### Fixed
-
-- **`/account/limits` response now parses against the live server.** The
-  published OpenAPI spec (v3.13.0) declares `read_limit`/`write_limit` as
-  ints, but the live API returns nested `read`/`write` token-bucket objects
-  with `bucket_capacity` + `refill_rate`. `AccountApiLimits` now matches the
-  server. New `RateLimit` model exposed for the bucket structure.
-- **`/search/tags_by_categories` no longer crashes** when a category (e.g.
-  `Social`) returns `null` instead of an empty list. `tags_by_categories`
-  values are now `NullableList[str]`, collapsing `null` → `[]`.
+Audit-driven hardening release. 30 audit-findings landed across five
+parallel waves (Wave 1 – Wave 5) plus follow-ups: a WebSocket recv-loop
+overhaul, a spec-sync supply-chain rewrite, double-parse/double-validate
+elimination on the WS hot path, and surface-level cleanup including
+three deliberate breaking changes called out below.
 
 ### Breaking
 
 - **`AccountApiLimits.read_limit` / `.write_limit` removed.** Replaced with
   `AccountApiLimits.read` / `.write`, both of type `RateLimit`
-  (`bucket_capacity: int`, `refill_rate: int`). The previous int fields
-  never worked against the live server, so practical migration impact is
-  expected to be limited to code written from the spec rather than tested
-  against the API.
+  (`bucket_capacity: int`, `refill_rate: int`). The published OpenAPI spec
+  declares the limits as ints, but the live server returns nested token
+  buckets — v2 matches the server. The old int fields never worked against
+  the live API.
 
   ```python
-  # Before
+  # v1
   limits = client.account.limits()
   limits.read_limit   # AttributeError after upgrade
 
-  # After
+  # v2
   limits.read.bucket_capacity   # int
   limits.read.refill_rate       # int
   ```
 
 - **`Order.type` renamed to `Order.order_type`.** Wire format is unchanged
-  (`validation_alias=AliasChoices("type", "order_type")` accepts both names on
-  deserialization), but any user code reading `.type` on an `Order` instance
-  must migrate to `.order_type`. Rationale: matches the project's existing
+  (`validation_alias=AliasChoices("type", "order_type")` accepts both names
+  on deserialization), but any user code reading `.type` on an `Order`
+  instance must migrate to `.order_type`. Matches the project's existing
   builtin-shadow-avoidance convention (`milestone_type`, `target_type`,
   `incentive_type`). Spec v3.13.0 still defines `type` as required, so the
   field is preserved on the wire — only the Python attribute name changed
   (#91).
 
   ```python
-  # Before
+  # v1
   order = client.portfolio.orders.get(order_id="...")
-  print(order.type)  # AttributeError after upgrade
+  print(order.type)        # AttributeError after upgrade
 
-  # After
+  # v2
   print(order.order_type)
   ```
 
-  Version-bump decision (v1.2 vs v2.0) deferred to release cut.
+- **Count/size/volume response fields retyped `DollarDecimal` → `FixedPointCount`
+  (#90).** Fields with `_fp` wire aliases were annotated as the type that
+  signals "dollar amount." Runtime behavior is unchanged (both validators
+  resolve to `Decimal`), but the annotation now communicates the right
+  semantics. `mypy --strict` users may need to update narrow assertions;
+  `isinstance(x, Decimal)` remains valid. Affected: `Market.{yes_bid_size,
+  yes_ask_size, no_bid_size, no_ask_size, volume, volume_24h, open_interest}`,
+  `Candlestick.{volume, open_interest}`, `OrderbookLevel.quantity`,
+  `Fill.count`, `Trade.count`, `MarketPosition.position`,
+  `EventPosition.total_cost_shares`, `Settlement.{yes_count, no_count}`,
+  `Series.volume`.
+
+### Added
+
+- **`max_pages: int | None` kwarg on every public `*_all()` method** — sync
+  and async (19 + 19 method signatures). Bounded iteration without manual
+  pagination. `None` (default) iterates until the server returns no cursor
+  (#98).
+- **`RateLimit` model** exposed via `kalshi.RateLimit` — represents the
+  per-direction token-bucket structure on `AccountApiLimits.read` / `.write`.
+- **`KalshiConfig.http2` and `KalshiConfig.limits`** — opt-in HTTP/2 and
+  `httpx.Limits` (connection pool sizing, keep-alive) on the transport.
+  Defaults preserve existing behavior (#141, F-R-15).
+- **23 model classes re-exported from `kalshi.__all__`** — every name in
+  `kalshi.models.__all__` is now also importable from the top-level
+  `kalshi` package. New dynamic parity test enforces the invariant (#89).
+- **`ConnectionManager.mark_streaming()`** public API — replaces the
+  recv-loop's prior `_set_state` reach-through (#88).
+
+### Changed
+
+- **`*_all()` methods are now unbounded by default.** Previous internal
+  1000-page cap silently truncated callers iterating beyond ~100k items.
+  The cursor-repeat guard remains the runaway protection it always was.
+  Callers wanting a cap pass `max_pages=N` explicitly (#98).
+- **All response models uniformly use `extra="allow"` (#114).** Previously
+  5 response models (`Page`, `Orderbook`, `OrderbookLevel`,
+  `BidAskDistribution`, `PriceDistribution`) fell back to Pydantic's default
+  `extra="ignore"`, silently dropping unknown fields. They now preserve
+  them on `__pydantic_extra__`. Request bodies remain `extra="forbid"`.
+  Drift guard test (`tests/test_model_extra_policy.py`) enforces the
+  policy across every exported model.
+- **WS callbacks no longer suppress queue delivery (#80).** Previously,
+  registering a callback for a channel silently disabled the iterator
+  queue for that channel — a user holding both an `@on()` callback AND an
+  iterator on the same channel would never see the iterator fire. Now
+  messages fan out to both. A WARNING is logged at `register_callback`
+  time if an active subscription already exists, so upgraders see the
+  signal. Callback-only users now accumulate up to `maxsize=1000` (existing
+  `DROP_OLDEST` backpressure prevents unbounded growth).
+- **`OrderbookManager` returns fresh snapshots instead of mutating in
+  place (#85).** Consumers holding a reference to a previously-emitted
+  `Orderbook` no longer see leaked mutations on the next delta.
+- **`KalshiConfig` validates `base_url` and `ws_base_url`** at construction
+  time. Non-`https`/`wss` to remote hosts is rejected; loopback HTTP/WS
+  permitted for local mock servers. Unknown but secure hosts log a
+  WARNING (proxies still work). Trailing slashes are normalized (#94).
+
+### Fixed
+
+- **`/account/limits` response now parses against the live server.** The
+  published OpenAPI spec declares `read_limit`/`write_limit` as ints, but
+  the live API returns nested `read`/`write` token-bucket objects.
+  `AccountApiLimits` now matches the server.
+- **`/search/tags_by_categories` no longer crashes** when a category (e.g.
+  `Social`) returns `null` instead of an empty list. `tags_by_categories`
+  values are now `NullableList[str]`, collapsing `null` → `[]`.
+- **WS recv-loop reconnect/resubscribe correctness** — 5 race conditions
+  fixed (per-sub isolation in resubscribe-all, `_subscribe_lock` covering
+  the full reconnect+resubscribe sequence, `asyncio.shield` around the
+  recv→dispatch critical section, `ConnectionClosed` surfacing as
+  `KalshiConnectionError`, sentinel-before-cleanup ordering in
+  `unsubscribe`) (#77).
+- **WS recv-loop exception ladder narrowed** — `KalshiBackpressureError` /
+  `KalshiSubscriptionError` break the loop and broadcast sentinels to all
+  consumers; `json.JSONDecodeError` / `pydantic.ValidationError` / `KeyError`
+  log+continue; unexpected exceptions broadcast sentinels then re-raise
+  (#83).
+- **WS server-initiated unsubscribe reaps `_sid_to_client`** mappings
+  alongside the subscription, and resets `SequenceTracker._last_seq[sid]`
+  via the now-wired `seq_tracker` kwarg (#81).
+- **WS channel-level error envelopes surface via `on_error`** instead of
+  being silently dropped, with a fallback log if no handler is registered
+  (#82).
+- **WS seq watermark rolls back on backpressure** — `_process_frame`
+  captures the pre-`track` watermark and restores it if dispatch raises
+  `KalshiBackpressureError`, so the dropped message stays visible as a
+  future gap rather than being silently treated as already-seen (#78).
+- **WS multi-ticker seq-gap clears every ticker** in the affected
+  subscription instead of only `tickers[0]` (#79).
+- **`Retry-After` parser rejects negative, NaN, and infinite values**
+  (busy-loop / sleep-crash / cap-bypass) and honors `Retry-After: 0`
+  end-to-end through the retry loop (was dropped by a falsy-check) (#96).
+- **`Page.to_dataframe()` / `.to_polars()` nested-model serialization**
+  pinned by tests; behavior is now under regression guard (#101).
+- **WS double-parse + double-validate eliminated** — recv loop parses
+  JSON once and hands the parsed dict (plus a `pre_validated` typed
+  message for orderbook channels) to the dispatcher (#86).
+
+### Security
+
+- **Spec-sync workflow hardened against upstream compromise.** Reduced
+  permissions from `contents: write + pull-requests: write` to
+  `contents: read + issues: write`. Removed automatic PR creation and
+  in-CI code-generation. Drift now opens a new `spec-drift`-labeled issue
+  per distinct fingerprint (sha256 of upstream specs), deduped to prevent
+  spam. SHA-pinned all third-party actions. Body rendered via Python
+  template (no shell expansion of upstream content) (#92).
+- **URL leakage scrubbed from `KalshiError.__str__`** — httpx exception
+  strings include the full request URL with query parameters, which
+  surfaced credentials in Sentry/log sinks. Surface method + path only
+  (no host, no query); the underlying exception is on `__cause__`. Same
+  fix in `KalshiConnectionError` for the WebSocket connect path (#84
+  F-O-09).
+- **Trade-data leakage scrubbed from WS dispatch log** — Pydantic's
+  `ValidationError.__str__` echoes the full input including trade
+  payload (price, count, user identifiers). Dropped `exc_info=True` on
+  the failure log; surface type + exception class only (#84 F-O-05).
+- **Claude action workflows SHA-pinned** + Dependabot enabled + nightly
+  `pip-audit` workflow added (#93, #95).
+- **Integration-nightly workflow shreds the PEM** on exit so a paused
+  job can't leak the demo private key (#106 F-O-11).
+- **PyPI release workflow uploads sigstore attestations** for trusted
+  publisher verification (#106 F-O-12).
+- **pytest bumped to `>=9,<10`** to clear CVE-2025-71176 (predictable
+  `/tmp/pytest-of-{user}` directory on UNIX) (#123).
+
+### Performance
+
+- **`MessageQueue.qsize()` O(n) → O(1)** via a counter updated on
+  put/get/`__anext__`/DROP_OLDEST eviction (#103).
+- **REST retry backoff switched to AWS Full Jitter** —
+  `uniform(0, min(cap, base * 2**attempt))`, cap applied before
+  randomization (#104).
+- **`RecordingTransport` O(N²) → amortized O(1) per request** — buffered
+  in-memory, flushed on close instead of rewriting the recording on
+  every request (#105).
+- **`OrderbookManager.apply_delta` O(n) → O(1)** via a price-indexed
+  dict, materializing sorted level lists lazily on snapshot emit (#87).
+- **Transport caches `urlparse(base_url).path` once** instead of
+  re-parsing per request (#106 F-R-04).
+
+### Internal
+
+- **`kalshi/__init__.py` re-export parity** — 23 model classes now
+  re-exported from the top-level package with a dynamic parity test
+  that prevents silent drift (#89).
+- **`ExclusionKind = "client_only"`** for SDK-only kwargs with no spec
+  counterpart (e.g. `max_pages`). Distinguishes from `paginator_handled`
+  (spec params the SDK hides).
+- **`tests/integration/helpers.py`** gained `wait_for_resource` /
+  `await_resource` for demo's eventual-consistency lag on
+  `POST → GET-by-id` (orders / order_groups). Fixes 11 integration
+  failures that surfaced after configuring the demo secrets in CI.
+- **`tests/integration/test_subaccounts.py`** ephemeral fixture polls
+  `list_balances` for the new subaccount instead of asserting immediate
+  visibility.
+- **Test count delta: 1407 → 1808** (+401 across all waves).
+- **Dependency-resolution drift fix**: pinned `ast-serialize<0.5` (a
+  transitive of mypy 2.1) whose 0.5.0 release dropped `cp39-abi3`
+  wheels, breaking CI on Python 3.12/3.13.
+
+### Migration
+
+See [`docs/migration.md`](docs/migration.md) for a focused v1.x → v2.0
+migration guide.
 
 ## 1.1.0 — 2026-05-16
 

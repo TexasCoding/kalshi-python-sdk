@@ -1,5 +1,78 @@
 # Migration
 
+## v1.x → v2.0
+
+v2.0 is mostly additive (new `max_pages` kwarg, `KalshiConfig.http2`/`limits`,
+`RateLimit` model export). There are **3 deliberate breaking changes** —
+all on the response-model surface, all driven by spec-or-server reality.
+Migrate by find/replace.
+
+### `Order.type` → `Order.order_type`
+
+Renamed to avoid shadowing the Python builtin (matching the existing
+`milestone_type` / `target_type` / `incentive_type` pattern). Wire format
+is unchanged — incoming JSON `type` still populates the field via
+`validation_alias`.
+
+```python
+# v1
+order = client.portfolio.orders.get(order_id="...")
+print(order.type)        # → AttributeError after upgrade
+
+# v2
+print(order.order_type)  # str | None — "limit" or "market"
+```
+
+### `AccountApiLimits.read_limit` / `.write_limit` removed
+
+Replaced with `AccountApiLimits.read` / `.write` of type `RateLimit`. The
+published OpenAPI spec declares the limits as ints; the live server
+actually returns nested token buckets. v2 matches the server. The old int
+fields never worked against the live API.
+
+```python
+# v1
+limits = client.account.limits()
+limits.read_limit   # → AttributeError after upgrade
+
+# v2
+limits.read.bucket_capacity   # int
+limits.read.refill_rate       # int
+# new model exposed: kalshi.RateLimit
+```
+
+### Response-model count/size/volume fields retyped
+
+Fields like `Market.volume`, `Fill.count`, `Trade.count`,
+`MarketPosition.position` were annotated `DollarDecimal` but semantically
+represent integer counts. v2 retypes them to `FixedPointCount`. Runtime
+values still come back as `Decimal` — only the type annotation changed,
+so `mypy --strict` users may need to update narrow assertions.
+`isinstance(x, Decimal)` checks remain valid.
+
+### Non-breaking but worth knowing
+
+- **`*_all()` is now unbounded by default.** The previous internal 1000-page
+  cap silently truncated callers iterating beyond ~100k items. Cursor-repeat
+  guard is still the safety net against server bugs. Pass `max_pages=N` for
+  an explicit cap.
+- **Response models uniformly use `extra="allow"`.** 5 models (`Page`,
+  `Orderbook`, `OrderbookLevel`, `BidAskDistribution`, `PriceDistribution`)
+  that previously silently dropped unknown fields now preserve them on
+  `__pydantic_extra__`.
+- **WS callbacks no longer suppress queue delivery.** Holding both an `@on()`
+  callback and an iterator on the same channel now sees both fire. A
+  WARNING logs at register-time so the change is visible to upgraders.
+
+See [CHANGELOG.md](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list including the WS recv-loop overhaul (5 reconnect races
+fixed), URL/trade-data log-leak scrubs, and spec-sync supply-chain
+hardening.
+
+---
+
+## From `kalshi_python_async`
+
 If you're coming from `kalshi_python_async` (the predecessor community
 client referenced in the project README), this page summarizes the
 v1 SDK differences you'll hit. **If you don't recognize that name, you can
