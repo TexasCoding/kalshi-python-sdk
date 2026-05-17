@@ -210,7 +210,11 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.account.AccountApiLimits",
         spec_schema="GetAccountApiLimitsResponse",
-        notes="Spec wraps tier/read/write limits in GetAccountApiLimitsResponse",
+        notes=(
+            "SPEC DRIFT: spec declares int 'read_limit'/'write_limit' but the "
+            "live server returns nested 'read'/'write' token-bucket objects. "
+            "SDK model follows the server."
+        ),
     ),
     ContractEntry(
         sdk_model="kalshi.models.structured_targets.StructuredTarget",

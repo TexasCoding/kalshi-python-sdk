@@ -4,7 +4,35 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/account/limits` response now parses against the live server.** The
+  published OpenAPI spec (v3.13.0) declares `read_limit`/`write_limit` as
+  ints, but the live API returns nested `read`/`write` token-bucket objects
+  with `bucket_capacity` + `refill_rate`. `AccountApiLimits` now matches the
+  server. New `RateLimit` model exposed for the bucket structure.
+- **`/search/tags_by_categories` no longer crashes** when a category (e.g.
+  `Social`) returns `null` instead of an empty list. `tags_by_categories`
+  values are now `NullableList[str]`, collapsing `null` → `[]`.
+
 ### Breaking
+
+- **`AccountApiLimits.read_limit` / `.write_limit` removed.** Replaced with
+  `AccountApiLimits.read` / `.write`, both of type `RateLimit`
+  (`bucket_capacity: int`, `refill_rate: int`). The previous int fields
+  never worked against the live server, so practical migration impact is
+  expected to be limited to code written from the spec rather than tested
+  against the API.
+
+  ```python
+  # Before
+  limits = client.account.limits()
+  limits.read_limit   # AttributeError after upgrade
+
+  # After
+  limits.read.bucket_capacity   # int
+  limits.read.refill_rate       # int
+  ```
 
 - **`Order.type` renamed to `Order.order_type`.** Wire format is unchanged
   (`validation_alias=AliasChoices("type", "order_type")` accepts both names on

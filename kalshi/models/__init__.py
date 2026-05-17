@@ -1,6 +1,6 @@
 """Kalshi SDK data models."""
 
-from kalshi.models.account import AccountApiLimits
+from kalshi.models.account import AccountApiLimits, RateLimit
 from kalshi.models.api_keys import (
     ApiKey,
     CreateApiKeyRequest,
@@ -238,6 +238,7 @@ __all__ = [
     "PositionsResponse",
     "PriceDistribution",
     "Quote",
+    "RateLimit",
     "Schedule",
     "ScopeList",
     "SelfTradePreventionTypeLiteral",
