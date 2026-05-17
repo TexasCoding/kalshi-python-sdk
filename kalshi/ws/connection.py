@@ -94,8 +94,7 @@ class ConnectionManager:
 
         The recv loop calls this after a successful reconnect+resubscribe
         so the manager can fire `on_state_change` with the right caller.
-        Replaces the previous reach-through to the name-mangled
-        `_set_state` (#88).
+        Replaces the previous reach-through to private `_set_state` (#88).
         """
         await self._set_state(ConnectionState.STREAMING)
 

@@ -179,7 +179,17 @@ class KalshiWebSocket:
             except asyncio.CancelledError:
                 # Block until the shielded dispatch actually finishes, then
                 # honor cancellation. Loop exit now strictly post-dispatch.
-                await inner
+                # Best-effort: a parse error inside dispatch shouldn't take
+                # down the cancellation path — we're exiting anyway, and
+                # the same exception classes are handled by the explicit
+                # branches below on the next iteration.
+                try:
+                    await inner
+                except Exception:
+                    logger.debug(
+                        "Shielded dispatch raised during cancel cleanup",
+                        exc_info=True,
+                    )
                 break
             except (KalshiBackpressureError, KalshiSubscriptionError):
                 # #83: these signal real consumer-visible problems. Propagate

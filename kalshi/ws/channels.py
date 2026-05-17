@@ -251,15 +251,17 @@ class SubscriptionManager:
                     client_id,
                     new_sid,
                 )
-            except Exception as e:
+            except Exception:
                 # F-P-01: per-sub failure is isolated. Push sentinel so the
                 # iterator exits cleanly, drop the subscription, continue with
-                # the rest.
+                # the rest. `exc_info=True` so an unexpected AttributeError /
+                # programming bug doesn't lose its traceback the way the
+                # earlier `: %s, e` formulation did.
                 logger.warning(
-                    "Resubscribe failed for client_id=%d channel=%s: %s",
+                    "Resubscribe failed for client_id=%d channel=%s",
                     client_id,
                     sub.channel,
-                    e,
+                    exc_info=True,
                 )
                 await sub.queue.put_sentinel()
                 self._subscriptions.pop(client_id, None)
