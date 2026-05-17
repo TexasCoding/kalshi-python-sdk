@@ -101,12 +101,16 @@ class SyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
-        self._client = httpx.Client(
-            base_url=config.base_url,
-            timeout=config.timeout,
-            headers=config.extra_headers,
-            transport=transport,
-        )
+        client_kwargs: dict[str, Any] = {
+            "base_url": config.base_url,
+            "timeout": config.timeout,
+            "headers": config.extra_headers,
+            "transport": transport,
+            "http2": config.http2,
+        }
+        if config.limits is not None:
+            client_kwargs["limits"] = config.limits
+        self._client = httpx.Client(**client_kwargs)
 
     @property
     def is_authenticated(self) -> bool:
@@ -222,12 +226,16 @@ class AsyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
-        self._client = httpx.AsyncClient(
-            base_url=config.base_url,
-            timeout=config.timeout,
-            headers=config.extra_headers,
-            transport=transport,
-        )
+        client_kwargs: dict[str, Any] = {
+            "base_url": config.base_url,
+            "timeout": config.timeout,
+            "headers": config.extra_headers,
+            "transport": transport,
+            "http2": config.http2,
+        }
+        if config.limits is not None:
+            client_kwargs["limits"] = config.limits
+        self._client = httpx.AsyncClient(**client_kwargs)
 
     @property
     def is_authenticated(self) -> bool:
