@@ -197,10 +197,12 @@ class TestCallbackAPI:
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             received: list[object] = []
+            got_one = asyncio.Event()
 
             @session.on("fill")
             async def on_fill(msg: object) -> None:
                 received.append(msg)
+                got_one.set()
 
             await session.subscribe_fill()
             await fake_ws.send_to_all({
@@ -208,8 +210,8 @@ class TestCallbackAPI:
                 "msg": {"trade_id": "t1", "order_id": "o1"},
             })
 
-            # Give recv_loop time to dispatch
-            await asyncio.sleep(0.2)
+            # Deterministic wait: the callback signals us; we don't sleep blindly.
+            await asyncio.wait_for(got_one.wait(), timeout=2.0)
             assert len(received) == 1
 
 
@@ -240,6 +242,52 @@ class TestMultipleChannels:
             fill_msg = await asyncio.wait_for(fill_stream.__anext__(), timeout=2.0)
             assert ticker_msg.msg.market_ticker == "T1"
             assert fill_msg.msg.trade_id == "t1"
+
+    async def test_two_subs_same_channel_distinct_params(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        """Two subs to the same channel (orderbook_delta) with different tickers.
+
+        Pins that the SDK treats each ``subscribe`` call as an independent
+        subscription with its own ``server_sid`` and its own iterator queue —
+        even when channel name collides. Messages with sid=A go only to the
+        first iterator; sid=B only to the second.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream_a = await session.subscribe_orderbook_delta(tickers=["T1"])
+            stream_b = await session.subscribe_orderbook_delta(tickers=["T2"])
+
+            # Two distinct subscribes -> two distinct server sids
+            assert session._sub_mgr is not None
+            sids = [
+                sub.server_sid
+                for sub in session._sub_mgr.active_subscriptions.values()
+            ]
+            assert len(sids) == 2
+            assert sids[0] != sids[1]
+            sid_a, sid_b = sids[0], sids[1]
+            assert sid_a is not None and sid_b is not None
+
+            # Push one message to each sid
+            await fake_ws.send_to_all({
+                "type": "orderbook_snapshot", "sid": sid_a, "seq": 1,
+                "msg": {
+                    "market_ticker": "T1", "market_id": "x",
+                    "yes": [["0.50", "100"]], "no": [],
+                },
+            })
+            await fake_ws.send_to_all({
+                "type": "orderbook_snapshot", "sid": sid_b, "seq": 1,
+                "msg": {
+                    "market_ticker": "T2", "market_id": "y",
+                    "yes": [["0.60", "200"]], "no": [],
+                },
+            })
+
+            msg_a = await asyncio.wait_for(stream_a.__anext__(), timeout=2.0)
+            msg_b = await asyncio.wait_for(stream_b.__anext__(), timeout=2.0)
+            assert msg_a.msg.market_ticker == "T1"
+            assert msg_b.msg.market_ticker == "T2"
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +327,11 @@ class TestRunForever:
 class TestErrorCallback:
     async def test_on_error_called(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
         errors: list[object] = []
+        got_one = asyncio.Event()
 
         async def on_err(err: object) -> None:
             errors.append(err)
+            got_one.set()
 
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config, on_error=on_err)
@@ -294,5 +344,6 @@ class TestErrorCallback:
                 "type": "error",
                 "msg": {"code": 400, "msg": "bad request"},
             })
-            await asyncio.sleep(0.2)
+            # Deterministic wait: the callback signals us; we don't sleep blindly.
+            await asyncio.wait_for(got_one.wait(), timeout=2.0)
             assert len(errors) == 1

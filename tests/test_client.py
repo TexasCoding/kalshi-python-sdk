@@ -388,6 +388,16 @@ class TestKalshiClientConstructor:
         assert client._auth is None
         client.close()
 
+    def test_is_authenticated_true_with_auth(self, test_auth: KalshiAuth) -> None:
+        client = KalshiClient(auth=test_auth)
+        assert client.is_authenticated is True
+        client.close()
+
+    def test_is_authenticated_false_without_auth(self) -> None:
+        client = KalshiClient()
+        assert client.is_authenticated is False
+        client.close()
+
     def test_demo_flag(self, test_auth: KalshiAuth) -> None:
         client = KalshiClient(auth=test_auth, demo=True)
         assert client._config.base_url == DEMO_BASE_URL

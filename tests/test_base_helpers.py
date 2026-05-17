@@ -48,6 +48,16 @@ class TestJoinTickersValidation:
         assert _join_tickers(()) is None
         assert _join_tickers("") is None
 
+    def test_non_string_bool_element_raises_unhelpful_type_error(self) -> None:
+        # Pins crash path: bool fails `"," in elem` check; update if validation is added.
+        with pytest.raises(TypeError, match=r"argument of type 'bool' is not iterable"):
+            _join_tickers([True, "A"])  # type: ignore[list-item]
+
+    def test_non_string_int_element_raises_unhelpful_type_error(self) -> None:
+        """Mirror of the bool case: int element crashes the same way."""
+        with pytest.raises(TypeError, match=r"argument of type 'int' is not iterable"):
+            _join_tickers((1, "A"))  # type: ignore[arg-type]
+
 
 class TestSyncListNullItemsCoercion:
     @respx.mock
