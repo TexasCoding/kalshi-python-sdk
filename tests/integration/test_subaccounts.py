@@ -16,6 +16,7 @@ fixture so we only create one per test run.
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 
 import pytest
@@ -56,13 +57,29 @@ def ephemeral_subaccount(sync_client: KalshiClient) -> int:
     POST /portfolio/subaccounts has no DELETE counterpart and creates a
     permanent subaccount on demo. Session-scoped caching minimizes the
     number of orphans the suite leaves behind to one per run.
+
+    Demo /portfolio/subaccounts/balances lags behind /portfolio/subaccounts
+    by roughly 1 second after create (observed ~1.0-1.5s in probes). Poll
+    list_balances until the new number shows up so downstream assertions
+    aren't racing the demo's eventual consistency.
     """
     try:
         resp = sync_client.subaccounts.create()
     except KalshiValidationError as e:
         pytest.skip(f"demo refused create subaccount: {e}")
-    logger.info("Created demo subaccount %s for test run", resp.subaccount_number)
-    return resp.subaccount_number
+    created = resp.subaccount_number
+    logger.info("Created demo subaccount %s for test run", created)
+
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        balances = sync_client.subaccounts.list_balances()
+        if any(b.subaccount_number == created for b in balances.subaccount_balances):
+            return created
+        time.sleep(0.5)
+    pytest.skip(
+        f"demo did not surface created subaccount {created} in list_balances "
+        f"within 10s — likely demo-side propagation issue"
+    )
 
 
 @pytest.mark.integration
