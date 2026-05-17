@@ -18,7 +18,7 @@ performance, and developer experience.
 ```bash
 git clone https://github.com/TexasCoding/kalshi-python-sdk
 cd kalshi-python-sdk
-uv sync --dev
+uv sync
 uv run pytest tests/ --ignore=tests/integration -v
 uv run mypy kalshi/
 uv run ruff check .

@@ -16,13 +16,16 @@ in public spaces.
 
 ## Reporting
 
-To report a Code of Conduct concern:
+To report a Code of Conduct concern, contact a project maintainer
+directly via their GitHub profile (DM or the email listed there). Avoid
+public issues — they're indexed and can amplify the harm to the
+reporter.
 
-- Use GitHub's [Private Vulnerability Reporting](https://github.com/TexasCoding/kalshi-python-sdk/security/advisories/new),
-  even for non-security issues — this gives a private channel direct to
-  maintainers.
-- Or open a draft GitHub issue marked confidential and tag a maintainer
-  if you prefer.
+GitHub's Private Vulnerability Reporting is **not** the right channel
+for CoC reports: it's wired into security-advisory tooling (CVSS,
+advisory drafts, security alerts) and will confuse both reporter and
+maintainer workflows. Reserve it for actual vulnerabilities per
+[`SECURITY.md`](SECURITY.md).
 
 Reports are read by maintainers only and handled per the enforcement
 guidelines in the linked Covenant.
