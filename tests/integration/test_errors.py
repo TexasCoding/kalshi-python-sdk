@@ -54,6 +54,11 @@ class TestErrorPaths:
 
         Uses a throwaway client with a valid RSA key but wrong key_id,
         so signing succeeds but the server rejects the credentials.
+
+        Targets ``portfolio.balance()`` because it is account-scoped and
+        always auth-required. ``markets.list()`` was previously used but
+        Kalshi began serving public market data unauthenticated, so it
+        no longer exercises the auth path.
         """
         dummy_key = rsa.generate_private_key(
             public_exponent=65537, key_size=2048
@@ -68,7 +73,7 @@ class TestErrorPaths:
 
         try:
             with pytest.raises(KalshiAuthError) as exc_info:
-                client.markets.list(limit=1)
+                client.portfolio.balance()
 
             exc = exc_info.value
             assert exc.status_code in (401, 403)
