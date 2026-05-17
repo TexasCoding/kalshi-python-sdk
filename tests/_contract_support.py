@@ -755,6 +755,18 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="body param (BatchCancelOrdersRequest.orders); not query/path",
         kind="body_param",
     ),
+    # --- model-first overload kwarg (#56) ---
+    # batch_cancel is the only POST/PUT/DELETE-with-body endpoint covered by
+    # TestRequestParamDrift (DELETE with requestBody). The `request` kwarg is
+    # an SDK-side ergonomic overload, not a spec field. See #56.
+    # No matching AsyncOrdersResource.batch_cancel entry needed: the drift
+    # test indexes EXCLUSIONS by the sync FQN and reuses it for the async
+    # sibling (test_contracts.py: "EXCLUSIONS is indexed by the SYNC method
+    # fqn; async tests reuse the same allowlist entries").
+    ("kalshi.resources.orders.OrdersResource.batch_cancel", "request"): Exclusion(
+        reason="Optional request-model overload; not a spec field. See #56.",
+        kind="body_param",
+    ),
     # --- AmendOrderRequest spec fields deliberately not on the model ---
     ("kalshi.models.orders.AmendOrderRequest", "yes_price"): Exclusion(
         reason=(

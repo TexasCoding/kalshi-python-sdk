@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from typing import overload
 from uuid import UUID
 
 from kalshi.models.common import Page
@@ -14,7 +15,12 @@ from kalshi.models.subaccounts import (
     SubaccountTransfer,
     UpdateSubaccountNettingRequest,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _check_request_exclusive,
+    _params,
+)
 
 
 class SubaccountsResource(SyncResource):
@@ -34,6 +40,9 @@ class SubaccountsResource(SyncResource):
         data = self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
+    @overload
+    def transfer(self, *, request: ApplySubaccountTransferRequest) -> None: ...
+    @overload
     def transfer(
         self,
         *,
@@ -41,22 +50,47 @@ class SubaccountsResource(SyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+    ) -> None: ...
+    def transfer(
+        self,
+        *,
+        request: ApplySubaccountTransferRequest | None = None,
+        client_transfer_id: UUID | str | None = None,
+        from_subaccount: int | None = None,
+        to_subaccount: int | None = None,
+        amount_cents: int | None = None,
     ) -> None:
         self._require_auth()
-        # Accept str for caller ergonomics; coerce once to surface a clean
-        # ValueError on malformed strings before the model validator sees them.
-        uid = (
-            client_transfer_id
-            if isinstance(client_transfer_id, UUID)
-            else UUID(client_transfer_id)
-        )
-        req = ApplySubaccountTransferRequest(
-            client_transfer_id=uid,
+        _check_request_exclusive(
+            request,
+            client_transfer_id=client_transfer_id,
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if (
+                client_transfer_id is None or from_subaccount is None
+                or to_subaccount is None or amount_cents is None
+            ):
+                raise TypeError(
+                    "transfer() requires `client_transfer_id`, `from_subaccount`, "
+                    "`to_subaccount`, and `amount_cents` (or pass `request=...`)"
+                )
+            # Accept str for caller ergonomics; coerce once to surface a clean
+            # ValueError on malformed strings before the model validator sees them.
+            uid = (
+                client_transfer_id
+                if isinstance(client_transfer_id, UUID)
+                else UUID(client_transfer_id)
+            )
+            request = ApplySubaccountTransferRequest(
+                client_transfer_id=uid,
+                from_subaccount=from_subaccount,
+                to_subaccount=to_subaccount,
+                amount_cents=amount_cents,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._post("/portfolio/subaccounts/transfer", json=body)
 
     def list_balances(self) -> GetSubaccountBalancesResponse:
@@ -88,14 +122,35 @@ class SubaccountsResource(SyncResource):
             params=params,
         )
 
+    @overload
+    def update_netting(
+        self, *, request: UpdateSubaccountNettingRequest,
+    ) -> None: ...
+    @overload
     def update_netting(
         self, *, subaccount_number: int, enabled: bool,
+    ) -> None: ...
+    def update_netting(
+        self,
+        *,
+        request: UpdateSubaccountNettingRequest | None = None,
+        subaccount_number: int | None = None,
+        enabled: bool | None = None,
     ) -> None:
         self._require_auth()
-        req = UpdateSubaccountNettingRequest(
-            subaccount_number=subaccount_number, enabled=enabled,
+        _check_request_exclusive(
+            request, subaccount_number=subaccount_number, enabled=enabled,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if subaccount_number is None or enabled is None:
+                raise TypeError(
+                    "update_netting() requires `subaccount_number` and `enabled` "
+                    "(or pass `request=...`)"
+                )
+            request = UpdateSubaccountNettingRequest(
+                subaccount_number=subaccount_number, enabled=enabled,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._put("/portfolio/subaccounts/netting", json=body)
 
     def get_netting(self) -> GetSubaccountNettingResponse:
@@ -114,6 +169,11 @@ class AsyncSubaccountsResource(AsyncResource):
         data = await self._post("/portfolio/subaccounts", json={})
         return CreateSubaccountResponse.model_validate(data)
 
+    @overload
+    async def transfer(
+        self, *, request: ApplySubaccountTransferRequest,
+    ) -> None: ...
+    @overload
     async def transfer(
         self,
         *,
@@ -121,20 +181,45 @@ class AsyncSubaccountsResource(AsyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+    ) -> None: ...
+    async def transfer(
+        self,
+        *,
+        request: ApplySubaccountTransferRequest | None = None,
+        client_transfer_id: UUID | str | None = None,
+        from_subaccount: int | None = None,
+        to_subaccount: int | None = None,
+        amount_cents: int | None = None,
     ) -> None:
         self._require_auth()
-        uid = (
-            client_transfer_id
-            if isinstance(client_transfer_id, UUID)
-            else UUID(client_transfer_id)
-        )
-        req = ApplySubaccountTransferRequest(
-            client_transfer_id=uid,
+        _check_request_exclusive(
+            request,
+            client_transfer_id=client_transfer_id,
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if (
+                client_transfer_id is None or from_subaccount is None
+                or to_subaccount is None or amount_cents is None
+            ):
+                raise TypeError(
+                    "transfer() requires `client_transfer_id`, `from_subaccount`, "
+                    "`to_subaccount`, and `amount_cents` (or pass `request=...`)"
+                )
+            uid = (
+                client_transfer_id
+                if isinstance(client_transfer_id, UUID)
+                else UUID(client_transfer_id)
+            )
+            request = ApplySubaccountTransferRequest(
+                client_transfer_id=uid,
+                from_subaccount=from_subaccount,
+                to_subaccount=to_subaccount,
+                amount_cents=amount_cents,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         await self._post("/portfolio/subaccounts/transfer", json=body)
 
     async def list_balances(self) -> GetSubaccountBalancesResponse:
@@ -167,14 +252,35 @@ class AsyncSubaccountsResource(AsyncResource):
         ):
             yield item
 
+    @overload
+    async def update_netting(
+        self, *, request: UpdateSubaccountNettingRequest,
+    ) -> None: ...
+    @overload
     async def update_netting(
         self, *, subaccount_number: int, enabled: bool,
+    ) -> None: ...
+    async def update_netting(
+        self,
+        *,
+        request: UpdateSubaccountNettingRequest | None = None,
+        subaccount_number: int | None = None,
+        enabled: bool | None = None,
     ) -> None:
         self._require_auth()
-        req = UpdateSubaccountNettingRequest(
-            subaccount_number=subaccount_number, enabled=enabled,
+        _check_request_exclusive(
+            request, subaccount_number=subaccount_number, enabled=enabled,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if subaccount_number is None or enabled is None:
+                raise TypeError(
+                    "update_netting() requires `subaccount_number` and `enabled` "
+                    "(or pass `request=...`)"
+                )
+            request = UpdateSubaccountNettingRequest(
+                subaccount_number=subaccount_number, enabled=enabled,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         await self._put("/portfolio/subaccounts/netting", json=body)
 
     async def get_netting(self) -> GetSubaccountNettingResponse:

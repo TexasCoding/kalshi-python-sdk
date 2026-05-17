@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
+from typing import overload
 
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
@@ -20,20 +21,50 @@ from kalshi.models.orders import (
     Order,
     OrderQueuePosition,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _join_tickers, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _check_request_exclusive,
+    _join_tickers,
+    _params,
+)
 from kalshi.types import to_decimal
 
 
 class OrdersResource(SyncResource):
     """Sync orders API."""
 
+    @overload
+    def create(self, *, request: CreateOrderRequest) -> Order: ...
+    @overload
     def create(
         self,
         *,
         ticker: str,
         side: str,
-        action: str = "buy",
-        count: int = 1,
+        action: str | None = ...,
+        count: int | None = ...,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        client_order_id: str | None = ...,
+        expiration_ts: int | None = ...,
+        buy_max_cost: int | None = ...,
+        time_in_force: str | None = ...,
+        post_only: bool | None = ...,
+        reduce_only: bool | None = ...,
+        self_trade_prevention_type: str | None = ...,
+        order_group_id: str | None = ...,
+        cancel_order_on_pause: bool | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
+    def create(
+        self,
+        *,
+        request: CreateOrderRequest | None = None,
+        ticker: str | None = None,
+        side: str | None = None,
+        action: str | None = None,
+        count: int | None = None,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
@@ -58,27 +89,47 @@ class OrdersResource(SyncResource):
         v0.8.0 removed the ``type`` kwarg: the field was never defined in
         the OpenAPI spec. Callers passing ``type="limit"`` now get a
         ``TypeError``.
+
+        v1.1 (#56): pass a pre-built ``request=CreateOrderRequest(...)`` instead
+        of individual kwargs. Mutually exclusive with the kwarg form.
         """
         self._require_auth()
-        req = CreateOrderRequest(
-            ticker=ticker,
-            side=side,
-            action=action,
-            count=to_decimal(count),
-            yes_price=to_decimal(yes_price) if yes_price is not None else None,
-            no_price=to_decimal(no_price) if no_price is not None else None,
-            client_order_id=client_order_id,
-            expiration_ts=expiration_ts,
-            buy_max_cost=buy_max_cost,
-            time_in_force=time_in_force,
-            post_only=post_only,
-            reduce_only=reduce_only,
+        _check_request_exclusive(
+            request,
+            ticker=ticker, side=side, action=action, count=count,
+            yes_price=yes_price, no_price=no_price,
+            client_order_id=client_order_id, expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost, time_in_force=time_in_force,
+            post_only=post_only, reduce_only=reduce_only,
             self_trade_prevention_type=self_trade_prevention_type,
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if ticker is None or side is None:
+                raise TypeError(
+                    "create() requires `ticker` and `side` (or pass `request=...`)"
+                )
+            request = CreateOrderRequest(
+                ticker=ticker,
+                side=side,
+                action=action if action is not None else "buy",
+                count=to_decimal(count if count is not None else 1),
+                yes_price=to_decimal(yes_price) if yes_price is not None else None,
+                no_price=to_decimal(no_price) if no_price is not None else None,
+                client_order_id=client_order_id,
+                expiration_ts=expiration_ts,
+                buy_max_cost=buy_max_cost,
+                time_in_force=time_in_force,
+                post_only=post_only,
+                reduce_only=reduce_only,
+                self_trade_prevention_type=self_trade_prevention_type,
+                order_group_id=order_group_id,
+                cancel_order_on_pause=cancel_order_on_pause,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -142,19 +193,52 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
+    @overload
     def batch_create(
-        self, orders: Sequence[CreateOrderRequest],
+        self,
+        *,
+        request: BatchCreateOrdersRequest,
+    ) -> builtins.list[Order]: ...
+    @overload
+    def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest],
+    ) -> builtins.list[Order]: ...
+    def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest] | None = None,
+        *,
+        request: BatchCreateOrdersRequest | None = None,
     ) -> builtins.list[Order]:
         self._require_auth()
-        req = BatchCreateOrdersRequest(orders=list(orders))
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, orders=orders)
+        if request is None:
+            if orders is None:
+                raise TypeError(
+                    "batch_create() requires `orders` (or pass `request=...`)"
+                )
+            request = BatchCreateOrdersRequest(orders=list(orders))
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
+    @overload
+    def batch_cancel(
+        self,
+        *,
+        request: BatchCancelOrdersRequest,
+    ) -> None: ...
+    @overload
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None: ...
+    def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
+        *,
+        request: BatchCancelOrdersRequest | None = None,
     ) -> None:
         """Batch-cancel orders.
 
@@ -172,14 +256,20 @@ class OrdersResource(SyncResource):
         convenience shortcut.
         """
         self._require_auth()
-        normalized = [
-            (
-                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
-            )
-            for o in orders
-        ]
-        req = BatchCancelOrdersRequest(orders=normalized)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, orders=orders)
+        if request is None:
+            if orders is None:
+                raise TypeError(
+                    "batch_cancel() requires `orders` (or pass `request=...`)"
+                )
+            normalized = [
+                (
+                    BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+                )
+                for o in orders
+            ]
+            request = BatchCancelOrdersRequest(orders=normalized)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         self._delete_with_body("/portfolio/orders/batched", json=body)
 
     def fills(
@@ -226,6 +316,11 @@ class OrdersResource(SyncResource):
         )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
+    @overload
+    def amend(
+        self, order_id: str, *, request: AmendOrderRequest,
+    ) -> AmendOrderResponse: ...
+    @overload
     def amend(
         self,
         order_id: str,
@@ -233,6 +328,21 @@ class OrdersResource(SyncResource):
         ticker: str,
         side: str,
         action: str,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        count: int | None = ...,
+        client_order_id: str | None = ...,
+        updated_client_order_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> AmendOrderResponse: ...
+    def amend(
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderRequest | None = None,
+        ticker: str | None = None,
+        side: str | None = None,
+        action: str | None = None,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         count: int | None = None,
@@ -241,45 +351,79 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
-        if yes_price is None and no_price is None and count is None:
-            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        req = AmendOrderRequest(
-            ticker=ticker,
-            side=side,
-            action=action,
-            yes_price=to_decimal(yes_price) if yes_price is not None else None,
-            no_price=to_decimal(no_price) if no_price is not None else None,
-            count=to_decimal(count) if count is not None else None,
+        _check_request_exclusive(
+            request,
+            ticker=ticker, side=side, action=action,
+            yes_price=yes_price, no_price=no_price, count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if ticker is None or side is None or action is None:
+                raise TypeError(
+                    "amend() requires `ticker`, `side`, and `action` "
+                    "(or pass `request=...`)"
+                )
+            if yes_price is None and no_price is None and count is None:
+                raise ValueError(
+                    "amend() requires at least one of yes_price, no_price, or count"
+                )
+            request = AmendOrderRequest(
+                ticker=ticker,
+                side=side,
+                action=action,
+                yes_price=to_decimal(yes_price) if yes_price is not None else None,
+                no_price=to_decimal(no_price) if no_price is not None else None,
+                count=to_decimal(count) if count is not None else None,
+                client_order_id=client_order_id,
+                updated_client_order_id=updated_client_order_id,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
+    @overload
+    def decrease(
+        self, order_id: str, *, request: DecreaseOrderRequest,
+    ) -> Order: ...
+    @overload
     def decrease(
         self,
         order_id: str,
         *,
+        reduce_by: int | None = ...,
+        reduce_to: int | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
+    def decrease(
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderRequest | None = None,
         reduce_by: int | None = None,
         reduce_to: int | None = None,
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
-        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
-        # by design: the model-first v0.9 API will rely on the model validator,
-        # but this path preserves nicer ValueError messages for current callers.
-        if reduce_by is None and reduce_to is None:
-            raise ValueError("decrease() requires either reduce_by or reduce_to")
-        if reduce_by is not None and reduce_to is not None:
-            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        req = DecreaseOrderRequest(
-            reduce_by=reduce_by,
-            reduce_to=reduce_to,
-            subaccount=subaccount,
+        _check_request_exclusive(
+            request, reduce_by=reduce_by, reduce_to=reduce_to, subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+            # by design: the model-first v0.9 API will rely on the model validator,
+            # but this path preserves nicer ValueError messages for current callers.
+            if reduce_by is None and reduce_to is None:
+                raise ValueError("decrease() requires either reduce_by or reduce_to")
+            if reduce_by is not None and reduce_to is not None:
+                raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
+            request = DecreaseOrderRequest(
+                reduce_by=reduce_by,
+                reduce_to=reduce_to,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -318,13 +462,37 @@ class OrdersResource(SyncResource):
 class AsyncOrdersResource(AsyncResource):
     """Async orders API."""
 
+    @overload
+    async def create(self, *, request: CreateOrderRequest) -> Order: ...
+    @overload
     async def create(
         self,
         *,
         ticker: str,
         side: str,
-        action: str = "buy",
-        count: int = 1,
+        action: str | None = ...,
+        count: int | None = ...,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        client_order_id: str | None = ...,
+        expiration_ts: int | None = ...,
+        buy_max_cost: int | None = ...,
+        time_in_force: str | None = ...,
+        post_only: bool | None = ...,
+        reduce_only: bool | None = ...,
+        self_trade_prevention_type: str | None = ...,
+        order_group_id: str | None = ...,
+        cancel_order_on_pause: bool | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
+    async def create(
+        self,
+        *,
+        request: CreateOrderRequest | None = None,
+        ticker: str | None = None,
+        side: str | None = None,
+        action: str | None = None,
+        count: int | None = None,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         client_order_id: str | None = None,
@@ -349,27 +517,47 @@ class AsyncOrdersResource(AsyncResource):
         v0.8.0 removed the ``type`` kwarg: the field was never defined in
         the OpenAPI spec. Callers passing ``type="limit"`` now get a
         ``TypeError``.
+
+        v1.1 (#56): pass a pre-built ``request=CreateOrderRequest(...)`` instead
+        of individual kwargs. Mutually exclusive with the kwarg form.
         """
         self._require_auth()
-        req = CreateOrderRequest(
-            ticker=ticker,
-            side=side,
-            action=action,
-            count=to_decimal(count),
-            yes_price=to_decimal(yes_price) if yes_price is not None else None,
-            no_price=to_decimal(no_price) if no_price is not None else None,
-            client_order_id=client_order_id,
-            expiration_ts=expiration_ts,
-            buy_max_cost=buy_max_cost,
-            time_in_force=time_in_force,
-            post_only=post_only,
-            reduce_only=reduce_only,
+        _check_request_exclusive(
+            request,
+            ticker=ticker, side=side, action=action, count=count,
+            yes_price=yes_price, no_price=no_price,
+            client_order_id=client_order_id, expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost, time_in_force=time_in_force,
+            post_only=post_only, reduce_only=reduce_only,
             self_trade_prevention_type=self_trade_prevention_type,
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if ticker is None or side is None:
+                raise TypeError(
+                    "create() requires `ticker` and `side` (or pass `request=...`)"
+                )
+            request = CreateOrderRequest(
+                ticker=ticker,
+                side=side,
+                action=action if action is not None else "buy",
+                count=to_decimal(count if count is not None else 1),
+                yes_price=to_decimal(yes_price) if yes_price is not None else None,
+                no_price=to_decimal(no_price) if no_price is not None else None,
+                client_order_id=client_order_id,
+                expiration_ts=expiration_ts,
+                buy_max_cost=buy_max_cost,
+                time_in_force=time_in_force,
+                post_only=post_only,
+                reduce_only=reduce_only,
+                self_trade_prevention_type=self_trade_prevention_type,
+                order_group_id=order_group_id,
+                cancel_order_on_pause=cancel_order_on_pause,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
@@ -434,19 +622,52 @@ class AsyncOrdersResource(AsyncResource):
         )
         return self._list_all("/portfolio/orders", Order, "orders", params=params)
 
+    @overload
     async def batch_create(
-        self, orders: Sequence[CreateOrderRequest],
+        self,
+        *,
+        request: BatchCreateOrdersRequest,
+    ) -> builtins.list[Order]: ...
+    @overload
+    async def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest],
+    ) -> builtins.list[Order]: ...
+    async def batch_create(
+        self,
+        orders: Sequence[CreateOrderRequest] | None = None,
+        *,
+        request: BatchCreateOrdersRequest | None = None,
     ) -> builtins.list[Order]:
         self._require_auth()
-        req = BatchCreateOrdersRequest(orders=list(orders))
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, orders=orders)
+        if request is None:
+            if orders is None:
+                raise TypeError(
+                    "batch_create() requires `orders` (or pass `request=...`)"
+                )
+            request = BatchCreateOrdersRequest(orders=list(orders))
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/orders/batched", json=body)
         raw_orders = data.get("orders", [])
         return [Order.model_validate(o.get("order", o)) for o in raw_orders]
 
+    @overload
+    async def batch_cancel(
+        self,
+        *,
+        request: BatchCancelOrdersRequest,
+    ) -> None: ...
+    @overload
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
+    ) -> None: ...
+    async def batch_cancel(
+        self,
+        orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
+        *,
+        request: BatchCancelOrdersRequest | None = None,
     ) -> None:
         """Batch-cancel orders.
 
@@ -464,14 +685,20 @@ class AsyncOrdersResource(AsyncResource):
         convenience shortcut.
         """
         self._require_auth()
-        normalized = [
-            (
-                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
-            )
-            for o in orders
-        ]
-        req = BatchCancelOrdersRequest(orders=normalized)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        _check_request_exclusive(request, orders=orders)
+        if request is None:
+            if orders is None:
+                raise TypeError(
+                    "batch_cancel() requires `orders` (or pass `request=...`)"
+                )
+            normalized = [
+                (
+                    BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
+                )
+                for o in orders
+            ]
+            request = BatchCancelOrdersRequest(orders=normalized)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         await self._delete_with_body("/portfolio/orders/batched", json=body)
 
     async def fills(
@@ -518,6 +745,11 @@ class AsyncOrdersResource(AsyncResource):
         )
         return self._list_all("/portfolio/fills", Fill, "fills", params=params)
 
+    @overload
+    async def amend(
+        self, order_id: str, *, request: AmendOrderRequest,
+    ) -> AmendOrderResponse: ...
+    @overload
     async def amend(
         self,
         order_id: str,
@@ -525,6 +757,21 @@ class AsyncOrdersResource(AsyncResource):
         ticker: str,
         side: str,
         action: str,
+        yes_price: float | str | int | None = ...,
+        no_price: float | str | int | None = ...,
+        count: int | None = ...,
+        client_order_id: str | None = ...,
+        updated_client_order_id: str | None = ...,
+        subaccount: int | None = ...,
+    ) -> AmendOrderResponse: ...
+    async def amend(
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderRequest | None = None,
+        ticker: str | None = None,
+        side: str | None = None,
+        action: str | None = None,
         yes_price: float | str | int | None = None,
         no_price: float | str | int | None = None,
         count: int | None = None,
@@ -533,45 +780,79 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
-        if yes_price is None and no_price is None and count is None:
-            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
-        req = AmendOrderRequest(
-            ticker=ticker,
-            side=side,
-            action=action,
-            yes_price=to_decimal(yes_price) if yes_price is not None else None,
-            no_price=to_decimal(no_price) if no_price is not None else None,
-            count=to_decimal(count) if count is not None else None,
+        _check_request_exclusive(
+            request,
+            ticker=ticker, side=side, action=action,
+            yes_price=yes_price, no_price=no_price, count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            if ticker is None or side is None or action is None:
+                raise TypeError(
+                    "amend() requires `ticker`, `side`, and `action` "
+                    "(or pass `request=...`)"
+                )
+            if yes_price is None and no_price is None and count is None:
+                raise ValueError(
+                    "amend() requires at least one of yes_price, no_price, or count"
+                )
+            request = AmendOrderRequest(
+                ticker=ticker,
+                side=side,
+                action=action,
+                yes_price=to_decimal(yes_price) if yes_price is not None else None,
+                no_price=to_decimal(no_price) if no_price is not None else None,
+                count=to_decimal(count) if count is not None else None,
+                client_order_id=client_order_id,
+                updated_client_order_id=updated_client_order_id,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
+    @overload
+    async def decrease(
+        self, order_id: str, *, request: DecreaseOrderRequest,
+    ) -> Order: ...
+    @overload
     async def decrease(
         self,
         order_id: str,
         *,
+        reduce_by: int | None = ...,
+        reduce_to: int | None = ...,
+        subaccount: int | None = ...,
+    ) -> Order: ...
+    async def decrease(
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderRequest | None = None,
         reduce_by: int | None = None,
         reduce_to: int | None = None,
         subaccount: int | None = None,
     ) -> Order:
         self._require_auth()
-        # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
-        # by design: the model-first v0.9 API will rely on the model validator,
-        # but this path preserves nicer ValueError messages for current callers.
-        if reduce_by is None and reduce_to is None:
-            raise ValueError("decrease() requires either reduce_by or reduce_to")
-        if reduce_by is not None and reduce_to is not None:
-            raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
-        req = DecreaseOrderRequest(
-            reduce_by=reduce_by,
-            reduce_to=reduce_to,
-            subaccount=subaccount,
+        _check_request_exclusive(
+            request, reduce_by=reduce_by, reduce_to=reduce_to, subaccount=subaccount,
         )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        if request is None:
+            # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
+            # by design: the model-first v0.9 API will rely on the model validator,
+            # but this path preserves nicer ValueError messages for current callers.
+            if reduce_by is None and reduce_to is None:
+                raise ValueError("decrease() requires either reduce_by or reduce_to")
+            if reduce_by is not None and reduce_to is not None:
+                raise ValueError("decrease() accepts reduce_by or reduce_to, not both")
+            request = DecreaseOrderRequest(
+                reduce_by=reduce_by,
+                reduce_to=reduce_to,
+                subaccount=subaccount,
+            )
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
