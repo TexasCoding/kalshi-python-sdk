@@ -237,7 +237,16 @@ class TestReconnectHoldsSubscribeLock:
 
             # _handle_reconnect should wait for the lock
             reconnect_task = asyncio.create_task(session._handle_reconnect())
-            await asyncio.sleep(0.05)
+
+            # Deterministic: yield until reconnect_task is parked on the lock
+            # (lock._waiters is non-empty). Bounded by wait_for so a regression
+            # where _handle_reconnect doesn't take the lock fails loudly within
+            # 2s rather than passing vacuously after a fixed sleep.
+            async def wait_for_lock_contention() -> None:
+                while not session._subscribe_lock._waiters:  # type: ignore[attr-defined]
+                    await asyncio.sleep(0)
+
+            await asyncio.wait_for(wait_for_lock_contention(), timeout=2.0)
             assert not reconnect_task.done(), (
                 "F-P-03 regression: _handle_reconnect did not take "
                 "_subscribe_lock"

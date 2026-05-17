@@ -173,18 +173,22 @@ class KalshiWebSocket:
             # creates a detached background task and returns control on outer
             # cancel — without the explicit `await inner`, dispatch keeps
             # running after `break` and races a subsequent subscribe.
-            inner = asyncio.ensure_future(self._process_frame(raw))
+            inner = asyncio.create_task(self._process_frame(raw))
             try:
                 await asyncio.shield(inner)
             except asyncio.CancelledError:
                 # Block until the shielded dispatch actually finishes, then
                 # honor cancellation. Loop exit now strictly post-dispatch.
-                # Best-effort: a parse error inside dispatch shouldn't take
-                # down the cancellation path — we're exiting anyway, and
-                # the same exception classes are handled by the explicit
-                # branches below on the next iteration.
+                # KalshiBackpressureError / KalshiSubscriptionError must
+                # still broadcast sentinels even when we're being cancelled —
+                # the consumer-visible invariant (no hanging iterators) holds
+                # unconditionally. Parse errors are best-effort logged.
                 try:
                     await inner
+                except (KalshiBackpressureError, KalshiSubscriptionError):
+                    if self._sub_mgr:
+                        for sub in self._sub_mgr.active_subscriptions.values():
+                            await sub.queue.put_sentinel()
                 except Exception:
                     logger.debug(
                         "Shielded dispatch raised during cancel cleanup",
