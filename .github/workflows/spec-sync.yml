@@ -32,7 +32,7 @@ concurrency:
 env:
   # Tracking issue where the spec-sync bot posts diff reports as comments.
   # Maintainers subscribe to this issue; comments do NOT mutate the repo.
-  SPEC_SYNC_TRACKING_ISSUE: "92"
+  SPEC_SYNC_TRACKING_ISSUE: "113"
 
 jobs:
   spec-sync:
