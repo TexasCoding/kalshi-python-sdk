@@ -9,8 +9,6 @@ heredoc that would expand $(...) command substitutions present in
 upstream-controlled values.
 """
 
-from __future__ import annotations
-
 import os
 import sys
 from string import Template
@@ -76,7 +74,10 @@ fingerprint:${FINGERPRINT}
 
 
 def main() -> int:
-    sys.stdout.write(TEMPLATE.substitute(os.environ))
+    try:
+        sys.stdout.write(TEMPLATE.substitute(os.environ))
+    except KeyError as exc:
+        sys.exit(f"render_drift_body.py: missing environment variable {exc}")
     return 0
 
 

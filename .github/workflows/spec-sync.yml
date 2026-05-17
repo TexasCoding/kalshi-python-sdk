@@ -157,6 +157,20 @@ jobs:
           echo "openapi_sha=${openapi_sha}" >> "$GITHUB_OUTPUT"
           echo "asyncapi_sha=${asyncapi_sha}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure spec-drift label exists
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Idempotent: --force updates if present, creates if not. Removes a
+          # silent-fail footgun where the create step would abort on a
+          # missing label and weekly cron drift would go unreported.
+          gh label create spec-drift \
+            --color 'e4e669' \
+            --description 'Upstream OpenAPI/AsyncAPI spec changed since last sync' \
+            --force \
+            --repo "${GITHUB_REPOSITORY}"
+
       - name: Open or dedup spec-drift issue
         if: steps.diff.outputs.changed == 'true'
         env:
@@ -201,6 +215,7 @@ jobs:
           # Render body via Python (string.Template.substitute — no shell expansion of
           # upstream-sourced values). Pipe through --body-file to avoid argv size limits.
           body_file=$(mktemp)
+          trap 'rm -f "${body_file}"' EXIT
           python3 scripts/render_drift_body.py > "${body_file}"
 
           today=$(date -u '+%Y-%m-%d')
