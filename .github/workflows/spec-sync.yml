@@ -181,88 +181,33 @@ jobs:
 
           # Drift fingerprint: sha256(openapi_sha || asyncapi_sha). Stable across
           # re-runs against the same upstream; changes the moment either spec does.
-          fingerprint=$(printf '%s%s' "${OPENAPI_SHA}" "${ASYNCAPI_SHA}" | sha256sum | awk '{print $1}')
+          FINGERPRINT=$(printf '%s%s' "${OPENAPI_SHA}" "${ASYNCAPI_SHA}" | sha256sum | awk '{print $1}')
+          export FINGERPRINT
 
           # Dedup: skip if an open spec-drift issue already embeds this fingerprint.
           existing=$(gh issue list \
             --repo "${GITHUB_REPOSITORY}" \
             --state open \
             --label spec-drift \
-            --limit 100 \
+            --limit 200 \
             --json number,body \
-            --jq '[.[] | select(.body | contains("fingerprint:'"${fingerprint}"'"))] | first | .number // empty')
+            --jq '[.[] | select(.body | contains("fingerprint:'"${FINGERPRINT}"'"))] | first | .number // empty')
 
           if [ -n "${existing}" ]; then
-            echo "Drift fingerprint ${fingerprint} already tracked in issue #${existing}; nothing to do."
+            echo "Drift fingerprint ${FINGERPRINT} already tracked in issue #${existing}; nothing to do."
             exit 0
           fi
 
+          # Render body via Python (string.Template.substitute — no shell expansion of
+          # upstream-sourced values). Pipe through --body-file to avoid argv size limits.
+          body_file=$(mktemp)
+          python3 scripts/render_drift_body.py > "${body_file}"
+
           today=$(date -u '+%Y-%m-%d')
           title="Spec drift ${today}: openapi ${OLD_VERSION} → ${NEW_VERSION}"
-
-          body=$(cat <<EOF
-          ## Spec drift detected
-
-          Upstream specs changed since the last sync. This workflow runs with
-          \`contents: read\` only — it does NOT push a branch or open a PR.
-
-          **To resolve:** locally run \`uv run python scripts/sync_spec.py\` +
-          \`uv run python scripts/generate.py\`, audit the diff (including
-          \`kalshi/_generated/models.py\`), and open a PR whose body contains
-          \`Closes #<this issue number>\` so this issue auto-closes on merge.
-
-          - OpenAPI changed: \`${OPENAPI_CHANGED}\`
-          - AsyncAPI changed: \`${ASYNCAPI_CHANGED}\`
-          - Workflow run: ${RUN_URL}
-
-          ### Spec checksums (sha256 of fetched upstream content)
-
-          - \`specs/openapi.yaml\`: \`${OPENAPI_SHA}\`
-          - \`specs/asyncapi.yaml\`: \`${ASYNCAPI_SHA}\`
-
-          Reproduce locally and verify the same hashes before generating models.
-
-          ## OpenAPI
-
-          - Version: \`${OLD_VERSION}\` → \`${NEW_VERSION}\`
-          - Endpoints: ${OLD_PATH_COUNT} → ${NEW_PATH_COUNT} paths
-
-          ### Added endpoints
-
-          \`\`\`
-          ${ADDED_PATHS}
-          \`\`\`
-
-          ### Removed endpoints
-
-          \`\`\`
-          ${REMOVED_PATHS}
-          \`\`\`
-
-          ## AsyncAPI
-
-          - Channels: ${OLD_CHANNEL_COUNT} → ${NEW_CHANNEL_COUNT}
-
-          ### Added channels
-
-          \`\`\`
-          ${ADDED_CHANNELS}
-          \`\`\`
-
-          ### Removed channels
-
-          \`\`\`
-          ${REMOVED_CHANNELS}
-          \`\`\`
-
-          <!-- spec-sync-bot: do not edit
-          fingerprint:${fingerprint}
-          -->
-          EOF
-          )
 
           gh issue create \
             --repo "${GITHUB_REPOSITORY}" \
             --label spec-drift \
             --title "${title}" \
-            --body "${body}"
+            --body-file "${body_file}"
