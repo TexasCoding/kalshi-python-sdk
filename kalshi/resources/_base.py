@@ -47,9 +47,10 @@ def _check_request_exclusive(request: Any, **kwargs: Any) -> None:
 def _validate_max_pages(max_pages: int | None) -> None:
     """Reject ``max_pages <= 0`` at the public ``*_all()`` boundary.
 
-    ``None`` (use default cap) and positive integers are valid. Zero or
-    negative would silently produce an empty iterator deep inside
-    ``_list_all``; surfacing the misuse here is friendlier.
+    ``None`` (unbounded — iterates until the server returns no cursor) and
+    positive integers are valid. Zero or negative would silently produce an
+    empty iterator deep inside ``_list_all``; surfacing the misuse here is
+    friendlier.
     """
     if max_pages is not None and max_pages <= 0:
         raise ValueError(

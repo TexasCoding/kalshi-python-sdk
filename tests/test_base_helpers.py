@@ -448,3 +448,26 @@ class TestMaxPagesNoneIsUnbounded:
         resource = SyncResource(SyncTransport(test_auth, test_config))
         items = list(resource._list_all("/things", _Item, "items"))
         assert len(items) == total, f"Expected {total} items, got {len(items)} (cap leaked?)"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_iterates_past_1000_pages(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+    ) -> None:
+        # Async counterpart — same 1010-page proof, prevents the regression
+        # from silently re-appearing in only one of the two code paths.
+        total = 1010
+        call_counter = {"n": 0}
+
+        def responder(request: httpx.Request) -> httpx.Response:
+            call_counter["n"] += 1
+            n = call_counter["n"]
+            cursor = str(n) if n < total else ""
+            return httpx.Response(
+                200, json={"items": [{"id": f"i{n}"}], "cursor": cursor},
+            )
+
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responder)
+        resource = AsyncResource(AsyncTransport(test_auth, test_config))
+        items = [item async for item in resource._list_all("/things", _Item, "items")]
+        assert len(items) == total, f"Expected {total} items, got {len(items)} (cap leaked?)"
