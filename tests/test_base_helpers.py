@@ -49,15 +49,7 @@ class TestJoinTickersValidation:
         assert _join_tickers("") is None
 
     def test_non_string_bool_element_raises_unhelpful_type_error(self) -> None:
-        """Pin current behavior: bool element crashes inside ``"," in elem``.
-
-        The signature is ``list[str] | tuple[str, ...] | str | None``, but
-        there's no runtime ``isinstance(elem, str)`` check. Passing a bool
-        crashes with a confusing ``"argument of type 'bool' is not iterable"``
-        from the membership test. Pinning the message so a future fix that
-        replaces it with a proper validation error trips this test and
-        forces an intentional update.
-        """
+        # Pins crash path: bool fails `"," in elem` check; update if validation is added.
         with pytest.raises(TypeError, match=r"argument of type 'bool' is not iterable"):
             _join_tickers([True, "A"])  # type: ignore[list-item]
 

@@ -1,13 +1,4 @@
-"""Tests for DollarDecimal and FixedPointCount type-fallback branches.
-
-Pins the ``raise TypeError(f"Cannot convert {type(value).__name__} to Decimal")``
-branches in ``kalshi.types`` (lines 27, 60). Unexpected input types (e.g. a list)
-must surface as a ``TypeError`` with the type name in the message — not a
-confusing ``InvalidOperation`` or silent coercion.
-
-Note: Pydantic ``BeforeValidator`` lets non-ValueError exceptions propagate
-unwrapped, so the raised ``TypeError`` is visible directly to callers.
-"""
+"""Tests for DollarDecimal / FixedPointCount type-fallback branches in kalshi.types."""
 from __future__ import annotations
 
 import pytest
