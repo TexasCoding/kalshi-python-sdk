@@ -9,7 +9,6 @@ import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
-from kalshi.errors import KalshiNotFoundError
 from kalshi.models.order_groups import (
     CreateOrderGroupResponse,
     GetOrderGroupResponse,
@@ -18,7 +17,7 @@ from kalshi.models.order_groups import (
 from tests.integration.assertions import assert_model_fields
 from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
-from tests.integration.helpers import await_resource, wait_for_resource
+from tests.integration.helpers import await_resource, wait_for_resource, wait_until_not_found
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +98,9 @@ class TestOrderGroupsSync:
         skip_if_low_balance(demo_balance_cents, threshold_cents=100)
         resp = sync_client.order_groups.create(contracts_limit=1)
         sync_client.order_groups.delete(resp.order_group_id)
-        # Follow-up GET should 404
-        with pytest.raises(KalshiNotFoundError):
-            sync_client.order_groups.get(resp.order_group_id)
+        # Follow-up GET eventually 404s — demo's query-exchange lags writes,
+        # so poll for the 404 rather than asserting it immediately.
+        wait_until_not_found(lambda: sync_client.order_groups.get(resp.order_group_id))
 
 
 @pytest.mark.integration

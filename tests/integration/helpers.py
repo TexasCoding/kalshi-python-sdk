@@ -56,6 +56,32 @@ async def await_resource[T](
                 raise
             await asyncio.sleep(interval)
 
+
+def wait_until_not_found(
+    fetch: Callable[[], object],
+    *,
+    timeout: float = 15.0,
+    interval: float = 0.5,
+) -> None:
+    """Poll ``fetch()`` until it raises KalshiNotFoundError.
+
+    The inverse of :func:`wait_for_resource`: needed after a DELETE on demo,
+    where the query-exchange replica may still serve the pre-delete state
+    for ~10 seconds. Raises AssertionError if the resource never 404s.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fetch()
+        except KalshiNotFoundError:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                "Resource did not 404 within timeout — demo may not have "
+                "propagated the delete, or the delete didn't take effect."
+            )
+        time.sleep(interval)
+
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])

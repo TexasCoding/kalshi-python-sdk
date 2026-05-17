@@ -134,7 +134,7 @@ All work — bugs, enhancements, polish, spec drift — is tracked in **GitHub I
 on `TexasCoding/kalshi-python-sdk`. Use the `gh` CLI or the GitHub UI; do not add
 markdown trackers (TODOS/BACKLOG) back to the repo.
 
-- Active milestone: `v1.1` (post-1.0 enhancements and polish)
+- Active milestone: post-v2.0 (after the audit-driven hardening wave that shipped v2.0.0)
 - Labels in use: `bug`, `enhancement`, `documentation`, `polish`, `breaking`, `spec-drift`, `testing`, `infra`, `ws`, `cli`
 - `ROADMAP.md` — short pointer to the active milestone
 - `CHANGELOG.md` — release-facing history; updated per release
@@ -144,7 +144,7 @@ Reference issues from PRs via `Closes #N` so the issue closes on merge.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **kalshi-python-sdk** (5829 symbols, 12434 relationships, 236 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **kalshi-python-sdk** (6261 symbols, 13379 relationships, 257 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

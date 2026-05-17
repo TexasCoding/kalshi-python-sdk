@@ -206,6 +206,10 @@ config = KalshiConfig(
     max_retries=5,
     retry_base_delay=0.5,
     retry_max_delay=15.0,
+    # Connection pool / HTTP-2 tuning (opt-in; defaults preserve v1 behavior)
+    http2=False,
+    limits=None,  # httpx.Limits(max_connections=..., keepalive_expiry=...)
+    extra_headers={"X-My-Tag": "foo"},
 )
 client = KalshiClient(key_id="...", private_key_path="...", config=config)
 ```
@@ -228,7 +232,14 @@ while True:
 # Or just:
 for market in client.markets.list_all(status="open"):
     ...
+
+# Need a hard cap on pages (e.g. preview / quick sample)?
+for market in client.markets.list_all(status="open", max_pages=5):
+    ...
 ```
+
+`*_all()` iterates until the server returns no cursor by default. Pass
+`max_pages=N` for an explicit bound; passing `0` raises `ValueError`.
 
 `Page[T]` also converts to a DataFrame when the optional extras are installed:
 
