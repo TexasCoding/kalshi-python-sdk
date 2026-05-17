@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from kalshi import KalshiClient
+from kalshi.errors import KalshiServerError
 from kalshi.testing import (
     AsyncRecordingTransport,
     AsyncReplayTransport,
@@ -412,3 +413,129 @@ async def test_async_recording_transport_aclose_propagates(tmp_path: Path) -> No
     rec = AsyncRecordingTransport(tmp_path, real_transport=TrackingAsyncTransport())
     await rec.aclose()
     assert closed["value"] is True
+
+
+# ---------------------------------------------------------------------------
+# Non-JSON body coverage (#100 — F-Q-08)
+#
+# Real-world recordings will eventually capture an HTML 502 from a CDN/proxy,
+# plus other non-JSON content types (plain text, octet-stream). The recorder
+# falls back to ``body_kind="text"`` for any body json.loads can't parse. These
+# tests prove that path round-trips cleanly and replays without corruption.
+# ---------------------------------------------------------------------------
+
+
+_HTML_502 = b"<html><body>502 Bad Gateway</body></html>"
+
+
+def test_record_non_json_html_body_persists_as_text(tmp_path: Path) -> None:
+    """A 502 with text/html body must serialize with body_kind=text and the
+    HTML preserved verbatim — no JSON-parse crash, no header loss."""
+    canned = httpx.Response(
+        502,
+        content=_HTML_502,
+        headers=[("content-type", "text/html")],
+    )
+    stub = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    fixtures_dir = tmp_path / "fixtures"
+
+    # Drive the request through the recorder. Set max_retries=0 so the SDK
+    # doesn't retry the 502 and pile up duplicate pairs.
+    rec = RecordingTransport(fixtures_dir, real_transport=stub)
+    with KalshiClient(transport=rec, max_retries=0) as client, pytest.raises(KalshiServerError):
+        client.exchange.status()
+
+    expected_file = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    stored = json.loads(expected_file.read_text())
+    assert len(stored) == 1
+    resp = stored[0]["response"]
+    assert resp["status_code"] == 502
+    assert resp["body_kind"] == "text"
+    # HTML body round-trips byte-for-byte through the latin-1 fallback.
+    assert resp["body"] == _HTML_502.decode("latin-1")
+    # Content-Type header must survive recording so replay can rebuild it.
+    headers = {k.lower(): v for k, v in resp["headers"]}
+    assert headers.get("content-type") == "text/html"
+
+
+def test_replay_non_json_html_body_surfaces_server_error(tmp_path: Path) -> None:
+    """Replaying a recorded HTML 502 must reconstruct the same status + body
+    so the client raises KalshiServerError with the HTML payload visible."""
+    canned = httpx.Response(
+        502,
+        content=_HTML_502,
+        headers=[("content-type", "text/html")],
+    )
+    stub = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    fixtures_dir = tmp_path / "fixtures"
+
+    with KalshiClient(
+        transport=RecordingTransport(fixtures_dir, real_transport=stub),
+        max_retries=0,
+    ) as client, pytest.raises(KalshiServerError):
+        client.exchange.status()
+
+    # Now replay from disk — no real network, no stub. Must surface the same
+    # 502 with the HTML body in the error message.
+    with (
+        KalshiClient(transport=ReplayTransport(fixtures_dir), max_retries=0) as client,
+        pytest.raises(KalshiServerError) as exc_info,
+    ):
+        client.exchange.status()
+
+    assert exc_info.value.status_code == 502
+    # The HTML payload is the error "message" since the body is not JSON.
+    assert "502 Bad Gateway" in str(exc_info.value)
+
+
+def test_record_non_json_plain_text_body_persists_as_text(tmp_path: Path) -> None:
+    """A 503 with text/plain body (no JSON anywhere) also takes the text branch."""
+    body = b"Service Unavailable\nRetry in a bit."
+    canned = httpx.Response(
+        503,
+        content=body,
+        headers=[("content-type", "text/plain; charset=utf-8")],
+    )
+    stub = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    fixtures_dir = tmp_path / "fixtures"
+
+    rec = RecordingTransport(fixtures_dir, real_transport=stub)
+    with KalshiClient(transport=rec, max_retries=0) as client, pytest.raises(KalshiServerError):
+        client.exchange.status()
+
+    expected_file = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    stored = json.loads(expected_file.read_text())
+    resp = stored[0]["response"]
+    assert resp["status_code"] == 503
+    assert resp["body_kind"] == "text"
+    assert resp["body"] == body.decode("latin-1")
+
+
+def test_record_non_json_binary_body_persists_as_text(tmp_path: Path) -> None:
+    """A non-UTF-8 octet-stream body must not crash the recorder — the latin-1
+    fallback round-trips every byte 0x00-0xFF losslessly."""
+    body = bytes(range(256))  # every possible byte, including invalid UTF-8 sequences
+    canned = httpx.Response(
+        502,
+        content=body,
+        headers=[("content-type", "application/octet-stream")],
+    )
+    stub = _make_stub_transport({("GET", "/trade-api/v2/exchange/status"): canned})
+    fixtures_dir = tmp_path / "fixtures"
+
+    rec = RecordingTransport(fixtures_dir, real_transport=stub)
+    with KalshiClient(transport=rec, max_retries=0) as client, pytest.raises(KalshiServerError):
+        client.exchange.status()
+
+    expected_file = fixtures_dir / fixture_filename("GET", "/trade-api/v2/exchange/status")
+    stored = json.loads(expected_file.read_text())
+    resp = stored[0]["response"]
+    assert resp["body_kind"] == "text"
+    # latin-1 round-trip must reproduce the original bytes exactly.
+    assert resp["body"].encode("latin-1") == body
+
+    # And replay must rebuild the same body bytes — proving build_response's
+    # text branch is the inverse of _response_to_dict's text branch.
+    replay = ReplayTransport(fixtures_dir)
+    with KalshiClient(transport=replay, max_retries=0) as client, pytest.raises(KalshiServerError):
+        client.exchange.status()
