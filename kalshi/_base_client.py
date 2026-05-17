@@ -71,9 +71,16 @@ def _map_error(response: httpx.Response) -> KalshiError:
 
 
 def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
-    """Exponential backoff with jitter."""
-    delay = config.retry_base_delay * (2**attempt) + random.uniform(0, 0.5)
-    return float(min(delay, config.retry_max_delay))
+    """Exponential backoff with AWS "Full Jitter".
+
+    Spreads colliding retries evenly across the full backoff window, so
+    parallel clients that hit a rate limit at the same time don't bunch up
+    in a narrow sub-window (the failure mode of fixed-magnitude jitter).
+    Formula: ``sleep = random_uniform(0, min(cap, base * 2 ** attempt))``.
+    Reference: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    """
+    capped = min(config.retry_base_delay * (2**attempt), config.retry_max_delay)
+    return float(random.uniform(0, capped))
 
 
 class SyncTransport:
