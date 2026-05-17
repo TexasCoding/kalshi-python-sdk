@@ -74,6 +74,22 @@ class TestConnectionManagerConnect:
             await mgr.connect()
         assert mgr.state == ConnectionState.CLOSED
 
+    async def test_connect_error_does_not_leak_url(
+        self, test_auth: object
+    ) -> None:
+        """Issue #84 F-O-09: connection-failure str() must not include the
+        ws URL (which may contain token-like query params)."""
+        # URL with a sensitive-looking query param
+        config = KalshiConfig(
+            ws_base_url="ws://127.0.0.1:1?secret=SUPER_SECRET_TOKEN",
+            timeout=1.0,
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        with pytest.raises(KalshiConnectionError) as exc_info:
+            await mgr.connect()
+        assert "SUPER_SECRET_TOKEN" not in str(exc_info.value)
+        assert "127.0.0.1" not in str(exc_info.value)
+
     async def test_close_when_already_disconnected(
         self, test_auth: object
     ) -> None:

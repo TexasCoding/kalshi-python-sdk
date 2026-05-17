@@ -115,8 +115,11 @@ class ConnectionManager:
             await self._set_state(ConnectionState.CONNECTED)
         except Exception as e:
             await self._set_state(ConnectionState.CLOSED)
+            # F-O-09: don't interpolate the underlying exception string —
+            # it may include the full ws URL with query params and leak into
+            # uncaught-exception sinks. The cause is preserved via `__cause__`.
             raise KalshiConnectionError(
-                f"WebSocket connection failed: {e}"
+                "WebSocket connection failed"
             ) from e
 
     async def reconnect(self) -> None:

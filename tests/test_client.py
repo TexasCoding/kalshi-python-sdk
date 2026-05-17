@@ -361,6 +361,51 @@ class TestSyncTransportContextManager:
         transport.close()  # should not raise
 
 
+class TestErrorMessageDoesNotLeakUrl:
+    """Issue #84 F-O-09: KalshiError str() must not include the URL.
+
+    httpx exception strings often contain the full request URL with query
+    string. Interpolating them into a KalshiError leaks any token-like
+    query parameter into Sentry/stderr/uncaught-exception sinks.
+    """
+
+    @respx.mock
+    def test_timeout_message_does_not_contain_url(
+        self,
+        transport: SyncTransport,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        # Use a sensitive-looking query param: if it shows up in the
+        # KalshiError __str__, the leak is real.
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.TimeoutException(
+            "Request timed out for https://test.kalshi.com/trade-api/v2/"
+            "portfolio/orders?secret=SUPER_SECRET_TOKEN"
+        ))
+        with pytest.raises(KalshiError) as exc_info:
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert "SUPER_SECRET_TOKEN" not in str(exc_info.value)
+        assert "kalshi.com" not in str(exc_info.value)
+
+    @respx.mock
+    def test_httperror_message_does_not_contain_url(
+        self,
+        transport: SyncTransport,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/markets"
+        ).mock(side_effect=httpx.HTTPError(
+            "boom for https://test.kalshi.com/trade-api/v2/markets?"
+            "auth_token=LEAKY"
+        ))
+        with pytest.raises(KalshiError) as exc_info:
+            transport.request("GET", "/markets")
+        assert "LEAKY" not in str(exc_info.value)
+        assert "kalshi.com" not in str(exc_info.value)
+
+
 class TestKalshiClientConstructor:
     """Tests for KalshiClient constructor branches and from_env()."""
 
