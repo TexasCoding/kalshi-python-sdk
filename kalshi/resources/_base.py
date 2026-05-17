@@ -44,6 +44,20 @@ def _check_request_exclusive(request: Any, **kwargs: Any) -> None:
         )
 
 
+def _validate_max_pages(max_pages: int | None) -> None:
+    """Reject ``max_pages <= 0`` at the public ``*_all()`` boundary.
+
+    ``None`` (unbounded — iterates until the server returns no cursor) and
+    positive integers are valid. Zero or negative would silently produce an
+    empty iterator deep inside ``_list_all``; surfacing the misuse here is
+    friendlier.
+    """
+    if max_pages is not None and max_pages <= 0:
+        raise ValueError(
+            f"max_pages must be positive or None, got {max_pages}"
+        )
+
+
 def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
     """Serialize the `tickers` query param (spec: comma-joined string, not explode:true).
 
@@ -151,7 +165,7 @@ class SyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
-        max_pages: int = 1000,
+        max_pages: int | None = None,
         cursor_key: str = "cursor",
     ) -> Iterator[T]:
         """Auto-paginate through all pages, yielding items.
@@ -160,18 +174,24 @@ class SyncResource:
         convention). ``cursor_key`` only affects how the response envelope
         is parsed.
 
+        ``max_pages`` is an optional hard cap on pages fetched. ``None``
+        (default) iterates until the server returns an empty cursor; the
+        cursor-repeat guard below provides the safety net against
+        infinite loops.
+
         Raises ``KalshiError`` if a cursor value repeats, which indicates
-        a server-side pagination bug that would otherwise cause the safety
-        cap to silently issue ``max_pages`` duplicate requests.
+        a server-side pagination bug.
         """
         current_params = dict(params) if params else {}
         seen_cursors: set[str] = set()
-        for _ in range(max_pages):
+        pages_fetched = 0
+        while max_pages is None or pages_fetched < max_pages:
             page = self._list(
                 path, model_cls, items_key,
                 params=current_params, cursor_key=cursor_key,
             )
             yield from page.items
+            pages_fetched += 1
             if not page.cursor:
                 break
             if page.cursor in seen_cursors:
@@ -264,21 +284,24 @@ class AsyncResource:
         items_key: str,
         *,
         params: dict[str, Any] | None = None,
-        max_pages: int = 1000,
+        max_pages: int | None = None,
         cursor_key: str = "cursor",
     ) -> AsyncIterator[T]:
-        """Async counterpart of ``SyncResource._list_all``. Raises
-        ``KalshiError`` on repeated cursor; see sync docstring.
+        """Async counterpart of :meth:`SyncResource._list_all`.
+
+        Raises ``KalshiError`` on repeated cursor; see sync docstring.
         """
         current_params = dict(params) if params else {}
         seen_cursors: set[str] = set()
-        for _ in range(max_pages):
+        pages_fetched = 0
+        while max_pages is None or pages_fetched < max_pages:
             page = await self._list(
                 path, model_cls, items_key,
                 params=current_params, cursor_key=cursor_key,
             )
             for item in page.items:
                 yield item
+            pages_fetched += 1
             if not page.cursor:
                 break
             if page.cursor in seen_cursors:

@@ -24,6 +24,7 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _validate_max_pages,
 )
 
 
@@ -212,14 +213,19 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[RFQ]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _list_rfqs_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
         )
-        yield from self._list_all("/communications/rfqs", RFQ, "rfqs", params=params)
+        return self._list_all(
+            "/communications/rfqs", RFQ, "rfqs",
+            params=params, max_pages=max_pages,
+        )
 
     def get_rfq(self, rfq_id: str) -> GetRFQResponse:
         self._require_auth()
@@ -303,9 +309,11 @@ class CommunicationsResource(SyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _validate_max_pages(max_pages)
         params = _list_quotes_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, status=status,
@@ -315,7 +323,8 @@ class CommunicationsResource(SyncResource):
             rfq_id=rfq_id,
         )
         return self._list_all(
-            "/communications/quotes", Quote, "quotes", params=params,
+            "/communications/quotes", Quote, "quotes",
+            params=params, max_pages=max_pages,
         )
 
     def get_quote(self, quote_id: str) -> GetQuoteResponse:
@@ -409,7 +418,7 @@ class AsyncCommunicationsResource(AsyncResource):
         )
         return await self._list("/communications/rfqs", RFQ, "rfqs", params=params)
 
-    async def list_all_rfqs(
+    def list_all_rfqs(
         self,
         *,
         limit: int | None = None,
@@ -418,17 +427,20 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[RFQ]:
+        # Plain `def` so _require_auth + _validate_max_pages run at call time.
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _list_rfqs_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
         )
-        async for item in self._list_all(
-            "/communications/rfqs", RFQ, "rfqs", params=params,
-        ):
-            yield item
+        return self._list_all(
+            "/communications/rfqs", RFQ, "rfqs",
+            params=params, max_pages=max_pages,
+        )
 
     async def get_rfq(self, rfq_id: str) -> GetRFQResponse:
         self._require_auth()
@@ -514,9 +526,11 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _validate_max_pages(max_pages)
         params = _list_quotes_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, status=status,
@@ -526,7 +540,8 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_id=rfq_id,
         )
         return self._list_all(
-            "/communications/quotes", Quote, "quotes", params=params,
+            "/communications/quotes", Quote, "quotes",
+            params=params, max_pages=max_pages,
         )
 
     async def get_quote(self, quote_id: str) -> GetQuoteResponse:

@@ -32,6 +32,7 @@ from kalshi.resources._base import (
     _check_request_exclusive,
     _join_tickers,
     _params,
+    _validate_max_pages,
 )
 from kalshi.types import to_decimal
 
@@ -396,14 +397,19 @@ class OrdersResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _list_orders_params(
             ticker=ticker, event_ticker=event_ticker, status=status,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
             subaccount=subaccount,
         )
-        return self._list_all("/portfolio/orders", Order, "orders", params=params)
+        return self._list_all(
+            "/portfolio/orders", Order, "orders",
+            params=params, max_pages=max_pages,
+        )
 
     @overload
     def batch_create(
@@ -492,14 +498,19 @@ class OrdersResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Fill]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _fills_params(
             ticker=ticker, order_id=order_id,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
             subaccount=subaccount,
         )
-        return self._list_all("/portfolio/fills", Fill, "fills", params=params)
+        return self._list_all(
+            "/portfolio/fills", Fill, "fills",
+            params=params, max_pages=max_pages,
+        )
 
     @overload
     def amend(
@@ -721,15 +732,20 @@ class AsyncOrdersResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Order]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _list_orders_params(
             ticker=ticker, event_ticker=event_ticker, status=status,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
             subaccount=subaccount,
         )
-        return self._list_all("/portfolio/orders", Order, "orders", params=params)
+        return self._list_all(
+            "/portfolio/orders", Order, "orders",
+            params=params, max_pages=max_pages,
+        )
 
     @overload
     async def batch_create(
@@ -818,14 +834,19 @@ class AsyncOrdersResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Fill]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _fills_params(
             ticker=ticker, order_id=order_id,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
             subaccount=subaccount,
         )
-        return self._list_all("/portfolio/fills", Fill, "fills", params=params)
+        return self._list_all(
+            "/portfolio/fills", Fill, "fills",
+            params=params, max_pages=max_pages,
+        )
 
     @overload
     async def amend(

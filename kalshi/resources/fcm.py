@@ -18,7 +18,12 @@ from typing import Any
 from kalshi.models.common import Page
 from kalshi.models.orders import Order, OrderStatusLiteral
 from kalshi.models.portfolio import PositionsResponse, SettlementStatusLiteral
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _params,
+    _validate_max_pages,
+)
 
 # Shared param builders (issue #46).
 
@@ -100,14 +105,19 @@ class FcmResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _fcm_orders_params(
             subtrader_id=subtrader_id, ticker=ticker,
             event_ticker=event_ticker, status=status,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
         )
-        return self._list_all("/fcm/orders", Order, "orders", params=params)
+        return self._list_all(
+            "/fcm/orders", Order, "orders",
+            params=params, max_pages=max_pages,
+        )
 
     def positions(
         self,
@@ -164,15 +174,20 @@ class AsyncFcmResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Order]:
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
+        _validate_max_pages(max_pages)
         params = _fcm_orders_params(
             subtrader_id=subtrader_id, ticker=ticker,
             event_ticker=event_ticker, status=status,
             min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
         )
-        return self._list_all("/fcm/orders", Order, "orders", params=params)
+        return self._list_all(
+            "/fcm/orders", Order, "orders",
+            params=params, max_pages=max_pages,
+        )
 
     async def positions(
         self,

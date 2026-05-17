@@ -22,6 +22,7 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _validate_max_pages,
 )
 
 # Shared param + body builders (issue #46).
@@ -131,7 +132,9 @@ class MultivariateCollectionsResource(SyncResource):
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[MultivariateEventCollection]:
+        _validate_max_pages(max_pages)
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
@@ -143,6 +146,7 @@ class MultivariateCollectionsResource(SyncResource):
             MultivariateEventCollection,
             "multivariate_contracts",
             params=params,
+            max_pages=max_pages,
         )
 
     def get(self, collection_ticker: str) -> MultivariateEventCollection:
@@ -266,7 +270,9 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         associated_event_ticker: str | None = None,
         series_ticker: str | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[MultivariateEventCollection]:
+        _validate_max_pages(max_pages)
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
@@ -278,6 +284,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
             MultivariateEventCollection,
             "multivariate_contracts",
             params=params,
+            max_pages=max_pages,
         )
 
     async def get(self, collection_ticker: str) -> MultivariateEventCollection:

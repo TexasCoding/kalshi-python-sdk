@@ -24,6 +24,7 @@ from kalshi.resources._base import (
     _bool_param,
     _join_tickers,
     _params,
+    _validate_max_pages,
 )
 
 _MAX_BULK = 100
@@ -264,7 +265,9 @@ class MarketsResource(SyncResource):
         min_settled_ts: int | None = None,
         max_settled_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Market]:
+        _validate_max_pages(max_pages)
         params = _list_markets_params(
             status=status, series_ticker=series_ticker,
             event_ticker=event_ticker, tickers=tickers,
@@ -275,7 +278,10 @@ class MarketsResource(SyncResource):
             min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/markets", Market, "markets", params=params)
+        return self._list_all(
+            "/markets", Market, "markets",
+            params=params, max_pages=max_pages,
+        )
 
     def get(self, ticker: str) -> Market:
         data = self._get(f"/markets/{ticker}")
@@ -332,12 +338,17 @@ class MarketsResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Trade]:
+        _validate_max_pages(max_pages)
         params = _list_trades_params(
             ticker=ticker, min_ts=min_ts, max_ts=max_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/markets/trades", Trade, "trades", params=params)
+        return self._list_all(
+            "/markets/trades", Trade, "trades",
+            params=params, max_pages=max_pages,
+        )
 
     def bulk_candlesticks(
         self,
@@ -429,8 +440,10 @@ class AsyncMarketsResource(AsyncResource):
         min_settled_ts: int | None = None,
         max_settled_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Market]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
+        _validate_max_pages(max_pages)
         params = _list_markets_params(
             status=status, series_ticker=series_ticker,
             event_ticker=event_ticker, tickers=tickers,
@@ -441,7 +454,10 @@ class AsyncMarketsResource(AsyncResource):
             min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/markets", Market, "markets", params=params)
+        return self._list_all(
+            "/markets", Market, "markets",
+            params=params, max_pages=max_pages,
+        )
 
     async def get(self, ticker: str) -> Market:
         data = await self._get(f"/markets/{ticker}")
@@ -498,13 +514,18 @@ class AsyncMarketsResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Trade]:
         """Returns an async iterator — use ``async for``."""
+        _validate_max_pages(max_pages)
         params = _list_trades_params(
             ticker=ticker, min_ts=min_ts, max_ts=max_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/markets/trades", Trade, "trades", params=params)
+        return self._list_all(
+            "/markets/trades", Trade, "trades",
+            params=params, max_pages=max_pages,
+        )
 
     async def bulk_candlesticks(
         self,

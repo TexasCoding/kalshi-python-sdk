@@ -4,6 +4,24 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`max_pages: int | None` kwarg on every public `*_all()` method** — sync and
+  async (19 + 19 method signatures). Bounded iteration without manual pagination.
+  `None` (default) iterates until the server returns no cursor; the existing
+  cursor-repeat guard remains the safety net against infinite loops (#98).
+- **`RateLimit` model** exposed via `kalshi.RateLimit` — represents the per-
+  direction token-bucket structure on `AccountApiLimits.read` / `.write`.
+
+### Changed
+
+- **`*_all()` methods are now unbounded by default.** Previously, internal
+  `_list_all` had an invisible 1000-page safety cap that silently truncated
+  callers iterating beyond ~100k items. The cap is gone; the cursor-repeat
+  guard (`KalshiError` on a repeating cursor) provides the runaway protection
+  it always did. Callers who want a cap pass `max_pages=N` explicitly. No
+  user-visible change for anyone iterating <1000 pages (#98).
+
 ### Fixed
 
 - **`/account/limits` response now parses against the live server.** The

@@ -7,7 +7,13 @@ from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.events import Event, EventMetadata, EventStatusLiteral
-from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params
+from kalshi.resources._base import (
+    AsyncResource,
+    SyncResource,
+    _bool_param,
+    _params,
+    _validate_max_pages,
+)
 
 # Shared param builders (issue #46).
 
@@ -86,7 +92,9 @@ class EventsResource(SyncResource):
         min_close_ts: int | None = None,
         min_updated_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Event]:
+        _validate_max_pages(max_pages)
         params = _list_events_params(
             status=status, series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
@@ -94,7 +102,9 @@ class EventsResource(SyncResource):
             min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/events", Event, "events", params=params)
+        return self._list_all(
+            "/events", Event, "events", params=params, max_pages=max_pages,
+        )
 
     def list_multivariate(
         self,
@@ -120,14 +130,19 @@ class EventsResource(SyncResource):
         collection_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> Iterator[Event]:
+        _validate_max_pages(max_pages)
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
             limit=limit, cursor=None,
         )
-        return self._list_all("/events/multivariate", Event, "events", params=params)
+        return self._list_all(
+            "/events/multivariate", Event, "events",
+            params=params, max_pages=max_pages,
+        )
 
     def get(
         self,
@@ -180,7 +195,9 @@ class AsyncEventsResource(AsyncResource):
         min_close_ts: int | None = None,
         min_updated_ts: int | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Event]:
+        _validate_max_pages(max_pages)
         params = _list_events_params(
             status=status, series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
@@ -188,7 +205,9 @@ class AsyncEventsResource(AsyncResource):
             min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
             limit=limit, cursor=None,
         )
-        return self._list_all("/events", Event, "events", params=params)
+        return self._list_all(
+            "/events", Event, "events", params=params, max_pages=max_pages,
+        )
 
     async def list_multivariate(
         self,
@@ -214,14 +233,19 @@ class AsyncEventsResource(AsyncResource):
         collection_ticker: str | None = None,
         with_nested_markets: bool | None = None,
         limit: int | None = None,
+        max_pages: int | None = None,
     ) -> AsyncIterator[Event]:
+        _validate_max_pages(max_pages)
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
             limit=limit, cursor=None,
         )
-        return self._list_all("/events/multivariate", Event, "events", params=params)
+        return self._list_all(
+            "/events/multivariate", Event, "events",
+            params=params, max_pages=max_pages,
+        )
 
     async def get(
         self,

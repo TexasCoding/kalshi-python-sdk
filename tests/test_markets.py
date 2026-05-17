@@ -203,6 +203,34 @@ class TestMarketsListAll:
         assert route.call_count == 2
 
     @respx.mock
+    def test_max_pages_caps_fetch(self, markets: MarketsResource) -> None:
+        """Public ``list_all`` forwards ``max_pages`` to ``_list_all`` (#98)."""
+        counter = {"n": 0}
+
+        def _make_response(request: httpx.Request) -> httpx.Response:
+            counter["n"] += 1
+            n = counter["n"]
+            return httpx.Response(
+                200,
+                json={"markets": [{"ticker": f"M-{n}"}], "cursor": f"cur-{n}"},
+            )
+
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=_make_response
+        )
+        tickers = [m.ticker for m in markets.list_all(max_pages=2)]
+
+        assert route.call_count == 2
+        assert tickers == ["M-1", "M-2"]
+
+    def test_max_pages_zero_rejected(self, markets: MarketsResource) -> None:
+        """``max_pages=0`` raises ValueError at the public boundary (#98)."""
+        with pytest.raises(ValueError, match=r"max_pages must be positive"):
+            # The validator runs eagerly inside list_all, before the
+            # generator is consumed — no list() needed.
+            markets.list_all(max_pages=0)
+
+    @respx.mock
     def test_list_all_with_all_new_filters(self, markets: MarketsResource) -> None:
         """v0.7.0 ADDs on list_all match list (no cursor)."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
