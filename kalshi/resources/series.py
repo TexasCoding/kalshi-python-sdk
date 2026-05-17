@@ -11,7 +11,7 @@ from kalshi.models.series import (
     Series,
     SeriesFeeChange,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params
 
 # Shared param builders (issue #46).
 
@@ -27,8 +27,8 @@ def _list_series_params(
     return _params(
         category=category,
         tags=tags,
-        include_product_metadata="true" if include_product_metadata else None,
-        include_volume="true" if include_volume else None,
+        include_product_metadata=_bool_param(include_product_metadata),
+        include_volume=_bool_param(include_volume),
         min_updated_ts=min_updated_ts,
     )
 
@@ -40,7 +40,7 @@ def _fee_changes_params(
 ) -> dict[str, Any]:
     return _params(
         series_ticker=series_ticker,
-        show_historical="true" if show_historical else None,
+        show_historical=_bool_param(show_historical),
     )
 
 
@@ -98,7 +98,7 @@ class SeriesResource(SyncResource):
         include_volume: bool | None = None,
     ) -> Series:
         params = _params(
-            include_volume="true" if include_volume else None,
+            include_volume=_bool_param(include_volume),
         )
         data = self._get(f"/series/{series_ticker}", params=params)
         return Series.model_validate(data.get("series", data))
@@ -188,7 +188,7 @@ class AsyncSeriesResource(AsyncResource):
         include_volume: bool | None = None,
     ) -> Series:
         params = _params(
-            include_volume="true" if include_volume else None,
+            include_volume=_bool_param(include_volume),
         )
         data = await self._get(f"/series/{series_ticker}", params=params)
         return Series.model_validate(data.get("series", data))

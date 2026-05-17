@@ -7,6 +7,7 @@ and dispatch to whichever transport the client was constructed with.
 from __future__ import annotations
 
 import logging
+import math
 import random
 import time
 from typing import Any
@@ -59,6 +60,9 @@ def _map_error(response: httpx.Response) -> KalshiError:
         if retry_after:
             try:
                 retry_after_val = float(retry_after)
+                # Reject non-finite/negative: NaN crashes time.sleep, negative busy-loops.
+                if retry_after_val < 0 or not math.isfinite(retry_after_val):
+                    retry_after_val = None
             except ValueError:
                 retry_after_val = None  # HTTP-date format, fall back to computed backoff
         return KalshiRateLimitError(
@@ -168,8 +172,12 @@ class SyncTransport:
             if not should_retry:
                 raise error
 
-            # Use Retry-After header if available for 429
-            if isinstance(error, KalshiRateLimitError) and error.retry_after:
+            # Use Retry-After header if available for 429.
+            # `is not None` — not truthy — so Retry-After: 0 ("retry immediately") is honored.
+            if (
+                isinstance(error, KalshiRateLimitError)
+                and error.retry_after is not None
+            ):
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
@@ -282,7 +290,11 @@ class AsyncTransport:
             if not should_retry:
                 raise error
 
-            if isinstance(error, KalshiRateLimitError) and error.retry_after:
+            # `is not None` so Retry-After: 0 ("retry immediately") is honored.
+            if (
+                isinstance(error, KalshiRateLimitError)
+                and error.retry_after is not None
+            ):
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)

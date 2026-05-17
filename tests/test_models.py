@@ -124,6 +124,28 @@ class TestDollarsAliasFields:
         assert o.taker_fill_cost == Decimal("6.5000")
         assert o.taker_fees == Decimal("0.0650")
 
+    def test_order_type_populated_from_wire_field(self) -> None:
+        """Regression: issue #91.
+
+        Spec ``Order.type`` is renamed to ``order_type`` on the SDK side to
+        avoid shadowing the Python builtin. The wire still sends ``type``;
+        validation must keep populating ``order_type`` from it so callers
+        actually see the value (previous dead-field state always returned
+        ``None``).
+        """
+        o = Order.model_validate({"order_id": "x", "type": "limit"})
+        assert o.order_type == "limit"
+
+    def test_order_type_accepts_python_name(self) -> None:
+        """Pydantic ``populate_by_name`` keeps the SDK kwarg name working."""
+        o = Order.model_validate({"order_id": "x", "order_type": "market"})
+        assert o.order_type == "market"
+
+    def test_order_has_no_type_field(self) -> None:
+        """The old ``type`` attribute is gone — callers must use ``order_type``."""
+        assert "type" not in Order.model_fields
+        assert "order_type" in Order.model_fields
+
     def test_fill_accepts_dollars_suffix(self) -> None:
         from kalshi.models.orders import Fill
 

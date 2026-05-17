@@ -102,6 +102,58 @@ class TestErrorMapping:
         assert isinstance(err, KalshiValidationError)
         assert err.details == {"ticker": "required"}
 
+    # --- Regression: issue #96 -------------------------------------------
+    # Retry-After must reject negative, NaN, and infinity values so the
+    # transport never calls time.sleep with a non-positive or non-finite
+    # delay (busy-loop or ValueError crash respectively).
+
+    def test_429_retry_after_negative_falls_back(self) -> None:
+        """Negative Retry-After is rejected so backoff isn't bypassed."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "-1"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_nan_falls_back(self) -> None:
+        """NaN Retry-After is rejected so time.sleep never raises ValueError."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "nan"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_infinity_falls_back(self) -> None:
+        """Infinity Retry-After is rejected (would survive min() cap math)."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "inf"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
+    def test_429_retry_after_zero_is_kept(self) -> None:
+        """Zero is a valid 'retry immediately' value; only <0 is rejected."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "0"}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after == 0.0
+
+    def test_429_retry_after_http_date_falls_back(self) -> None:
+        """HTTP-date format isn't parsed; should fall through to backoff."""
+        resp = httpx.Response(
+            429,
+            json={"message": "slow"},
+            headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after is None
+
 
 class TestSyncTransportRetry:
     @respx.mock
@@ -127,6 +179,26 @@ class TestSyncTransportRetry:
         resp = transport.request("GET", "/markets")
         assert resp.status_code == 200
         assert route.call_count == 2
+
+    @respx.mock
+    def test_429_retry_after_zero_is_honored_end_to_end(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: `if error.retry_after:` would drop 0 ("retry immediately") as falsy.
+        # `is not None` keeps it; assert the transport actually sleeps 0, not the backoff fallback.
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "0"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert sleeps == [0.0], (
+            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        )
 
     @respx.mock
     def test_get_retries_on_500(self, transport: SyncTransport) -> None:
@@ -273,6 +345,92 @@ class TestKalshiClientConstructor:
         assert hasattr(client, "series")
         assert hasattr(client, "multivariate_collections")
         client.close()
+
+
+class TestBaseUrlValidation:
+    """Regression: issue #94.
+
+    KALSHI_API_BASE_URL is reachable via env var on any deployment plane;
+    accepting an arbitrary scheme/host lets an attacker route signed
+    requests with the KALSHI-ACCESS-KEY header to a host they control.
+    Config must reject non-http(s) schemes and plaintext-to-remote-host;
+    warn (but allow) when the host isn't the known Kalshi production or
+    demo endpoint.
+    """
+
+    def test_https_to_known_host_is_silent(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(base_url=PRODUCTION_BASE_URL)
+        assert "is not a known Kalshi endpoint" not in caplog.text
+
+    def test_https_to_unknown_host_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(base_url="https://attacker.example/trade-api/v2")
+        assert "not a known Kalshi endpoint" in caplog.text
+
+    def test_http_to_loopback_is_allowed(self) -> None:
+        # Local mock servers (e.g., respx, fake-API harnesses) must keep working.
+        for host in ("localhost", "127.0.0.1", "[::1]"):
+            cfg = KalshiConfig(base_url=f"http://{host}:8000/trade-api/v2")
+            assert cfg.base_url.startswith("http://")
+
+    def test_http_to_remote_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="https://"):
+            KalshiConfig(base_url="http://api.elections.kalshi.com/trade-api/v2")
+
+    def test_http_to_attacker_rejected(self) -> None:
+        with pytest.raises(ValueError, match="https://"):
+            KalshiConfig(base_url="http://attacker.example/trade-api/v2")
+
+    def test_non_http_scheme_rejected(self) -> None:
+        with pytest.raises(ValueError, match="http://"):
+            KalshiConfig(base_url="ftp://api.elections.kalshi.com/trade-api/v2")
+
+    def test_file_scheme_rejected(self) -> None:
+        # urlparse on file:///etc/passwd yields scheme=file, no host.
+        with pytest.raises(ValueError):
+            KalshiConfig(base_url="file:///etc/passwd")
+
+    def test_missing_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="missing a host"):
+            KalshiConfig(base_url="https:///trade-api/v2")
+
+
+class TestWsBaseUrlValidation:
+    """Regression: same credential-leakage risk as #94 but for the WS URL.
+
+    ws_base_url also carries the KALSHI-ACCESS-KEY header on connect, so
+    plaintext-to-remote and arbitrary schemes must be rejected identically.
+    """
+
+    def test_wss_to_known_host_is_silent(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig()  # default ws_base_url is wss://api.elections.kalshi.com/...
+        assert "ws_base_url" not in caplog.text
+
+    def test_wss_to_unknown_host_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(ws_base_url="wss://attacker.example/ws/v2")
+        assert "ws_base_url" in caplog.text
+        assert "not a known Kalshi endpoint" in caplog.text
+
+    def test_ws_to_loopback_is_allowed(self) -> None:
+        for url_host in ("localhost", "127.0.0.1", "[::1]"):
+            cfg = KalshiConfig(ws_base_url=f"ws://{url_host}:9000/ws/v2")
+            assert cfg.ws_base_url.startswith("ws://")
+
+    def test_ws_to_remote_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="wss://"):
+            KalshiConfig(ws_base_url="ws://api.elections.kalshi.com/trade-api/ws/v2")
+
+    def test_https_scheme_rejected_on_ws_url(self) -> None:
+        # https is not a valid WS scheme; must be ws/wss.
+        with pytest.raises(ValueError, match="wss://"):
+            KalshiConfig(ws_base_url="https://api.elections.kalshi.com/ws/v2")
+
+    def test_missing_host_rejected_on_ws_url(self) -> None:
+        with pytest.raises(ValueError, match="missing a host"):
+            KalshiConfig(ws_base_url="wss:///ws/v2")
 
 
 class TestSyncTransportUnauthenticated:
