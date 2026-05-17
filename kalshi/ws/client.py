@@ -101,6 +101,7 @@ class KalshiWebSocket:
         self._dispatcher = MessageDispatcher(
             sub_mgr=self._sub_mgr,
             on_error=self._on_error,
+            seq_tracker=self._seq_tracker,
         )
         self._running = True
 
@@ -268,16 +269,22 @@ class KalshiWebSocket:
             # Only meaningful once we know we'll dispatch (and might roll back).
             tracked = True
 
-        # Check for orderbook messages
+        # Check for orderbook messages — validate ONCE for the local
+        # manager, then hand the typed message off to dispatch via
+        # pre_validated so the dispatcher routes the same instance to
+        # the queue without re-running Pydantic.
+        pre_validated: BaseModel | None = None
         if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
             snapshot = OrderbookSnapshotMessage.model_validate(data)
             self._orderbook_mgr.apply_snapshot(snapshot)
+            pre_validated = snapshot
         elif msg_type == "orderbook_delta" and self._orderbook_mgr:
             delta = OrderbookDeltaMessage.model_validate(data)
             self._orderbook_mgr.apply_delta(delta)
+            pre_validated = delta
 
         try:
-            await self._dispatcher.dispatch(raw)
+            await self._dispatcher.dispatch(data, pre_validated=pre_validated)
         except KalshiBackpressureError:
             # Dispatch failed -> the consumer never saw this message. Roll
             # the seq watermark back so the dropped seq is treated as a
