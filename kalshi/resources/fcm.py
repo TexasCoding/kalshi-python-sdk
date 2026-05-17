@@ -13,11 +13,58 @@ arbitrary subtrader_id.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.orders import Order, OrderStatusLiteral
 from kalshi.models.portfolio import PositionsResponse, SettlementStatusLiteral
 from kalshi.resources._base import AsyncResource, SyncResource, _params
+
+# Shared param builders (issue #46).
+
+
+def _fcm_orders_params(
+    *,
+    subtrader_id: str,
+    ticker: str | None,
+    event_ticker: str | None,
+    status: OrderStatusLiteral | None,
+    min_ts: int | None,
+    max_ts: int | None,
+    limit: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return _params(
+        subtrader_id=subtrader_id,
+        ticker=ticker,
+        event_ticker=event_ticker,
+        status=status,
+        min_ts=min_ts,
+        max_ts=max_ts,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def _fcm_positions_params(
+    *,
+    subtrader_id: str,
+    ticker: str | None,
+    event_ticker: str | None,
+    count_filter: str | None,
+    settlement_status: SettlementStatusLiteral | None,
+    limit: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return _params(
+        subtrader_id=subtrader_id,
+        ticker=ticker,
+        event_ticker=event_ticker,
+        count_filter=count_filter,
+        settlement_status=settlement_status,
+        limit=limit,
+        cursor=cursor,
+    )
 
 
 class FcmResource(SyncResource):
@@ -36,15 +83,10 @@ class FcmResource(SyncResource):
         cursor: str | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            status=status,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
-            cursor=cursor,
+        params = _fcm_orders_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, status=status,
+            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
         )
         return self._list("/fcm/orders", Order, "orders", params=params)
 
@@ -60,14 +102,10 @@ class FcmResource(SyncResource):
         limit: int | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            status=status,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
+        params = _fcm_orders_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, status=status,
+            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
         )
         return self._list_all("/fcm/orders", Order, "orders", params=params)
 
@@ -83,14 +121,11 @@ class FcmResource(SyncResource):
         cursor: str | None = None,
     ) -> PositionsResponse:
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            count_filter=count_filter,
+        params = _fcm_positions_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, count_filter=count_filter,
             settlement_status=settlement_status,
-            limit=limit,
-            cursor=cursor,
+            limit=limit, cursor=cursor,
         )
         data = self._get("/fcm/positions", params=params)
         return PositionsResponse.model_validate(data)
@@ -112,15 +147,10 @@ class AsyncFcmResource(AsyncResource):
         cursor: str | None = None,
     ) -> Page[Order]:
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            status=status,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
-            cursor=cursor,
+        params = _fcm_orders_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, status=status,
+            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
         )
         return await self._list("/fcm/orders", Order, "orders", params=params)
 
@@ -137,14 +167,10 @@ class AsyncFcmResource(AsyncResource):
     ) -> AsyncIterator[Order]:
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            status=status,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
+        params = _fcm_orders_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, status=status,
+            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
         )
         return self._list_all("/fcm/orders", Order, "orders", params=params)
 
@@ -160,14 +186,11 @@ class AsyncFcmResource(AsyncResource):
         cursor: str | None = None,
     ) -> PositionsResponse:
         self._require_auth()
-        params = _params(
-            subtrader_id=subtrader_id,
-            ticker=ticker,
-            event_ticker=event_ticker,
-            count_filter=count_filter,
+        params = _fcm_positions_params(
+            subtrader_id=subtrader_id, ticker=ticker,
+            event_ticker=event_ticker, count_filter=count_filter,
             settlement_status=settlement_status,
-            limit=limit,
-            cursor=cursor,
+            limit=limit, cursor=cursor,
         )
         data = await self._get("/fcm/positions", params=params)
         return PositionsResponse.model_validate(data)

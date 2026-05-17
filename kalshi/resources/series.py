@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+from typing import Any
 
 from kalshi.models.series import (
     EventCandlesticks,
@@ -11,6 +12,61 @@ from kalshi.models.series import (
     SeriesFeeChange,
 )
 from kalshi.resources._base import AsyncResource, SyncResource, _params
+
+# Shared param builders (issue #46).
+
+
+def _list_series_params(
+    *,
+    category: str | None,
+    tags: str | None,
+    include_product_metadata: bool | None,
+    include_volume: bool | None,
+    min_updated_ts: int | None,
+) -> dict[str, Any]:
+    return _params(
+        category=category,
+        tags=tags,
+        include_product_metadata="true" if include_product_metadata else None,
+        include_volume="true" if include_volume else None,
+        min_updated_ts=min_updated_ts,
+    )
+
+
+def _fee_changes_params(
+    *,
+    series_ticker: str | None,
+    show_historical: bool | None,
+) -> dict[str, Any]:
+    return _params(
+        series_ticker=series_ticker,
+        show_historical="true" if show_historical else None,
+    )
+
+
+def _event_candlesticks_params(
+    *, start_ts: int, end_ts: int, period_interval: int,
+) -> dict[str, Any]:
+    return _params(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        period_interval=period_interval,
+    )
+
+
+def _forecast_history_params(
+    *,
+    percentiles: builtins.list[int],
+    start_ts: int,
+    end_ts: int,
+    period_interval: int,
+) -> dict[str, Any]:
+    return _params(
+        percentiles=percentiles,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        period_interval=period_interval,
+    )
 
 
 class SeriesResource(SyncResource):
@@ -25,11 +81,10 @@ class SeriesResource(SyncResource):
         include_volume: bool | None = None,
         min_updated_ts: int | None = None,
     ) -> builtins.list[Series]:
-        params = _params(
-            category=category,
-            tags=tags,
-            include_product_metadata="true" if include_product_metadata else None,
-            include_volume="true" if include_volume else None,
+        params = _list_series_params(
+            category=category, tags=tags,
+            include_product_metadata=include_product_metadata,
+            include_volume=include_volume,
             min_updated_ts=min_updated_ts,
         )
         data = self._get("/series", params=params)
@@ -54,9 +109,8 @@ class SeriesResource(SyncResource):
         series_ticker: str | None = None,
         show_historical: bool | None = None,
     ) -> builtins.list[SeriesFeeChange]:
-        params = _params(
-            series_ticker=series_ticker,
-            show_historical="true" if show_historical else None,
+        params = _fee_changes_params(
+            series_ticker=series_ticker, show_historical=show_historical,
         )
         data = self._get("/series/fee_changes", params=params)
         raw = data.get("series_fee_change_arr", [])
@@ -71,9 +125,8 @@ class SeriesResource(SyncResource):
         end_ts: int,
         period_interval: int,
     ) -> EventCandlesticks:
-        params = _params(
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _event_candlesticks_params(
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
         )
         data = self._get(
@@ -93,10 +146,9 @@ class SeriesResource(SyncResource):
         period_interval: int,
     ) -> builtins.list[ForecastPercentilesPoint]:
         self._require_auth()
-        params = _params(
+        params = _forecast_history_params(
             percentiles=percentiles,
-            start_ts=start_ts,
-            end_ts=end_ts,
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
         )
         data = self._get(
@@ -119,11 +171,10 @@ class AsyncSeriesResource(AsyncResource):
         include_volume: bool | None = None,
         min_updated_ts: int | None = None,
     ) -> builtins.list[Series]:
-        params = _params(
-            category=category,
-            tags=tags,
-            include_product_metadata="true" if include_product_metadata else None,
-            include_volume="true" if include_volume else None,
+        params = _list_series_params(
+            category=category, tags=tags,
+            include_product_metadata=include_product_metadata,
+            include_volume=include_volume,
             min_updated_ts=min_updated_ts,
         )
         data = await self._get("/series", params=params)
@@ -148,9 +199,8 @@ class AsyncSeriesResource(AsyncResource):
         series_ticker: str | None = None,
         show_historical: bool | None = None,
     ) -> builtins.list[SeriesFeeChange]:
-        params = _params(
-            series_ticker=series_ticker,
-            show_historical="true" if show_historical else None,
+        params = _fee_changes_params(
+            series_ticker=series_ticker, show_historical=show_historical,
         )
         data = await self._get("/series/fee_changes", params=params)
         raw = data.get("series_fee_change_arr", [])
@@ -165,9 +215,8 @@ class AsyncSeriesResource(AsyncResource):
         end_ts: int,
         period_interval: int,
     ) -> EventCandlesticks:
-        params = _params(
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _event_candlesticks_params(
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
         )
         data = await self._get(
@@ -187,10 +236,9 @@ class AsyncSeriesResource(AsyncResource):
         period_interval: int,
     ) -> builtins.list[ForecastPercentilesPoint]:
         self._require_auth()
-        params = _params(
+        params = _forecast_history_params(
             percentiles=percentiles,
-            start_ts=start_ts,
-            end_ts=end_ts,
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
         )
         data = await self._get(

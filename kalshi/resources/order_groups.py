@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-from typing import overload
+from typing import Any, overload
 
 from kalshi.models.order_groups import (
     CreateOrderGroupRequest,
@@ -18,6 +18,44 @@ from kalshi.resources._base import (
     _check_request_exclusive,
     _params,
 )
+
+# Shared body builders (issue #46).
+
+
+def _build_create_order_group_body(
+    request: CreateOrderGroupRequest | None,
+    *,
+    contracts_limit: int | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request, contracts_limit=contracts_limit, subaccount=subaccount,
+    )
+    if request is None:
+        if contracts_limit is None:
+            raise TypeError(
+                "create() requires `contracts_limit` (or pass `request=...`)"
+            )
+        request = CreateOrderGroupRequest(
+            contracts_limit=contracts_limit, subaccount=subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_update_limit_body(
+    request: UpdateOrderGroupLimitRequest | None,
+    *,
+    contracts_limit: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(request, contracts_limit=contracts_limit)
+    if request is None:
+        if contracts_limit is None:
+            raise TypeError(
+                "update_limit() requires `contracts_limit` "
+                "(or pass `request=...`)"
+            )
+        request = UpdateOrderGroupLimitRequest(contracts_limit=contracts_limit)
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
 class OrderGroupsResource(SyncResource):
@@ -56,19 +94,9 @@ class OrderGroupsResource(SyncResource):
     ) -> CreateOrderGroupResponse:
         # POST path is /order_groups/create, not /order_groups.
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_order_group_body(
             request, contracts_limit=contracts_limit, subaccount=subaccount,
         )
-        if request is None:
-            if contracts_limit is None:
-                raise TypeError(
-                    "create() requires `contracts_limit` (or pass `request=...`)"
-                )
-            request = CreateOrderGroupRequest(
-                contracts_limit=contracts_limit,
-                subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/order_groups/create", json=body)
         return CreateOrderGroupResponse.model_validate(data)
 
@@ -110,15 +138,9 @@ class OrderGroupsResource(SyncResource):
     ) -> None:
         # No subaccount kwarg — spec omits SubaccountQuery on /limit.
         self._require_auth()
-        _check_request_exclusive(request, contracts_limit=contracts_limit)
-        if request is None:
-            if contracts_limit is None:
-                raise TypeError(
-                    "update_limit() requires `contracts_limit` "
-                    "(or pass `request=...`)"
-                )
-            request = UpdateOrderGroupLimitRequest(contracts_limit=contracts_limit)
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        body = _build_update_limit_body(
+            request, contracts_limit=contracts_limit,
+        )
         self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)
 
 
@@ -158,18 +180,9 @@ class AsyncOrderGroupsResource(AsyncResource):
         subaccount: int | None = None,
     ) -> CreateOrderGroupResponse:
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_order_group_body(
             request, contracts_limit=contracts_limit, subaccount=subaccount,
         )
-        if request is None:
-            if contracts_limit is None:
-                raise TypeError(
-                    "create() requires `contracts_limit` (or pass `request=...`)"
-                )
-            request = CreateOrderGroupRequest(
-                contracts_limit=contracts_limit, subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/order_groups/create", json=body)
         return CreateOrderGroupResponse.model_validate(data)
 
@@ -216,13 +229,7 @@ class AsyncOrderGroupsResource(AsyncResource):
         contracts_limit: int | None = None,
     ) -> None:
         self._require_auth()
-        _check_request_exclusive(request, contracts_limit=contracts_limit)
-        if request is None:
-            if contracts_limit is None:
-                raise TypeError(
-                    "update_limit() requires `contracts_limit` "
-                    "(or pass `request=...`)"
-                )
-            request = UpdateOrderGroupLimitRequest(contracts_limit=contracts_limit)
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        body = _build_update_limit_body(
+            request, contracts_limit=contracts_limit,
+        )
         await self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)
