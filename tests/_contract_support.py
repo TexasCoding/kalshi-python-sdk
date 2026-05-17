@@ -23,6 +23,7 @@ ExclusionKind = Literal[
     "spec_deprecated",
     "paginator_handled",
     "wire_normalization",
+    "kwarg_rename",
 ]
 
 
@@ -59,7 +60,11 @@ class Exclusion:
         handled internally by the paginator (not a caller kwarg).
       - ``wire_normalization``: SDK emits a different wire shape than the
         spec field (e.g., ``count`` → ``count_fp``, cent form vs ``_dollars``,
-        integer vs ``_fp`` variant, kwarg rename to avoid Python builtin shadow).
+        integer vs ``_fp`` variant).
+      - ``kwarg_rename``: SDK kwarg renamed from the spec field to avoid
+        shadowing a Python built-in (e.g., spec's ``type`` becomes
+        ``milestone_type`` / ``target_type`` / ``incentive_type``). The wire
+        value is unchanged; only the Python signature differs.
     """
 
     reason: str
@@ -895,7 +900,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     # built-in; the value still populates the spec's `{type}` path segment.
     ("kalshi.resources.live_data.LiveDataResource.get_typed", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     ("kalshi.resources.live_data.LiveDataResource.get_typed", "milestone_type"): Exclusion(
         reason=(
@@ -903,13 +908,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same value, "
             "different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     # --- milestones.list/list_all: `type` query param renamed to `milestone_type` ---
     # Same rationale as get_typed above. Wire still sends `?type=...`.
     ("kalshi.resources.milestones.MilestonesResource.list", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list", "milestone_type"): Exclusion(
         reason=(
@@ -917,11 +922,11 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "type"): Exclusion(
         reason="SDK kwarg named milestone_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "milestone_type"): Exclusion(
         reason=(
@@ -929,7 +934,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     # --- structured_targets.list/list_all: `type` query param renamed to `target_type` ---
     # Same shadow-avoidance rationale as milestones + live_data. Wire still sends `?type=...`.
@@ -938,7 +943,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         "type",
     ): Exclusion(
         reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list",
@@ -949,14 +954,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
         "type",
     ): Exclusion(
         reason="SDK kwarg named target_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
@@ -967,7 +972,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
@@ -988,7 +993,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         "type",
     ): Exclusion(
         reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list",
@@ -999,14 +1004,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
         "type",
     ): Exclusion(
         reason="SDK kwarg named incentive_type (not type) to avoid built-in shadow",
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
@@ -1017,7 +1022,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "the Python built-in; not query/path parity with spec (same wire "
             "key, different kwarg name)"
         ),
-        kind="wire_normalization",
+        kind="kwarg_rename",
     ),
     (
         "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
