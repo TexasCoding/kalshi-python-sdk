@@ -376,6 +376,43 @@ class TestBaseUrlValidation:
             KalshiConfig(base_url="https:///trade-api/v2")
 
 
+class TestWsBaseUrlValidation:
+    """Regression: same credential-leakage risk as #94 but for the WS URL.
+
+    ws_base_url also carries the KALSHI-ACCESS-KEY header on connect, so
+    plaintext-to-remote and arbitrary schemes must be rejected identically.
+    """
+
+    def test_wss_to_known_host_is_silent(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig()  # default ws_base_url is wss://api.elections.kalshi.com/...
+        assert "ws_base_url" not in caplog.text
+
+    def test_wss_to_unknown_host_warns(self, caplog: pytest.LogCaptureFixture) -> None:
+        with caplog.at_level("WARNING", logger="kalshi"):
+            KalshiConfig(ws_base_url="wss://attacker.example/ws/v2")
+        assert "ws_base_url" in caplog.text
+        assert "not a known Kalshi endpoint" in caplog.text
+
+    def test_ws_to_loopback_is_allowed(self) -> None:
+        for url_host in ("localhost", "127.0.0.1", "[::1]"):
+            cfg = KalshiConfig(ws_base_url=f"ws://{url_host}:9000/ws/v2")
+            assert cfg.ws_base_url.startswith("ws://")
+
+    def test_ws_to_remote_host_rejected(self) -> None:
+        with pytest.raises(ValueError, match="wss://"):
+            KalshiConfig(ws_base_url="ws://api.elections.kalshi.com/trade-api/ws/v2")
+
+    def test_https_scheme_rejected_on_ws_url(self) -> None:
+        # https is not a valid WS scheme; must be ws/wss.
+        with pytest.raises(ValueError, match="wss://"):
+            KalshiConfig(ws_base_url="https://api.elections.kalshi.com/ws/v2")
+
+    def test_missing_host_rejected_on_ws_url(self) -> None:
+        with pytest.raises(ValueError, match="missing a host"):
+            KalshiConfig(ws_base_url="wss:///ws/v2")
+
+
 class TestSyncTransportUnauthenticated:
     """Tests for SyncTransport with auth=None (unauthenticated mode)."""
 

@@ -60,11 +60,7 @@ def _map_error(response: httpx.Response) -> KalshiError:
         if retry_after:
             try:
                 retry_after_val = float(retry_after)
-                # Reject negative, NaN, and infinity. Negative would make
-                # ``min(retry_after, retry_max_delay)`` go negative and turn
-                # ``time.sleep`` into a no-op (busy-loop). NaN propagates
-                # through ``min`` and crashes ``time.sleep`` with ValueError.
-                # Fall back to computed backoff in either case.
+                # Reject non-finite/negative: NaN crashes time.sleep, negative busy-loops.
                 if retry_after_val < 0 or not math.isfinite(retry_after_val):
                     retry_after_val = None
             except ValueError:

@@ -2,6 +2,30 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## [Unreleased]
+
+### Breaking
+
+- **`Order.type` renamed to `Order.order_type`.** Wire format is unchanged
+  (`validation_alias=AliasChoices("type", "order_type")` accepts both names on
+  deserialization), but any user code reading `.type` on an `Order` instance
+  must migrate to `.order_type`. Rationale: matches the project's existing
+  builtin-shadow-avoidance convention (`milestone_type`, `target_type`,
+  `incentive_type`). Spec v3.13.0 still defines `type` as required, so the
+  field is preserved on the wire — only the Python attribute name changed
+  (#91).
+
+  ```python
+  # Before
+  order = client.portfolio.orders.get(order_id="...")
+  print(order.type)  # AttributeError after upgrade
+
+  # After
+  print(order.order_type)
+  ```
+
+  Version-bump decision (v1.2 vs v2.0) deferred to release cut.
+
 ## 1.1.0 — 2026-05-16
 
 Post-1.0 enhancements and polish. 17 issues closed across four parallel waves of
