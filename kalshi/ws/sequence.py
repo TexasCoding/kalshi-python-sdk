@@ -77,10 +77,10 @@ class SequenceTracker:
     def peek(self, sid: int) -> int | None:
         """Return the current last-seen seq for ``sid``, or None if untracked.
 
-        Used by :class:`KalshiWebSocket._process_frame` to capture the
-        pre-track watermark so it can be restored via :meth:`rollback` if the
-        downstream dispatch fails (issue #78: ERROR-overflow backpressure must
-        not silently advance the seq watermark past a dropped message).
+        Capture this before calling :meth:`track` so the watermark can be
+        restored via :meth:`rollback` if downstream dispatch fails — an
+        already-advanced watermark would silently treat the dropped message
+        as already-seen on the next gap check.
         """
         return self._last_seq.get(sid)
 

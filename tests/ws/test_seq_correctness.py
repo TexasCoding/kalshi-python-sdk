@@ -90,9 +90,12 @@ class TestBackpressureDoesNotAdvanceSeq:
                     "yes": [["0.50", "100"]], "no": [],
                 },
             })
-            # Yield so the recv loop processes the snapshot before we
-            # push the overflow delta.
-            await asyncio.sleep(0.1)
+            # Deterministic wait: poll the seq tracker until it observes the
+            # snapshot, bounded by wait_for. Avoids CI flakes under load.
+            async def snapshot_landed() -> None:
+                while session._seq_tracker.peek(sid) != 1:
+                    await asyncio.sleep(0.01)
+            await asyncio.wait_for(snapshot_landed(), timeout=2.0)
 
             assert session._seq_tracker.peek(sid) == 1
 

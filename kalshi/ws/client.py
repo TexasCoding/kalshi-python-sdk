@@ -231,14 +231,14 @@ class KalshiWebSocket:
     async def _process_frame(self, raw: str) -> None:
         """Parse, track seq, update orderbook, and dispatch a single frame.
 
-        #78: track + orderbook-apply are provisional. If
-        :meth:`MessageDispatcher.dispatch` raises (e.g.
-        :class:`KalshiBackpressureError` on an ERROR-strategy queue), the
-        seq watermark is rolled back so the dropped message stays visible
-        as a future gap rather than being silently treated as already-seen.
-        Orderbook state isn't rolled back — the recv loop tears down via
-        sentinel broadcast on this error, so the local book becomes
-        orphaned but never desynced-and-still-consumed.
+        Seq tracking + orderbook-apply are provisional with respect to the
+        downstream dispatch. If dispatch raises ``KalshiBackpressureError``
+        (ERROR-strategy queue overflow), the seq watermark is rolled back
+        so the dropped message stays visible as a future gap rather than
+        being silently treated as already-seen. Orderbook state isn't
+        rolled back — the recv loop tears down via sentinel broadcast on
+        this error, so the local book becomes orphaned but is never
+        desynced-and-still-consumed.
         """
         assert self._dispatcher is not None
         data = json.loads(raw)
@@ -261,11 +261,12 @@ class KalshiWebSocket:
             ok = await self._seq_tracker.track(
                 sid, seq, msg_type if msg_type else channel
             )
-            tracked = True
             if not ok:
                 # Gap detected — skip dispatching this message.
                 # The gap handler will trigger resync.
                 return
+            # Only meaningful once we know we'll dispatch (and might roll back).
+            tracked = True
 
         # Check for orderbook messages
         if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
@@ -278,11 +279,11 @@ class KalshiWebSocket:
         try:
             await self._dispatcher.dispatch(raw)
         except KalshiBackpressureError:
-            # #78: dispatch failed -> the consumer never saw this message.
-            # Roll the seq watermark back so the dropped seq is treated as
-            # a future gap (not silently as already-seen). Then re-raise so
-            # the recv loop's existing handler broadcasts sentinels and
-            # tears the loop down.
+            # Dispatch failed -> the consumer never saw this message. Roll
+            # the seq watermark back so the dropped seq is treated as a
+            # future gap (not silently as already-seen). Re-raise so the
+            # recv loop's existing handler broadcasts sentinels and tears
+            # the loop down.
             if tracked and sid is not None and self._seq_tracker:
                 self._seq_tracker.rollback(sid, prev_seq)
             raise
@@ -321,11 +322,11 @@ class KalshiWebSocket:
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
         """Handle a sequence gap by logging and triggering resync.
 
-        #79: a single ``orderbook_delta`` subscription can cover multiple
-        tickers under one sid. The gap envelope does not identify which
-        ticker missed an update, so the safe option is to clear EVERY
-        ticker for the affected subscription. Previously only ``tickers[0]``
-        was cleared, leaving the other books diverged from server truth.
+        A single ``orderbook_delta`` subscription can cover multiple tickers
+        under one sid. The gap envelope doesn't identify which ticker
+        missed an update, so we clear EVERY ticker on the affected
+        subscription — clearing only ``tickers[0]`` would leave the other
+        books silently diverged from server truth.
         """
         logger.warning(
             "Sequence gap on sid %d: expected %d, got %d. Triggering resync.",
