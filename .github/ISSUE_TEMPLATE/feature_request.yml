@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest a new SDK capability, ergonomics improvement, or API surface change.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Please describe the *user need* first,
+        then a proposal — solutions are easier to discuss when the
+        underlying problem is clear.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        What are you trying to do that's awkward or impossible today?
+        Avoid jumping to a specific API design — describe the use case.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        Concrete suggestion if you have one — an API sketch, a code
+        example of how it would feel to use, etc.
+      render: python
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds have you tried? Why aren't they enough?
+    validations:
+      required: false
+
+  - type: input
+    id: spec_link
+    attributes:
+      label: Kalshi API reference (if applicable)
+      description: |
+        Link to the relevant endpoint in https://docs.kalshi.com or the
+        OpenAPI / AsyncAPI spec.
+      placeholder: "https://docs.kalshi.com/openapi.yaml#/markets/get"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues for duplicates or related discussions.
+          required: true
+        - label: This is in scope for an SDK (i.e. wraps or improves access to the Kalshi API rather than reimplementing exchange logic).
+          required: true

@@ -16,6 +16,7 @@ wheels/
 
 # Virtual environments
 .venv
+.venv.stale*
 
 # UV lock
 uv.lock
@@ -35,3 +36,12 @@ specs/asyncapi.yaml
 
 # MkDocs build output
 site/
+
+# OS noise
+**/.DS_Store
+
+# Internal planning / audit scratch (kept local, not part of the public repo)
+.planning/
+
+# Agent worktrees (claude-code's isolation: "worktree" mode)
+.claude/worktrees/
