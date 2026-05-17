@@ -96,3 +96,24 @@ class TestMessageQueue:
         _task = asyncio.create_task(delayed_put())  # noqa: RUF006
         msg = await asyncio.wait_for(q.get(), timeout=1.0)
         assert msg == "delayed"
+
+    async def test_qsize_stays_accurate_across_put_get_drop_and_sentinel(self) -> None:
+        """Regression for #103: O(1) counter must agree with logical occupancy on
+        every code path — put, get, DROP_OLDEST eviction, and after a sentinel."""
+        q: MessageQueue[int] = MessageQueue(
+            maxsize=3, overflow=OverflowStrategy.DROP_OLDEST
+        )
+        assert q.qsize() == 0
+        await q.put(1)
+        await q.put(2)
+        await q.put(3)
+        assert q.qsize() == 3
+        await q.put(4)  # evicts 1, still 3 items
+        assert q.qsize() == 3
+        assert await q.get() == 2
+        assert q.qsize() == 2
+        await q.put_sentinel()  # sentinel does not count toward qsize
+        assert q.qsize() == 2
+        assert await q.get() == 3
+        assert await q.get() == 4
+        assert q.qsize() == 0
