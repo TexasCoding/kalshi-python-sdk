@@ -24,9 +24,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pandas = ["pandas>=2,<3"]
+pandas = ["pandas>=2,<4"]
 polars = ["polars>=1,<2"]
-all = ["pandas>=2,<3", "polars>=1,<2"]
+all = ["pandas>=2,<4", "polars>=1,<2"]
 
 [project.urls]
 Homepage = "https://github.com/TexasCoding/kalshi-python-sdk"
@@ -84,7 +84,7 @@ dev = [
     "datamodel-code-generator>=0.26",
     "pyyaml>=6",
     "python-dotenv>=1",
-    "pandas>=2,<3",
+    "pandas>=2,<4",
     "polars>=1,<2",
 ]
 docs = [
