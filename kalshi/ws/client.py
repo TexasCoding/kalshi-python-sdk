@@ -229,13 +229,25 @@ class KalshiWebSocket:
                 raise
 
     async def _process_frame(self, raw: str) -> None:
-        """Parse, track seq, update orderbook, and dispatch a single frame."""
+        """Parse, track seq, update orderbook, and dispatch a single frame.
+
+        #78: track + orderbook-apply are provisional. If
+        :meth:`MessageDispatcher.dispatch` raises (e.g.
+        :class:`KalshiBackpressureError` on an ERROR-strategy queue), the
+        seq watermark is rolled back so the dropped message stays visible
+        as a future gap rather than being silently treated as already-seen.
+        Orderbook state isn't rolled back — the recv loop tears down via
+        sentinel broadcast on this error, so the local book becomes
+        orphaned but never desynced-and-still-consumed.
+        """
         assert self._dispatcher is not None
         data = json.loads(raw)
         sid = data.get("sid")
         seq = data.get("seq")
         msg_type = data.get("type", "")
 
+        prev_seq: int | None = None
+        tracked = False
         if sid is not None and seq is not None and self._seq_tracker:
             channel = ""
             sub = (
@@ -245,9 +257,11 @@ class KalshiWebSocket:
             )
             if sub:
                 channel = sub.channel
+            prev_seq = self._seq_tracker.peek(sid)
             ok = await self._seq_tracker.track(
                 sid, seq, msg_type if msg_type else channel
             )
+            tracked = True
             if not ok:
                 # Gap detected — skip dispatching this message.
                 # The gap handler will trigger resync.
@@ -261,7 +275,17 @@ class KalshiWebSocket:
             delta = OrderbookDeltaMessage.model_validate(data)
             self._orderbook_mgr.apply_delta(delta)
 
-        await self._dispatcher.dispatch(raw)
+        try:
+            await self._dispatcher.dispatch(raw)
+        except KalshiBackpressureError:
+            # #78: dispatch failed -> the consumer never saw this message.
+            # Roll the seq watermark back so the dropped seq is treated as
+            # a future gap (not silently as already-seen). Then re-raise so
+            # the recv loop's existing handler broadcasts sentinels and
+            # tears the loop down.
+            if tracked and sid is not None and self._seq_tracker:
+                self._seq_tracker.rollback(sid, prev_seq)
+            raise
 
     async def _handle_reconnect(self) -> None:
         """Reconnect after ConnectionClosed and re-establish subscriptions.

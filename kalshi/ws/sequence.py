@@ -74,6 +74,30 @@ class SequenceTracker:
 
         return False
 
+    def peek(self, sid: int) -> int | None:
+        """Return the current last-seen seq for ``sid``, or None if untracked.
+
+        Used by :class:`KalshiWebSocket._process_frame` to capture the
+        pre-track watermark so it can be restored via :meth:`rollback` if the
+        downstream dispatch fails (issue #78: ERROR-overflow backpressure must
+        not silently advance the seq watermark past a dropped message).
+        """
+        return self._last_seq.get(sid)
+
+    def rollback(self, sid: int, prev: int | None) -> None:
+        """Restore the last-seen seq for ``sid`` to ``prev``.
+
+        If ``prev`` is None, the entry is removed entirely (the message was
+        the first one seen for this sid and never landed). This is the
+        compensation for a failed downstream dispatch — pair every successful
+        :meth:`track` whose dispatch may raise with a captured :meth:`peek`
+        and call this on failure.
+        """
+        if prev is None:
+            self._last_seq.pop(sid, None)
+        else:
+            self._last_seq[sid] = prev
+
     def reset(self, sid: int) -> None:
         """Reset tracking for a subscription (after resync/resubscribe)."""
         self._last_seq.pop(sid, None)
