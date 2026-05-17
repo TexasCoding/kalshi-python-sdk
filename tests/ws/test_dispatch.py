@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 
@@ -12,6 +13,7 @@ from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
 from kalshi.ws.models.market_positions import MarketPositionsMessage
 from kalshi.ws.models.multivariate import MultivariateMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
+from kalshi.ws.sequence import SequenceTracker
 
 
 class FakeSubManager:
@@ -23,12 +25,19 @@ class FakeSubManager:
         self._subscriptions: dict[int, Subscription] = self._subs
         self._sid_to_client: dict[int, int] = {}
 
-    def add(self, sid: int, channel: str) -> Subscription:
+    def add(
+        self, sid: int, channel: str, *, client_id: int | None = None,
+    ) -> Subscription:
+        """Add a sub. ``client_id`` defaults to ``sid`` for simple tests, but
+        can be passed distinct to exercise the production mapping path
+        (server-assigned sid != client-side id).
+        """
+        cid = sid if client_id is None else client_id
         queue: MessageQueue[object] = MessageQueue(maxsize=100)
-        sub = Subscription(client_id=sid, channel=channel, params={}, queue=queue)
+        sub = Subscription(client_id=cid, channel=channel, params={}, queue=queue)
         sub.server_sid = sid
-        self._subs[sid] = sub
-        self._sid_to_client[sid] = sid
+        self._subs[cid] = sub
+        self._sid_to_client[sid] = cid
         return sub
 
     def get_subscription_by_sid(self, sid: int) -> Subscription | None:
@@ -127,7 +136,6 @@ class TestMessageDispatcher:
         stop. A WARNING is logged at register time so the fan-out is not
         invisible.
         """
-        import logging
 
         mgr = FakeSubManager()
         sub = mgr.add(1, "ticker")
@@ -155,7 +163,6 @@ class TestMessageDispatcher:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """No warning when callback is registered before any subscription."""
-        import logging
 
         mgr = FakeSubManager()  # no subs
 
@@ -209,7 +216,6 @@ class TestMessageDispatcher:
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Without on_error, a channel-level error is logged at WARNING (#82)."""
-        import logging
 
         mgr = FakeSubManager()
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
@@ -240,6 +246,61 @@ class TestMessageDispatcher:
         )
         await dispatcher.dispatch(raw)
         assert len(errors) == 1
+
+    async def test_null_error_field_not_misrouted(self) -> None:
+        """Regression: `"error": null` on a typed envelope must parse normally.
+
+        The dispatcher uses `data.get("error") is not None`, not
+        `"error" in data`, so a legitimate optional error field set to null
+        doesn't trip the channel-level-error path.
+        """
+        mgr = FakeSubManager()
+        sub = mgr.add(1, "ticker")
+        errors: list[object] = []
+
+        async def on_error(err: object) -> None:
+            errors.append(err)
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr, on_error=on_error)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {
+                "type": "ticker",
+                "sid": 1,
+                "error": None,
+                "msg": {"market_ticker": "T", "market_id": "x"},
+            }
+        )
+        await dispatcher.dispatch(raw)
+        assert errors == [], "null error field misrouted as channel error"
+        # Normal ticker flow happened: message landed on the queue.
+        assert sub.queue.qsize() == 1
+
+    async def test_channel_level_error_validation_failure_still_fires_handler(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """If the error payload fails strict ErrorMessage validation, on_error
+        still fires with a model_construct'd fallback so handlers always see
+        a signal. The dispatcher also logs at ERROR (not WARNING) because a
+        registered handler was almost-not-called.
+        """
+        mgr = FakeSubManager()
+        errors: list[object] = []
+
+        async def on_error(err: object) -> None:
+            errors.append(err)
+
+        dispatcher = MessageDispatcher(sub_mgr=mgr, on_error=on_error)  # type: ignore[arg-type]
+        # Error field is a non-dict, non-string sentinel that fails ErrorPayload validation.
+        raw = json.dumps(
+            {"type": "ticker", "sid": 1, "error": 42}
+        )
+        with caplog.at_level(logging.ERROR, logger="kalshi.ws"):
+            await dispatcher.dispatch(raw)
+        assert len(errors) == 1, "on_error not called on validation failure"
+        assert any(
+            "failed strict ErrorMessage validation" in r.message
+            for r in caplog.records
+        )
 
     async def test_all_channel_types_have_models(self) -> None:
         """Verify every expected channel type is in the dispatch map."""
@@ -321,7 +382,6 @@ class TestMessageDispatcher:
 
     async def test_server_unsubscribe_resets_seq_tracker(self) -> None:
         """If a SequenceTracker is wired in, reset(sid) is called."""
-        from kalshi.ws.sequence import SequenceTracker
 
         mgr = FakeSubManager()
         mgr.add(9, "orderbook_delta")
@@ -338,6 +398,29 @@ class TestMessageDispatcher:
         await dispatcher.dispatch(raw)
 
         assert 9 not in tracker._last_seq
+
+    async def test_server_unsubscribe_with_distinct_client_id(self) -> None:
+        """Server-assigned sid != client-side id is the production case.
+
+        Exercises the two-step lookup: server's `sid` → `_sid_to_client[sid]`
+        gives `client_id`, then `_subscriptions.pop(client_id)`. Collapsing
+        sid == client_id (default) lets the test pass by accident even if
+        the lookup is wrong.
+        """
+        mgr = FakeSubManager()
+        sub = mgr.add(sid=500, channel="ticker", client_id=1)
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        assert 500 in mgr._sid_to_client
+        assert 1 in mgr._subscriptions
+        assert 500 not in mgr._subscriptions  # not keyed by server sid
+
+        raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 500}})
+        await dispatcher.dispatch(raw)
+
+        assert 500 not in mgr._sid_to_client
+        assert 1 not in mgr._subscriptions
+        with pytest.raises(StopAsyncIteration):
+            await sub.queue.get()
 
     async def test_server_unsubscribe_unknown_sid_no_crash(self) -> None:
         """A late/duplicate unsubscribed for an already-reaped sid is a no-op."""

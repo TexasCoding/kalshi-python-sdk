@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from kalshi.ws.channels import SubscriptionManager
-from kalshi.ws.models.base import ErrorMessage
+from kalshi.ws.models.base import ErrorMessage, ErrorPayload
 from kalshi.ws.models.communications import CommunicationsMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
@@ -137,7 +137,8 @@ class MessageDispatcher:
         """
         if self._on_error is not None:
             # Best-effort: synthesize an ErrorMessage. If the payload
-            # doesn't match the strict schema, fall back to a logged warning.
+            # doesn't match the strict schema, fall back to model_construct
+            # so the handler still fires with the raw payload visible.
             try:
                 synthesized = {
                     "id": data.get("id", 0),
@@ -148,12 +149,16 @@ class MessageDispatcher:
                 }
                 error = ErrorMessage.model_validate(synthesized)
             except Exception:
-                logger.warning(
-                    "Channel-level error envelope (type=%s) could not be "
-                    "coerced to ErrorMessage: %s",
+                logger.error(
+                    "Channel-level error envelope (type=%s) failed strict "
+                    "ErrorMessage validation; firing on_error with raw payload: %s",
                     msg_type, data,
                 )
-                return
+                error = ErrorMessage.model_construct(
+                    id=data.get("id", 0),
+                    type="error",
+                    msg=ErrorPayload.model_construct(code="unknown", msg=str(data)),
+                )
             await self._on_error(error)
         else:
             logger.warning(
@@ -182,10 +187,10 @@ class MessageDispatcher:
             return
 
         # Channel-level error semantics on a non-"error" envelope (#82):
-        # AsyncAPI permits a typed message to carry an `error` field, or
-        # the server may emit an unknown type with error semantics. Route
-        # those to on_error rather than dropping them silently.
-        if "error" in data:
+        # `data.get("error") is not None` (NOT `"error" in data`) so a
+        # legitimate `"error": null` field on a typed envelope isn't
+        # falsely routed as an error.
+        if data.get("error") is not None:
             await self._surface_channel_error(msg_type, data)
             return
 
