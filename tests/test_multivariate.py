@@ -143,6 +143,19 @@ class TestMultivariateLookupTickers:
         with pytest.raises(AuthRequiredError):
             unauth_mv.lookup_tickers("MVC-1", selected_markets=[])
 
+    @respx.mock
+    def test_lookup_tickers_raises_on_204_spec_drift(
+        self, mv: MultivariateCollectionsResource,
+    ) -> None:
+        # Spec says this endpoint returns 200 with a body. If it ever
+        # regresses to 204, we want a clear RuntimeError, not an opaque
+        # Pydantic validation error on `model_validate(None)`. Issue #72.
+        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
+            return_value=httpx.Response(204),
+        )
+        with pytest.raises(RuntimeError, match="spec drift"):
+            mv.lookup_tickers("MVC-1", selected_markets=[])
+
 
 class TestMultivariateLookupHistory:
     @respx.mock
@@ -226,6 +239,18 @@ class TestAsyncMultivariateCollectionsResource:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.lookup_tickers("MVC-1", selected_markets=[])
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_lookup_tickers_raises_on_204_spec_drift(
+        self, async_mv: AsyncMultivariateCollectionsResource,
+    ) -> None:
+        # Async sibling of the sync spec-drift guard. Issue #72.
+        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
+            return_value=httpx.Response(204),
+        )
+        with pytest.raises(RuntimeError, match="spec drift"):
+            await async_mv.lookup_tickers("MVC-1", selected_markets=[])
 
     @respx.mock
     @pytest.mark.asyncio

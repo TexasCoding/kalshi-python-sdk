@@ -86,6 +86,19 @@ def _build_lookup_tickers_body(
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
+def _parse_lookup_tickers_response(
+    data: dict[str, Any] | None,
+) -> LookupTickersResponse:
+    # Spec: this endpoint always returns 200 with body; guard against a
+    # future server regression to 204 giving opaque Pydantic errors.
+    # (use an explicit check, not assert — asserts are stripped under -O)
+    if data is None:
+        raise RuntimeError(
+            "lookup: expected 200 with body, got 204 (spec drift)",
+        )
+    return LookupTickersResponse.model_validate(data)
+
+
 class MultivariateCollectionsResource(SyncResource):
     """Sync multivariate event collections API."""
 
@@ -204,14 +217,7 @@ class MultivariateCollectionsResource(SyncResource):
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,
         )
-        # Spec: this endpoint always returns 200 with body; guard against a
-        # future server regression to 204 giving opaque Pydantic errors.
-        # (use an explicit check, not assert — asserts are stripped under -O)
-        if data is None:
-            raise RuntimeError(
-                "lookup: expected 200 with body, got 204 (spec drift)",
-            )
-        return LookupTickersResponse.model_validate(data)
+        return _parse_lookup_tickers_response(data)
 
     def lookup_history(
         self,
@@ -346,7 +352,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
             f"/multivariate_event_collections/{collection_ticker}/lookup",
             json=body,
         )
-        return LookupTickersResponse.model_validate(data)
+        return _parse_lookup_tickers_response(data)
 
     async def lookup_history(
         self,
