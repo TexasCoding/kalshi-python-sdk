@@ -1,5 +1,9 @@
 # kalshi-sdk
 
+<p align="center">
+  <img src="docs/assets/kalshi-sdk-hero.jpg" alt="Kalshi Python SDK — Trade the Future · Full REST + WebSocket · Sync + Async" width="780">
+</p>
+
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction markets API.
 
 [![PyPI version](https://img.shields.io/pypi/v/kalshi-sdk.svg)](https://pypi.org/project/kalshi-sdk/)
