@@ -99,6 +99,8 @@ class SyncTransport:
     ) -> None:
         self._auth = auth
         self._config = config
+        # Cached once: base_url is immutable on a frozen KalshiConfig.
+        self._base_path = urlparse(config.base_url).path
         self._client = httpx.Client(
             base_url=config.base_url,
             timeout=config.timeout,
@@ -121,7 +123,7 @@ class SyncTransport:
     ) -> httpx.Response:
         """Make an authenticated HTTP request with retry logic."""
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
-        sign_path = urlparse(self._config.base_url).path + path
+        sign_path = self._base_path + path
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
@@ -218,6 +220,8 @@ class AsyncTransport:
     ) -> None:
         self._auth = auth
         self._config = config
+        # Cached once: base_url is immutable on a frozen KalshiConfig.
+        self._base_path = urlparse(config.base_url).path
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
             timeout=config.timeout,
@@ -242,7 +246,7 @@ class AsyncTransport:
         import asyncio
 
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
-        sign_path = urlparse(self._config.base_url).path + path
+        sign_path = self._base_path + path
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
