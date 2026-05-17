@@ -115,7 +115,7 @@ class Fill(BaseModel):
     side: str | None = None
     action: str | None = None
     is_taker: bool | None = None
-    count: DollarDecimal | None = Field(
+    count: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("count_fp", "count"),
     )

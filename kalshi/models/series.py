@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.models.markets import Candlestick
-from kalshi.types import DollarDecimal, NullableList
+from kalshi.types import FixedPointCount, NullableList
 
 # Fee type constants (use str fields, not StrEnum, for forward-compat)
 FEE_TYPE_QUADRATIC = "quadratic"
@@ -31,7 +31,7 @@ class Series(BaseModel):
     fee_type: str = ""
     fee_multiplier: float = 0.0
     additional_prohibitions: NullableList[str] = []
-    volume: DollarDecimal | None = Field(
+    volume: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
     )

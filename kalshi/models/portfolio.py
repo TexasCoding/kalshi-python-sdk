@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal, NullableList
+from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
 SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
 """Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
@@ -43,7 +43,7 @@ class MarketPosition(BaseModel):
         default=None,
         validation_alias=AliasChoices("total_traded_dollars", "total_traded"),
     )
-    position: DollarDecimal | None = Field(
+    position: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("position_fp", "position"),
     )
@@ -73,7 +73,7 @@ class EventPosition(BaseModel):
         default=None,
         validation_alias=AliasChoices("total_cost_dollars", "total_cost"),
     )
-    total_cost_shares: DollarDecimal | None = Field(
+    total_cost_shares: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("total_cost_shares_fp", "total_cost_shares"),
     )
@@ -113,7 +113,7 @@ class Settlement(BaseModel):
     ticker: str
     event_ticker: str | None = None
     market_result: str | None = None
-    yes_count: DollarDecimal | None = Field(
+    yes_count: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_count_fp", "yes_count"),
     )
@@ -121,7 +121,7 @@ class Settlement(BaseModel):
         default=None,
         validation_alias=AliasChoices("yes_total_cost_dollars", "yes_total_cost"),
     )
-    no_count: DollarDecimal | None = Field(
+    no_count: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("no_count_fp", "no_count"),
     )

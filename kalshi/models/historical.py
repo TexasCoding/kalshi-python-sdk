@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 # Single-value enum per spec (MveHistoricalFilterQuery). mypy rejects plain
 # `str` here even if it holds "exclude" at runtime — pass the literal directly.
@@ -30,7 +30,7 @@ class Trade(BaseModel):
 
     trade_id: str
     ticker: str | None = None
-    count: DollarDecimal | None = Field(
+    count: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("count_fp", "count"),
     )
