@@ -381,3 +381,42 @@ class TestAsyncEventsListMultivariate:
         )
         tickers = [e.event_ticker async for e in async_events.list_all_multivariate()]
         assert tickers == ["A", "B"]
+
+
+class TestBoolParamSerialization:
+    """Regression: issue #91 F-N-08.
+
+    Bool query params were built with inline ``"true" if x else None``
+    which silently drops explicit ``False``. ``_bool_param`` is the
+    documented helper that emits ``"false"`` for explicit False.
+    """
+
+    @respx.mock
+    def test_list_with_nested_markets_false_is_sent(self, events: EventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
+        events.list(with_nested_markets=False, with_milestones=False)
+        params = dict(route.calls[0].request.url.params)
+        assert params["with_nested_markets"] == "false"
+        assert params["with_milestones"] == "false"
+
+    @respx.mock
+    def test_list_with_nested_markets_none_is_dropped(
+        self, events: EventsResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
+        events.list()
+        params = dict(route.calls[0].request.url.params)
+        assert "with_nested_markets" not in params
+        assert "with_milestones" not in params
+
+    @respx.mock
+    def test_list_multivariate_false_is_sent(self, events: EventsResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/events/multivariate"
+        ).mock(return_value=httpx.Response(200, json={"events": [], "cursor": ""}))
+        events.list_multivariate(with_nested_markets=False)
+        assert route.calls[0].request.url.params["with_nested_markets"] == "false"

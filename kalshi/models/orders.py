@@ -44,7 +44,14 @@ class Order(BaseModel):
     status: str | None = None
     side: str | None = None
     is_yes: bool | None = None
-    type: str | None = None
+    # Spec field is named ``type`` (enum: limit, market). Renamed to
+    # ``order_type`` on the SDK side to avoid shadowing the Python builtin —
+    # same rationale as milestone_type / target_type / incentive_type
+    # elsewhere. The wire still sends ``type``; validation alias accepts both.
+    order_type: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("type", "order_type"),
+    )
     yes_price: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),

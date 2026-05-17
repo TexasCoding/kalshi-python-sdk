@@ -7,7 +7,7 @@ from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.events import Event, EventMetadata, EventStatusLiteral
-from kalshi.resources._base import AsyncResource, SyncResource, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params
 
 # Shared param builders (issue #46).
 
@@ -26,8 +26,8 @@ def _list_events_params(
     return _params(
         status=status,
         series_ticker=series_ticker,
-        with_nested_markets="true" if with_nested_markets else None,
-        with_milestones="true" if with_milestones else None,
+        with_nested_markets=_bool_param(with_nested_markets),
+        with_milestones=_bool_param(with_milestones),
         min_close_ts=min_close_ts,
         min_updated_ts=min_updated_ts,
         limit=limit,
@@ -46,7 +46,7 @@ def _list_multivariate_events_params(
     return _params(
         series_ticker=series_ticker,
         collection_ticker=collection_ticker,
-        with_nested_markets="true" if with_nested_markets else None,
+        with_nested_markets=_bool_param(with_nested_markets),
         limit=limit,
         cursor=cursor,
     )
@@ -136,7 +136,7 @@ class EventsResource(SyncResource):
         with_nested_markets: bool = False,
     ) -> Event:
         params = _params(
-            with_nested_markets="true" if with_nested_markets else None,
+            with_nested_markets=_bool_param(with_nested_markets),
         )
         data = self._get(f"/events/{event_ticker}", params=params)
         return Event.model_validate(data.get("event", data))
@@ -230,7 +230,7 @@ class AsyncEventsResource(AsyncResource):
         with_nested_markets: bool = False,
     ) -> Event:
         params = _params(
-            with_nested_markets="true" if with_nested_markets else None,
+            with_nested_markets=_bool_param(with_nested_markets),
         )
         data = await self._get(f"/events/{event_ticker}", params=params)
         return Event.model_validate(data.get("event", data))

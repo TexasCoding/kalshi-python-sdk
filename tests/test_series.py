@@ -378,3 +378,40 @@ class TestAsyncSeriesResource:
             await unauth_async_series.forecast_percentile_history(
                 "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
             )
+
+
+class TestSeriesBoolParamSerialization:
+    """Regression: issue #91 F-N-08 — explicit False on bool query params
+    must serialize to ``"false"`` (was silently dropped by inline ternary)."""
+
+    @respx.mock
+    def test_list_include_volume_false_is_sent(
+        self, series_resource: SeriesResource
+    ) -> None:
+        route = respx.get(f"{BASE}/series").mock(
+            return_value=httpx.Response(200, json={"series": []})
+        )
+        series_resource.list(include_volume=False, include_product_metadata=False)
+        params = dict(route.calls[0].request.url.params)
+        assert params["include_volume"] == "false"
+        assert params["include_product_metadata"] == "false"
+
+    @respx.mock
+    def test_get_include_volume_false_is_sent(
+        self, series_resource: SeriesResource
+    ) -> None:
+        route = respx.get(f"{BASE}/series/ECON-GDP").mock(
+            return_value=httpx.Response(200, json={"series": SERIES_PAYLOAD})
+        )
+        series_resource.get("ECON-GDP", include_volume=False)
+        assert route.calls[0].request.url.params["include_volume"] == "false"
+
+    @respx.mock
+    def test_fee_changes_show_historical_false_is_sent(
+        self, series_resource: SeriesResource
+    ) -> None:
+        route = respx.get(f"{BASE}/series/fee_changes").mock(
+            return_value=httpx.Response(200, json={"series_fee_change_arr": []})
+        )
+        series_resource.fee_changes(show_historical=False)
+        assert route.calls[0].request.url.params["show_historical"] == "false"
