@@ -89,6 +89,15 @@ class ConnectionManager:
         if self._on_state_change is not None:
             await self._on_state_change(old, new_state)
 
+    async def mark_streaming(self) -> None:
+        """Public transition from CONNECTED to STREAMING.
+
+        The recv loop calls this after a successful reconnect+resubscribe
+        so the manager can fire `on_state_change` with the right caller.
+        Replaces the previous reach-through to private `_set_state` (#88).
+        """
+        await self._set_state(ConnectionState.STREAMING)
+
     def _build_auth_headers(self) -> dict[str, str]:
         """Build RSA-PSS auth headers for the WebSocket upgrade request."""
         ws_path = urlparse(self._config.ws_base_url).path
@@ -115,8 +124,14 @@ class ConnectionManager:
             await self._set_state(ConnectionState.CONNECTED)
         except Exception as e:
             await self._set_state(ConnectionState.CLOSED)
+            # F-O-09: don't interpolate the underlying exception string —
+            # it may include the full ws URL with query params and leak into
+            # uncaught-exception sinks. The cause is preserved via `__cause__`.
+            # Include the path (no query string) for debug context; per
+            # F-O-09 the original exception's URL stays out of __str__.
+            ws_path = urlparse(self._config.ws_base_url).path
             raise KalshiConnectionError(
-                f"WebSocket connection failed: {e}"
+                f"WebSocket connection failed: {ws_path}"
             ) from e
 
     async def reconnect(self) -> None:

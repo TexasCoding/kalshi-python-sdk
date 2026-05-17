@@ -144,7 +144,11 @@ class SyncTransport:
                     headers=auth_headers,
                 )
             except httpx.TimeoutException as e:
-                last_error = KalshiError(f"Request timed out: {e}")
+                # F-O-09: don't interpolate httpx exception strings — they
+                # include the full URL with query string and can leak
+                # token-like values into uncaught-exception sinks. The
+                # underlying exception is preserved via `__cause__`.
+                last_error = KalshiError(f"Request timed out: {method.upper()} {path}")
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     logger.warning("Timeout on %s %s, retrying in %.1fs", method, path, delay)
@@ -152,7 +156,7 @@ class SyncTransport:
                     continue
                 raise last_error from e
             except httpx.HTTPError as e:
-                raise KalshiError(f"HTTP error: {e}") from e
+                raise KalshiError(f"HTTP error: {method.upper()} {path}") from e
 
             logger.debug("Response: %s %s → %d", method.upper(), path, response.status_code)
 
@@ -261,7 +265,8 @@ class AsyncTransport:
                     headers=auth_headers,
                 )
             except httpx.TimeoutException as e:
-                last_error = KalshiError(f"Request timed out: {e}")
+                # F-O-09: see sync transport above.
+                last_error = KalshiError(f"Request timed out: {method.upper()} {path}")
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     logger.warning("Timeout on %s %s, retrying in %.1fs", method, path, delay)
@@ -269,7 +274,7 @@ class AsyncTransport:
                     continue
                 raise last_error from e
             except httpx.HTTPError as e:
-                raise KalshiError(f"HTTP error: {e}") from e
+                raise KalshiError(f"HTTP error: {method.upper()} {path}") from e
 
             logger.debug(
                 "Async response: %s %s → %d", method.upper(), path, response.status_code

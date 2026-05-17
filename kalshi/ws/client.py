@@ -9,11 +9,15 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from types import TracebackType
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from websockets.exceptions import ConnectionClosed
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+from kalshi.errors import (
+    KalshiBackpressureError,
+    KalshiSubscriptionError,
+)
 from kalshi.models.markets import Orderbook
 from kalshi.ws.backpressure import OverflowStrategy
 from kalshi.ws.channels import SubscriptionManager
@@ -127,7 +131,13 @@ class KalshiWebSocket:
             self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def _pause_recv_loop(self) -> None:
-        """Cancel the recv_loop so subscribe can safely call recv."""
+        """Cancel the recv_loop so subscribe can safely call recv.
+
+        F-P-04: cancellation only fires while the loop is awaiting
+        ``connection.recv()``. The recv-then-process critical section is
+        shielded from cancellation so any frame already off the socket is
+        fully dispatched before the loop exits.
+        """
         if self._recv_task and not self._recv_task.done():
             self._recv_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -142,69 +152,147 @@ class KalshiWebSocket:
         while self._running:
             try:
                 raw = await self._connection.recv()
-                # Check for sequenced messages
-                try:
-                    data = json.loads(raw)
-                    sid = data.get("sid")
-                    seq = data.get("seq")
-                    msg_type = data.get("type", "")
-
-                    if sid is not None and seq is not None and self._seq_tracker:
-                        channel = ""
-                        sub = (
-                            self._sub_mgr.get_subscription_by_sid(sid)
-                            if self._sub_mgr
-                            else None
-                        )
-                        if sub:
-                            channel = sub.channel
-                        ok = await self._seq_tracker.track(
-                            sid, seq, msg_type if msg_type else channel
-                        )
-                        if not ok:
-                            # Gap detected — skip dispatching this message
-                            # The gap handler will trigger resync
-                            continue
-
-                    # Check for orderbook messages
-                    if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
-                        snapshot = OrderbookSnapshotMessage.model_validate(data)
-                        self._orderbook_mgr.apply_snapshot(snapshot)
-                    elif msg_type == "orderbook_delta" and self._orderbook_mgr:
-                        delta = OrderbookDeltaMessage.model_validate(data)
-                        self._orderbook_mgr.apply_delta(delta)
-                except json.JSONDecodeError:
-                    pass  # dispatch will handle parse errors
-
-                await self._dispatcher.dispatch(raw)
-
             except asyncio.CancelledError:
+                # F-P-04: cancellation while awaiting recv = no frame read,
+                # no data lost. Safe to exit.
                 break
             except ConnectionClosed:
                 if not self._running:
                     break
-                logger.warning("Connection lost, attempting reconnect...")
-                # Attempt reconnect
+                await self._handle_reconnect()
+                if not self._running:
+                    break
+                continue
+
+            # F-P-04: shield the recv->dispatch critical section. Once a
+            # frame has been read off the socket, we MUST dispatch it before
+            # honoring cancellation, otherwise the frame is silently dropped
+            # (seq trackers miss the gap, ticker frames vanish, etc.).
+            #
+            # IMPORTANT: hold the inner task in a local. `asyncio.shield(coro)`
+            # creates a detached background task and returns control on outer
+            # cancel — without the explicit `await inner`, dispatch keeps
+            # running after `break` and races a subsequent subscribe.
+            inner = asyncio.create_task(self._process_frame(raw))
+            try:
+                await asyncio.shield(inner)
+            except asyncio.CancelledError:
+                # Block until the shielded dispatch actually finishes, then
+                # honor cancellation. Loop exit now strictly post-dispatch.
+                # KalshiBackpressureError / KalshiSubscriptionError must
+                # still broadcast sentinels even when we're being cancelled —
+                # the consumer-visible invariant (no hanging iterators) holds
+                # unconditionally. Parse errors are best-effort logged.
                 try:
-                    await self._connection.reconnect()
-                    if self._sub_mgr:
-                        if self._seq_tracker:
-                            self._seq_tracker.reset_all()
-                        if self._orderbook_mgr:
-                            self._orderbook_mgr.clear()
-                        await self._sub_mgr.resubscribe_all()
-                        await self._connection._set_state(ConnectionState.STREAMING)
-                except Exception as reconnect_err:
-                    logger.error("Reconnect failed: %s", reconnect_err)
-                    # Send sentinels so consumers don't hang forever
+                    await inner
+                except (KalshiBackpressureError, KalshiSubscriptionError):
                     if self._sub_mgr:
                         for sub in self._sub_mgr.active_subscriptions.values():
                             await sub.queue.put_sentinel()
-                    break
-            except Exception as e:
-                # Application error (backpressure, callback, parse) — log, don't reconnect
-                logger.warning("Error processing message: %s", e)
+                except Exception:
+                    logger.debug(
+                        "Shielded dispatch raised during cancel cleanup",
+                        exc_info=True,
+                    )
+                break
+            except (KalshiBackpressureError, KalshiSubscriptionError):
+                # #83: these signal real consumer-visible problems. Propagate
+                # via sentinel-broadcast so iterators see the failure and the
+                # loop exits cleanly rather than spinning on the same error.
+                logger.error(
+                    "Fatal WS error in recv loop", exc_info=True,
+                )
+                if self._sub_mgr:
+                    for sub in self._sub_mgr.active_subscriptions.values():
+                        await sub.queue.put_sentinel()
+                break
+            except (json.JSONDecodeError, ValidationError, KeyError):
+                # #83: genuinely-non-fatal per-message errors. Log with
+                # traceback so users can debug, then continue.
+                logger.warning(
+                    "Skipping malformed WS frame", exc_info=True,
+                )
                 continue
+            except Exception:
+                # #83 escape hatch: anything else (AttributeError from a
+                # user-supplied callback, TypeError, programming bug, ...)
+                # MUST broadcast sentinels before propagating — otherwise
+                # consumers hang on their queues with no signal. Re-raise
+                # after broadcast so the task failure is still visible.
+                logger.error(
+                    "Unexpected error in recv loop; broadcasting sentinels",
+                    exc_info=True,
+                )
+                if self._sub_mgr:
+                    for sub in self._sub_mgr.active_subscriptions.values():
+                        await sub.queue.put_sentinel()
+                raise
+
+    async def _process_frame(self, raw: str) -> None:
+        """Parse, track seq, update orderbook, and dispatch a single frame."""
+        assert self._dispatcher is not None
+        data = json.loads(raw)
+        sid = data.get("sid")
+        seq = data.get("seq")
+        msg_type = data.get("type", "")
+
+        if sid is not None and seq is not None and self._seq_tracker:
+            channel = ""
+            sub = (
+                self._sub_mgr.get_subscription_by_sid(sid)
+                if self._sub_mgr
+                else None
+            )
+            if sub:
+                channel = sub.channel
+            ok = await self._seq_tracker.track(
+                sid, seq, msg_type if msg_type else channel
+            )
+            if not ok:
+                # Gap detected — skip dispatching this message.
+                # The gap handler will trigger resync.
+                return
+
+        # Check for orderbook messages
+        if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
+            snapshot = OrderbookSnapshotMessage.model_validate(data)
+            self._orderbook_mgr.apply_snapshot(snapshot)
+        elif msg_type == "orderbook_delta" and self._orderbook_mgr:
+            delta = OrderbookDeltaMessage.model_validate(data)
+            self._orderbook_mgr.apply_delta(delta)
+
+        await self._dispatcher.dispatch(raw)
+
+    async def _handle_reconnect(self) -> None:
+        """Reconnect after ConnectionClosed and re-establish subscriptions.
+
+        F-P-03: acquire `_subscribe_lock` for the entire reconnect+resubscribe
+        sequence so any in-flight user-level `subscribe_*` blocks until we've
+        rebuilt `_sid_to_client`. Without the lock, messages arriving on a
+        freshly-assigned sid during the rebuild can mis-route.
+        """
+        assert self._connection is not None
+        logger.warning("Connection lost, attempting reconnect...")
+        async with self._subscribe_lock:
+            try:
+                await self._connection.reconnect()
+                if self._sub_mgr:
+                    if self._seq_tracker:
+                        self._seq_tracker.reset_all()
+                    if self._orderbook_mgr:
+                        self._orderbook_mgr.clear()
+                    await self._sub_mgr.resubscribe_all()
+                    # #88: use the public transition; no reach-through to
+                    # ConnectionManager's name-mangled _set_state.
+                    await self._connection.mark_streaming()
+            except Exception as reconnect_err:
+                logger.error(
+                    "Reconnect failed: %s", reconnect_err, exc_info=True,
+                )
+                if self._sub_mgr:
+                    for sub in self._sub_mgr.active_subscriptions.values():
+                        await sub.queue.put_sentinel()
+                self._running = False
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
         """Handle a sequence gap by logging and triggering resync."""
@@ -245,7 +333,7 @@ class KalshiWebSocket:
                     channel, params=params, overflow=overflow, maxsize=maxsize,
                 )
             finally:
-                # Always restart recv loop, even if subscribe fails
+                # Always restart/resume recv loop, even if subscribe fails.
                 self._ensure_recv_loop()
         return sub.queue
 

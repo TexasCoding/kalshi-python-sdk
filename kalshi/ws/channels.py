@@ -7,6 +7,9 @@ import json
 import logging
 from typing import Any
 
+from websockets.exceptions import ConnectionClosed
+
+from kalshi.errors import KalshiConnectionError, KalshiSubscriptionError
 from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
 from kalshi.ws.connection import ConnectionManager
 
@@ -83,14 +86,20 @@ class SubscriptionManager:
         while True:
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-                from kalshi.errors import KalshiSubscriptionError
-
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}"
                 )
-            raw = await asyncio.wait_for(
-                self._connection.recv(), timeout=remaining
-            )
+            try:
+                raw = await asyncio.wait_for(
+                    self._connection.recv(), timeout=remaining
+                )
+            except ConnectionClosed as e:
+                # F-P-05: surface as KalshiConnectionError instead of raw
+                # websockets exception. The recv loop's reconnect path will
+                # restore the subscription via resubscribe_all.
+                raise KalshiConnectionError(
+                    f"Connection closed while awaiting response to command {msg_id}"
+                ) from e
             data: dict[str, Any] = json.loads(raw)
             if data.get("id") == msg_id:
                 return data
@@ -127,8 +136,6 @@ class SubscriptionManager:
         # Read frames until we get our subscribe ack (by matching id)
         data = await self._wait_for_response(msg_id)
         if data.get("type") == "error":
-            from kalshi.errors import KalshiSubscriptionError
-
             error_msg = data.get("msg", {})
             raise KalshiSubscriptionError(
                 str(error_msg.get("msg", "Subscribe failed")),
@@ -160,6 +167,9 @@ class SubscriptionManager:
         await self._connection.send(cmd)
 
         await self._wait_for_response(msg_id)
+        # F-P-08: push sentinel before deleting so any held iterator exits
+        # cleanly via StopAsyncIteration instead of hanging on queue.get().
+        await sub.queue.put_sentinel()
         # Clean up mappings
         self._sid_to_client.pop(sub.server_sid, None)
         del self._subscriptions[client_id]
@@ -178,8 +188,6 @@ class SubscriptionManager:
         """Add or remove markets from an existing subscription."""
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
-            from kalshi.errors import KalshiSubscriptionError
-
             raise KalshiSubscriptionError("Subscription not found or not active")
 
         msg_id = self._get_msg_id()
@@ -201,31 +209,58 @@ class SubscriptionManager:
 
         Gets new server sids and updates the mapping.
         Iterators/callbacks continue working because they reference client_ids.
+
+        F-P-01: Each resubscribe is independent. If one fails, the failed
+        subscription is removed and its iterator gets a sentinel, but other
+        subscriptions continue working. The whole reconnect is not aborted.
         """
         old_subs = dict(self._subscriptions)
+        # F-P-03: clear sid->client mapping before sending any resubscribe
+        # so stale in-flight frames with old sids can't mis-route.
         self._sid_to_client.clear()
 
         for client_id, sub in old_subs.items():
             sub.server_sid = None  # Clear old sid
-            msg_id = self._get_msg_id()
-            # Re-subscribe with send_initial_snapshot for orderbook channels
-            params = sub.to_subscribe_params()
-            if sub.channel == "orderbook_delta":
-                params["send_initial_snapshot"] = True
-            cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
-            await self._connection.send(cmd)
+            try:
+                msg_id = self._get_msg_id()
+                # Re-subscribe with send_initial_snapshot for orderbook channels
+                params = sub.to_subscribe_params()
+                if sub.channel == "orderbook_delta":
+                    params["send_initial_snapshot"] = True
+                cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
+                await self._connection.send(cmd)
 
-            data = await self._wait_for_response(msg_id)
-            new_sid = data.get("msg", {}).get("sid")
-            if new_sid is not None:
-                sub.server_sid = new_sid
-                self._sid_to_client[new_sid] = client_id
-            logger.debug(
-                "Resubscribed %s: client_id=%d, new_sid=%s",
-                sub.channel,
-                client_id,
-                new_sid,
-            )
+                data = await self._wait_for_response(msg_id)
+                if data.get("type") == "error":
+                    error_msg = data.get("msg", {})
+                    raise KalshiSubscriptionError(
+                        str(error_msg.get("msg", "Resubscribe failed")),
+                        error_code=error_msg.get("code"),
+                    )
+                new_sid = data.get("msg", {}).get("sid")
+                if new_sid is not None:
+                    sub.server_sid = new_sid
+                    self._sid_to_client[new_sid] = client_id
+                logger.debug(
+                    "Resubscribed %s: client_id=%d, new_sid=%s",
+                    sub.channel,
+                    client_id,
+                    new_sid,
+                )
+            except Exception:
+                # F-P-01: per-sub failure is isolated. Push sentinel so the
+                # iterator exits cleanly, drop the subscription, continue with
+                # the rest. `exc_info=True` so an unexpected AttributeError /
+                # programming bug doesn't lose its traceback the way the
+                # earlier `: %s, e` formulation did.
+                logger.warning(
+                    "Resubscribe failed for client_id=%d channel=%s",
+                    client_id,
+                    sub.channel,
+                    exc_info=True,
+                )
+                await sub.queue.put_sentinel()
+                self._subscriptions.pop(client_id, None)
 
     def get_subscription_by_sid(self, server_sid: int) -> Subscription | None:
         """Look up a subscription by current server sid."""

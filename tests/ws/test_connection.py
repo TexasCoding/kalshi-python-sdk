@@ -74,6 +74,48 @@ class TestConnectionManagerConnect:
             await mgr.connect()
         assert mgr.state == ConnectionState.CLOSED
 
+    async def test_mark_streaming_transitions_state(
+        self, fake_ws: FakeKalshiWS, test_auth: object
+    ) -> None:
+        """Issue #88: public mark_streaming() transitions CONNECTED ->
+        STREAMING and fires the state-change callback."""
+        states: list[tuple[ConnectionState, ConnectionState]] = []
+
+        async def on_state(old: ConnectionState, new: ConnectionState) -> None:
+            states.append((old, new))
+
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        mgr = ConnectionManager(
+            auth=test_auth, config=config, on_state_change=on_state,  # type: ignore[arg-type]
+        )
+        await mgr.connect()
+        states.clear()
+        await mgr.mark_streaming()
+        assert mgr.state == ConnectionState.STREAMING
+        assert states == [(ConnectionState.CONNECTED, ConnectionState.STREAMING)]
+        await mgr.close()
+
+    async def test_connect_error_does_not_leak_url(
+        self, test_auth: object
+    ) -> None:
+        """Issue #84 F-O-09: connection-failure str() must not include the
+        ws URL (which may contain token-like query params)."""
+        # URL with a sensitive-looking query param
+        config = KalshiConfig(
+            ws_base_url="ws://127.0.0.1:1?secret=SUPER_SECRET_TOKEN",
+            timeout=1.0,
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        with pytest.raises(KalshiConnectionError) as exc_info:
+            await mgr.connect()
+        msg = str(exc_info.value)
+        assert "SUPER_SECRET_TOKEN" not in msg
+        assert "127.0.0.1" not in msg
+        # The ws path (no query) is safe context and SHOULD appear.
+        # Our test config sets ws_base_url to a URL without an explicit path,
+        # so urlparse returns "" — assert by not crashing rather than substring.
+        assert "WebSocket connection failed" in msg
+
     async def test_close_when_already_disconnected(
         self, test_auth: object
     ) -> None:
