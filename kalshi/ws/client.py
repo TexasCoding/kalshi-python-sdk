@@ -319,7 +319,14 @@ class KalshiWebSocket:
                 self._running = False
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
-        """Handle a sequence gap by logging and triggering resync."""
+        """Handle a sequence gap by logging and triggering resync.
+
+        #79: a single ``orderbook_delta`` subscription can cover multiple
+        tickers under one sid. The gap envelope does not identify which
+        ticker missed an update, so the safe option is to clear EVERY
+        ticker for the affected subscription. Previously only ``tickers[0]``
+        was cleared, leaving the other books diverged from server truth.
+        """
         logger.warning(
             "Sequence gap on sid %d: expected %d, got %d. Triggering resync.",
             gap.sid, gap.expected, gap.received,
@@ -327,10 +334,12 @@ class KalshiWebSocket:
         if self._sub_mgr:
             sub = self._sub_mgr.get_subscription_by_sid(gap.sid)
             if sub and sub.channel == "orderbook_delta":
-                # Clear orderbook state for this ticker and reset sequence tracking
+                # Clear orderbook state for ALL tickers in the sub and reset
+                # sequence tracking so the next snapshot rebootstraps cleanly.
                 tickers = sub.params.get("market_tickers", [])
-                if tickers and self._orderbook_mgr:
-                    self._orderbook_mgr.remove(tickers[0])
+                if self._orderbook_mgr:
+                    for ticker in tickers:
+                        self._orderbook_mgr.remove(ticker)
                 if self._seq_tracker:
                     self._seq_tracker.reset(gap.sid)
 
