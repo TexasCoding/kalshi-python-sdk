@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
+from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.milestones import GetMilestoneResponse, Milestone
@@ -32,6 +33,31 @@ def _iso(dt: datetime | str | None) -> str | None:
     return dt
 
 
+def _list_milestones_params(
+    *,
+    limit: int,
+    minimum_start_date: datetime | str | None,
+    category: str | None,
+    competition: str | None,
+    source_id: str | None,
+    milestone_type: str | None,
+    related_event_ticker: str | None,
+    cursor: str | None,
+    min_updated_ts: int | None,
+) -> dict[str, Any]:
+    return _params(
+        limit=limit,
+        minimum_start_date=_iso(minimum_start_date),
+        category=category,
+        competition=competition,
+        source_id=source_id,
+        type=milestone_type,
+        related_event_ticker=related_event_ticker,
+        cursor=cursor,
+        min_updated_ts=min_updated_ts,
+    )
+
+
 class MilestonesResource(SyncResource):
     """Sync milestones API — list + single get.
 
@@ -58,16 +84,12 @@ class MilestonesResource(SyncResource):
         cursor: str | None = None,
         min_updated_ts: int | None = None,
     ) -> Page[Milestone]:
-        params = _params(
-            limit=limit,
-            minimum_start_date=_iso(minimum_start_date),
-            category=category,
-            competition=competition,
-            source_id=source_id,
-            type=milestone_type,
+        params = _list_milestones_params(
+            limit=limit, minimum_start_date=minimum_start_date,
+            category=category, competition=competition,
+            source_id=source_id, milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=cursor,
-            min_updated_ts=min_updated_ts,
+            cursor=cursor, min_updated_ts=min_updated_ts,
         )
         return self._list("/milestones", Milestone, "milestones", params=params)
 
@@ -83,15 +105,12 @@ class MilestonesResource(SyncResource):
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
     ) -> Iterator[Milestone]:
-        params = _params(
-            limit=limit,
-            minimum_start_date=_iso(minimum_start_date),
-            category=category,
-            competition=competition,
-            source_id=source_id,
-            type=milestone_type,
+        params = _list_milestones_params(
+            limit=limit, minimum_start_date=minimum_start_date,
+            category=category, competition=competition,
+            source_id=source_id, milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            min_updated_ts=min_updated_ts,
+            cursor=None, min_updated_ts=min_updated_ts,
         )
         yield from self._list_all(
             "/milestones", Milestone, "milestones", params=params,
@@ -118,16 +137,12 @@ class AsyncMilestonesResource(AsyncResource):
         cursor: str | None = None,
         min_updated_ts: int | None = None,
     ) -> Page[Milestone]:
-        params = _params(
-            limit=limit,
-            minimum_start_date=_iso(minimum_start_date),
-            category=category,
-            competition=competition,
-            source_id=source_id,
-            type=milestone_type,
+        params = _list_milestones_params(
+            limit=limit, minimum_start_date=minimum_start_date,
+            category=category, competition=competition,
+            source_id=source_id, milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=cursor,
-            min_updated_ts=min_updated_ts,
+            cursor=cursor, min_updated_ts=min_updated_ts,
         )
         return await self._list(
             "/milestones", Milestone, "milestones", params=params,
@@ -146,15 +161,12 @@ class AsyncMilestonesResource(AsyncResource):
         min_updated_ts: int | None = None,
     ) -> AsyncIterator[Milestone]:
         """Returns an async iterator — use ``async for``."""
-        params = _params(
-            limit=limit,
-            minimum_start_date=_iso(minimum_start_date),
-            category=category,
-            competition=competition,
-            source_id=source_id,
-            type=milestone_type,
+        params = _list_milestones_params(
+            limit=limit, minimum_start_date=minimum_start_date,
+            category=category, competition=competition,
+            source_id=source_id, milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            min_updated_ts=min_updated_ts,
+            cursor=None, min_updated_ts=min_updated_ts,
         )
         return self._list_all(
             "/milestones", Milestone, "milestones", params=params,

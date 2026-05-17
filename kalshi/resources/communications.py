@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
-from typing import Literal, overload
+from typing import Any, Literal, overload
 
 from kalshi.models.common import Page
 from kalshi.models.communications import (
@@ -43,6 +43,139 @@ def _require_quote_filter(
         )
 
 
+# Shared param + body builders (issue #46).
+
+
+def _list_rfqs_params(
+    *,
+    cursor: str | None,
+    limit: int | None,
+    event_ticker: str | None,
+    market_ticker: str | None,
+    subaccount: int | None,
+    status: str | None,
+    creator_user_id: str | None,
+) -> dict[str, Any]:
+    return _params(
+        cursor=cursor,
+        limit=limit,
+        event_ticker=event_ticker,
+        market_ticker=market_ticker,
+        subaccount=subaccount,
+        status=status,
+        creator_user_id=creator_user_id,
+    )
+
+
+def _list_quotes_params(
+    *,
+    cursor: str | None,
+    limit: int | None,
+    event_ticker: str | None,
+    market_ticker: str | None,
+    status: str | None,
+    quote_creator_user_id: str | None,
+    rfq_creator_user_id: str | None,
+    rfq_creator_subtrader_id: str | None,
+    rfq_id: str | None,
+) -> dict[str, Any]:
+    return _params(
+        cursor=cursor,
+        limit=limit,
+        event_ticker=event_ticker,
+        market_ticker=market_ticker,
+        status=status,
+        quote_creator_user_id=quote_creator_user_id,
+        rfq_creator_user_id=rfq_creator_user_id,
+        rfq_creator_subtrader_id=rfq_creator_subtrader_id,
+        rfq_id=rfq_id,
+    )
+
+
+def _build_create_rfq_body(
+    request: CreateRFQRequest | None,
+    *,
+    market_ticker: str | None,
+    rest_remainder: bool | None,
+    contracts: int | None,
+    target_cost: Decimal | str | float | int | None,
+    replace_existing: bool | None,
+    subtrader_id: str | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        market_ticker=market_ticker, rest_remainder=rest_remainder,
+        contracts=contracts, target_cost=target_cost,
+        replace_existing=replace_existing, subtrader_id=subtrader_id,
+        subaccount=subaccount,
+    )
+    if request is None:
+        if market_ticker is None or rest_remainder is None:
+            raise TypeError(
+                "create_rfq() requires `market_ticker` and `rest_remainder` "
+                "(or pass `request=...`)"
+            )
+        request = CreateRFQRequest(
+            market_ticker=market_ticker,
+            rest_remainder=rest_remainder,
+            contracts=contracts,
+            target_cost=target_cost,  # type: ignore[arg-type]
+            replace_existing=replace_existing,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_create_quote_body(
+    request: CreateQuoteRequest | None,
+    *,
+    rfq_id: str | None,
+    yes_bid: Decimal | str | float | int | None,
+    no_bid: Decimal | str | float | int | None,
+    rest_remainder: bool | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
+        rest_remainder=rest_remainder, subaccount=subaccount,
+    )
+    if request is None:
+        if (
+            rfq_id is None or yes_bid is None or no_bid is None
+            or rest_remainder is None
+        ):
+            raise TypeError(
+                "create_quote() requires `rfq_id`, `yes_bid`, `no_bid`, and "
+                "`rest_remainder` (or pass `request=...`)"
+            )
+        request = CreateQuoteRequest(
+            rfq_id=rfq_id,
+            yes_bid=yes_bid,  # type: ignore[arg-type]
+            no_bid=no_bid,  # type: ignore[arg-type]
+            rest_remainder=rest_remainder,
+            subaccount=subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_accept_quote_body(
+    request: AcceptQuoteRequest | None,
+    *,
+    accepted_side: Literal["yes", "no"] | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(request, accepted_side=accepted_side)
+    if request is None:
+        if accepted_side is None:
+            raise TypeError(
+                "accept_quote() requires `accepted_side` "
+                "(or pass `request=...`)"
+            )
+        request = AcceptQuoteRequest(accepted_side=accepted_side)
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
 class CommunicationsResource(SyncResource):
     """Sync communications / RFQ API."""
 
@@ -63,14 +196,10 @@ class CommunicationsResource(SyncResource):
         creator_user_id: str | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
-        params = _params(
-            cursor=cursor,
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            subaccount=subaccount,
-            status=status,
-            creator_user_id=creator_user_id,
+        params = _list_rfqs_params(
+            cursor=cursor, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, subaccount=subaccount,
+            status=status, creator_user_id=creator_user_id,
         )
         return self._list("/communications/rfqs", RFQ, "rfqs", params=params)
 
@@ -85,13 +214,10 @@ class CommunicationsResource(SyncResource):
         creator_user_id: str | None = None,
     ) -> Iterator[RFQ]:
         self._require_auth()
-        params = _params(
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            subaccount=subaccount,
-            status=status,
-            creator_user_id=creator_user_id,
+        params = _list_rfqs_params(
+            cursor=None, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, subaccount=subaccount,
+            status=status, creator_user_id=creator_user_id,
         )
         yield from self._list_all("/communications/rfqs", RFQ, "rfqs", params=params)
 
@@ -127,29 +253,13 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_rfq_body(
             request,
             market_ticker=market_ticker, rest_remainder=rest_remainder,
             contracts=contracts, target_cost=target_cost,
             replace_existing=replace_existing, subtrader_id=subtrader_id,
             subaccount=subaccount,
         )
-        if request is None:
-            if market_ticker is None or rest_remainder is None:
-                raise TypeError(
-                    "create_rfq() requires `market_ticker` and `rest_remainder` "
-                    "(or pass `request=...`)"
-                )
-            request = CreateRFQRequest(
-                market_ticker=market_ticker,
-                rest_remainder=rest_remainder,
-                contracts=contracts,
-                target_cost=target_cost,  # type: ignore[arg-type]
-                replace_existing=replace_existing,
-                subtrader_id=subtrader_id,
-                subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/communications/rfqs", json=body)
         return CreateRFQResponse.model_validate(data)
 
@@ -172,12 +282,9 @@ class CommunicationsResource(SyncResource):
     ) -> Page[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
-        params = _params(
-            cursor=cursor,
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            status=status,
+        params = _list_quotes_params(
+            cursor=cursor, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -199,11 +306,9 @@ class CommunicationsResource(SyncResource):
     ) -> Iterator[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
-        params = _params(
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            status=status,
+        params = _list_quotes_params(
+            cursor=None, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -241,27 +346,10 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_quote_body(
             request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
             rest_remainder=rest_remainder, subaccount=subaccount,
         )
-        if request is None:
-            if (
-                rfq_id is None or yes_bid is None or no_bid is None
-                or rest_remainder is None
-            ):
-                raise TypeError(
-                    "create_quote() requires `rfq_id`, `yes_bid`, `no_bid`, and "
-                    "`rest_remainder` (or pass `request=...`)"
-                )
-            request = CreateQuoteRequest(
-                rfq_id=rfq_id,
-                yes_bid=yes_bid,  # type: ignore[arg-type]
-                no_bid=no_bid,  # type: ignore[arg-type]
-                rest_remainder=rest_remainder,
-                subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/communications/quotes", json=body)
         return CreateQuoteResponse.model_validate(data)
 
@@ -285,15 +373,7 @@ class CommunicationsResource(SyncResource):
         accepted_side: Literal["yes", "no"] | None = None,
     ) -> None:
         self._require_auth()
-        _check_request_exclusive(request, accepted_side=accepted_side)
-        if request is None:
-            if accepted_side is None:
-                raise TypeError(
-                    "accept_quote() requires `accepted_side` "
-                    "(or pass `request=...`)"
-                )
-            request = AcceptQuoteRequest(accepted_side=accepted_side)
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        body = _build_accept_quote_body(request, accepted_side=accepted_side)
         self._put(f"/communications/quotes/{quote_id}/accept", json=body)
 
     def confirm_quote(self, quote_id: str) -> None:
@@ -322,14 +402,10 @@ class AsyncCommunicationsResource(AsyncResource):
         creator_user_id: str | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
-        params = _params(
-            cursor=cursor,
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            subaccount=subaccount,
-            status=status,
-            creator_user_id=creator_user_id,
+        params = _list_rfqs_params(
+            cursor=cursor, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, subaccount=subaccount,
+            status=status, creator_user_id=creator_user_id,
         )
         return await self._list("/communications/rfqs", RFQ, "rfqs", params=params)
 
@@ -344,13 +420,10 @@ class AsyncCommunicationsResource(AsyncResource):
         creator_user_id: str | None = None,
     ) -> AsyncIterator[RFQ]:
         self._require_auth()
-        params = _params(
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            subaccount=subaccount,
-            status=status,
-            creator_user_id=creator_user_id,
+        params = _list_rfqs_params(
+            cursor=None, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, subaccount=subaccount,
+            status=status, creator_user_id=creator_user_id,
         )
         async for item in self._list_all(
             "/communications/rfqs", RFQ, "rfqs", params=params,
@@ -389,29 +462,13 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_rfq_body(
             request,
             market_ticker=market_ticker, rest_remainder=rest_remainder,
             contracts=contracts, target_cost=target_cost,
             replace_existing=replace_existing, subtrader_id=subtrader_id,
             subaccount=subaccount,
         )
-        if request is None:
-            if market_ticker is None or rest_remainder is None:
-                raise TypeError(
-                    "create_rfq() requires `market_ticker` and `rest_remainder` "
-                    "(or pass `request=...`)"
-                )
-            request = CreateRFQRequest(
-                market_ticker=market_ticker,
-                rest_remainder=rest_remainder,
-                contracts=contracts,
-                target_cost=target_cost,  # type: ignore[arg-type]
-                replace_existing=replace_existing,
-                subtrader_id=subtrader_id,
-                subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/communications/rfqs", json=body)
         return CreateRFQResponse.model_validate(data)
 
@@ -434,12 +491,9 @@ class AsyncCommunicationsResource(AsyncResource):
     ) -> Page[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
-        params = _params(
-            cursor=cursor,
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            status=status,
+        params = _list_quotes_params(
+            cursor=cursor, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -463,11 +517,9 @@ class AsyncCommunicationsResource(AsyncResource):
     ) -> AsyncIterator[Quote]:
         self._require_auth()
         _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
-        params = _params(
-            limit=limit,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
-            status=status,
+        params = _list_quotes_params(
+            cursor=None, limit=limit, event_ticker=event_ticker,
+            market_ticker=market_ticker, status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -507,27 +559,10 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
-        _check_request_exclusive(
+        body = _build_create_quote_body(
             request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
             rest_remainder=rest_remainder, subaccount=subaccount,
         )
-        if request is None:
-            if (
-                rfq_id is None or yes_bid is None or no_bid is None
-                or rest_remainder is None
-            ):
-                raise TypeError(
-                    "create_quote() requires `rfq_id`, `yes_bid`, `no_bid`, and "
-                    "`rest_remainder` (or pass `request=...`)"
-                )
-            request = CreateQuoteRequest(
-                rfq_id=rfq_id,
-                yes_bid=yes_bid,  # type: ignore[arg-type]
-                no_bid=no_bid,  # type: ignore[arg-type]
-                rest_remainder=rest_remainder,
-                subaccount=subaccount,
-            )
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/communications/quotes", json=body)
         return CreateQuoteResponse.model_validate(data)
 
@@ -551,15 +586,7 @@ class AsyncCommunicationsResource(AsyncResource):
         accepted_side: Literal["yes", "no"] | None = None,
     ) -> None:
         self._require_auth()
-        _check_request_exclusive(request, accepted_side=accepted_side)
-        if request is None:
-            if accepted_side is None:
-                raise TypeError(
-                    "accept_quote() requires `accepted_side` "
-                    "(or pass `request=...`)"
-                )
-            request = AcceptQuoteRequest(accepted_side=accepted_side)
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        body = _build_accept_quote_body(request, accepted_side=accepted_side)
         await self._put(f"/communications/quotes/{quote_id}/accept", json=body)
 
     async def confirm_quote(self, quote_id: str) -> None:

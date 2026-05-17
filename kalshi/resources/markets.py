@@ -29,6 +29,152 @@ from kalshi.resources._base import (
 _MAX_BULK = 100
 
 
+# ---------------------------------------------------------------------------
+# Shared helpers (issue #46): query-param builders + response parsers shared
+# between sync and async classes.
+# ---------------------------------------------------------------------------
+
+
+def _list_markets_params(
+    *,
+    status: MarketStatusLiteral | None,
+    series_ticker: str | None,
+    event_ticker: str | None,
+    tickers: builtins.list[str] | str | None,
+    mve_filter: MveFilterLiteral | None,
+    min_created_ts: int | None,
+    max_created_ts: int | None,
+    min_updated_ts: int | None,
+    min_close_ts: int | None,
+    max_close_ts: int | None,
+    min_settled_ts: int | None,
+    max_settled_ts: int | None,
+    limit: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return _params(
+        status=status,
+        series_ticker=series_ticker,
+        event_ticker=event_ticker,
+        tickers=_join_tickers(tickers),
+        mve_filter=mve_filter,
+        min_created_ts=min_created_ts,
+        max_created_ts=max_created_ts,
+        min_updated_ts=min_updated_ts,
+        min_close_ts=min_close_ts,
+        max_close_ts=max_close_ts,
+        min_settled_ts=min_settled_ts,
+        max_settled_ts=max_settled_ts,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def _candlesticks_params(
+    *,
+    start_ts: int,
+    end_ts: int,
+    period_interval: int,
+    include_latest_before_start: bool | None,
+) -> dict[str, Any]:
+    return _params(
+        start_ts=start_ts,
+        end_ts=end_ts,
+        period_interval=period_interval,
+        include_latest_before_start=_bool_param(include_latest_before_start),
+    )
+
+
+def _list_trades_params(
+    *,
+    ticker: str | None,
+    min_ts: int | None,
+    max_ts: int | None,
+    limit: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return _params(
+        ticker=ticker,
+        min_ts=min_ts,
+        max_ts=max_ts,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def _bulk_candlesticks_params(
+    *,
+    market_tickers: builtins.list[str] | str,
+    start_ts: int,
+    end_ts: int,
+    period_interval: int,
+    include_latest_before_start: bool | None,
+) -> dict[str, Any]:
+    """Validate + build params for GET /markets/candlesticks (bulk).
+
+    Spec requires 1..100 tickers. Splits + filters empties so a pre-joined
+    string like ``"A,B,,"`` and a 2-element list validate identically.
+    """
+    if not market_tickers:
+        raise ValueError("market_tickers must be a non-empty list or string")
+    joined = _join_tickers(market_tickers)
+    ticker_count = (
+        sum(1 for t in joined.split(",") if t.strip()) if joined else 0
+    )
+    if ticker_count > _MAX_BULK:
+        raise ValueError(
+            f"market_tickers accepts at most {_MAX_BULK} entries per spec "
+            f"(got {ticker_count})"
+        )
+    return _params(
+        market_tickers=joined,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        period_interval=period_interval,
+        include_latest_before_start=_bool_param(include_latest_before_start),
+    )
+
+
+def _bulk_orderbooks_params(
+    *, tickers: builtins.list[str],
+) -> dict[str, Any]:
+    """Validate + build params for GET /markets/orderbooks (bulk).
+
+    Spec requires 1..100 tickers. Wire format is ``?tickers=a&tickers=b``
+    (style: form, explode: true).
+    """
+    if not tickers:
+        raise ValueError("tickers must be a non-empty list")
+    if len(tickers) > _MAX_BULK:
+        raise ValueError(
+            f"tickers accepts at most {_MAX_BULK} entries per spec "
+            f"(got {len(tickers)})"
+        )
+    return _params(tickers=tickers)
+
+
+def _parse_orderbook(data: dict[str, Any], ticker: str) -> Orderbook:
+    """Parse the GET /markets/{ticker}/orderbook envelope into an Orderbook."""
+    # API returns {orderbook_fp: {yes_dollars: [...], no_dollars: [...]}}
+    # Fall back to legacy keys for backward compatibility with tests/mocks
+    ob = data.get("orderbook_fp") or data.get("orderbook", data)
+
+    yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
+    no_raw = ob.get("no_dollars") or ob.get("no", []) or []
+
+    yes_levels = [
+        OrderbookLevel(price=pair[0], quantity=pair[1])
+        for pair in yes_raw
+        if len(pair) >= 2
+    ]
+    no_levels = [
+        OrderbookLevel(price=pair[0], quantity=pair[1])
+        for pair in no_raw
+        if len(pair) >= 2
+    ]
+    return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
+
+
 def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
     """Parse one entry from GET /markets/orderbooks into an Orderbook.
 
@@ -90,21 +236,15 @@ class MarketsResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
-        params = _params(
-            status=status,
-            series_ticker=series_ticker,
-            event_ticker=event_ticker,
-            tickers=_join_tickers(tickers),
+        params = _list_markets_params(
+            status=status, series_ticker=series_ticker,
+            event_ticker=event_ticker, tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts,
-            max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts,
-            max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts,
-            max_settled_ts=max_settled_ts,
-            limit=limit,
-            cursor=cursor,
+            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
+            limit=limit, cursor=cursor,
         )
         return self._list("/markets", Market, "markets", params=params)
 
@@ -125,20 +265,15 @@ class MarketsResource(SyncResource):
         max_settled_ts: int | None = None,
         limit: int | None = None,
     ) -> Iterator[Market]:
-        params = _params(
-            status=status,
-            series_ticker=series_ticker,
-            event_ticker=event_ticker,
-            tickers=_join_tickers(tickers),
+        params = _list_markets_params(
+            status=status, series_ticker=series_ticker,
+            event_ticker=event_ticker, tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts,
-            max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts,
-            max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts,
-            max_settled_ts=max_settled_ts,
-            limit=limit,
+            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
+            limit=limit, cursor=None,
         )
         return self._list_all("/markets", Market, "markets", params=params)
 
@@ -151,25 +286,7 @@ class MarketsResource(SyncResource):
         self._require_auth()
         params = _params(depth=depth)
         data = self._get(f"/markets/{ticker}/orderbook", params=params)
-        # API returns {orderbook_fp: {yes_dollars: [...], no_dollars: [...]}}
-        # Fall back to legacy keys for backward compatibility with tests/mocks
-        ob = data.get("orderbook_fp") or data.get("orderbook", data)
-
-        yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
-        no_raw = ob.get("no_dollars") or ob.get("no", []) or []
-
-        yes_levels = [
-            OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in yes_raw
-            if len(pair) >= 2
-        ]
-        no_levels = [
-            OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in no_raw
-            if len(pair) >= 2
-        ]
-
-        return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
+        return _parse_orderbook(data, ticker)
 
     def candlesticks(
         self,
@@ -181,11 +298,10 @@ class MarketsResource(SyncResource):
         period_interval: int,
         include_latest_before_start: bool | None = None,
     ) -> builtins.list[Candlestick]:
-        params = _params(
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _candlesticks_params(
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start=_bool_param(include_latest_before_start),
+            include_latest_before_start=include_latest_before_start,
         )
         data = self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
@@ -203,12 +319,9 @@ class MarketsResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Trade]:
-        params = _params(
-            ticker=ticker,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
-            cursor=cursor,
+        params = _list_trades_params(
+            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit, cursor=cursor,
         )
         return self._list("/markets/trades", Trade, "trades", params=params)
 
@@ -220,11 +333,9 @@ class MarketsResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
     ) -> Iterator[Trade]:
-        params = _params(
-            ticker=ticker,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
+        params = _list_trades_params(
+            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit, cursor=None,
         )
         return self._list_all("/markets/trades", Trade, "trades", params=params)
 
@@ -243,28 +354,11 @@ class MarketsResource(SyncResource):
         (not exploded). Accepts a list, tuple, or pre-joined string.
         Spec requires at least one ticker (max 100).
         """
-        if not market_tickers:
-            raise ValueError("market_tickers must be a non-empty list or string")
-        joined = _join_tickers(market_tickers)
-        # Split+filter validates BOTH list/tuple and pre-joined-string inputs
-        # uniformly — a string with 150 comma-separated tickers must fail the
-        # same way a 150-element list does. Filtering empty segments also
-        # catches pre-joined strings with trailing or consecutive commas
-        # ("A,B,," -> 2 real tickers, not 4).
-        ticker_count = (
-            sum(1 for t in joined.split(",") if t.strip()) if joined else 0
-        )
-        if ticker_count > _MAX_BULK:
-            raise ValueError(
-                f"market_tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {ticker_count})"
-            )
-        params = _params(
-            market_tickers=joined,
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _bulk_candlesticks_params(
+            market_tickers=market_tickers,
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start=_bool_param(include_latest_before_start),
+            include_latest_before_start=include_latest_before_start,
         )
         data = self._get("/markets/candlesticks", params=params)
         raw = data.get("markets", [])
@@ -280,14 +374,7 @@ class MarketsResource(SyncResource):
         explode: true``) — httpx serializes list values that way by default.
         """
         self._require_auth()
-        if not tickers:
-            raise ValueError("tickers must be a non-empty list")
-        if len(tickers) > _MAX_BULK:
-            raise ValueError(
-                f"tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {len(tickers)})"
-            )
-        params = _params(tickers=tickers)
+        params = _bulk_orderbooks_params(tickers=tickers)
         data = self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])
         return [_orderbook_from_item(item) for item in raw]
@@ -314,21 +401,15 @@ class AsyncMarketsResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Market]:
-        params = _params(
-            status=status,
-            series_ticker=series_ticker,
-            event_ticker=event_ticker,
-            tickers=_join_tickers(tickers),
+        params = _list_markets_params(
+            status=status, series_ticker=series_ticker,
+            event_ticker=event_ticker, tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts,
-            max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts,
-            max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts,
-            max_settled_ts=max_settled_ts,
-            limit=limit,
-            cursor=cursor,
+            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
+            limit=limit, cursor=cursor,
         )
         return await self._list("/markets", Market, "markets", params=params)
 
@@ -350,20 +431,15 @@ class AsyncMarketsResource(AsyncResource):
         limit: int | None = None,
     ) -> AsyncIterator[Market]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
-        params = _params(
-            status=status,
-            series_ticker=series_ticker,
-            event_ticker=event_ticker,
-            tickers=_join_tickers(tickers),
+        params = _list_markets_params(
+            status=status, series_ticker=series_ticker,
+            event_ticker=event_ticker, tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts,
-            max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts,
-            max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts,
-            max_settled_ts=max_settled_ts,
-            limit=limit,
+            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
+            limit=limit, cursor=None,
         )
         return self._list_all("/markets", Market, "markets", params=params)
 
@@ -376,23 +452,7 @@ class AsyncMarketsResource(AsyncResource):
         self._require_auth()
         params = _params(depth=depth)
         data = await self._get(f"/markets/{ticker}/orderbook", params=params)
-        ob = data.get("orderbook_fp") or data.get("orderbook", data)
-
-        yes_raw = ob.get("yes_dollars") or ob.get("yes", []) or []
-        no_raw = ob.get("no_dollars") or ob.get("no", []) or []
-
-        yes_levels = [
-            OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in yes_raw
-            if len(pair) >= 2
-        ]
-        no_levels = [
-            OrderbookLevel(price=pair[0], quantity=pair[1])
-            for pair in no_raw
-            if len(pair) >= 2
-        ]
-
-        return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
+        return _parse_orderbook(data, ticker)
 
     async def candlesticks(
         self,
@@ -404,11 +464,10 @@ class AsyncMarketsResource(AsyncResource):
         period_interval: int,
         include_latest_before_start: bool | None = None,
     ) -> builtins.list[Candlestick]:
-        params = _params(
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _candlesticks_params(
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start=_bool_param(include_latest_before_start),
+            include_latest_before_start=include_latest_before_start,
         )
         data = await self._get(
             f"/series/{series_ticker}/markets/{ticker}/candlesticks",
@@ -426,12 +485,9 @@ class AsyncMarketsResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[Trade]:
-        params = _params(
-            ticker=ticker,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
-            cursor=cursor,
+        params = _list_trades_params(
+            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit, cursor=cursor,
         )
         return await self._list("/markets/trades", Trade, "trades", params=params)
 
@@ -444,11 +500,9 @@ class AsyncMarketsResource(AsyncResource):
         limit: int | None = None,
     ) -> AsyncIterator[Trade]:
         """Returns an async iterator — use ``async for``."""
-        params = _params(
-            ticker=ticker,
-            min_ts=min_ts,
-            max_ts=max_ts,
-            limit=limit,
+        params = _list_trades_params(
+            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit, cursor=None,
         )
         return self._list_all("/markets/trades", Trade, "trades", params=params)
 
@@ -467,25 +521,11 @@ class AsyncMarketsResource(AsyncResource):
         (not exploded). Accepts a list, tuple, or pre-joined string.
         Spec requires at least one ticker (max 100).
         """
-        if not market_tickers:
-            raise ValueError("market_tickers must be a non-empty list or string")
-        joined = _join_tickers(market_tickers)
-        # Split+filter matches the sync version so trailing/consecutive commas
-        # ("A,B,," -> 2 real tickers) don't spuriously fail or bypass the cap.
-        ticker_count = (
-            sum(1 for t in joined.split(",") if t.strip()) if joined else 0
-        )
-        if ticker_count > _MAX_BULK:
-            raise ValueError(
-                f"market_tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {ticker_count})"
-            )
-        params = _params(
-            market_tickers=joined,
-            start_ts=start_ts,
-            end_ts=end_ts,
+        params = _bulk_candlesticks_params(
+            market_tickers=market_tickers,
+            start_ts=start_ts, end_ts=end_ts,
             period_interval=period_interval,
-            include_latest_before_start=_bool_param(include_latest_before_start),
+            include_latest_before_start=include_latest_before_start,
         )
         data = await self._get("/markets/candlesticks", params=params)
         raw = data.get("markets", [])
@@ -501,14 +541,7 @@ class AsyncMarketsResource(AsyncResource):
         explode: true``) — httpx serializes list values that way by default.
         """
         self._require_auth()
-        if not tickers:
-            raise ValueError("tickers must be a non-empty list")
-        if len(tickers) > _MAX_BULK:
-            raise ValueError(
-                f"tickers accepts at most {_MAX_BULK} entries per spec "
-                f"(got {len(tickers)})"
-            )
-        params = _params(tickers=tickers)
+        params = _bulk_orderbooks_params(tickers=tickers)
         data = await self._get("/markets/orderbooks", params=params)
         raw = data.get("orderbooks", [])
         return [_orderbook_from_item(item) for item in raw]
