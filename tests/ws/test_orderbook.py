@@ -159,6 +159,33 @@ class TestOrderbookManager:
         assert book is not None
         assert book.yes[0].quantity == Decimal("70")  # 100 - 30
 
+    def test_returned_book_is_snapshot_not_live_view(self) -> None:
+        """Regression for #85: a book handed to a consumer must not mutate
+        when subsequent deltas are applied. Pin both the identity invariant
+        (each call returns a distinct ``Orderbook``) and the value invariant
+        (the previously-returned book's state is preserved verbatim).
+        """
+        mgr = OrderbookManager()
+        snap_book = mgr.apply_snapshot(make_snapshot(yes=[["0.50", "100"]]))
+
+        # Apply a delta that would have mutated the level in-place under the
+        # old implementation (quantity 100 -> 150).
+        delta_book = mgr.apply_delta(make_delta(price="0.50", delta="50", side="yes"))
+        assert delta_book is not None
+
+        # Distinct instances.
+        assert snap_book is not delta_book
+        # The first-handed-out book is frozen at its emission-time state.
+        assert snap_book.yes[0].quantity == Decimal("100")
+        assert delta_book.yes[0].quantity == Decimal("150")
+
+        # And ``get()`` is also a snapshot, not a live view.
+        get_book = mgr.get("T")
+        assert get_book is not None
+        assert get_book is not delta_book
+        mgr.apply_delta(make_delta(price="0.50", delta="25", side="yes"))
+        assert get_book.yes[0].quantity == Decimal("150")  # unchanged
+
     def test_fractional_delta_matches_wire_format(self) -> None:
         """Live capture on demo shows delta_fp arrives as ``"1.00"`` (with
         trailing .00), not bare ``"1"``. Lock in that Decimal arithmetic
