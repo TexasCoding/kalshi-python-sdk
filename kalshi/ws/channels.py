@@ -86,7 +86,6 @@ class SubscriptionManager:
         while True:
             remaining = deadline - asyncio.get_event_loop().time()
             if remaining <= 0:
-
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}"
                 )
@@ -137,7 +136,6 @@ class SubscriptionManager:
         # Read frames until we get our subscribe ack (by matching id)
         data = await self._wait_for_response(msg_id)
         if data.get("type") == "error":
-
             error_msg = data.get("msg", {})
             raise KalshiSubscriptionError(
                 str(error_msg.get("msg", "Subscribe failed")),
@@ -190,7 +188,6 @@ class SubscriptionManager:
         """Add or remove markets from an existing subscription."""
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
-
             raise KalshiSubscriptionError("Subscription not found or not active")
 
         msg_id = self._get_msg_id()
@@ -235,7 +232,6 @@ class SubscriptionManager:
 
                 data = await self._wait_for_response(msg_id)
                 if data.get("type") == "error":
-
                     error_msg = data.get("msg", {})
                     raise KalshiSubscriptionError(
                         str(error_msg.get("msg", "Resubscribe failed")),

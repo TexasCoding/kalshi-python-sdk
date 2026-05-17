@@ -209,6 +209,20 @@ class KalshiWebSocket:
                     "Skipping malformed WS frame", exc_info=True,
                 )
                 continue
+            except Exception:
+                # #83 escape hatch: anything else (AttributeError from a
+                # user-supplied callback, TypeError, programming bug, ...)
+                # MUST broadcast sentinels before propagating — otherwise
+                # consumers hang on their queues with no signal. Re-raise
+                # after broadcast so the task failure is still visible.
+                logger.error(
+                    "Unexpected error in recv loop; broadcasting sentinels",
+                    exc_info=True,
+                )
+                if self._sub_mgr:
+                    for sub in self._sub_mgr.active_subscriptions.values():
+                        await sub.queue.put_sentinel()
+                raise
 
     async def _process_frame(self, raw: str) -> None:
         """Parse, track seq, update orderbook, and dispatch a single frame."""

@@ -358,3 +358,48 @@ class TestRecvLoopExceptionPolicy:
                 "malformed" in r.message.lower() or "non-json" in r.message.lower()
                 for r in caplog.records
             )
+
+    async def test_unexpected_exception_broadcasts_sentinels_before_raising(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """#83 escape hatch: a TypeError/AttributeError/etc. from inside
+        dispatch (e.g. a buggy user callback) must broadcast sentinels to
+        every consumer before propagating so iterators don't hang.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            assert session._sub_mgr is not None
+            sid = next(iter(session._sub_mgr.active_subscriptions.values())).server_sid
+
+            # Monkey-patch dispatch to raise an unexpected exception class
+            # (AttributeError is neither in the JSON/Validation/Key bucket
+            # nor in the KalshiBackpressure/Subscription bucket).
+            async def boom(_raw: str) -> None:
+                raise AttributeError("simulated user-callback bug")
+
+            session._dispatcher.dispatch = boom  # type: ignore[method-assign]
+
+            with caplog.at_level(logging.ERROR, logger="kalshi.ws"):
+                await fake_ws.send_to_all({
+                    "type": "ticker", "sid": sid,
+                    "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 1},
+                })
+
+                # Iterator must see sentinel (StopAsyncIteration) within timeout.
+                with pytest.raises(StopAsyncIteration):
+                    await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+
+            assert any(
+                "Unexpected error in recv loop" in r.message
+                for r in caplog.records
+            )
+            # Recv task is in failed state (we re-raised after sentinel).
+            recv_task = session._recv_task
+            assert recv_task is not None
+            assert recv_task.done()
+            assert isinstance(recv_task.exception(), AttributeError)
