@@ -60,9 +60,29 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T", "market_id": "x"}}
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         msg = await sub.queue.get()
         assert msg.msg.market_ticker == "T"
+
+    async def test_dispatch_pre_validated_skips_revalidation(self) -> None:
+        """Regression for #86: when recv loop hands us the typed message it
+        already validated, we must NOT re-run model_validate. The same
+        instance lands on the queue.
+        """
+        from kalshi.ws.models.orderbook_delta import OrderbookSnapshotMessage
+        mgr = FakeSubManager()
+        sub = mgr.add(2, "orderbook_delta")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        data = {
+            "type": "orderbook_snapshot",
+            "sid": 2,
+            "seq": 1,
+            "msg": {"market_ticker": "M", "market_id": "x", "yes": [], "no": []},
+        }
+        pre_validated = OrderbookSnapshotMessage.model_validate(data)
+        await dispatcher.dispatch(data, pre_validated=pre_validated)
+        delivered = await sub.queue.get()
+        assert delivered is pre_validated, "dispatcher re-validated instead of using pre_validated"
 
     async def test_dispatch_orderbook_snapshot(self) -> None:
         mgr = FakeSubManager()
@@ -76,7 +96,7 @@ class TestMessageDispatcher:
                 "msg": {"market_ticker": "M", "market_id": "x", "yes": [], "no": []},
             }
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         msg = await sub.queue.get()
         assert msg.type == "orderbook_snapshot"
 
@@ -84,7 +104,7 @@ class TestMessageDispatcher:
         mgr = FakeSubManager()
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "future_type", "sid": 1, "msg": {}})
-        await dispatcher.dispatch(raw)  # should not crash
+        await dispatcher.dispatch(json.loads(raw))  # should not crash
 
     async def test_dispatch_control_message_skipped(self) -> None:
         mgr = FakeSubManager()
@@ -93,13 +113,8 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "subscribed", "id": 1, "msg": {"channel": "ticker", "sid": 1}}
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert sub.queue.qsize() == 0  # control messages don't go to queue
-
-    async def test_dispatch_invalid_json(self) -> None:
-        mgr = FakeSubManager()
-        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
-        await dispatcher.dispatch("not json at all")  # should not crash
 
     async def test_dispatch_unknown_sid(self) -> None:
         mgr = FakeSubManager()
@@ -107,7 +122,7 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "ticker", "sid": 999, "msg": {"market_ticker": "T", "market_id": "x"}}
         )
-        await dispatcher.dispatch(raw)  # should not crash
+        await dispatcher.dispatch(json.loads(raw))  # should not crash
 
     async def test_callback_mode(self) -> None:
         """Callback AND queue both receive the message (fan-out, see #80)."""
@@ -123,7 +138,7 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T", "market_id": "x"}}
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert len(received) == 1
         assert sub.queue.qsize() == 1  # also fanned out to the iterator queue
 
@@ -152,8 +167,8 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T", "market_id": "x"}}
         )
-        await dispatcher.dispatch(raw)
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
+        await dispatcher.dispatch(json.loads(raw))
 
         # Both sinks observed both messages.
         assert len(received) == 2
@@ -185,7 +200,7 @@ class TestMessageDispatcher:
 
         dispatcher = MessageDispatcher(sub_mgr=mgr, on_error=on_error)  # type: ignore[arg-type]
         raw = json.dumps({"type": "error", "id": 1, "msg": {"code": 5, "msg": "bad"}})
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert len(errors) == 1
 
     async def test_channel_level_error_routed_to_on_error(self) -> None:
@@ -209,7 +224,7 @@ class TestMessageDispatcher:
                 "error": {"code": 7, "msg": "schema violation"},
             }
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert len(errors) == 1
 
     async def test_channel_level_error_logged_when_no_handler(
@@ -223,7 +238,7 @@ class TestMessageDispatcher:
             {"type": "ticker", "sid": 1, "error": {"code": 7, "msg": "boom"}}
         )
         with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
-            await dispatcher.dispatch(raw)
+            await dispatcher.dispatch(json.loads(raw))
         assert any(
             "Channel-level error envelope" in r.message for r in caplog.records
         )
@@ -244,7 +259,7 @@ class TestMessageDispatcher:
                 "error": {"code": 9, "msg": "stale sid"},
             }
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert len(errors) == 1
 
     async def test_null_error_field_not_misrouted(self) -> None:
@@ -270,7 +285,7 @@ class TestMessageDispatcher:
                 "msg": {"market_ticker": "T", "market_id": "x"},
             }
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert errors == [], "null error field misrouted as channel error"
         # Normal ticker flow happened: message landed on the queue.
         assert sub.queue.qsize() == 1
@@ -295,7 +310,7 @@ class TestMessageDispatcher:
             {"type": "ticker", "sid": 1, "error": 42}
         )
         with caplog.at_level(logging.ERROR, logger="kalshi.ws"):
-            await dispatcher.dispatch(raw)
+            await dispatcher.dispatch(json.loads(raw))
         assert len(errors) == 1, "on_error not called on validation failure"
         assert any(
             "failed strict ErrorMessage validation" in r.message
@@ -339,7 +354,7 @@ class TestMessageDispatcher:
         raw = json.dumps(
             {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T", "market_id": "x"}}
         )
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
         assert len(received) == 0  # callback was removed
         assert sub.queue.qsize() == 1  # routed to queue instead
 
@@ -357,7 +372,7 @@ class TestMessageDispatcher:
         assert 7 in mgr._sid_to_client and 7 in mgr._subscriptions
 
         raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 7}})
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
 
         assert 7 not in mgr._sid_to_client
         assert 7 not in mgr._subscriptions
@@ -373,7 +388,7 @@ class TestMessageDispatcher:
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
 
         raw = json.dumps({"type": "unsubscribed", "sid": 8, "seq": 0})
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
 
         assert 8 not in mgr._sid_to_client
         assert 8 not in mgr._subscriptions
@@ -395,7 +410,7 @@ class TestMessageDispatcher:
             seq_tracker=tracker,
         )
         raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 9}})
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
 
         assert 9 not in tracker._last_seq
 
@@ -415,7 +430,7 @@ class TestMessageDispatcher:
         assert 500 not in mgr._subscriptions  # not keyed by server sid
 
         raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 500}})
-        await dispatcher.dispatch(raw)
+        await dispatcher.dispatch(json.loads(raw))
 
         assert 500 not in mgr._sid_to_client
         assert 1 not in mgr._subscriptions
@@ -427,14 +442,14 @@ class TestMessageDispatcher:
         mgr = FakeSubManager()
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 999}})
-        await dispatcher.dispatch(raw)  # should not crash
+        await dispatcher.dispatch(json.loads(raw))  # should not crash
 
     async def test_dispatch_message_without_sid(self) -> None:
         """Messages without sid are logged but don't crash."""
         mgr = FakeSubManager()
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "ticker", "msg": {"market_ticker": "T", "market_id": "x"}})
-        await dispatcher.dispatch(raw)  # should not crash
+        await dispatcher.dispatch(json.loads(raw))  # should not crash
 
 
 @pytest.mark.asyncio
@@ -449,7 +464,7 @@ async def test_dispatch_routes_user_order_singular() -> None:
     sub = mgr.add(42, "user_orders")
     dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
     raw = '{"type":"user_order","sid":42,"msg":{"order_id":"ORD1"}}'
-    await dispatcher.dispatch(raw)
+    await dispatcher.dispatch(json.loads(raw))
 
     msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
     assert isinstance(msg, UserOrdersMessage)
@@ -475,7 +490,7 @@ async def test_dispatch_routes_market_position_singular() -> None:
     sub = mgr.add(42, "market_positions")
     dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
     raw = '{"type":"market_position","sid":42,"msg":{"ticker":"X","market_ticker":"X"}}'
-    await dispatcher.dispatch(raw)
+    await dispatcher.dispatch(json.loads(raw))
 
     msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
     assert isinstance(msg, MarketPositionsMessage)
@@ -499,7 +514,7 @@ async def test_dispatch_routes_multivariate_lookup() -> None:
     sub = mgr.add(17, "multivariate")
     dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
     raw = '{"type":"multivariate_lookup","sid":17,"msg":{"event_ticker":"E1"}}'
-    await dispatcher.dispatch(raw)
+    await dispatcher.dispatch(json.loads(raw))
 
     msg = await asyncio.wait_for(sub.queue.get(), timeout=1.0)
     assert isinstance(msg, MultivariateMessage)

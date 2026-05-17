@@ -1,7 +1,6 @@
 """Message dispatcher: parse raw frames, route to queues/callbacks."""
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -167,14 +166,22 @@ class MessageDispatcher:
                 msg_type, data,
             )
 
-    async def dispatch(self, raw: str) -> None:
-        """Parse a raw JSON frame and route it."""
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            logger.warning("Received non-JSON frame: %s", raw[:100])
-            return
+    async def dispatch(
+        self,
+        data: dict[str, Any],
+        *,
+        pre_validated: BaseModel | None = None,
+    ) -> None:
+        """Route a pre-parsed frame to its subscriber.
 
+        ``data`` is the already-decoded JSON envelope. The recv loop owns
+        ``json.loads`` (so the dispatcher doesn't parse twice).
+
+        ``pre_validated`` lets the recv loop hand off a typed model it
+        already validated (orderbook snapshots/deltas applied to the
+        local book), so the dispatcher routes the same instance to the
+        queue without re-running Pydantic.
+        """
         msg_type: str = data.get("type", "")
 
         # Skip control messages (handled by subscribe/unsubscribe flow)
@@ -200,11 +207,20 @@ class MessageDispatcher:
             logger.warning("Unknown message type: %s", msg_type)
             return
 
-        try:
-            parsed = model_cls.model_validate(data)
-        except Exception:
-            logger.warning("Failed to parse %s message", msg_type, exc_info=True)
-            return
+        if pre_validated is not None and isinstance(pre_validated, model_cls):
+            parsed = pre_validated
+        else:
+            try:
+                parsed = model_cls.model_validate(data)
+            except Exception as exc:
+                # Drop exc_info: Pydantic's ValidationError __str__ echoes the
+                # full input including trade payload (price, count, user fields)
+                # straight into log sinks. Surface type + exception class only.
+                logger.warning(
+                    "Failed to parse %s message: %s",
+                    msg_type, type(exc).__name__,
+                )
+                return
 
         # Route to subscription queue
         sid = data.get("sid")
