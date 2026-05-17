@@ -172,8 +172,12 @@ class SyncTransport:
             if not should_retry:
                 raise error
 
-            # Use Retry-After header if available for 429
-            if isinstance(error, KalshiRateLimitError) and error.retry_after:
+            # Use Retry-After header if available for 429.
+            # `is not None` — not truthy — so Retry-After: 0 ("retry immediately") is honored.
+            if (
+                isinstance(error, KalshiRateLimitError)
+                and error.retry_after is not None
+            ):
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
@@ -286,7 +290,11 @@ class AsyncTransport:
             if not should_retry:
                 raise error
 
-            if isinstance(error, KalshiRateLimitError) and error.retry_after:
+            # `is not None` so Retry-After: 0 ("retry immediately") is honored.
+            if (
+                isinstance(error, KalshiRateLimitError)
+                and error.retry_after is not None
+            ):
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)

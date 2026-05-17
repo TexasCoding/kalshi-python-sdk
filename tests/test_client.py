@@ -181,6 +181,26 @@ class TestSyncTransportRetry:
         assert route.call_count == 2
 
     @respx.mock
+    def test_429_retry_after_zero_is_honored_end_to_end(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: `if error.retry_after:` would drop 0 ("retry immediately") as falsy.
+        # `is not None` keeps it; assert the transport actually sleeps 0, not the backoff fallback.
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "0"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert sleeps == [0.0], (
+            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        )
+
+    @respx.mock
     def test_get_retries_on_500(self, transport: SyncTransport) -> None:
         """500s are transient on GETs; demo routinely returns them mid-paginate."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(

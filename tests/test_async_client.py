@@ -73,6 +73,31 @@ class TestAsyncTransportRetry:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_429_retry_after_zero_is_honored_end_to_end(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Async counterpart of the sync regression: `is not None` keeps Retry-After: 0.
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        # _base_client imports asyncio inside the method, so patch the module attr directly.
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "0"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert sleeps == [0.0], (
+            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_get_retries_on_500(self, transport: AsyncTransport) -> None:
         """Async counterpart of the sync 500-retry test."""
         route = respx.get(

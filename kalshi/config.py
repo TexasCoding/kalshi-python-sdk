@@ -51,22 +51,12 @@ class KalshiConfig:
             object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
         if self.ws_base_url.endswith("/"):
             object.__setattr__(self, "ws_base_url", self.ws_base_url.rstrip("/"))
-        self._validate_url(self.base_url, "base_url", secure="https", plaintext="http")
-        self._validate_url(self.ws_base_url, "ws_base_url", secure="wss", plaintext="ws")
+        KalshiConfig._validate_url(self.base_url, "base_url", secure="https", plaintext="http")
+        KalshiConfig._validate_url(self.ws_base_url, "ws_base_url", secure="wss", plaintext="ws")
 
     @staticmethod
     def _validate_url(url: str, field_name: str, *, secure: str, plaintext: str) -> None:
-        """Reject URLs that would leak API credentials.
-
-        An attacker who can write to the process environment (``docker run
-        -e``, CI variable, shell history) can otherwise redirect signed
-        requests to an arbitrary host. Enforce the secure scheme for remote
-        hosts; warn when the host isn't a known Kalshi endpoint so misroutes
-        surface in logs.
-
-        The plaintext scheme is permitted only for loopback hosts (localhost,
-        127.0.0.1, ::1) so local mock servers and tests still work.
-        """
+        """Reject URLs that would expose credentials (bad scheme or plaintext-to-remote)."""
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
         host = (parsed.hostname or "").lower()
