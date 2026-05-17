@@ -36,6 +36,9 @@ Anything reviewers should know that isn't obvious from the diff?
 
 ## Issue links
 
-<!-- Use `Closes #N` to auto-close on merge, or `Refs #N` for partial work. -->
+<!--
+Use `Closes #N` to auto-close on merge, or `Refs #N` for partial work.
+Delete this section if the PR doesn't reference an issue.
+-->
 
-Closes #
+Closes #<!-- N -->
