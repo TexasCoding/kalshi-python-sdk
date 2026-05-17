@@ -127,3 +127,131 @@ class TestToPolars:
         page: Page[_Row] = Page(items=_sample_items(), cursor=None)
         with pytest.raises(ImportError, match="polars"):
             page.to_polars()
+
+
+# ---------------------------------------------------------------------------
+# Issue #101: pin nested-model serialization shape for both backends.
+#
+# Page.to_dataframe / to_polars use model_dump(mode="python"). Real SDK pages
+# carry models with nested Pydantic sub-models (Market has OrderbookLevel,
+# multivariate results have list-of-dict). This pins the current shape so a
+# future flip to mode="json" or a pandas/polars upgrade reds CI instead of
+# silently breaking downstream .sum() / nested column access.
+# ---------------------------------------------------------------------------
+
+
+class _Inner(BaseModel):
+    """Nested sub-model — analog of OrderbookLevel inside Market."""
+
+    label: str
+    score: Decimal
+
+
+class _NestedRow(BaseModel):
+    """Row with a nested model and a list[Decimal], mirroring real SDK pages."""
+
+    ticker: str
+    price: Decimal
+    inner: _Inner
+    prices: list[Decimal]
+
+
+def _sample_nested_items() -> list[_NestedRow]:
+    return [
+        _NestedRow(
+            ticker="MKT-A",
+            price=Decimal("0.55"),
+            inner=_Inner(label="x", score=Decimal("0.10")),
+            prices=[Decimal("0.10"), Decimal("0.20")],
+        ),
+        _NestedRow(
+            ticker="MKT-B",
+            price=Decimal("0.42"),
+            inner=_Inner(label="y", score=Decimal("0.20")),
+            prices=[Decimal("0.30")],
+        ),
+    ]
+
+
+class TestToDataframeNested:
+    def test_nested_model_lands_as_dict_object_column(self) -> None:
+        pd = pytest.importorskip("pandas")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_dataframe()
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.shape == (2, 4)
+        assert list(df.columns) == ["ticker", "price", "inner", "prices"]
+        # Nested column is object-dtype (not expanded into inner.* columns,
+        # not stringified). Each cell is the raw dict from model_dump.
+        assert df["inner"].dtype == object
+        cell = df["inner"].iloc[0]
+        assert isinstance(cell, dict)
+        assert cell == {"label": "x", "score": Decimal("0.10")}
+        # Nested Decimal survives — pins mode="python" (mode="json" would
+        # have stringified this and broken Decimal arithmetic downstream).
+        assert isinstance(cell["score"], Decimal)
+
+    def test_list_decimal_column_holds_list_of_decimals(self) -> None:
+        pytest.importorskip("pandas")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_dataframe()
+
+        assert df["prices"].dtype == object
+        first = df["prices"].iloc[0]
+        assert isinstance(first, list)
+        assert first == [Decimal("0.10"), Decimal("0.20")]
+        assert all(isinstance(v, Decimal) for v in first)
+
+    def test_top_level_decimal_preserved_alongside_nested(self) -> None:
+        pytest.importorskip("pandas")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_dataframe()
+
+        # Top-level Decimal column is object-dtype with real Decimal values,
+        # even when nested columns share the frame.
+        assert df["price"].tolist() == [Decimal("0.55"), Decimal("0.42")]
+        assert all(isinstance(v, Decimal) for v in df["price"].tolist())
+
+
+class TestToPolarsNested:
+    def test_nested_model_lands_as_struct_column(self) -> None:
+        pl = pytest.importorskip("polars")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_polars()
+
+        assert isinstance(df, pl.DataFrame)
+        assert df.shape == (2, 4)
+        assert df.columns == ["ticker", "price", "inner", "prices"]
+        # polars infers Struct from the nested dict — pin that, since a
+        # mode="json" flip would yield a String/Utf8 column instead.
+        assert isinstance(df["inner"].dtype, pl.Struct)
+        # Struct row round-trips back to a dict with original keys & types.
+        first = df["inner"][0]
+        assert first == {"label": "x", "score": Decimal("0.10")}
+        assert isinstance(first["score"], Decimal)
+
+    def test_list_decimal_column_is_list_of_decimal_dtype(self) -> None:
+        pl = pytest.importorskip("polars")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_polars()
+
+        # List(Decimal) — not List(String), not Object.
+        dtype = df["prices"].dtype
+        assert isinstance(dtype, pl.List)
+        assert isinstance(dtype.inner, pl.Decimal)
+        assert df["prices"][0].to_list() == [Decimal("0.10"), Decimal("0.20")]
+
+    def test_top_level_decimal_preserved_alongside_nested(self) -> None:
+        pl = pytest.importorskip("polars")
+        page: Page[_NestedRow] = Page(items=_sample_nested_items(), cursor=None)
+
+        df = page.to_polars()
+
+        assert isinstance(df["price"].dtype, pl.Decimal)
+        assert df["price"].to_list() == [Decimal("0.55"), Decimal("0.42")]
