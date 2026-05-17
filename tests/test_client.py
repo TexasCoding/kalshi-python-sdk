@@ -277,12 +277,6 @@ class TestSyncTransportRetry:
         assert resp.status_code == 200
         assert resp.json()["markets"][0]["ticker"] == "TEST"
 
-    # --- Regression: issue #97 -------------------------------------------
-    # F-Q-01: Retry-After must be capped at retry_max_delay so a hostile
-    # server can't park the SDK for 9999s. F-Q-02: HTTP-date Retry-After
-    # falls back to computed backoff and the transport still retries.
-    # F-Q-03: httpx.TimeoutException retries only on idempotent methods.
-
     @respx.mock
     def test_429_retry_after_caps_at_retry_max_delay(
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
@@ -334,7 +328,8 @@ class TestSyncTransportRetry:
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """GET retries on httpx.TimeoutException (idempotent method)."""
-        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.TimeoutException("read timed out"),
@@ -344,6 +339,10 @@ class TestSyncTransportRetry:
         resp = transport.request("GET", "/markets")
         assert resp.status_code == 200
         assert route.call_count == 2
+        # Confirm a backoff delay happened between attempts — without this
+        # assertion, removing the time.sleep(delay) line would still pass.
+        assert len(sleeps) == 1
+        assert sleeps[0] >= 0.0
 
     @respx.mock
     def test_post_not_retried_on_timeout(self, transport: SyncTransport) -> None:

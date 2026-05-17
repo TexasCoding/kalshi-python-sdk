@@ -204,10 +204,6 @@ class TestAsyncTransportRetry:
         assert resp.status_code == 200
         assert resp.json()["markets"][0]["ticker"] == "TEST"
 
-    # --- Regression: issue #97 -------------------------------------------
-    # Async counterparts of F-Q-01 (cap), F-Q-02 (HTTP-date), and F-Q-03
-    # (TimeoutException retry on GET, no retry on POST).
-
     @respx.mock
     @pytest.mark.asyncio
     async def test_429_retry_after_caps_at_retry_max_delay(
@@ -268,9 +264,10 @@ class TestAsyncTransportRetry:
         self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Async GET retries on httpx.TimeoutException."""
+        sleeps: list[float] = []
 
         async def fake_sleep(d: float) -> None:
-            return None
+            sleeps.append(d)
 
         monkeypatch.setattr("asyncio.sleep", fake_sleep)
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
@@ -282,6 +279,10 @@ class TestAsyncTransportRetry:
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
         assert route.call_count == 2
+        # Confirm a backoff delay happened between attempts — without this
+        # assertion, removing the asyncio.sleep(delay) line would still pass.
+        assert len(sleeps) == 1
+        assert sleeps[0] >= 0.0
 
     @respx.mock
     @pytest.mark.asyncio
