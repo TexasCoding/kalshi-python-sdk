@@ -16,6 +16,7 @@ class AccountResource(SyncResource):
 
     def endpoint_costs(self) -> AccountEndpointCosts:
         """List API v2 endpoints with non-default token costs."""
+        self._require_auth()
         data = self._get("/account/endpoint_costs")
         return AccountEndpointCosts.model_validate(data)
 
@@ -30,5 +31,6 @@ class AsyncAccountResource(AsyncResource):
 
     async def endpoint_costs(self) -> AccountEndpointCosts:
         """List API v2 endpoints with non-default token costs."""
+        self._require_auth()
         data = await self._get("/account/endpoint_costs")
         return AccountEndpointCosts.model_validate(data)

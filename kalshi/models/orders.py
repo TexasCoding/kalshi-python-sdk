@@ -371,11 +371,17 @@ class OrderQueuePosition(BaseModel):
 
 
 class CreateOrderV2Request(BaseModel):
-    """Body for POST /portfolio/events/orders."""
+    """Body for POST /portfolio/events/orders.
+
+    Unlike v1 ``CreateOrderRequest`` (where ``side`` is ``str`` and type
+    narrowing happens on the resource-method kwarg), the v2 surface is
+    model-only — no kwarg overload exists, so the Literal must live on
+    the model field.
+    """
 
     ticker: str
     client_order_id: str
-    side: str
+    side: BookSideLiteral
     count: FixedPointCount
     price: DollarDecimal
     time_in_force: str
@@ -457,7 +463,7 @@ class AmendOrderV2Request(BaseModel):
     """Body for POST /portfolio/events/orders/{order_id}/amend."""
 
     ticker: str
-    side: str
+    side: BookSideLiteral
     price: DollarDecimal
     count: FixedPointCount
     client_order_id: str | None = None

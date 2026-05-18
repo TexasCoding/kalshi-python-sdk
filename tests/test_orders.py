@@ -13,8 +13,16 @@ from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiNotFoundError, KalshiValidationError
-from kalshi.models.orders import CreateOrderRequest
+from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiValidationError
+from kalshi.models.orders import (
+    AmendOrderV2Request,
+    BatchCancelOrdersV2Request,
+    BatchCancelOrdersV2RequestOrder,
+    BatchCreateOrdersV2Request,
+    CreateOrderRequest,
+    CreateOrderV2Request,
+    DecreaseOrderV2Request,
+)
 from kalshi.resources.orders import OrdersResource
 
 
@@ -1080,3 +1088,240 @@ class TestBatchCreateWireShape:
         assert len(body["orders"]) == 2
         # no phantom top-level keys
         assert set(body.keys()) == {"orders"}
+
+
+# ── V2 event-market orders (spec v3.18.0) ───────────────────
+
+
+class TestCreateOrderV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "order_id": "ord-v2-1",
+                    "client_order_id": "cli-1",
+                    "fill_count": "0",
+                    "remaining_count": "10",
+                    "ts_ms": 1700000000000,
+                },
+            )
+        )
+        result = orders.create_v2(
+            request=CreateOrderV2Request(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+            ),
+        )
+        assert result.order_id == "ord-v2-1"
+        assert result.fill_count == Decimal("0")
+        assert result.remaining_count == Decimal("10")
+        assert route.calls.call_count == 1
+
+    def test_side_must_be_bid_or_ask(self) -> None:
+        with pytest.raises(ValueError):
+            CreateOrderV2Request(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="yes",  # type: ignore[arg-type]  # invalid for BookSide
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+            )
+
+
+class TestCancelOrderV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order_id": "ord-1",
+                    "reduced_by": "5",
+                    "ts_ms": 1700000000000,
+                },
+            )
+        )
+        result = orders.cancel_v2("ord-1")
+        assert result.order_id == "ord-1"
+        assert result.reduced_by == Decimal("5")
+
+    @respx.mock
+    def test_204_raises(self, orders: OrdersResource) -> None:
+        """The V2 endpoint promises a body; 204 No Content is an SDK error."""
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1",
+        ).mock(return_value=httpx.Response(204))
+        with pytest.raises(KalshiError, match="204 No Content"):
+            orders.cancel_v2("ord-1")
+
+    @respx.mock
+    def test_passes_query_params(self, orders: OrdersResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order_id": "ord-1", "reduced_by": "0", "ts_ms": 0},
+            )
+        )
+        orders.cancel_v2("ord-1", subaccount=3, exchange_index=0)
+        params = dict(route.calls[0].request.url.params)
+        assert params["subaccount"] == "3"
+        assert params["exchange_index"] == "0"
+
+
+class TestAmendOrderV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"order_id": "ord-1", "ts_ms": 1700000000000},
+            )
+        )
+        result = orders.amend_v2(
+            "ord-1",
+            request=AmendOrderV2Request(
+                ticker="MKT-A",
+                side="bid",
+                price=Decimal("0.55"),
+                count=Decimal("10"),
+            ),
+        )
+        assert result.order_id == "ord-1"
+
+    def test_side_must_be_bid_or_ask(self) -> None:
+        with pytest.raises(ValueError):
+            AmendOrderV2Request(
+                ticker="MKT-A",
+                side="yes",  # type: ignore[arg-type]
+                price=Decimal("0.55"),
+                count=Decimal("10"),
+            )
+
+
+class TestDecreaseOrderV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/decrease",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order_id": "ord-1",
+                    "remaining_count": "5",
+                    "ts_ms": 1700000000000,
+                },
+            )
+        )
+        result = orders.decrease_v2(
+            "ord-1",
+            request=DecreaseOrderV2Request(reduce_by=Decimal("2")),
+        )
+        assert result.remaining_count == Decimal("5")
+
+    def test_xor_rejects_both(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            DecreaseOrderV2Request(
+                reduce_by=Decimal("2"), reduce_to=Decimal("5"),
+            )
+
+    def test_xor_requires_one(self) -> None:
+        with pytest.raises(ValueError, match="requires either"):
+            DecreaseOrderV2Request()
+
+
+class TestBatchCreateV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "ord-a",
+                            "fill_count": "0",
+                            "remaining_count": "10",
+                            "ts_ms": 1700000000000,
+                        },
+                        {"error": {"code": "invalid_market"}},
+                    ],
+                },
+            )
+        )
+        result = orders.batch_create_v2(
+            request=BatchCreateOrdersV2Request(
+                orders=[
+                    CreateOrderV2Request(
+                        ticker="MKT-A",
+                        client_order_id="cli-1",
+                        side="bid",
+                        count=Decimal("10"),
+                        price=Decimal("0.50"),
+                        time_in_force="good_till_canceled",
+                        self_trade_prevention_type="taker_at_cross",
+                    ),
+                ],
+            ),
+        )
+        assert len(result.orders) == 2
+        assert result.orders[0].order_id == "ord-a"
+        assert result.orders[1].error == {"code": "invalid_market"}
+
+
+class TestBatchCancelV2:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "ord-a",
+                            "reduced_by": "10",
+                            "ts_ms": 1700000000000,
+                        },
+                    ],
+                },
+            )
+        )
+        result = orders.batch_cancel_v2(
+            request=BatchCancelOrdersV2Request(
+                orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+            ),
+        )
+        assert result.orders[0].order_id == "ord-a"
+        assert result.orders[0].reduced_by == Decimal("10")
+
+    @respx.mock
+    def test_204_raises(self, orders: OrdersResource) -> None:
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
+        ).mock(return_value=httpx.Response(204))
+        with pytest.raises(KalshiError, match="204 No Content"):
+            orders.batch_cancel_v2(
+                request=BatchCancelOrdersV2Request(
+                    orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+                ),
+            )
