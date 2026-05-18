@@ -1078,6 +1078,21 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/BatchCancelOrdersRequest": (
         "kalshi.models.orders.BatchCancelOrdersRequest"
     ),
+    "#/components/schemas/CreateOrderV2Request": (
+        "kalshi.models.orders.CreateOrderV2Request"
+    ),
+    "#/components/schemas/AmendOrderV2Request": (
+        "kalshi.models.orders.AmendOrderV2Request"
+    ),
+    "#/components/schemas/DecreaseOrderV2Request": (
+        "kalshi.models.orders.DecreaseOrderV2Request"
+    ),
+    "#/components/schemas/BatchCreateOrdersV2Request": (
+        "kalshi.models.orders.BatchCreateOrdersV2Request"
+    ),
+    "#/components/schemas/BatchCancelOrdersV2Request": (
+        "kalshi.models.orders.BatchCancelOrdersV2Request"
+    ),
     "#/components/schemas/CreateMarketInMultivariateEventCollectionRequest": (
         "kalshi.models.multivariate."
         "CreateMarketInMultivariateEventCollectionRequest"

@@ -13,11 +13,22 @@ from kalshi.models.orders import (
     ActionLiteral,
     AmendOrderRequest,
     AmendOrderResponse,
+    AmendOrderV2Request,
+    AmendOrderV2Response,
     BatchCancelOrdersRequest,
     BatchCancelOrdersRequestOrder,
+    BatchCancelOrdersV2Request,
+    BatchCancelOrdersV2Response,
     BatchCreateOrdersRequest,
+    BatchCreateOrdersV2Request,
+    BatchCreateOrdersV2Response,
+    CancelOrderV2Response,
     CreateOrderRequest,
+    CreateOrderV2Request,
+    CreateOrderV2Response,
     DecreaseOrderRequest,
+    DecreaseOrderV2Request,
+    DecreaseOrderV2Response,
     Fill,
     Order,
     OrderQueuePosition,
@@ -64,6 +75,7 @@ def _build_create_order_body(
     order_group_id: str | None,
     cancel_order_on_pause: bool | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -76,6 +88,7 @@ def _build_create_order_body(
         order_group_id=order_group_id,
         cancel_order_on_pause=cancel_order_on_pause,
         subaccount=subaccount,
+        exchange_index=exchange_index,
     )
     if request is None:
         if ticker is None or side is None:
@@ -99,6 +112,7 @@ def _build_create_order_body(
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -149,6 +163,7 @@ def _build_amend_body(
     client_order_id: str | None,
     updated_client_order_id: str | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -157,6 +172,7 @@ def _build_amend_body(
         client_order_id=client_order_id,
         updated_client_order_id=updated_client_order_id,
         subaccount=subaccount,
+        exchange_index=exchange_index,
     )
     if request is None:
         if ticker is None or side is None or action is None:
@@ -178,6 +194,7 @@ def _build_amend_body(
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -188,9 +205,11 @@ def _build_decrease_body(
     reduce_by: int | None,
     reduce_to: int | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
-        request, reduce_by=reduce_by, reduce_to=reduce_to, subaccount=subaccount,
+        request, reduce_by=reduce_by, reduce_to=reduce_to,
+        subaccount=subaccount, exchange_index=exchange_index,
     )
     if request is None:
         # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
@@ -204,6 +223,7 @@ def _build_decrease_body(
             reduce_by=reduce_by,
             reduce_to=reduce_to,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -302,6 +322,7 @@ class OrdersResource(SyncResource):
         order_group_id: str | None = ...,
         cancel_order_on_pause: bool | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> Order: ...
     def create(
         self,
@@ -323,6 +344,7 @@ class OrdersResource(SyncResource):
         order_group_id: str | None = None,
         cancel_order_on_pause: bool | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> Order:
         """Place a new order.
 
@@ -351,6 +373,7 @@ class OrdersResource(SyncResource):
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
@@ -362,9 +385,15 @@ class OrdersResource(SyncResource):
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    def cancel(self, order_id: str, *, subaccount: int | None = None) -> None:
+    def cancel(
+        self,
+        order_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+    ) -> None:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         self._delete(f"/portfolio/orders/{order_id}", params=params)
 
     def list(
@@ -530,6 +559,7 @@ class OrdersResource(SyncResource):
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> AmendOrderResponse: ...
     def amend(
         self,
@@ -545,6 +575,7 @@ class OrdersResource(SyncResource):
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
         body = _build_amend_body(
@@ -554,6 +585,7 @@ class OrdersResource(SyncResource):
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
@@ -570,6 +602,7 @@ class OrdersResource(SyncResource):
         reduce_by: int | None = ...,
         reduce_to: int | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> Order: ...
     def decrease(
         self,
@@ -579,11 +612,12 @@ class OrdersResource(SyncResource):
         reduce_by: int | None = None,
         reduce_to: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> Order:
         self._require_auth()
         body = _build_decrease_body(
             request, reduce_by=reduce_by, reduce_to=reduce_to,
-            subaccount=subaccount,
+            subaccount=subaccount, exchange_index=exchange_index,
         )
         data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
@@ -611,6 +645,89 @@ class OrdersResource(SyncResource):
         data = self._get(f"/portfolio/orders/{order_id}/queue_position")
         return _parse_queue_position(data)
 
+    # ------------------------------------------------------------------
+    # V2 event-market orders (spec v3.18.0, paths /portfolio/events/orders).
+    # Model-only API surface — pass a fully-constructed request model.
+    # ------------------------------------------------------------------
+
+    def create_v2(self, *, request: CreateOrderV2Request) -> CreateOrderV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._post("/portfolio/events/orders", json=body)
+        return CreateOrderV2Response.model_validate(data)
+
+    def cancel_v2(
+        self,
+        order_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+    ) -> CancelOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
+        data = self._delete(
+            f"/portfolio/events/orders/{order_id}", params=params,
+        )
+        if data is None:
+            raise KalshiError(
+                "Expected CancelOrderV2Response body, got 204 No Content."
+            )
+        return CancelOrderV2Response.model_validate(data)
+
+    def amend_v2(
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderV2Request,
+        subaccount: int | None = None,
+    ) -> AmendOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._post(
+            f"/portfolio/events/orders/{order_id}/amend",
+            params=params, json=body,
+        )
+        return AmendOrderV2Response.model_validate(data)
+
+    def decrease_v2(
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderV2Request,
+        subaccount: int | None = None,
+    ) -> DecreaseOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._post(
+            f"/portfolio/events/orders/{order_id}/decrease",
+            params=params, json=body,
+        )
+        return DecreaseOrderV2Response.model_validate(data)
+
+    def batch_create_v2(
+        self, *, request: BatchCreateOrdersV2Request,
+    ) -> BatchCreateOrdersV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._post("/portfolio/events/orders/batched", json=body)
+        return BatchCreateOrdersV2Response.model_validate(data)
+
+    def batch_cancel_v2(
+        self, *, request: BatchCancelOrdersV2Request,
+    ) -> BatchCancelOrdersV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._delete_with_body(
+            "/portfolio/events/orders/batched", json=body,
+        )
+        if data is None:
+            raise KalshiError(
+                "Expected BatchCancelOrdersV2Response body, got 204 No Content."
+            )
+        return BatchCancelOrdersV2Response.model_validate(data)
+
 
 class AsyncOrdersResource(AsyncResource):
     """Async orders API."""
@@ -637,6 +754,7 @@ class AsyncOrdersResource(AsyncResource):
         order_group_id: str | None = ...,
         cancel_order_on_pause: bool | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> Order: ...
     async def create(
         self,
@@ -658,6 +776,7 @@ class AsyncOrdersResource(AsyncResource):
         order_group_id: str | None = None,
         cancel_order_on_pause: bool | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> Order:
         """Place a new order.
 
@@ -686,6 +805,7 @@ class AsyncOrdersResource(AsyncResource):
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = await self._post("/portfolio/orders", json=body)
         order_data = data.get("order", data)
@@ -697,9 +817,15 @@ class AsyncOrdersResource(AsyncResource):
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    async def cancel(self, order_id: str, *, subaccount: int | None = None) -> None:
+    async def cancel(
+        self,
+        order_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+    ) -> None:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         await self._delete(f"/portfolio/orders/{order_id}", params=params)
 
     async def list(
@@ -866,6 +992,7 @@ class AsyncOrdersResource(AsyncResource):
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> AmendOrderResponse: ...
     async def amend(
         self,
@@ -881,6 +1008,7 @@ class AsyncOrdersResource(AsyncResource):
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
         body = _build_amend_body(
@@ -890,6 +1018,7 @@ class AsyncOrdersResource(AsyncResource):
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
@@ -906,6 +1035,7 @@ class AsyncOrdersResource(AsyncResource):
         reduce_by: int | None = ...,
         reduce_to: int | None = ...,
         subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> Order: ...
     async def decrease(
         self,
@@ -915,11 +1045,12 @@ class AsyncOrdersResource(AsyncResource):
         reduce_by: int | None = None,
         reduce_to: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> Order:
         self._require_auth()
         body = _build_decrease_body(
             request, reduce_by=reduce_by, reduce_to=reduce_to,
-            subaccount=subaccount,
+            subaccount=subaccount, exchange_index=exchange_index,
         )
         data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
         order_data = data.get("order", data)
@@ -946,3 +1077,85 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
         return _parse_queue_position(data)
+
+    # V2 event-market orders (spec v3.18.0). See OrdersResource counterparts.
+
+    async def create_v2(
+        self, *, request: CreateOrderV2Request,
+    ) -> CreateOrderV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post("/portfolio/events/orders", json=body)
+        return CreateOrderV2Response.model_validate(data)
+
+    async def cancel_v2(
+        self,
+        order_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+    ) -> CancelOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
+        data = await self._delete(
+            f"/portfolio/events/orders/{order_id}", params=params,
+        )
+        if data is None:
+            raise KalshiError(
+                "Expected CancelOrderV2Response body, got 204 No Content."
+            )
+        return CancelOrderV2Response.model_validate(data)
+
+    async def amend_v2(
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderV2Request,
+        subaccount: int | None = None,
+    ) -> AmendOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post(
+            f"/portfolio/events/orders/{order_id}/amend",
+            params=params, json=body,
+        )
+        return AmendOrderV2Response.model_validate(data)
+
+    async def decrease_v2(
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderV2Request,
+        subaccount: int | None = None,
+    ) -> DecreaseOrderV2Response:
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post(
+            f"/portfolio/events/orders/{order_id}/decrease",
+            params=params, json=body,
+        )
+        return DecreaseOrderV2Response.model_validate(data)
+
+    async def batch_create_v2(
+        self, *, request: BatchCreateOrdersV2Request,
+    ) -> BatchCreateOrdersV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post("/portfolio/events/orders/batched", json=body)
+        return BatchCreateOrdersV2Response.model_validate(data)
+
+    async def batch_cancel_v2(
+        self, *, request: BatchCancelOrdersV2Request,
+    ) -> BatchCancelOrdersV2Response:
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._delete_with_body(
+            "/portfolio/events/orders/batched", json=body,
+        )
+        if data is None:
+            raise KalshiError(
+                "Expected BatchCancelOrdersV2Response body, got 204 No Content."
+            )
+        return BatchCancelOrdersV2Response.model_validate(data)

@@ -27,20 +27,34 @@ from kalshi.resources._base import (
     _validate_max_pages,
 )
 
+UserFilterLiteral = Literal["self"]
+"""Filter for items created by the authenticated user. Spec: UserFilter enum."""
+
 
 def _require_quote_filter(
-    quote_creator_user_id: str | None, rfq_creator_user_id: str | None,
+    quote_creator_user_id: str | None,
+    rfq_creator_user_id: str | None,
+    user_filter: UserFilterLiteral | None,
+    rfq_user_filter: UserFilterLiteral | None,
 ) -> None:
     """Spec + demo require one of these filters on GET /communications/quotes.
 
     rfq_id alone is NOT sufficient (verified against demo during v0.11.0).
     Fail fast locally instead of paying a network round trip for a 400.
+    The ``user_filter`` / ``rfq_user_filter`` params added in spec v3.18.0
+    accept ``"self"`` as a server-side shorthand for the caller's user-id,
+    so either of them also satisfies the filter requirement.
     """
-    if quote_creator_user_id is None and rfq_creator_user_id is None:
+    if (
+        quote_creator_user_id is None
+        and rfq_creator_user_id is None
+        and user_filter is None
+        and rfq_user_filter is None
+    ):
         raise ValueError(
-            "list_quotes requires one of quote_creator_user_id or "
-            "rfq_creator_user_id (server-side requirement; rfq_id alone "
-            "is not sufficient)."
+            "list_quotes requires one of quote_creator_user_id, "
+            "rfq_creator_user_id, user_filter, or rfq_user_filter "
+            "(server-side requirement; rfq_id alone is not sufficient)."
         )
 
 
@@ -56,6 +70,7 @@ def _list_rfqs_params(
     subaccount: int | None,
     status: str | None,
     creator_user_id: str | None,
+    user_filter: UserFilterLiteral | None,
 ) -> dict[str, Any]:
     return _params(
         cursor=cursor,
@@ -65,6 +80,7 @@ def _list_rfqs_params(
         subaccount=subaccount,
         status=status,
         creator_user_id=creator_user_id,
+        user_filter=user_filter,
     )
 
 
@@ -79,6 +95,8 @@ def _list_quotes_params(
     rfq_creator_user_id: str | None,
     rfq_creator_subtrader_id: str | None,
     rfq_id: str | None,
+    user_filter: UserFilterLiteral | None,
+    rfq_user_filter: UserFilterLiteral | None,
 ) -> dict[str, Any]:
     return _params(
         cursor=cursor,
@@ -90,6 +108,8 @@ def _list_quotes_params(
         rfq_creator_user_id=rfq_creator_user_id,
         rfq_creator_subtrader_id=rfq_creator_subtrader_id,
         rfq_id=rfq_id,
+        user_filter=user_filter,
+        rfq_user_filter=rfq_user_filter,
     )
 
 
@@ -137,10 +157,12 @@ def _build_create_quote_body(
     no_bid: Decimal | str | float | int | None,
     rest_remainder: bool | None,
     subaccount: int | None,
+    post_only: bool | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
         rest_remainder=rest_remainder, subaccount=subaccount,
+        post_only=post_only,
     )
     if request is None:
         if (
@@ -157,6 +179,7 @@ def _build_create_quote_body(
             no_bid=no_bid,  # type: ignore[arg-type]
             rest_remainder=rest_remainder,
             subaccount=subaccount,
+            post_only=post_only,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -195,12 +218,14 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
         params = _list_rfqs_params(
             cursor=cursor, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
+            user_filter=user_filter,
         )
         return self._list("/communications/rfqs", RFQ, "rfqs", params=params)
 
@@ -213,6 +238,7 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
     ) -> Iterator[RFQ]:
         self._require_auth()
@@ -221,6 +247,7 @@ class CommunicationsResource(SyncResource):
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
+            user_filter=user_filter,
         )
         return self._list_all(
             "/communications/rfqs", RFQ, "rfqs",
@@ -285,9 +312,14 @@ class CommunicationsResource(SyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
     ) -> Page[Quote]:
         self._require_auth()
-        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _require_quote_filter(
+            quote_creator_user_id, rfq_creator_user_id,
+            user_filter, rfq_user_filter,
+        )
         params = _list_quotes_params(
             cursor=cursor, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, status=status,
@@ -295,6 +327,8 @@ class CommunicationsResource(SyncResource):
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
         )
         return self._list("/communications/quotes", Quote, "quotes", params=params)
 
@@ -309,10 +343,15 @@ class CommunicationsResource(SyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
     ) -> Iterator[Quote]:
         self._require_auth()
-        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _require_quote_filter(
+            quote_creator_user_id, rfq_creator_user_id,
+            user_filter, rfq_user_filter,
+        )
         _validate_max_pages(max_pages)
         params = _list_quotes_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
@@ -321,6 +360,8 @@ class CommunicationsResource(SyncResource):
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
         )
         return self._list_all(
             "/communications/quotes", Quote, "quotes",
@@ -343,6 +384,7 @@ class CommunicationsResource(SyncResource):
         no_bid: Decimal | str | float | int,
         rest_remainder: bool,
         subaccount: int | None = ...,
+        post_only: bool | None = ...,
     ) -> CreateQuoteResponse: ...
     def create_quote(
         self,
@@ -353,11 +395,13 @@ class CommunicationsResource(SyncResource):
         no_bid: Decimal | str | float | int | None = None,
         rest_remainder: bool | None = None,
         subaccount: int | None = None,
+        post_only: bool | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
         body = _build_create_quote_body(
             request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
             rest_remainder=rest_remainder, subaccount=subaccount,
+            post_only=post_only,
         )
         data = self._post("/communications/quotes", json=body)
         return CreateQuoteResponse.model_validate(data)
@@ -409,12 +453,14 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
         params = _list_rfqs_params(
             cursor=cursor, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
+            user_filter=user_filter,
         )
         return await self._list("/communications/rfqs", RFQ, "rfqs", params=params)
 
@@ -427,6 +473,7 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = None,
         status: str | None = None,
         creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[RFQ]:
         # Plain `def` so _require_auth + _validate_max_pages run at call time.
@@ -436,6 +483,7 @@ class AsyncCommunicationsResource(AsyncResource):
             cursor=None, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, subaccount=subaccount,
             status=status, creator_user_id=creator_user_id,
+            user_filter=user_filter,
         )
         return self._list_all(
             "/communications/rfqs", RFQ, "rfqs",
@@ -500,9 +548,14 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
     ) -> Page[Quote]:
         self._require_auth()
-        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _require_quote_filter(
+            quote_creator_user_id, rfq_creator_user_id,
+            user_filter, rfq_user_filter,
+        )
         params = _list_quotes_params(
             cursor=cursor, limit=limit, event_ticker=event_ticker,
             market_ticker=market_ticker, status=status,
@@ -510,6 +563,8 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
         )
         return await self._list(
             "/communications/quotes", Quote, "quotes", params=params,
@@ -526,10 +581,15 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_creator_user_id: str | None = None,
         rfq_creator_subtrader_id: str | None = None,
         rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[Quote]:
         self._require_auth()
-        _require_quote_filter(quote_creator_user_id, rfq_creator_user_id)
+        _require_quote_filter(
+            quote_creator_user_id, rfq_creator_user_id,
+            user_filter, rfq_user_filter,
+        )
         _validate_max_pages(max_pages)
         params = _list_quotes_params(
             cursor=None, limit=limit, event_ticker=event_ticker,
@@ -538,6 +598,8 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
             rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
         )
         return self._list_all(
             "/communications/quotes", Quote, "quotes",
@@ -562,6 +624,7 @@ class AsyncCommunicationsResource(AsyncResource):
         no_bid: Decimal | str | float | int,
         rest_remainder: bool,
         subaccount: int | None = ...,
+        post_only: bool | None = ...,
     ) -> CreateQuoteResponse: ...
     async def create_quote(
         self,
@@ -572,11 +635,13 @@ class AsyncCommunicationsResource(AsyncResource):
         no_bid: Decimal | str | float | int | None = None,
         rest_remainder: bool | None = None,
         subaccount: int | None = None,
+        post_only: bool | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
         body = _build_create_quote_body(
             request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
             rest_remainder=rest_remainder, subaccount=subaccount,
+            post_only=post_only,
         )
         data = await self._post("/communications/quotes", json=body)
         return CreateQuoteResponse.model_validate(data)

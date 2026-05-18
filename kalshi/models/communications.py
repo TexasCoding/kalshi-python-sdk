@@ -189,6 +189,7 @@ class CreateQuoteRequest(BaseModel):
     no_bid: DollarDecimal
     rest_remainder: bool
     subaccount: int | None = Field(default=None, ge=0, le=32)
+    post_only: bool | None = None
 
     model_config = {"extra": "forbid"}
 

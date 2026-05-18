@@ -128,6 +128,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/account/limits",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.account.AccountResource.endpoint_costs",
+        http_method="GET",
+        path_template="/account/endpoint_costs",
+    ),
     # ── api keys ────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.api_keys.ApiKeysResource.list",
@@ -367,6 +372,42 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/orders/{order_id}/queue_position",
     ),
+    # ── orders v2 (event-market, spec v3.18.0) ──────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.create_v2",
+        http_method="POST",
+        path_template="/portfolio/events/orders",
+        request_body_schema="#/components/schemas/CreateOrderV2Request",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.cancel_v2",
+        http_method="DELETE",
+        path_template="/portfolio/events/orders/{order_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.amend_v2",
+        http_method="POST",
+        path_template="/portfolio/events/orders/{order_id}/amend",
+        request_body_schema="#/components/schemas/AmendOrderV2Request",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.decrease_v2",
+        http_method="POST",
+        path_template="/portfolio/events/orders/{order_id}/decrease",
+        request_body_schema="#/components/schemas/DecreaseOrderV2Request",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.batch_create_v2",
+        http_method="POST",
+        path_template="/portfolio/events/orders/batched",
+        request_body_schema="#/components/schemas/BatchCreateOrdersV2Request",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.batch_cancel_v2",
+        http_method="DELETE",
+        path_template="/portfolio/events/orders/batched",
+        request_body_schema="#/components/schemas/BatchCancelOrdersV2Request",
+    ),
     # ── order groups ────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.order_groups.OrderGroupsResource.list",
@@ -537,6 +578,26 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.portfolio.PortfolioResource.total_resting_order_value",
         http_method="GET",
         path_template="/portfolio/summary/total_resting_order_value",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.deposits",
+        http_method="GET",
+        path_template="/portfolio/deposits",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.deposits_all",
+        http_method="GET",
+        path_template="/portfolio/deposits",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.withdrawals",
+        http_method="GET",
+        path_template="/portfolio/withdrawals",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.withdrawals_all",
+        http_method="GET",
+        path_template="/portfolio/withdrawals",
     ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -759,6 +820,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    ("kalshi.resources.portfolio.PortfolioResource.deposits_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.resources.portfolio.PortfolioResource.withdrawals_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
     # --- batch_cancel body param (not a query/path param) ---
     ("kalshi.resources.orders.OrdersResource.batch_cancel", "orders"): Exclusion(
         reason="body param (BatchCancelOrdersRequest.orders); not query/path",
@@ -774,6 +843,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     # fqn; async tests reuse the same allowlist entries").
     ("kalshi.resources.orders.OrdersResource.batch_cancel", "request"): Exclusion(
         reason="Optional request-model overload; not a spec field. See #56.",
+        kind="body_param",
+    ),
+    ("kalshi.resources.orders.OrdersResource.batch_cancel_v2", "request"): Exclusion(
+        reason=(
+            "Required request-model kwarg for the model-only V2 surface; "
+            "not a spec field. Mirrors batch_cancel."
+        ),
         kind="body_param",
     ),
     # --- AmendOrderRequest spec fields deliberately not on the model ---
@@ -1057,6 +1133,8 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.communications.CommunicationsResource.list_all_quotes",
     "kalshi.resources.subaccounts.SubaccountsResource.list_all_transfers",
     "kalshi.resources.portfolio.PortfolioResource.settlements_all",
+    "kalshi.resources.portfolio.PortfolioResource.deposits_all",
+    "kalshi.resources.portfolio.PortfolioResource.withdrawals_all",
     "kalshi.resources.fcm.FcmResource.orders_all",
     "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
     "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
@@ -1077,6 +1155,8 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.communications.AsyncCommunicationsResource.list_all_quotes",
     "kalshi.resources.subaccounts.AsyncSubaccountsResource.list_all_transfers",
     "kalshi.resources.portfolio.AsyncPortfolioResource.settlements_all",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.deposits_all",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.withdrawals_all",
     "kalshi.resources.fcm.AsyncFcmResource.orders_all",
     "kalshi.resources.incentive_programs.AsyncIncentiveProgramsResource.list_all",
     "kalshi.resources.structured_targets.AsyncStructuredTargetsResource.list_all",

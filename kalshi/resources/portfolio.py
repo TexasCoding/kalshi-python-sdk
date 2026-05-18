@@ -8,9 +8,11 @@ from typing import Any
 from kalshi.models.common import Page
 from kalshi.models.portfolio import (
     Balance,
+    Deposit,
     PositionsResponse,
     Settlement,
     TotalRestingOrderValue,
+    Withdrawal,
 )
 from kalshi.resources._base import (
     AsyncResource,
@@ -141,6 +143,58 @@ class PortfolioResource(SyncResource):
         data = self._get("/portfolio/summary/total_resting_order_value")
         return TotalRestingOrderValue.model_validate(data)
 
+    def deposits(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Deposit]:
+        self._require_auth()
+        params = _params(limit=limit, cursor=cursor)
+        return self._list(
+            "/portfolio/deposits", Deposit, "deposits", params=params,
+        )
+
+    def deposits_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+    ) -> Iterator[Deposit]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/deposits", Deposit, "deposits",
+            params=params, max_pages=max_pages,
+        )
+
+    def withdrawals(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Withdrawal]:
+        self._require_auth()
+        params = _params(limit=limit, cursor=cursor)
+        return self._list(
+            "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
+        )
+
+    def withdrawals_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+    ) -> Iterator[Withdrawal]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/withdrawals", Withdrawal, "withdrawals",
+            params=params, max_pages=max_pages,
+        )
+
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
@@ -218,3 +272,55 @@ class AsyncPortfolioResource(AsyncResource):
         self._require_auth()
         data = await self._get("/portfolio/summary/total_resting_order_value")
         return TotalRestingOrderValue.model_validate(data)
+
+    async def deposits(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Deposit]:
+        self._require_auth()
+        params = _params(limit=limit, cursor=cursor)
+        return await self._list(
+            "/portfolio/deposits", Deposit, "deposits", params=params,
+        )
+
+    def deposits_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+    ) -> AsyncIterator[Deposit]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/deposits", Deposit, "deposits",
+            params=params, max_pages=max_pages,
+        )
+
+    async def withdrawals(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+    ) -> Page[Withdrawal]:
+        self._require_auth()
+        params = _params(limit=limit, cursor=cursor)
+        return await self._list(
+            "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
+        )
+
+    def withdrawals_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+    ) -> AsyncIterator[Withdrawal]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/withdrawals", Withdrawal, "withdrawals",
+            params=params, max_pages=max_pages,
+        )

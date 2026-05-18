@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kalshi.models.account import AccountApiLimits
+from kalshi.models.account import AccountApiLimits, AccountEndpointCosts
 from kalshi.resources._base import AsyncResource, SyncResource
 
 
@@ -14,6 +14,11 @@ class AccountResource(SyncResource):
         data = self._get("/account/limits")
         return AccountApiLimits.model_validate(data)
 
+    def endpoint_costs(self) -> AccountEndpointCosts:
+        """List API v2 endpoints with non-default token costs."""
+        data = self._get("/account/endpoint_costs")
+        return AccountEndpointCosts.model_validate(data)
+
 
 class AsyncAccountResource(AsyncResource):
     """Async account API."""
@@ -22,3 +27,8 @@ class AsyncAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/account/limits")
         return AccountApiLimits.model_validate(data)
+
+    async def endpoint_costs(self) -> AccountEndpointCosts:
+        """List API v2 endpoints with non-default token costs."""
+        data = await self._get("/account/endpoint_costs")
+        return AccountEndpointCosts.model_validate(data)

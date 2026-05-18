@@ -107,6 +107,41 @@ class PositionsResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
+DepositStatusLiteral = Literal["pending", "applied", "failed", "returned"]
+"""Status of a Deposit/Withdrawal. Spec: GetDepositsResponse / GetWithdrawalsResponse."""
+
+PaymentTypeLiteral = Literal["ach", "wire", "crypto", "debit", "apm"]
+"""Payment method used for a deposit/withdrawal."""
+
+
+class Deposit(BaseModel):
+    """A single deposit history entry. Amounts are integer cents."""
+
+    id: str
+    status: DepositStatusLiteral
+    type: PaymentTypeLiteral
+    amount_cents: int
+    fee_cents: int
+    created_ts: int
+    finalized_ts: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class Withdrawal(BaseModel):
+    """A single withdrawal history entry. Amounts are integer cents."""
+
+    id: str
+    status: DepositStatusLiteral
+    type: PaymentTypeLiteral
+    amount_cents: int
+    fee_cents: int
+    created_ts: int
+    finalized_ts: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class Settlement(BaseModel):
     """A settled market position."""
 

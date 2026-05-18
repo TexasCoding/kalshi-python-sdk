@@ -27,9 +27,11 @@ def _build_create_order_group_body(
     *,
     contracts_limit: int | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request, contracts_limit=contracts_limit, subaccount=subaccount,
+        exchange_index=exchange_index,
     )
     if request is None:
         if contracts_limit is None:
@@ -38,6 +40,7 @@ def _build_create_order_group_body(
             )
         request = CreateOrderGroupRequest(
             contracts_limit=contracts_limit, subaccount=subaccount,
+            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -83,7 +86,11 @@ class OrderGroupsResource(SyncResource):
     ) -> CreateOrderGroupResponse: ...
     @overload
     def create(
-        self, *, contracts_limit: int, subaccount: int | None = ...,
+        self,
+        *,
+        contracts_limit: int,
+        subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> CreateOrderGroupResponse: ...
     def create(
         self,
@@ -91,18 +98,26 @@ class OrderGroupsResource(SyncResource):
         request: CreateOrderGroupRequest | None = None,
         contracts_limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> CreateOrderGroupResponse:
         # POST path is /order_groups/create, not /order_groups.
         self._require_auth()
         body = _build_create_order_group_body(
             request, contracts_limit=contracts_limit, subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = self._post("/portfolio/order_groups/create", json=body)
         return CreateOrderGroupResponse.model_validate(data)
 
-    def delete(self, order_group_id: str, *, subaccount: int | None = None) -> None:
+    def delete(
+        self,
+        order_group_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+    ) -> None:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
 
     def reset(self, order_group_id: str, *, subaccount: int | None = None) -> None:
@@ -170,7 +185,11 @@ class AsyncOrderGroupsResource(AsyncResource):
     ) -> CreateOrderGroupResponse: ...
     @overload
     async def create(
-        self, *, contracts_limit: int, subaccount: int | None = ...,
+        self,
+        *,
+        contracts_limit: int,
+        subaccount: int | None = ...,
+        exchange_index: int | None = ...,
     ) -> CreateOrderGroupResponse: ...
     async def create(
         self,
@@ -178,19 +197,25 @@ class AsyncOrderGroupsResource(AsyncResource):
         request: CreateOrderGroupRequest | None = None,
         contracts_limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> CreateOrderGroupResponse:
         self._require_auth()
         body = _build_create_order_group_body(
             request, contracts_limit=contracts_limit, subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = await self._post("/portfolio/order_groups/create", json=body)
         return CreateOrderGroupResponse.model_validate(data)
 
     async def delete(
-        self, order_group_id: str, *, subaccount: int | None = None,
+        self,
+        order_group_id: str,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
     ) -> None:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         await self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
 
     async def reset(
