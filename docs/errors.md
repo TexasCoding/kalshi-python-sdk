@@ -1,4 +1,4 @@
-# Error Handling
+# Errors
 
 All SDK exceptions inherit from `KalshiError`. HTTP responses are mapped to
 typed exceptions in the transport layer before any resource code sees them,
@@ -19,18 +19,18 @@ except KalshiRateLimitError as e:
 ## Hierarchy
 
 ```
-KalshiError
-├── KalshiAuthError              # 401 / 403
-│   └── AuthRequiredError        # private endpoint called on unauth'd client
-├── KalshiNotFoundError          # 404
-├── KalshiValidationError        # 400 (carries .details: dict[str, str])
-├── KalshiRateLimitError         # 429 (carries .retry_after: float | None)
-├── KalshiServerError            # 5xx
-└── KalshiWebSocketError
-    ├── KalshiConnectionError    # handshake / reconnect failure
-    ├── KalshiSequenceGapError   # unresolved sequence gap on a stream
-    ├── KalshiBackpressureError  # queue full with ERROR overflow strategy
-    └── KalshiSubscriptionError  # subscribe / unsubscribe rejected
+KalshiError                          # base, .status_code: int | None
+├── KalshiAuthError                  # 401 / 403
+│   └── AuthRequiredError            # preflight on unauth'd client
+├── KalshiNotFoundError              # 404
+├── KalshiValidationError            # 400 (carries .details: dict[str, str])
+├── KalshiRateLimitError             # 429 (carries .retry_after: float | None)
+├── KalshiServerError                # 5xx
+└── KalshiWebSocketError             # base for WS errors
+    ├── KalshiConnectionError        # handshake / reconnect failure
+    ├── KalshiSequenceGapError       # exposed for custom resync handlers
+    ├── KalshiBackpressureError      # queue full with ERROR overflow
+    └── KalshiSubscriptionError      # subscribe / unsubscribe rejected
 ```
 
 The `KalshiError` base carries an optional `status_code: int | None`.
@@ -39,58 +39,71 @@ leave it `None`.
 
 ## HTTP status → exception
 
-The mapping is done by `_map_error` in
-[`kalshi/_base_client.py`](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/kalshi/_base_client.py).
-It runs against the response status code, with the message pulled from
-`body["message"]`, then `body["error"]`, then the raw response text:
-
 | Status | Exception | Notes |
 |---|---|---|
-| `400` | `KalshiValidationError` | `details` is populated from `body["details"]` or `body["errors"]` when present and dict-shaped. |
+| `400` | `KalshiValidationError` | `.details` is populated from `body["details"]` or `body["errors"]` when present and dict-shaped. |
 | `401` / `403` | `KalshiAuthError` | Bad signature, expired key, missing scope. |
 | `404` | `KalshiNotFoundError` | Unknown ticker, missing order, etc. |
-| `429` | `KalshiRateLimitError` | `retry_after` parsed from the `Retry-After` header if it's a numeric value (HTTP-date form falls back to computed backoff). |
+| `429` | `KalshiRateLimitError` | `.retry_after` parsed from the `Retry-After` header if it's a non-negative finite numeric (HTTP-date form falls back to computed backoff). |
 | `5xx` | `KalshiServerError` | All server-side failures. |
 | anything else | `KalshiError` | Catch-all, with `status_code` set. |
 
-`AuthRequiredError` is the one exception that fires *before* the network —
-calling a private endpoint on an unauthenticated client raises it
-immediately, without sending the request.
+`AuthRequiredError` is the one HTTP-shaped exception that fires *before* the
+network — calling a private endpoint on an unauthenticated client raises it
+preflight, without sending the request. `status_code` is `None`. Since it
+subclasses `KalshiAuthError`, catching the parent covers both.
 
-## Retry behavior
+The mapping is performed by `_map_error` in
+[`kalshi/_base_client.py`](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/kalshi/_base_client.py).
 
-Retries are conservative by design: the wrong retry on the wrong verb is
-how duplicate orders happen.
+## Validation errors
 
-- **Retried** on `429`, `500`, `502`, `503`, `504` — and **only** for
-  `GET`, `HEAD`, `OPTIONS`. `POST` and `DELETE` are never retried, even on
-  transient 5xx, to avoid duplicate-order / duplicate-cancel risk.
-- **Backoff** is exponential with jitter: `retry_base_delay * 2**attempt
-  + random.uniform(0, 0.5)`, capped at `retry_max_delay` (default 30s).
-- **`Retry-After`** is honored on 429 but also capped at `retry_max_delay`
-  — a hostile or misconfigured server cannot stall the client with
-  arbitrary sleep values.
-- **Timeouts** on retryable methods retry with the same backoff. Timeouts
-  on `POST` / `DELETE` raise immediately.
+Two distinct things can go wrong with payloads:
 
-Tune via `KalshiConfig`:
+- **Server-side request validation** (`400 Bad Request`) — surfaces as
+  `KalshiValidationError`, with `details: dict[str, str]` populated from the
+  server's response when available. Use it to report field-level problems back
+  to the user.
+- **Pydantic validation on the response** — if the server returns a body that
+  doesn't match the SDK's typed model (a wire-format drift), Pydantic's own
+  `ValidationError` bubbles up. It is **not** a subclass of `KalshiError` —
+  treat it as a bug report against the SDK's model layer, not as a transient
+  error.
+
+Client-side validation on request bodies (Pydantic models with `extra="forbid"`)
+also raises Pydantic's `ValidationError` directly, **before** the network. A
+misspelled kwarg in a resource method raises `TypeError` first; phantom keys
+passed via `request=Model(...)` fail at `Model(...)` construction.
+
+## Transport-level wrapping
+
+Non-HTTP failures are wrapped to a typed exception with the original as
+`__cause__`:
+
+- **Timeouts** on retryable methods (`GET`, `HEAD`, `OPTIONS`) retry; once
+  retries are exhausted, the last `httpx.TimeoutException` is re-raised wrapped
+  in `KalshiError`. Timeouts on `POST` / `DELETE` raise `KalshiError`
+  immediately, no retry.
+- **Connection failures** (DNS, TLS, RST) raise `KalshiError` immediately on
+  any verb, no retry.
+
+There is no `KalshiTimeoutError` class. Inspect `e.__cause__` if you need to
+distinguish.
+
+## Catching everything from the SDK
 
 ```python
-from kalshi import KalshiClient, KalshiConfig
+from kalshi import KalshiError
 
-config = KalshiConfig(
-    timeout=10.0,
-    max_retries=5,
-    retry_base_delay=0.5,
-    retry_max_delay=15.0,
-)
-client = KalshiClient(key_id="...", private_key_path="...", config=config)
+try:
+    do_things(client)
+except KalshiError as e:
+    log.exception("SDK call failed (status=%s)", e.status_code)
 ```
 
-If `max_retries` runs out, the last typed exception is re-raised. Application
-code never sees a bare `httpx` exception — non-HTTP failures (DNS, TLS,
-connection-reset) are wrapped in `KalshiError` with the original exception
-as `__cause__`.
+A bare `except KalshiError` covers every SDK-raised exception **except** the
+Pydantic `ValidationError` you'd get from a malformed response (that one is a
+bug, not a runtime error).
 
 ## WebSocket errors
 
@@ -98,46 +111,31 @@ WebSocket failures are a separate sub-hierarchy under
 `KalshiWebSocketError`:
 
 - **`KalshiConnectionError`** — raised when the initial connect fails, when
-  the auth handshake is rejected, or when `ws_max_retries` is exhausted on
-  a reconnect attempt. Also surfaces from `ConnectionManager.send()` /
-  `recv()` if you call them without being connected.
+  the auth handshake is rejected, or when `ws_max_retries` is exhausted on a
+  reconnect attempt. Also surfaces from `ConnectionManager.send()` / `recv()`
+  if you call them without being connected.
 - **`KalshiSubscriptionError`** — server rejected a `subscribe` /
   `unsubscribe` / `update_subscription` command. Carries an optional
   `error_code` field with the server's machine-readable code.
-- **`KalshiBackpressureError`** — raised from `MessageQueue.put()` when
-  the queue is full and the overflow strategy is `ERROR`. See
-  [WebSocket Streaming → Backpressure](websockets.md#backpressure).
-- **`KalshiSequenceGapError`** — defined for callers that wire their own
-  resync logic on top of the SDK's primitives. The built-in receive loop
-  recovers from gaps silently (drops the message, clears local state,
-  waits for the next snapshot) rather than raising.
+- **`KalshiBackpressureError`** — raised from `MessageQueue.put()` when the
+  queue is full and the overflow strategy is `ERROR`. The receive loop treats
+  this as **fatal**: it broadcasts sentinels to every active iterator and
+  exits. See [WebSocket → Backpressure](websockets.md#backpressure).
+- **`KalshiSequenceGapError`** — exposed for callers wiring their own resync
+  logic on top of the SDK's primitives. The built-in receive loop **does not
+  raise** this — it recovers from gaps silently (drops the message, clears
+  local orderbook state, waits for the next snapshot).
 
 A subscription's iterator continues to yield across reconnects — the SDK
-re-issues the subscribe and patches the new server-side `sid` into the
-durable client-side id. You won't see `KalshiConnectionError` from inside
-`async for`; you'll see it from the `connect()` context manager if the
-socket can't be re-established at all.
+re-issues the subscribe and patches the new server-side `sid` into the durable
+client-side id. You won't see `KalshiConnectionError` from inside `async for`;
+you'll see it from the `connect()` context manager if the socket can't be
+re-established at all.
 
-## Validation errors
+## See also
 
-Two distinct things can go wrong with payloads, and they raise different
-exceptions:
-
-- **Server-side request validation** (`400 Bad Request`) — surfaces as
-  `KalshiValidationError`, with `details: dict[str, str]` populated from
-  the server's response when available. Use it to report field-level
-  problems back to the user.
-- **Pydantic validation on the response** — if the server returns a body
-  that doesn't match the SDK's typed model (a wire-format drift, or a
-  new field in an unexpected shape), Pydantic's own `ValidationError`
-  bubbles up. It is *not* a subclass of `KalshiError` — treat it as a
-  bug report against the SDK's model layer, not as a transient error.
-
-Client-side validation on request bodies (Pydantic models with
-`extra="forbid"`) also raises Pydantic's `ValidationError` directly,
-before the network. A misspelled kwarg in a resource method raises
-`TypeError` first; phantom keys passed via `request=Model(...)` fail at
-`Model(...)` construction.
+- [Retries & idempotency](retries.md) — what does and doesn't get retried, why
+  POST/DELETE never retry, recommended patterns for safely retrying writes.
 
 ## Exception reference
 

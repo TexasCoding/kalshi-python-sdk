@@ -1,4 +1,4 @@
-# WebSocket Streaming
+# WebSocket
 
 The SDK ships an async-only WebSocket client, `KalshiWebSocket`, that covers
 all 11 Kalshi channels. It handles RSA-PSS auth on the upgrade handshake,
@@ -6,9 +6,8 @@ per-subscription sequence-gap detection, automatic reconnection with
 re-subscription, and a configurable backpressure strategy on each per-channel
 queue.
 
-There is no sync WebSocket client. The Kalshi API is push-driven and live
-data is fundamentally async — wrap it in `asyncio.run(...)` if you need to
-call it from sync code.
+There is no sync WebSocket client. Wrap calls in `asyncio.run(...)` from sync
+code.
 
 The wire protocol is documented in the
 [AsyncAPI spec](https://docs.kalshi.com/asyncapi.yaml). This page is the
@@ -20,33 +19,39 @@ SDK's perspective on it.
 
 - A `connect()` async context manager that opens the underlying socket and
   starts the background receive loop.
-- A typed `subscribe_<channel>()` method per channel, each returning an
-  async iterator of fully-parsed Pydantic messages.
-- A generic `subscribe(channel, params=...)` for forward compatibility.
-- An `on(channel)` decorator for a callback-style API.
-- An `orderbook(ticker)` helper that yields a maintained `Orderbook`
-  snapshot on every delta.
+- A typed `subscribe_<channel>()` method per channel, each returning an async
+  iterator of fully-parsed Pydantic messages.
+- A generic `subscribe(channel, params=..., overflow=..., maxsize=...)` for
+  forward compatibility.
+- An `@ws.on(channel)` decorator for a callback-style API (which **fans out
+  alongside** iterators rather than replacing them).
+- An `orderbook(ticker)` helper that yields a maintained `Orderbook` snapshot
+  on every delta.
+- `on_state_change=` and `on_error=` hooks on the constructor for observability.
 
-The 11 channels:
+## The 11 channels
 
-| Channel | Auth | Per-message | Description |
-|---|---|---|---|
-| `ticker` | public | `TickerMessage` | Best bid/ask + volume per market. |
-| `trade` | public | `TradeMessage` | Executed prints. |
-| `orderbook_delta` | public | `OrderbookSnapshotMessage` then `OrderbookDeltaMessage` | Full L2 book deltas, sequenced. |
-| `market_lifecycle_v2` | public | `MarketLifecycleMessage` | Market open/close/settle transitions. |
-| `multivariate` | public | `MultivariateMessage` | Multivariate market events. |
-| `multivariate_market_lifecycle` | public | `MultivariateLifecycleMessage` | Multivariate market lifecycle. |
-| `fill` | private | `FillMessage` | Your fills. |
-| `user_orders` | private | `UserOrdersMessage` | Your order status changes. |
-| `market_positions` | private | `MarketPositionsMessage` | Your position deltas. |
-| `order_group_updates` | private | `OrderGroupMessage` | Order-group state changes, sequenced. |
-| `communications` | private | `CommunicationsMessage` | RFQ / quote events. |
+| SDK method | Wire channel | Message `type` field | Message class | Auth |
+|---|---|---|---|---|
+| `subscribe_ticker` | `ticker` | `ticker` | `TickerMessage` | public |
+| `subscribe_trade` | `trade` | `trade` | `TradeMessage` | public |
+| `subscribe_orderbook_delta` | `orderbook_delta` | `orderbook_snapshot` → `orderbook_delta` | `OrderbookSnapshotMessage` / `OrderbookDeltaMessage` | public |
+| `subscribe_market_lifecycle` | `market_lifecycle_v2` | `market_lifecycle_v2` | `MarketLifecycleMessage` | public |
+| `subscribe_multivariate` | `multivariate` | `multivariate_lookup` | `MultivariateMessage` | public |
+| `subscribe_multivariate_lifecycle` | `multivariate_market_lifecycle` | `multivariate_market_lifecycle` | `MultivariateLifecycleMessage` | public |
+| `subscribe_fill` | `fill` | `fill` | `FillMessage` | private |
+| `subscribe_user_orders` | `user_orders` | `user_order` (singular) | `UserOrdersMessage` | private |
+| `subscribe_market_positions` | `market_positions` | `market_position` (singular) | `MarketPositionsMessage` | private |
+| `subscribe_order_group` | `order_group_updates` | `order_group_updates` | `OrderGroupMessage` | private |
+| `subscribe_communications` | `communications` | `communications` | `CommunicationsMessage` | private |
 
-`subscribe_market_lifecycle()`, `subscribe_order_group()`,
-`subscribe_multivariate_lifecycle()` map to the wire channel names in the
-table above. The SDK method names drop the `_v2` / `_updates` /
-`_market_lifecycle` suffixes for ergonomics.
+The `type` column matters when filtering raw logs — note the singular forms
+for `user_order`, `market_position`, and the `multivariate_lookup` /
+`multivariate` mismatch.
+
+Two channels carry monotonic `seq` numbers and have built-in sequence-gap
+recovery: `orderbook_delta` (which delivers both snapshot and delta envelopes
+under one subscription) and `order_group_updates`.
 
 ## Connect and subscribe
 
@@ -74,7 +79,8 @@ open. Exiting the block sends graceful sentinels to all active iterators and
 closes the socket with code 1000.
 
 `subscribe_*` methods return an async iterator. Iterate it directly with
-`async for`; the iterator stops when the socket closes.
+`async for`; the iterator stops when the socket closes or the subscription is
+torn down.
 
 You can hold multiple subscriptions in parallel — each has its own bounded
 queue, and the background receive loop fans messages out:
@@ -97,9 +103,8 @@ async with ws.connect() as session:
 
 ### Callback style
 
-If you'd rather register handlers than iterate, use `ws.on(channel)`. The
-message passed to your callback is the typed Pydantic model for that channel
-— `TickerMessage` here, `FillMessage` for `fill`, etc. — not a raw `dict`.
+Register handlers with `@ws.on(channel)`. The message passed to your callback
+is the typed Pydantic model for that channel.
 
 ```python
 from kalshi.ws.models import TickerMessage
@@ -117,132 +122,65 @@ async with ws.connect():
 `on()` works both before and after `connect()`; callbacks registered before
 the socket opens are buffered and applied when the session starts.
 
-Registering a callback for a channel **takes over routing** for that channel —
-messages on that channel won't appear in an iterator returned by
-`subscribe_<channel>()`. Pick one style per channel.
+!!! info "Callbacks fan out, they don't replace iterators"
+    When a callback is registered for a channel that also has an active
+    `subscribe_*` iterator, **both** the callback and the iterator receive the
+    message. A warning is logged so you know it's happening. If you want
+    callback-only routing, don't call `subscribe_*` on the same channel.
 
-## Channel reference
+### Generic `subscribe()`
 
-Each `subscribe_*` method returns an async iterator of one Pydantic message
-type. Messages have a uniform envelope: `type: str`, `sid: int` (server
-subscription id), `seq: int | None`, and `msg: <Payload>`.
-
-### `subscribe_ticker(tickers=...)`
-
-Yields [`TickerMessage`](reference.md). `tickers` filters to a market list;
-omit it for the full-firehose. Latest-wins channel — the SDK's queue uses
-`DROP_OLDEST` so a slow consumer falls behind silently instead of erroring.
-
-### `subscribe_trade(tickers=...)`
-
-Yields [`TradeMessage`](reference.md). Each print: ticker, side, count, price,
-ts. `DROP_OLDEST` overflow.
-
-### `subscribe_orderbook_delta(tickers=...)`
-
-Yields [`OrderbookSnapshotMessage`](reference.md) (initial; one per ticker
-when subscribing) then [`OrderbookDeltaMessage`](reference.md) updates.
-**Sequenced** — gaps trigger an automatic resync (see below).
-`ERROR` overflow because deltas are stateful — silently dropping one
-corrupts the book.
-
-If you want full books rather than raw deltas:
+For channels the SDK adds later than your installed version, the generic
+escape hatch is:
 
 ```python
-async with ws.connect() as session:
-    async for book in await session.orderbook("KXPRES-24-DJT"):
-        print(book.yes[0], book.no[0])
+stream = await session.subscribe(
+    "some_new_channel",
+    params={"market_tickers": [...]},
+)
+async for raw in stream:
+    ...  # raw is a dict; you parse it
 ```
 
-`orderbook()` wraps `subscribe_orderbook_delta`, applies deltas to an
-internal `OrderbookManager`, and yields a fresh `Orderbook` on each update.
-
-### `subscribe_fill()`
-
-Yields [`FillMessage`](reference.md). Private — requires auth. Fired when one
-of your orders fills. `DROP_OLDEST`.
-
-### `subscribe_user_orders()`
-
-Yields [`UserOrdersMessage`](reference.md). Private. Order lifecycle
-transitions: `resting`, `canceled`, `executed`, etc.
-
-### `subscribe_market_positions()`
-
-Yields [`MarketPositionsMessage`](reference.md). Private. Your aggregate
-position per market.
-
-### `subscribe_order_group()`
-
-Yields [`OrderGroupMessage`](reference.md). Private, **sequenced**. State
-changes on order groups. `ERROR` overflow.
-
-### `subscribe_market_lifecycle(tickers=...)`
-
-Yields [`MarketLifecycleMessage`](reference.md). Market created, opened,
-closed, settled. `DROP_OLDEST`.
-
-### `subscribe_multivariate()`
-
-Yields [`MultivariateMessage`](reference.md). Multivariate market updates.
-`DROP_OLDEST`.
-
-### `subscribe_multivariate_lifecycle()`
-
-Yields [`MultivariateLifecycleMessage`](reference.md). Lifecycle for
-multivariate markets. `DROP_OLDEST`.
-
-### `subscribe_communications(shard_factor=..., shard_key=...)`
-
-Yields [`CommunicationsMessage`](reference.md). RFQ / quote lifecycle.
-`shard_factor` / `shard_key` let you partition the stream across consumers.
-`DROP_OLDEST`.
-
-The Pydantic models live in
-[`kalshi.ws.models`](https://github.com/TexasCoding/kalshi-python-sdk/tree/main/kalshi/ws/models).
-Field aliases match the AsyncAPI wire format (`yes_bid_dollars` →
-`yes_bid: Decimal`, `volume_fp` → `volume: str`, etc.).
+Only these param keys are forwarded to the server (others are silently
+dropped): `market_ticker`, `market_tickers`, `market_id`, `market_ids`,
+`shard_factor`, `shard_key`, `send_initial_snapshot`, `skip_ticker_ack`.
 
 ## Sequence-gap detection
 
-The `orderbook_delta` subscription (which delivers both snapshot and delta
-messages) and `order_group_updates` carry monotonic `seq` numbers. The SDK
-tracks the last `seq` per `sid` and flags a gap when it sees `seq > last + 1`.
+`orderbook_delta` and `order_group_updates` messages carry a monotonic `seq`.
+The SDK tracks the last `seq` per server `sid` and flags a gap when it sees
+`seq > last + 1`.
 
 When a gap is detected:
 
 1. The offending message is **dropped** without being dispatched.
-2. For `orderbook_delta`, the SDK clears the affected ticker's local book
-   and the per-`sid` sequence tracker — the next snapshot from the server
-   re-bootstraps it.
-3. Duplicates (`seq <= last`) are silently ignored.
+2. The per-`sid` sequence tracker is reset, and for `orderbook_delta` the
+   local book for the affected ticker is cleared.
+3. The next server snapshot rebootstraps state.
+4. Duplicates (`seq <= last`) are silently ignored.
+
+The built-in receive loop **does not raise** `KalshiSequenceGapError` — it
+recovers silently. The exception class exists for callers wiring their own
+resync logic on top of `subscribe(channel, ...)` against a custom tracker.
 
 If recovery never lands — e.g. the server stops sending the channel — your
-iterator stays open but produces nothing. The `KalshiSequenceGapError`
-exception class exists in the hierarchy for callers that want to wire their
-own resync logic via `subscribe(channel, ...)` against a custom tracker, but
-the default path is silent recovery; it is not raised by the built-in
-managers today.
-
-The list of sequenced channels lives in
-[`SEQUENCED_CHANNELS`](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/kalshi/ws/sequence.py)
-— add your own resync hook there if you fork the client.
+iterator stays open but produces nothing. Watch
+[connection state](#connection-state) for clues.
 
 ## Backpressure
 
-Every per-channel iterator is fed by a bounded `MessageQueue` (default
-`maxsize=1000`). What happens when the queue fills depends on
-`OverflowStrategy`:
+Every per-channel iterator is fed by a bounded `MessageQueue`. What happens
+when the queue fills depends on `OverflowStrategy`:
 
-| Strategy | Behavior | SDK default for |
+| Strategy | Behavior | Default for |
 |---|---|---|
 | `DROP_OLDEST` | Ring-buffer: evict oldest, keep newest. | `ticker`, `trade`, `fill`, `user_orders`, `market_positions`, `market_lifecycle`, `multivariate`, `multivariate_lifecycle`, `communications` |
 | `ERROR` | Raise `KalshiBackpressureError` from the producer side. | `orderbook_delta`, `order_group_updates` |
 
 The choice tracks state semantics: latest-wins channels (`ticker`) survive a
-drop; stateful, sequenced channels (`orderbook_delta`) can't — a missed
-delta is a corrupted book, which is exactly what sequence-gap detection
-catches.
+drop; stateful, sequenced channels (`orderbook_delta`) can't — a missed delta
+is a corrupted book, which is exactly what sequence-gap detection catches.
 
 Override per call:
 
@@ -258,29 +196,55 @@ stream = await session.subscribe(
 )
 ```
 
-`KalshiBackpressureError` is raised inside the receive loop, logged, and the
-loop continues — your iterator keeps yielding (after some lost messages).
-If you want hard failure on backpressure, catch it via a custom callback
-registered with `ws.on(...)` or watch the connection state via
-`on_state_change` on `KalshiWebSocket(...)`.
+Default `maxsize=1000` for explicit subscriptions, `100` for the `orderbook()`
+helper.
+
+!!! danger "Backpressure on ERROR channels is fatal"
+    When `KalshiBackpressureError` fires in the receive loop, it is treated as
+    **fatal**: the loop broadcasts sentinels to every active iterator and
+    exits. Your `async for` blocks end via `StopAsyncIteration`. The connection
+    state moves to `CLOSED`. Wire `on_error=` and `on_state_change=` on the
+    constructor to observe this.
+
+    The same fatal-teardown behavior applies to `KalshiSubscriptionError`
+    encountered mid-stream.
+
+## Orderbook helper
+
+If you want full books rather than raw deltas:
+
+```python
+async with ws.connect() as session:
+    async for book in await session.orderbook("KXPRES-24-DJT"):
+        print(book.yes[0], book.no[0])
+```
+
+`orderbook()` wraps `subscribe_orderbook_delta`, applies snapshots/deltas to
+an internal `OrderbookManager`, and yields a fresh `kalshi.models.markets.Orderbook`
+on each update. Each yielded book is a new instance — your consumer can hold
+on to it without worrying about mutation.
+
+A delta arriving before a snapshot logs a warning and is dropped. A `seq` gap
+triggers a snapshot-driven rebuild as described above.
 
 ## Reconnection
 
-If the underlying socket drops (server hangup, transient network error,
-ping timeout), the receive loop transitions to `RECONNECTING` and retries
-the connect with the same exponential-backoff-and-jitter formula as the
-REST transport (`retry_base_delay * 2**attempt + jitter`, capped at
-`retry_max_delay`), up to `KalshiConfig.ws_max_retries` (default 10).
+If the underlying socket drops (server hangup, transient network error, ping
+timeout), the receive loop transitions to `RECONNECTING` and retries the
+connect with the same full-jitter formula as the REST transport
+(`random.uniform(0, min(retry_base_delay * 2 ** attempt, retry_max_delay))`),
+up to `KalshiConfig.ws_max_retries` (default 10).
 
 On a successful reconnect:
 
 1. All active subscriptions are re-issued. Server `sid`s change; the SDK
    tracks each subscription by a durable client-side id and rebuilds the
-   `sid → client_id` map.
-2. Sequence trackers are reset (`SequenceTracker.reset_all()`).
-3. The local orderbook cache is cleared. `orderbook_delta` subscriptions
-   are re-issued with `send_initial_snapshot: true` so the book is
-   re-bootstrapped from a fresh snapshot.
+   `sid → client_id` map. Per-sub failures are isolated — a failing
+   resubscribe drops just that one queue, the rest continue.
+2. Sequence trackers are reset.
+3. The local orderbook cache is cleared. `orderbook_delta` subscriptions are
+   re-issued with `send_initial_snapshot: true` so the book is re-bootstrapped
+   from a fresh snapshot.
 4. Active iterators keep yielding — they reference the durable client-side
    ids, not the server `sid`s.
 
@@ -288,7 +252,7 @@ If `ws_max_retries` is exhausted, the receive loop pushes sentinels to all
 active queues (so `async for` terminates cleanly) and exits. The connection
 state ends at `CLOSED`.
 
-Wire the `on_state_change` callback to observe transitions:
+### Connection state
 
 ```python
 from kalshi.ws import ConnectionState
@@ -299,4 +263,48 @@ async def on_state(old: ConnectionState, new: ConnectionState) -> None:
 ws = KalshiWebSocket(auth=auth, config=config, on_state_change=on_state)
 ```
 
-See `kalshi.ws.ConnectionState` for the full state machine.
+Possible states: `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `STREAMING`,
+`RECONNECTING`, `CLOSED`.
+
+### Heartbeat
+
+Heartbeat uses `websockets`' built-in keepalive: `ping_interval=20`,
+`ping_timeout=heartbeat_timeout` (constructor arg, default 30s). A missed pong
+trips reconnect.
+
+## Error observability
+
+```python
+from kalshi.ws.models import ErrorMessage
+
+async def on_error(err: ErrorMessage) -> None:
+    print("WS error:", err.msg.code, err.msg.message)
+
+ws = KalshiWebSocket(auth=auth, config=config, on_error=on_error)
+```
+
+The `on_error` hook receives both server-sent error envelopes and synthesized
+errors from internal failures (e.g. unknown message types, dispatch
+exceptions). Pair it with `on_state_change` for a complete picture of session
+health.
+
+## Auth on the WebSocket
+
+`KalshiWebSocket` signs an RSA-PSS `GET` against the WebSocket URL's path and
+sends the signature as headers on the upgrade handshake — same scheme as
+REST. There's no token in the URL, no signed message after open. The signature
+is re-computed on every reconnect attempt.
+
+Public channels (ticker, trade, orderbook_delta, market_lifecycle,
+multivariate, multivariate_lifecycle) work without auth — pass
+`auth=None` if you don't need private channels.
+
+## Reference
+
+::: kalshi.ws.client.KalshiWebSocket
+
+::: kalshi.ws.connection.ConnectionState
+
+::: kalshi.ws.backpressure.OverflowStrategy
+
+::: kalshi.ws.backpressure.MessageQueue

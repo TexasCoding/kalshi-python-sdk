@@ -1,4 +1,4 @@
-# Getting Started
+# Quickstart
 
 This page walks you from a blank environment to your first authenticated request
 against Kalshi's demo API.
@@ -9,7 +9,7 @@ against Kalshi's demo API.
 pip install kalshi-sdk
 ```
 
-Requires Python 3.12 or newer.
+Requires Python 3.12 or newer. Optional extras: `pandas`, `polars`, or `all`.
 
 ## Create an API key
 
@@ -27,7 +27,10 @@ Requires Python 3.12 or newer.
 A demo key cannot authenticate against production and vice versa. The rest of this
 guide assumes a demo key and `demo=True`.
 
-You do **not** need an API key to read public market data — skip ahead to
+You can also mint keys programmatically once authenticated — see
+[API keys](resources/api-keys.md).
+
+You do **not** need an API key to read most public market data — skip ahead to
 ["Hello, markets" (no auth)](#hello-markets-no-auth) if you just want to browse.
 
 ## Hello, world (authenticated)
@@ -48,10 +51,12 @@ with KalshiClient(
 The client is a context manager — the underlying `httpx.Client` is closed on
 exit. If you can't use a `with` block, call `client.close()` yourself.
 
+The constructor is keyword-only; passing an empty `key_id` raises `ValueError`.
+
 ## Hello, markets (no auth)
 
-Public endpoints work without credentials. The client is "unauthenticated" but
-all read-only resource methods still function:
+Most public endpoints work without credentials. The client is "unauthenticated" but
+read-only resource methods on public endpoints still function:
 
 ```python
 from kalshi import KalshiClient
@@ -63,8 +68,13 @@ with KalshiClient(demo=True) as client:
         print(market.ticker)
 ```
 
-Calling a private endpoint (e.g. placing an order) on an unauthenticated client
-raises [`AuthRequiredError`](errors.md).
+A small number of "public-looking" endpoints actually require auth — notably
+`markets.orderbook()`, `markets.bulk_orderbooks()`, and
+`series.forecast_percentile_history()`. Calling those on an unauthenticated
+client raises [`AuthRequiredError`](errors.md) before the network. Calling a
+private endpoint (orders, portfolio, …) on an authenticated-but-wrong-scope
+client comes back as a server 401/403 mapped to
+[`KalshiAuthError`](errors.md).
 
 ## Async
 
@@ -90,6 +100,7 @@ asyncio.run(main())
 ## Place an order (demo)
 
 ```python
+import uuid
 from kalshi import KalshiClient
 
 with KalshiClient.from_env() as client:
@@ -98,17 +109,32 @@ with KalshiClient.from_env() as client:
         side="yes",
         action="buy",
         count=10,
-        yes_price="0.65",          # 65 cents — strings or Decimals, never float
+        yes_price="0.65",                  # 65¢ — strings or Decimals, never float
         time_in_force="good_till_canceled",
-        client_order_id="my-unique-id",  # idempotency key
+        client_order_id=str(uuid.uuid4()), # idempotency key (see below)
     )
     print(order.order_id, order.status)
 ```
 
+!!! warning "POST is never retried automatically"
+    The transport never retries `POST` (or `DELETE`) requests, to avoid duplicate
+    orders. Pass a fresh `client_order_id` on every `create()` call so you can safely
+    retry from your application layer without double-filling. See
+    [Retries & idempotency](retries.md).
+
+!!! warning "`buy_max_cost` is integer cents, not dollars"
+    `CreateOrderRequest.buy_max_cost` is `int` cents — `500` means $5.00. Passing a
+    `Decimal` or `float` raises `ValueError` at construction. Other price fields
+    (`yes_price`, `no_price`) are `DollarDecimal` and accept strings or
+    `Decimal`.
+
 Prices are decimal dollars per the Kalshi spec. Internally the SDK uses
-`Decimal` via the `DollarDecimal` type — never `float`.
+`Decimal` via the [`DollarDecimal`](types.md) type — never `float`.
 
 ## Where to next
 
 - [Authentication](authentication.md) — all the ways to provide credentials.
-- [API Reference](reference.md) — the full auto-generated reference.
+- [Configuration](configuration.md) — timeouts, retries, HTTP/2, custom transports.
+- [Concepts](concepts.md) — RFQs, milestones, multivariate, subaccounts.
+- [Resources overview](resources/index.md) — every resource grouped by area.
+- [API Reference](reference.md) — full auto-generated reference.

@@ -3,12 +3,15 @@
 Kalshi uses RSA-PSS request signing. You'll need:
 
 - A **key ID** (string, identifies the key on Kalshi's side).
-- A **private key** — RSA, PEM-encoded.
+- A **private key** — RSA, **PEM-encoded, PKCS#8, unencrypted**.
 
 Generate the pair in your [Kalshi account settings](https://kalshi.com/account/profile)
 and download the PEM file. The signing scheme used internally is
 RSA-PSS / SHA256 / MGF1(SHA256) / salt = digest length / base64 — you don't need
 to implement any of that yourself; the SDK does it for you.
+
+You can also mint keys programmatically once authenticated; see
+[API keys](resources/api-keys.md).
 
 ## Option 1 — Key file path (most common)
 
@@ -22,7 +25,8 @@ with KalshiClient(
     ...
 ```
 
-`~` is expanded for you. Pass a `pathlib.Path` or a string.
+`~` is expanded for you. Pass a `pathlib.Path` or a string. The constructor is
+keyword-only; an empty `key_id` raises `ValueError` immediately.
 
 ## Option 2 — Environment variables
 
@@ -46,10 +50,11 @@ with KalshiClient.from_env() as client:
 ```
 
 If `KALSHI_KEY_ID` / `KALSHI_PRIVATE_KEY_PATH` are unset, `from_env()` returns
-an **unauthenticated** client. Public endpoints still work; private endpoints
-raise `AuthRequiredError`.
+an **unauthenticated** client. Public endpoints still work. See
+[Environment variables](environment-variables.md) for the full table and
+precedence rules.
 
-## Option 3 — In-memory PEM
+## Option 3 — In-memory PEM (env var)
 
 If you store the private key in a secret manager (Vault, AWS Secrets Manager,
 GCP Secret Manager, …), set `KALSHI_PRIVATE_KEY` to the PEM contents:
@@ -61,7 +66,24 @@ MIIEv...
 ```
 
 Then `KalshiClient.from_env()` will load the key directly without touching the
-filesystem.
+filesystem. `KALSHI_PRIVATE_KEY` takes precedence over `KALSHI_PRIVATE_KEY_PATH`
+when both are set.
+
+## Option 4 — In-memory PEM (constructor)
+
+You can also pass the PEM string straight to the constructor:
+
+```python
+from kalshi import KalshiClient
+
+pem = secret_manager.get("kalshi/private_key")  # str returning the PEM body
+
+with KalshiClient(key_id="...", private_key=pem) as client:
+    ...
+```
+
+The constructor accepts both `private_key_path=` and `private_key=`; supply
+exactly one.
 
 ## Demo vs. production
 
@@ -101,7 +123,7 @@ asyncio.run(main())
 
 ## Public / unauthenticated usage
 
-You don't need credentials for public market data:
+You don't need credentials for most public market data:
 
 ```python
 from kalshi import KalshiClient
@@ -111,9 +133,16 @@ with KalshiClient(demo=True) as client:
     markets = client.markets.list(status="open", limit=5)
 ```
 
-Any private endpoint call on an unauthenticated client raises
-`AuthRequiredError` (a subclass of `KalshiAuthError`) immediately, before
-hitting the network.
+A handful of "public-looking" endpoints still require auth at the server
+(`markets.orderbook`, `markets.bulk_orderbooks`,
+`series.forecast_percentile_history`, `exchange.user_data_timestamp`).
+Calling those on an unauthenticated client raises
+[`AuthRequiredError`](errors.md) preflight — no network round-trip.
+
+If you instead call a private endpoint with the wrong scope or expired
+credentials, the server returns 401/403 and the transport maps it to
+[`KalshiAuthError`](errors.md). `AuthRequiredError` is a subclass of
+`KalshiAuthError`, so catching the parent covers both.
 
 ## Direct `KalshiAuth` usage
 
@@ -126,8 +155,47 @@ from kalshi import KalshiAuth
 # From a key file
 auth = KalshiAuth.from_key_path("your-key-id", "~/.kalshi/private_key.pem")
 
-# From the environment (returns None if unset; use from_env() to raise instead)
+# From a PEM string already in memory
+auth = KalshiAuth.from_pem("your-key-id", pem_string)
+
+# From the environment — raises if vars are missing
+auth = KalshiAuth.from_env()
+
+# From the environment — returns None on missing creds, but still raises
+# KalshiAuthError if vars are set but malformed
 maybe_auth = KalshiAuth.try_from_env()
+```
+
+### Key format constraints
+
+`from_pem` and `from_key_path` are strict about format. If your key fails to
+load, check:
+
+- **Must be RSA.** EC, Ed25519, DSA keys are rejected.
+- **Must be PKCS#8** (`-----BEGIN PRIVATE KEY-----`). Legacy PKCS#1
+  (`-----BEGIN RSA PRIVATE KEY-----`) is supported by the underlying
+  `cryptography` library on a best-effort basis.
+- **Must be unencrypted.** Passphrase-protected keys raise `KalshiAuthError`
+  with a hint. Strip the passphrase with `openssl pkey`:
+
+    ```bash
+    openssl pkey -in encrypted.pem -out unencrypted.pem
+    ```
+
+### Manual signing
+
+`KalshiAuth.sign_request(method, path, timestamp_ms=None)` is part of the
+public API for callers building custom transports. The path is the URL path
+only — query string stripped, trailing slash stripped (except for the literal
+`/`), with percent-encoded sequences normalized to uppercase hex per RFC 3986.
+
+```python
+from kalshi import KalshiAuth
+
+auth = KalshiAuth.from_env()
+headers = auth.sign_request("GET", "/trade-api/v2/exchange/status")
+# headers = {"KALSHI-ACCESS-KEY": ..., "KALSHI-ACCESS-SIGNATURE": ...,
+#            "KALSHI-ACCESS-TIMESTAMP": ...}
 ```
 
 See the [API reference](reference.md) for the full surface.

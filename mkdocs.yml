@@ -5,12 +5,16 @@ repo_url: https://github.com/TexasCoding/kalshi-python-sdk
 repo_name: TexasCoding/kalshi-python-sdk
 edit_uri: edit/main/docs/
 
+not_in_nav: |
+  /AUDIT-resource-params.md
+  /RELEASING.md
+
 theme:
   name: material
   features:
     - navigation.sections
-    - navigation.expand
     - navigation.top
+    - navigation.indexes
     - content.code.copy
     - content.action.edit
     - search.suggest
@@ -41,24 +45,63 @@ plugins:
             separate_signature: true
             docstring_style: google
             merge_init_into_class: true
+            members_order: source
+            filters:
+              - "!^_"
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
+  - tables
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
   - toc:
       permalink: true
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Authentication: authentication.md
-  - Resources: resources/index.md
-  - WebSocket Streaming: websockets.md
-  - Error Handling: errors.md
+  - Getting Started:
+    - Quickstart: getting-started.md
+    - Concepts: concepts.md
+    - Authentication: authentication.md
+    - Configuration: configuration.md
+    - Environment variables: environment-variables.md
+  - Core:
+    - Pagination: pagination.md
+    - Types & literals: types.md
+    - Request models: request-models.md
+    - DataFrames: dataframes.md
+    - Errors: errors.md
+    - Retries & idempotency: retries.md
+  - Resources:
+    - Overview: resources/index.md
+    - Markets: resources/markets.md
+    - Events: resources/events.md
+    - Series: resources/series.md
+    - Exchange: resources/exchange.md
+    - Historical: resources/historical.md
+    - Search: resources/search.md
+    - Orders: resources/orders.md
+    - Portfolio: resources/portfolio.md
+    - Order groups: resources/order-groups.md
+    - Account: resources/account.md
+    - API keys: resources/api-keys.md
+    - Subaccounts: resources/subaccounts.md
+    - FCM: resources/fcm.md
+    - Communications (RFQ/Quote): resources/communications.md
+    - Multivariate: resources/multivariate.md
+    - Milestones: resources/milestones.md
+    - Structured targets: resources/structured-targets.md
+    - Incentive programs: resources/incentive-programs.md
+    - Live data: resources/live-data.md
+  - WebSocket: websockets.md
+  - Testing: testing.md
   - Migration: migration.md
   - API Reference: reference.md
