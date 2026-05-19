@@ -1,5 +1,112 @@
 # Migration
 
+## v2.0 → v2.1
+
+v2.1 syncs the SDK to OpenAPI spec v3.18.0. It's **additive at the resource
+surface** — eight new endpoints, several new optional kwargs on existing
+methods, and one soft-breaking model-construction change called out below.
+Code that only consumes the SDK's responses needs no edits; code that
+constructs models directly in tests/mocks needs one small update.
+
+### `Balance.balance_dollars` — required, soft-breaking at construction
+
+Spec v3.18.0 adds `balance_dollars: FixedPointDollars` to
+`GetBalanceResponse` as a required field. The server now guarantees it, so
+callers parsing API responses (`client.portfolio.balance()`) are unaffected.
+**But** any code that builds `Balance(...)` directly — typically test mocks
+— will hit `ValidationError` until it adds the field.
+
+```python
+# v2.0 — broken in v2.1
+Balance(balance=50000, portfolio_value=75000, updated_ts=ts)
+
+# v2.1
+Balance(
+    balance=50000,
+    balance_dollars=Decimal("500.00"),   # new required field
+    portfolio_value=75000,
+    updated_ts=ts,
+)
+```
+
+The accompanying optional `balance_breakdown: list[IndexedBalance] | None`
+splits the total across exchange shards when present. `IndexedBalance.balance`
+is `DollarDecimal` (matching `balance_dollars` units), not cents — same
+field name as `Balance.balance` but a different type. Be deliberate when
+reading from `balance.balance_breakdown[i].balance`.
+
+### V2 event-market orders
+
+Six new methods on `OrdersResource` / `AsyncOrdersResource` hit the new
+`/portfolio/events/orders/*` paths:
+
+- `create_v2(*, request: CreateOrderV2Request)`
+- `cancel_v2(order_id, *, subaccount, exchange_index)`
+- `amend_v2(order_id, *, request: AmendOrderV2Request, subaccount)`
+- `decrease_v2(order_id, *, request: DecreaseOrderV2Request, subaccount)`
+- `batch_create_v2(*, request: BatchCreateOrdersV2Request)`
+- `batch_cancel_v2(*, request: BatchCancelOrdersV2Request)`
+
+Legacy `/portfolio/orders` keeps working and will be deprecated no earlier
+than May 6, 2026. No migration is required to stay on v1 paths. New
+event-market trading should target the V2 family for the cleaner shape
+(single `bid`/`ask` side, single `price` field, explicit idempotency).
+
+Two important differences from V1:
+
+1. **`client_order_id` is required** on `CreateOrderV2Request` and acts as
+   the server-side idempotency key. Reusing a value returns the original
+   order rather than placing a new one. Use a fresh UUID4 per call.
+2. **`side` uses `BookSideLiteral` (`"bid"` / `"ask"`)**, not V1's
+   `SideLiteral` (`"yes"` / `"no"`).
+
+### Spec-driven asymmetry on V2 amend/decrease
+
+`amend_v2` and `decrease_v2` accept `subaccount` as a **resource-method
+kwarg** (query param on the wire) but read `exchange_index` from the
+**request body**. `cancel_v2` differs again — both are query params there,
+because that endpoint has no body. This mirrors the spec exactly:
+
+```python
+client.orders.amend_v2(
+    "ord-1",
+    subaccount=3,                          # query param
+    request=AmendOrderV2Request(
+        ticker="EVENT-MKT", side="bid",
+        price=Decimal("0.55"),
+        count=Decimal("10"),
+        exchange_index=0,                  # body field
+    ),
+)
+```
+
+### New optional kwargs on existing endpoints
+
+All additive — existing call sites keep working:
+
+- `orders.cancel(*, exchange_index)`, `order_groups.delete(*, exchange_index)`
+- `communications.list_rfqs(*, user_filter)`, `communications.list_all_rfqs(*, user_filter)`
+- `communications.list_quotes(*, user_filter, rfq_user_filter)`, `communications.list_all_quotes(*, user_filter, rfq_user_filter)`. `user_filter="self"` and `rfq_user_filter="self"` are now standalone satisfiers for the server-side filter requirement (previously only `quote_creator_user_id` / `rfq_creator_user_id` worked).
+- `incentive_programs.list(*, incentive_description)` and the `list_all` variant.
+- `CreateQuoteRequest.post_only` — pass `post_only=True` to `create_quote()`.
+- `exchange_index` on order/amend/decrease/batch-cancel request models.
+
+### New endpoints (additive)
+
+- `portfolio.deposits()` / `portfolio.deposits_all()` — deposit history.
+- `portfolio.withdrawals()` / `portfolio.withdrawals_all()` — withdrawal history.
+- `account.endpoint_costs()` — token costs for endpoints whose cost differs
+  from the default.
+
+### New public types
+
+Added to `kalshi.*` and `kalshi.models.*`:
+
+- Literals: `BookSideLiteral`, `UserFilterLiteral`, `PaymentStatusLiteral`, `PaymentTypeLiteral`.
+- Models: `Deposit`, `Withdrawal`, `IndexedBalance`, `AccountEndpointCosts`, `EndpointTokenCost`, and the V2 request/response family.
+
+---
+
 ## v1.x → v2.0
 
 v2.0 is mostly additive (new `max_pages` kwarg, `KalshiConfig.http2`/`limits`,

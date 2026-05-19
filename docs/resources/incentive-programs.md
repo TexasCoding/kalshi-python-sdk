@@ -18,12 +18,15 @@ Public — no auth required.
 page = client.incentive_programs.list(
     status="active",                     # IncentiveProgramStatusLiteral
     incentive_type="liquidity",          # IncentiveProgramTypeLiteral — spec "type"
-    series_ticker="KXPRES",
+    incentive_description="Q2 maker",    # new in v2.1.0 — exact-match filter
     limit=100,
 )
 for p in page:
     print(p.program_id, p.title, p.start_ts, p.end_ts)
 ```
+
+`incentive_description` (added in v2.1.0) is an exact-string filter on the
+program's description — useful when multiple programs share a status/type.
 
 Use `list_all` to walk every program:
 

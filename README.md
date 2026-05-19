@@ -11,7 +11,9 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (89 endpoints across 19 resources) and WebSocket API (11 channels).
+- **Full coverage** of the Kalshi REST API (85 endpoints across 19 resources, OpenAPI v3.18.0) and WebSocket API (13 channels).
+- **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
+- **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
 - **Typed end-to-end**: Pydantic v2 models, `mypy --strict` clean, ships `py.typed`. `Literal` types on fixed-enum kwargs.
 - **Spec-aligned with drift guards**: hard-fail contract tests catch query, body, and WebSocket payload drift on every commit.
@@ -141,6 +143,34 @@ client.orders.create(request=CreateOrderRequest(
 ))
 ```
 
+### V2 event-market orders
+
+Spec v3.18.0 introduced the V2 family on `/portfolio/events/orders/*` —
+event-scoped semantics with single-book `bid`/`ask` sides and fixed-point
+dollar prices. Legacy `/portfolio/orders` keeps working and will be
+deprecated no earlier than May 6, 2026.
+
+```python
+import uuid
+from decimal import Decimal
+from kalshi import KalshiClient, CreateOrderV2Request
+
+with KalshiClient.from_env() as client:
+    resp = client.orders.create_v2(request=CreateOrderV2Request(
+        ticker="EVENT-MKT",
+        client_order_id=str(uuid.uuid4()),  # required + server idempotency key
+        side="bid",                         # BookSideLiteral: "bid" | "ask"
+        count=Decimal("10"),
+        price=Decimal("0.50"),
+        time_in_force="good_till_canceled",
+        self_trade_prevention_type="taker_at_cross",
+    ))
+    print(resp.order_id, resp.remaining_count, resp.fill_count)
+```
+
+The V2 surface is model-only (no kwarg overload); pass a fully-constructed
+request model. See [V2 orders docs](https://texascoding.github.io/kalshi-python-sdk/resources/orders/#v2-event-market-orders) for amend/decrease/batch variants.
+
 ## WebSocket streaming
 
 ```python
@@ -161,9 +191,10 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (11): `ticker`, `trade`, `orderbook_delta`, `fill`,
-`market_positions`, `user_orders`, `order_group`, `market_lifecycle`,
-`multivariate`, `multivariate_lifecycle`, `communications`.
+Available channels (13): `ticker`, `trade`, `orderbook_delta`, `fill`,
+`market_positions`, `user_orders`, `order_group_updates`,
+`market_lifecycle_v2`, `multivariate`, `multivariate_market_lifecycle`,
+`communications`, `control_frames`, `root`.
 
 ## Error handling
 

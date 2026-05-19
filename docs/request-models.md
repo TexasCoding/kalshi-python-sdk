@@ -64,6 +64,11 @@ OpenAPI spec.
 | `client.orders.batch_cancel` | `BatchCancelOrdersRequest` (wraps `list[BatchCancelOrdersRequestOrder]`) |
 | `client.orders.amend` | `AmendOrderRequest` |
 | `client.orders.decrease` | `DecreaseOrderRequest` |
+| `client.orders.create_v2` | `CreateOrderV2Request` (V2 event-market — model-only, no kwarg form) |
+| `client.orders.amend_v2` | `AmendOrderV2Request` (V2 — model-only) |
+| `client.orders.decrease_v2` | `DecreaseOrderV2Request` (V2 — model-only, XOR `reduce_by`/`reduce_to`) |
+| `client.orders.batch_create_v2` | `BatchCreateOrdersV2Request` (wraps `list[CreateOrderV2Request]`) |
+| `client.orders.batch_cancel_v2` | `BatchCancelOrdersV2Request` (wraps `list[BatchCancelOrdersV2RequestOrder]`) |
 | `client.api_keys.create` | `CreateApiKeyRequest` |
 | `client.api_keys.generate` | `GenerateApiKeyRequest` |
 | `client.communications.create_rfq` | `CreateRFQRequest` |
@@ -94,12 +99,42 @@ an awkward wire name:
 
 You never type these long names — they're an internal implementation detail.
 
+## V2 surface: model-only
+
+The V2 event-market order endpoints (`create_v2` / `amend_v2` / `decrease_v2`
+/ `batch_*_v2`) don't accept individual kwargs — pass a fully-constructed
+request model. This is intentional: V2 took the opportunity to drop the
+V1 kwarg-overload surface entirely, so the model is the single source of
+truth for the payload shape.
+
+```python
+import uuid
+from decimal import Decimal
+from kalshi import CreateOrderV2Request
+
+req = CreateOrderV2Request(
+    ticker="EVENT-MKT",
+    client_order_id=str(uuid.uuid4()),   # required — idempotency key
+    side="bid",
+    count=Decimal("10"),
+    price=Decimal("0.50"),
+    time_in_force="good_till_canceled",
+    self_trade_prevention_type="taker_at_cross",
+)
+client.orders.create_v2(request=req)
+```
+
+`CreateOrderV2Request.client_order_id` is required (V1's was optional) and
+the server treats it as an idempotency key — reusing one returns the
+original order rather than placing a new one. Generate a fresh UUID4 per
+call.
+
 ## Cross-field invariants
 
 Some request models enforce relationships **before** the HTTP call:
 
-- `DecreaseOrderRequest` — exactly one of `reduce_by` / `reduce_to` is
-  required (XOR enforced via a model validator).
+- `DecreaseOrderRequest` / `DecreaseOrderV2Request` — exactly one of
+  `reduce_by` / `reduce_to` is required (XOR enforced via a model validator).
 - `AmendOrderRequest` — at least one of `yes_price` / `no_price` / `count`
   must be present (enforced in the resource method, before the body is built).
 
