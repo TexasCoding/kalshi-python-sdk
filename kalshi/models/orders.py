@@ -548,34 +548,19 @@ class BatchCancelOrdersV2ResponseEntry(BaseModel):
     """Single entry in BatchCancelOrdersV2Response — may carry an error per-order.
 
     Spec invariant (v3.18.0): when ``error`` is null, ``reduced_by`` is the
-    count canceled (possibly ``0``). When ``error`` is set, ``reduced_by``
-    is still required and is ``0``. Both fields are marked ``required`` in
-    the spec; the model validator below makes the invariant explicit so a
-    non-conforming response surfaces a clear error rather than a generic
-    ``ValidationError`` deep inside Pydantic.
+    count canceled. When ``error`` is set, ``reduced_by`` is still present
+    and is ``0``. Both ``order_id`` and ``reduced_by`` are marked
+    ``required`` in the spec, so they are non-optional on this model —
+    Pydantic will raise ``ValidationError`` if upstream ever omits them.
     """
 
     order_id: str
-    reduced_by: FixedPointCount | None = None
+    reduced_by: FixedPointCount
     client_order_id: str | None = None
     ts_ms: int | None = None
     error: dict[str, object] | None = None
 
     model_config = {"extra": "allow"}
-
-    @model_validator(mode="after")
-    def _enforce_reduced_by_present(self) -> BatchCancelOrdersV2ResponseEntry:
-        # Spec requires reduced_by on every entry, including errored ones
-        # (where it is 0). If a future upstream change starts omitting it,
-        # raise a descriptive error rather than letting downstream code see
-        # `None` and silently misbehave.
-        if self.reduced_by is None:
-            raise ValueError(
-                "BatchCancelOrdersV2ResponseEntry.reduced_by missing — "
-                "spec v3.18.0 requires it on every entry (zero on error). "
-                "Server may have diverged from spec; file with Kalshi."
-            )
-        return self
 
 
 class BatchCancelOrdersV2Response(BaseModel):

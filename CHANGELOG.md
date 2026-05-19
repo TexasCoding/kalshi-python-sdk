@@ -30,6 +30,15 @@ a recurring false-alarm in the weekly spec-sync workflow.
 - Optional `incentive_description` on `incentive_programs.list` / `list_all`.
 - Optional `post_only` on `CreateQuoteRequest`.
 
+### Migration note
+
+- ``CreateOrderV2Request.client_order_id`` is **required**. V1's
+  ``CreateOrderRequest`` made it optional, so callers migrating from
+  ``orders.create()`` to ``orders.create_v2()`` must generate a unique
+  client-order-id per call (UUID4 is the common choice). The server uses
+  this field as the V2 idempotency key, so reusing a value will cause
+  the server to return the original order rather than placing a new one.
+
 ### Fixed
 
 - `specs/asyncapi.yaml` is now committed as a pinned snapshot, matching the

@@ -462,6 +462,46 @@ class TestListQuotes:
         with pytest.raises(ValueError):
             comms.list_all_quotes()
 
+    @respx.mock
+    def test_user_filter_alone_is_sufficient(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """Spec v3.18.0 added user_filter='self' as a server-side shorthand
+        for the caller's user-id, so it satisfies the filter requirement.
+        """
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        page = comms.list_quotes(user_filter="self")
+        assert page.items == []
+
+    @respx.mock
+    def test_rfq_user_filter_alone_is_sufficient(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """rfq_user_filter='self' (filter to quotes responding to the caller's
+        own RFQs) is also a valid standalone satisfier.
+        """
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        page = comms.list_quotes(rfq_user_filter="self")
+        assert page.items == []
+
+    def test_raises_lists_all_four_satisfiers(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        """The updated error message must enumerate all four valid filters
+        so callers know about the user_filter / rfq_user_filter shortcuts.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            comms.list_quotes()
+        msg = str(excinfo.value)
+        assert "quote_creator_user_id" in msg
+        assert "rfq_creator_user_id" in msg
+        assert "user_filter" in msg
+        assert "rfq_user_filter" in msg
+
 
 class TestGetQuote:
     @respx.mock
@@ -705,6 +745,29 @@ class TestAsyncCommunications:
         """Must raise at call time, not on first iteration."""
         with pytest.raises(ValueError):
             async_comms.list_all_quotes()
+
+    async def test_list_quotes_user_filter_alone_is_sufficient(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """Spec v3.18.0: user_filter='self' satisfies the filter requirement."""
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        page = await async_comms.list_quotes(user_filter="self")
+        assert page.items == []
+
+    async def test_list_quotes_rfq_user_filter_alone_is_sufficient(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        page = await async_comms.list_quotes(rfq_user_filter="self")
+        assert page.items == []
 
 
 class TestCommunicationsAuthGuard:
