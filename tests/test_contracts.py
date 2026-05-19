@@ -375,6 +375,11 @@ def _classify_drift(
 
     Returns (additive_issues, required_issues).
     Both are warnings, not failures (SDK is intentionally permissive).
+
+    Per-field skips are honored in this order:
+      1. ``entry.ignored_fields`` — per-contract-entry allowlist (legacy).
+      2. ``EXCLUSIONS[(entry.sdk_model, field_name)]`` — typed, reasoned
+         allowlist shared with the request-side drift checks (#157).
     """
     additive: list[str] = []
     required_issues: list[str] = []
@@ -385,6 +390,8 @@ def _classify_drift(
     for spec_field_name in spec_fields:
         if spec_field_name in entry.ignored_fields:
             continue
+        if (entry.sdk_model, spec_field_name) in EXCLUSIONS:
+            continue
         if spec_field_name not in reverse_map:
             additive.append(f"Spec field '{spec_field_name}' has no SDK mapping")
 
@@ -392,6 +399,8 @@ def _classify_drift(
     required_fields = _get_required_fields(spec, entry.spec_schema)
     for req_field in required_fields:
         if req_field in entry.ignored_fields:
+            continue
+        if (entry.sdk_model, req_field) in EXCLUSIONS:
             continue
         sdk_name = reverse_map.get(req_field)
         if sdk_name and sdk_name in model_class.model_fields:
@@ -757,6 +766,8 @@ class TestWsSpecDrift:
         required_issues: list[str] = []
         for req_field in ws_required:
             if req_field in entry.ignored_fields:
+                continue
+            if (entry.sdk_model, req_field) in EXCLUSIONS:
                 continue
             sdk_name = reverse_map.get(req_field)
             if sdk_name and sdk_name in model_class.model_fields:
@@ -1338,40 +1349,89 @@ def test_exclusion_map_is_current() -> None:
     intentional — prevent that here.
     """
     spec = _load_spec()
+    # Lazy-loaded on first WS-keyed exclusion (avoids parsing the AsyncAPI
+    # YAML when no WS entry needs it; reused across all WS entries when one
+    # does — currently exercised live by ``TickerPayload.time``).
+    ws_spec: dict[str, Any] | None = None
     stale: list[str] = []
 
     for (fqn, name), excl in EXCLUSIONS.items():
-        # Case 1: spec-side exclusion keyed on a model FQN (kalshi.models.*)
-        if fqn.startswith("kalshi.models."):
+        # Case 1: model-keyed exclusion. The FQN may belong to a request body
+        # (``BODY_MODEL_MAP``), a REST response model (``CONTRACT_MAP``), a WS
+        # payload (``WS_CONTRACT_MAP``), or several of these at once — e.g.
+        # ``CreateOrderRequest`` is both a request body and a response schema.
+        # ``name`` must appear in at least one of the spec sources, and the
+        # SDK model must NOT emit it as a wire alias.
+        if fqn.startswith("kalshi.models.") or fqn.startswith("kalshi.ws.models."):
+            spec_sources: list[tuple[str, dict[str, Any]]] = []
+
+            # Source 1: request body via BODY_MODEL_MAP + METHOD_ENDPOINT_MAP
             spec_ref = next(
                 (ref for ref, m in BODY_MODEL_MAP.items() if m == fqn),
                 None,
             )
-            if spec_ref is None:
-                stale.append(
-                    f"EXCLUSIONS[{(fqn, name)}] references unknown model "
-                    f"{fqn} (not in BODY_MODEL_MAP); reason={excl.reason!r}"
-                )
-                continue
-            schema = None
-            for e in METHOD_ENDPOINT_MAP:
-                if e.request_body_schema == spec_ref:
-                    schema = _resolve_request_body_schema(
-                        spec, e.path_template, e.http_method,
+            if spec_ref is not None:
+                body_schema = None
+                for e in METHOD_ENDPOINT_MAP:
+                    if e.request_body_schema == spec_ref:
+                        body_schema = _resolve_request_body_schema(
+                            spec, e.path_template, e.http_method,
+                        )
+                        break
+                if body_schema is None:
+                    # METHOD_ENDPOINT_MAP / BODY_MODEL_MAP inconsistency is a
+                    # real bug; surface it, but still try CONTRACT_MAP and
+                    # WS_CONTRACT_MAP so a shared model isn't falsely flagged
+                    # as unknown when one of its other sources would resolve.
+                    stale.append(
+                        f"EXCLUSIONS[{(fqn, name)}] references schema {spec_ref} "
+                        f"not reachable via METHOD_ENDPOINT_MAP"
+                    )
+                else:
+                    spec_sources.append(
+                        (f"request body {spec_ref}", body_schema.get("properties", {}))
+                    )
+
+            # Source 2: REST response model via CONTRACT_MAP
+            for c_entry in CONTRACT_MAP:
+                if c_entry.sdk_model == fqn:
+                    spec_sources.append(
+                        (
+                            f"response schema {c_entry.spec_schema}",
+                            _get_schema_fields(spec, c_entry.spec_schema),
+                        )
                     )
                     break
-            if schema is None:
+
+            # Source 3: WS payload model via WS_CONTRACT_MAP
+            for w_entry in WS_CONTRACT_MAP:
+                if w_entry.sdk_model == fqn:
+                    if ws_spec is None:
+                        ws_spec = _load_asyncapi_spec()
+                    spec_sources.append(
+                        (
+                            f"WS schema {w_entry.spec_schema}",
+                            _get_ws_msg_fields(ws_spec, w_entry.spec_schema),
+                        )
+                    )
+                    break
+
+            if not spec_sources:
                 stale.append(
-                    f"EXCLUSIONS[{(fqn, name)}] references schema {spec_ref} "
-                    f"not reachable via METHOD_ENDPOINT_MAP"
-                )
-                continue
-            if name not in schema.get("properties", {}):
-                stale.append(
-                    f"EXCLUSIONS[{(fqn, name)}] claims spec has {name!r} on "
-                    f"{spec_ref}, but spec does NOT — entry is stale. "
+                    f"EXCLUSIONS[{(fqn, name)}] references unknown model {fqn} "
+                    f"(not in BODY_MODEL_MAP, CONTRACT_MAP, or WS_CONTRACT_MAP); "
                     f"reason={excl.reason!r}"
                 )
+                continue
+
+            if not any(name in props for _label, props in spec_sources):
+                source_list = ", ".join(label for label, _ in spec_sources)
+                stale.append(
+                    f"EXCLUSIONS[{(fqn, name)}] claims spec has {name!r} on "
+                    f"{fqn}, but it is absent from every spec source "
+                    f"({source_list}) — entry is stale. reason={excl.reason!r}"
+                )
+
             model_cls = _get_model_class_from_fqn(fqn)
             if name in _model_aliases(model_cls):
                 stale.append(
@@ -1410,7 +1470,8 @@ def test_exclusion_map_is_current() -> None:
         else:
             stale.append(
                 f"EXCLUSIONS[{(fqn, name)}] has unexpected FQN prefix; "
-                f"expected kalshi.models.* or kalshi.resources.*"
+                f"expected kalshi.models.*, kalshi.ws.models.*, or "
+                f"kalshi.resources.*"
             )
 
     if stale:
