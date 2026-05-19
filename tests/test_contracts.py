@@ -1349,6 +1349,10 @@ def test_exclusion_map_is_current() -> None:
     intentional — prevent that here.
     """
     spec = _load_spec()
+    # Lazy-loaded on first WS-keyed exclusion (avoids parsing the AsyncAPI
+    # YAML when no WS entry needs it; reused across all WS entries when one
+    # does — currently exercised live by ``TickerPayload.time``).
+    ws_spec: dict[str, Any] | None = None
     stale: list[str] = []
 
     for (fqn, name), excl in EXCLUSIONS.items():
@@ -1375,14 +1379,18 @@ def test_exclusion_map_is_current() -> None:
                         )
                         break
                 if body_schema is None:
+                    # METHOD_ENDPOINT_MAP / BODY_MODEL_MAP inconsistency is a
+                    # real bug; surface it, but still try CONTRACT_MAP and
+                    # WS_CONTRACT_MAP so a shared model isn't falsely flagged
+                    # as unknown when one of its other sources would resolve.
                     stale.append(
                         f"EXCLUSIONS[{(fqn, name)}] references schema {spec_ref} "
                         f"not reachable via METHOD_ENDPOINT_MAP"
                     )
-                    continue
-                spec_sources.append(
-                    (f"request body {spec_ref}", body_schema.get("properties", {}))
-                )
+                else:
+                    spec_sources.append(
+                        (f"request body {spec_ref}", body_schema.get("properties", {}))
+                    )
 
             # Source 2: REST response model via CONTRACT_MAP
             for c_entry in CONTRACT_MAP:
@@ -1398,7 +1406,8 @@ def test_exclusion_map_is_current() -> None:
             # Source 3: WS payload model via WS_CONTRACT_MAP
             for w_entry in WS_CONTRACT_MAP:
                 if w_entry.sdk_model == fqn:
-                    ws_spec = _load_asyncapi_spec()
+                    if ws_spec is None:
+                        ws_spec = _load_asyncapi_spec()
                     spec_sources.append(
                         (
                             f"WS schema {w_entry.spec_schema}",
