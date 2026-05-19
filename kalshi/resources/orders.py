@@ -1128,8 +1128,12 @@ class AsyncOrdersResource(AsyncResource):
         request: AmendOrderV2Request,
         subaccount: int | None = None,
     ) -> AmendOrderV2Response:
-        """Amend an event-market order (V2). See sync sibling for the
-        spec-driven subaccount-vs-exchange_index placement rationale.
+        """Amend an event-market order (V2).
+
+        Per OpenAPI spec v3.18.0, this endpoint's ``subaccount`` is a
+        **query** parameter while ``exchange_index`` lives in the request
+        **body** (on ``AmendOrderV2Request``). The asymmetry mirrors the
+        spec exactly — do not move ``exchange_index`` into ``params``.
         """
         self._require_auth()
         params = _params(subaccount=subaccount)
@@ -1147,8 +1151,13 @@ class AsyncOrdersResource(AsyncResource):
         request: DecreaseOrderV2Request,
         subaccount: int | None = None,
     ) -> DecreaseOrderV2Response:
-        """Decrease an event-market order (V2). See sync sibling for the
-        spec-driven subaccount-vs-exchange_index placement rationale.
+        """Decrease an event-market order (V2).
+
+        Same spec-driven asymmetry as :meth:`amend_v2`: ``subaccount`` is
+        a query param; ``exchange_index`` lives on the body model. Note
+        also that ``cancel_v2`` carries both as query params (no body) —
+        that endpoint declares ``ExchangeIndexQuery`` in its parameters
+        list, while amend/decrease declare only ``SubaccountQueryDefaultPrimary``.
         """
         self._require_auth()
         params = _params(subaccount=subaccount)

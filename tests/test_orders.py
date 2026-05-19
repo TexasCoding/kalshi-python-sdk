@@ -1144,6 +1144,50 @@ class TestCreateOrderV2:
                 self_trade_prevention_type="taker_at_cross",
             )
 
+    @respx.mock
+    def test_serializes_body(self, orders: OrdersResource) -> None:
+        """V2 model_dump goes through DollarDecimal/FixedPointCount with
+        mode="json" — guard against accidental regression in price/count
+        wire shape or by_alias/exclude_none plumbing.
+        """
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "order_id": "ord-v2-1",
+                    "fill_count": "0",
+                    "remaining_count": "10",
+                    "ts_ms": 0,
+                },
+            )
+        )
+        orders.create_v2(
+            request=CreateOrderV2Request(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                exchange_index=0,
+            ),
+        )
+        body = json.loads(route.calls[0].request.content)
+        # No phantom keys; DollarDecimal serializes as string with mode=json.
+        assert body == {
+            "ticker": "MKT-A",
+            "client_order_id": "cli-1",
+            "side": "bid",
+            "count": "10",
+            "price": "0.50",
+            "time_in_force": "good_till_canceled",
+            "self_trade_prevention_type": "taker_at_cross",
+            "exchange_index": 0,
+        }
+
 
 class TestCancelOrderV2:
     @respx.mock

@@ -373,10 +373,15 @@ class OrderQueuePosition(BaseModel):
 class CreateOrderV2Request(BaseModel):
     """Body for POST /portfolio/events/orders.
 
-    Unlike v1 ``CreateOrderRequest`` (where ``side`` is ``str`` and type
-    narrowing happens on the resource-method kwarg), the v2 surface is
-    model-only — no kwarg overload exists, so the Literal must live on
-    the model field.
+    Differences from v1 ``CreateOrderRequest`` worth knowing:
+
+    - ``side`` is ``BookSideLiteral`` (``bid``/``ask``), not ``yes``/``no``.
+      V2 narrows the type on the model itself since there is no kwarg
+      overload at the resource-method boundary (see model_only V2 surface).
+    - ``client_order_id`` is **required** in V2, unlike V1 where it is
+      optional. The server uses it for idempotency in V2.
+    - Price is a single ``price: FixedPointDollars`` field rather than the
+      paired ``yes_price`` / ``no_price`` from V1.
     """
 
     ticker: str
@@ -540,15 +545,37 @@ class BatchCancelOrdersV2Request(BaseModel):
 
 
 class BatchCancelOrdersV2ResponseEntry(BaseModel):
-    """Single entry in BatchCancelOrdersV2Response — may carry an error per-order."""
+    """Single entry in BatchCancelOrdersV2Response — may carry an error per-order.
+
+    Spec invariant (v3.18.0): when ``error`` is null, ``reduced_by`` is the
+    count canceled (possibly ``0``). When ``error`` is set, ``reduced_by``
+    is still required and is ``0``. Both fields are marked ``required`` in
+    the spec; the model validator below makes the invariant explicit so a
+    non-conforming response surfaces a clear error rather than a generic
+    ``ValidationError`` deep inside Pydantic.
+    """
 
     order_id: str
-    reduced_by: FixedPointCount
+    reduced_by: FixedPointCount | None = None
     client_order_id: str | None = None
     ts_ms: int | None = None
     error: dict[str, object] | None = None
 
     model_config = {"extra": "allow"}
+
+    @model_validator(mode="after")
+    def _enforce_reduced_by_present(self) -> BatchCancelOrdersV2ResponseEntry:
+        # Spec requires reduced_by on every entry, including errored ones
+        # (where it is 0). If a future upstream change starts omitting it,
+        # raise a descriptive error rather than letting downstream code see
+        # `None` and silently misbehave.
+        if self.reduced_by is None:
+            raise ValueError(
+                "BatchCancelOrdersV2ResponseEntry.reduced_by missing — "
+                "spec v3.18.0 requires it on every entry (zero on error). "
+                "Server may have diverged from spec; file with Kalshi."
+            )
+        return self
 
 
 class BatchCancelOrdersV2Response(BaseModel):
