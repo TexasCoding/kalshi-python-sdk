@@ -100,6 +100,20 @@ class Order(BaseModel):
     client_order_id: str | None = None
     subaccount: int | None = None
 
+    # v3.18.0 backfill: new optional response fields (issue #159).
+    # `outcome_side` / `book_side` are the canonical direction encoding going
+    # forward; the deprecated `action` / `side` / `is_yes` triple stays for
+    # back-compat. `subaccount_number` is distinct from the existing
+    # `subaccount` field (both coexist per spec).
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    last_update_time: datetime | None = None
+    self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
+    order_group_id: str | None = None
+    cancel_order_on_pause: bool | None = None
+    subaccount_number: int | None = None
+    exchange_index: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -135,6 +149,14 @@ class Fill(BaseModel):
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
     created_time: datetime | None = None
+
+    # v3.18.0 backfill: new optional response fields (issue #159).
+    # `ts` is a Unix-ms integer per spec (legacy field; distinct from
+    # `created_time: datetime`). Do NOT coerce to datetime.
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    subaccount_number: int | None = None
+    ts: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
