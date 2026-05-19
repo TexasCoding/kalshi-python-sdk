@@ -2,6 +2,81 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.1.0 — 2026-05-18
+
+OpenAPI spec sync from v3.13.0 → v3.18.0. Adds the V2 event-market
+orders family, deposits/withdrawals history, account endpoint-cost
+introspection, and several optional query / body fields. Also fixes
+a recurring false-alarm in the weekly spec-sync workflow.
+
+### Added
+
+- **V2 event-market orders** (`/portfolio/events/orders/*`). Legacy
+  `/portfolio/orders` will be deprecated no earlier than May 6, 2026.
+  - `orders.create_v2(request=CreateOrderV2Request(...))`
+  - `orders.cancel_v2(order_id, subaccount=..., exchange_index=...)`
+  - `orders.amend_v2(order_id, request=AmendOrderV2Request(...))`
+  - `orders.decrease_v2(order_id, request=DecreaseOrderV2Request(...))`
+  - `orders.batch_create_v2(request=BatchCreateOrdersV2Request(...))`
+  - `orders.batch_cancel_v2(request=BatchCancelOrdersV2Request(...))`
+- `portfolio.deposits()` / `portfolio.deposits_all()` — deposit history.
+- `portfolio.withdrawals()` / `portfolio.withdrawals_all()` — withdrawal history.
+- `account.endpoint_costs()` — lists endpoints whose token cost differs from the default.
+- Optional `exchange_index` on `CreateOrderRequest`, `AmendOrderRequest`,
+  `DecreaseOrderRequest`, `BatchCancelOrdersRequestOrder`, `CreateOrderGroupRequest`,
+  and as a query kwarg on `orders.cancel` / `order_groups.delete`.
+- Optional `user_filter` on `communications.list_rfqs` / `list_all_rfqs`;
+  `user_filter` + `rfq_user_filter` on `communications.list_quotes` / `list_all_quotes`.
+- Optional `incentive_description` on `incentive_programs.list` / `list_all`.
+- Optional `post_only` on `CreateQuoteRequest`.
+- `Balance.balance_dollars` (required, `DollarDecimal`) — the same value as
+  `balance` (cents) rendered as a fixed-point dollar string. Required in
+  the v3.18.0 spec for `GetBalanceResponse`.
+- `Balance.balance_breakdown` (optional, `list[IndexedBalance]`) — splits
+  the balance across exchange shards when present.
+- New `IndexedBalance` model (`exchange_index`, `balance`) exposed from
+  `kalshi` and `kalshi.models`.
+
+### Changed
+
+- ``Balance`` gained a required ``balance_dollars: DollarDecimal`` field
+  (added by spec v3.18.0). Callers who construct ``Balance`` from API
+  responses are unaffected — the server now guarantees the field. But
+  callers who build ``Balance(...)`` instances directly in their own
+  tests or mocks will hit ``ValidationError`` until they add it. This is
+  a soft breaking change at the model-construction surface; the field is
+  required because the spec marks it ``required``, not optional-in-practice.
+
+  ```python
+  # before v2.1.0
+  Balance(balance=50000, portfolio_value=75000, updated_ts=ts)
+
+  # v2.1.0+
+  Balance(
+      balance=50000,
+      balance_dollars=Decimal("500.00"),  # new required field
+      portfolio_value=75000,
+      updated_ts=ts,
+  )
+  ```
+
+### Migration note
+
+- ``CreateOrderV2Request.client_order_id`` is **required**. V1's
+  ``CreateOrderRequest`` made it optional, so callers migrating from
+  ``orders.create()`` to ``orders.create_v2()`` must generate a unique
+  client-order-id per call (UUID4 is the common choice). The server uses
+  this field as the V2 idempotency key, so reusing a value will cause
+  the server to return the original order rather than placing a new one.
+
+### Fixed
+
+- `specs/asyncapi.yaml` is now committed as a pinned snapshot, matching the
+  long-standing intent on `specs/openapi.yaml`. The weekly spec-sync workflow
+  no longer reports a bogus "AsyncAPI 0 → 13 channels" delta every Monday
+  (the file was previously gitignored, so each cron diffed the fresh
+  download against a non-existent old file).
+
 ## 2.0.0 — 2026-05-17
 
 Audit-driven hardening release. 30 audit-findings landed across five

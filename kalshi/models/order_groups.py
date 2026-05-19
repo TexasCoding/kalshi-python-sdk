@@ -46,6 +46,7 @@ class CreateOrderGroupRequest(BaseModel):
 
     contracts_limit: int = Field(..., ge=1)
     subaccount: int | None = Field(default=None, ge=0)
+    exchange_index: int | None = None
 
     model_config = {"extra": "forbid"}
 

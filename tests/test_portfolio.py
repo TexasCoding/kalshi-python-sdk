@@ -11,7 +11,7 @@ import respx
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiAuthError
+from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.portfolio import AsyncPortfolioResource, PortfolioResource
 
 
@@ -36,6 +36,16 @@ def async_portfolio(
     return AsyncPortfolioResource(AsyncTransport(test_auth, config))
 
 
+@pytest.fixture
+def unauth_portfolio(config: KalshiConfig) -> PortfolioResource:
+    return PortfolioResource(SyncTransport(None, config))
+
+
+@pytest.fixture
+def unauth_async_portfolio(config: KalshiConfig) -> AsyncPortfolioResource:
+    return AsyncPortfolioResource(AsyncTransport(None, config))
+
+
 # ── Sync tests ──────────────────────────────────────────────
 
 
@@ -47,6 +57,7 @@ class TestPortfolioBalance:
                 200,
                 json={
                     "balance": 50000,
+                    "balance_dollars": "500.00",
                     "portfolio_value": 75000,
                     "updated_ts": 1700000000,
                 },
@@ -54,6 +65,7 @@ class TestPortfolioBalance:
         )
         balance = portfolio.balance()
         assert balance.balance == 50000
+        assert balance.balance_dollars == Decimal("500.00")
         assert balance.portfolio_value == 75000
         assert balance.updated_ts == 1700000000
 
@@ -62,11 +74,17 @@ class TestPortfolioBalance:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
-                json={"balance": 0, "portfolio_value": 0, "updated_ts": 0},
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         balance = portfolio.balance()
         assert balance.balance == 0
+        assert balance.balance_dollars == Decimal("0.00")
         assert balance.portfolio_value == 0
 
     @respx.mock
@@ -82,11 +100,57 @@ class TestPortfolioBalance:
         """v0.7.0 ADD: subaccount kwarg reaches the wire."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
-                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+                200,
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         portfolio.balance(subaccount=42)
         assert route.calls[0].request.url.params["subaccount"] == "42"
+
+    @respx.mock
+    def test_balance_breakdown(self, portfolio: PortfolioResource) -> None:
+        """Spec v3.18.0 adds balance_breakdown — optional per-shard split."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                    "balance_breakdown": [
+                        {"exchange_index": 0, "balance": "500.00"},
+                    ],
+                },
+            )
+        )
+        balance = portfolio.balance()
+        assert balance.balance_breakdown is not None
+        assert len(balance.balance_breakdown) == 1
+        assert balance.balance_breakdown[0].exchange_index == 0
+        assert balance.balance_breakdown[0].balance == Decimal("500.00")
+
+    @respx.mock
+    def test_balance_breakdown_omitted(self, portfolio: PortfolioResource) -> None:
+        """balance_breakdown is optional — must default to None when absent."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                },
+            )
+        )
+        balance = portfolio.balance()
+        assert balance.balance_breakdown is None
 
 
 class TestPortfolioPositions:
@@ -399,6 +463,159 @@ class TestPortfolioTotalRestingOrderValue:
             portfolio.total_resting_order_value()
 
 
+_DEPOSIT = {
+    "id": "dep_1", "status": "applied", "type": "ach",
+    "amount_cents": 10000, "fee_cents": 0, "created_ts": 1700000000,
+    "finalized_ts": 1700001000,
+}
+
+_WITHDRAWAL = {
+    "id": "wd_1", "status": "pending", "type": "wire",
+    "amount_cents": 5000, "fee_cents": 25, "created_ts": 1700000000,
+    "finalized_ts": None,
+}
+
+
+class TestPortfolioDeposits:
+    @respx.mock
+    def test_returns_page(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            return_value=httpx.Response(
+                200, json={"deposits": [_DEPOSIT], "cursor": "abc"},
+            )
+        )
+        page = portfolio.deposits(limit=10)
+        assert len(page.items) == 1
+        assert page.items[0].id == "dep_1"
+        assert page.items[0].status == "applied"
+        assert page.cursor == "abc"
+
+    @respx.mock
+    def test_empty(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            return_value=httpx.Response(200, json={"deposits": []})
+        )
+        page = portfolio.deposits()
+        assert page.items == []
+        assert page.cursor is None
+
+    @respx.mock
+    def test_all_paginates(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "deposits": [_DEPOSIT, {**_DEPOSIT, "id": "dep_2"}],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={"deposits": [{**_DEPOSIT, "id": "dep_3"}], "cursor": ""},
+                ),
+            ]
+        )
+        items = list(portfolio.deposits_all(limit=2))
+        assert [d.id for d in items] == ["dep_1", "dep_2", "dep_3"]
+
+    @respx.mock
+    def test_all_max_pages_caps(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"deposits": [_DEPOSIT], "cursor": "p2"},
+                ),
+                httpx.Response(
+                    200,
+                    json={"deposits": [{**_DEPOSIT, "id": "dep_2"}], "cursor": "p3"},
+                ),
+            ]
+        )
+        items = list(portfolio.deposits_all(max_pages=2))
+        # max_pages=2 stops after 2 pages even though cursor "p3" is non-empty.
+        assert len(items) == 2
+
+    @respx.mock
+    def test_auth_failure(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            portfolio.deposits()
+
+    def test_deposits_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.deposits()
+
+    def test_deposits_all_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        # *_all returns an iterator — must raise eagerly, not on first iteration.
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.deposits_all()
+
+
+class TestPortfolioWithdrawals:
+    @respx.mock
+    def test_returns_page(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"withdrawals": [_WITHDRAWAL], "cursor": None},
+            )
+        )
+        page = portfolio.withdrawals()
+        assert len(page.items) == 1
+        assert page.items[0].id == "wd_1"
+        assert page.items[0].fee_cents == 25
+        assert page.items[0].finalized_ts is None
+        assert page.cursor is None
+
+    @respx.mock
+    def test_all_paginates(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
+                ),
+                httpx.Response(
+                    200,
+                    json={"withdrawals": [{**_WITHDRAWAL, "id": "wd_2"}], "cursor": ""},
+                ),
+            ]
+        )
+        items = list(portfolio.withdrawals_all())
+        assert [w.id for w in items] == ["wd_1", "wd_2"]
+
+    @respx.mock
+    def test_auth_failure(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            portfolio.withdrawals()
+
+    def test_withdrawals_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.withdrawals()
+
+    def test_withdrawals_all_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.withdrawals_all()
+
+
 # ── Async tests ─────────────────────────────────────────────
 
 
@@ -411,11 +628,17 @@ class TestAsyncPortfolioBalance:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
-                json={"balance": 50000, "portfolio_value": 75000, "updated_ts": 1700000000},
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                },
             )
         )
         balance = await async_portfolio.balance()
         assert balance.balance == 50000
+        assert balance.balance_dollars == Decimal("500.00")
         assert balance.portfolio_value == 75000
 
     @respx.mock
@@ -428,7 +651,13 @@ class TestAsyncPortfolioBalance:
             "https://test.kalshi.com/trade-api/v2/portfolio/balance"
         ).mock(
             return_value=httpx.Response(
-                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+                200,
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         await async_portfolio.balance(subaccount=42)
@@ -677,3 +906,122 @@ class TestAsyncPortfolioTotalRestingOrderValue:
         ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
         with pytest.raises(KalshiAuthError):
             await async_portfolio.total_resting_order_value()
+
+
+class TestAsyncPortfolioDeposits:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_page(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            return_value=httpx.Response(
+                200, json={"deposits": [_DEPOSIT], "cursor": None},
+            )
+        )
+        page = await async_portfolio.deposits()
+        assert page.items[0].id == "dep_1"
+        assert page.cursor is None
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_all_paginates(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"deposits": [_DEPOSIT], "cursor": "p2"},
+                ),
+                httpx.Response(
+                    200,
+                    json={"deposits": [{**_DEPOSIT, "id": "dep_2"}], "cursor": ""},
+                ),
+            ]
+        )
+        items = [d async for d in async_portfolio.deposits_all()]
+        assert [d.id for d in items] == ["dep_1", "dep_2"]
+
+
+class TestAsyncPortfolioWithdrawals:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_page(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"withdrawals": [_WITHDRAWAL]},
+            )
+        )
+        page = await async_portfolio.withdrawals()
+        assert page.items[0].id == "wd_1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_all_max_pages_caps(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "withdrawals": [{**_WITHDRAWAL, "id": "wd_2"}],
+                        "cursor": "p3",
+                    },
+                ),
+            ]
+        )
+        items = [w async for w in async_portfolio.withdrawals_all(max_pages=2)]
+        assert len(items) == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_auth_failure(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            await async_portfolio.withdrawals()
+
+    @pytest.mark.asyncio
+    async def test_withdrawals_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.withdrawals()
+
+    def test_withdrawals_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        # withdrawals_all is plain `def` returning AsyncIterator; auth check
+        # must fire at call time, not on first iteration.
+        with pytest.raises(AuthRequiredError):
+            unauth_async_portfolio.withdrawals_all()
+
+
+class TestAsyncPortfolioDepositsAuth:
+    @pytest.mark.asyncio
+    async def test_deposits_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.deposits()
+
+    def test_deposits_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_async_portfolio.deposits_all()

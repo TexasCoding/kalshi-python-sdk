@@ -9,9 +9,11 @@ from kalshi.client import KalshiClient
 from kalshi.models.common import Page
 from kalshi.models.portfolio import (
     Balance,
+    Deposit,
     PositionsResponse,
     Settlement,
     TotalRestingOrderValue,
+    Withdrawal,
 )
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
@@ -20,10 +22,14 @@ register(
     "PortfolioResource",
     [
         "balance",
+        "deposits",
+        "deposits_all",
         "positions",
         "settlements",
         "settlements_all",
         "total_resting_order_value",
+        "withdrawals",
+        "withdrawals_all",
     ],
 )
 
@@ -35,6 +41,8 @@ class TestPortfolioSync:
         assert isinstance(result, Balance)
         assert_model_fields(result)
         assert isinstance(result.balance, int)
+        # spec v3.18.0 added balance_dollars as a required field
+        assert result.balance_dollars is not None
 
     def test_positions(self, sync_client: KalshiClient) -> None:
         result = sync_client.portfolio.positions()
@@ -65,6 +73,34 @@ class TestPortfolioSync:
         assert isinstance(result, TotalRestingOrderValue)
         assert_model_fields(result)
         assert isinstance(result.total_resting_order_value, int)
+
+    def test_deposits(self, sync_client: KalshiClient) -> None:
+        page = sync_client.portfolio.deposits(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Deposit)
+            assert_model_fields(item)
+
+    def test_deposits_all(self, sync_client: KalshiClient) -> None:
+        for count, deposit in enumerate(sync_client.portfolio.deposits_all(limit=2)):
+            assert isinstance(deposit, Deposit)
+            assert_model_fields(deposit)
+            if count >= 2:
+                break
+
+    def test_withdrawals(self, sync_client: KalshiClient) -> None:
+        page = sync_client.portfolio.withdrawals(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Withdrawal)
+            assert_model_fields(item)
+
+    def test_withdrawals_all(self, sync_client: KalshiClient) -> None:
+        for count, w in enumerate(sync_client.portfolio.withdrawals_all(limit=2)):
+            assert isinstance(w, Withdrawal)
+            assert_model_fields(w)
+            if count >= 2:
+                break
 
 
 @pytest.mark.integration
@@ -102,3 +138,35 @@ class TestPortfolioAsync:
         """Auth-gated on demo (403 for non-FCM accounts)."""
         result = await async_client.portfolio.total_resting_order_value()
         assert isinstance(result, TotalRestingOrderValue)
+
+    async def test_deposits(self, async_client: AsyncKalshiClient) -> None:
+        page = await async_client.portfolio.deposits(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Deposit)
+            assert_model_fields(item)
+
+    async def test_deposits_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for deposit in async_client.portfolio.deposits_all(limit=2):
+            assert isinstance(deposit, Deposit)
+            assert_model_fields(deposit)
+            count += 1
+            if count >= 3:
+                break
+
+    async def test_withdrawals(self, async_client: AsyncKalshiClient) -> None:
+        page = await async_client.portfolio.withdrawals(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Withdrawal)
+            assert_model_fields(item)
+
+    async def test_withdrawals_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for w in async_client.portfolio.withdrawals_all(limit=2):
+            assert isinstance(w, Withdrawal)
+            assert_model_fields(w)
+            count += 1
+            if count >= 3:
+                break

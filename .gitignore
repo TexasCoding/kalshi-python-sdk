@@ -29,9 +29,8 @@ uv.lock
 # Generated models (build artifact, not committed)
 kalshi/_generated/models.py
 
-# AsyncAPI spec (downloaded for future WebSocket support, not committed)
-# Note: specs/openapi.yaml IS committed as a pinned snapshot for deterministic PR builds.
-specs/asyncapi.yaml
+# Note: specs/openapi.yaml AND specs/asyncapi.yaml are both committed as
+# pinned snapshots for deterministic PR builds + correct drift detection.
 .gitnexus
 
 # MkDocs build output

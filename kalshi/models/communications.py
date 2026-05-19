@@ -9,6 +9,9 @@ from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
+UserFilterLiteral = Literal["self"]
+"""Filter for items created by the authenticated user. Spec: UserFilter enum."""
+
 
 class MveSelectedLeg(BaseModel):
     """A selected leg within a multivariate event collection RFQ."""
@@ -189,6 +192,7 @@ class CreateQuoteRequest(BaseModel):
     no_bid: DollarDecimal
     rest_remainder: bool
     subaccount: int | None = Field(default=None, ge=0, le=32)
+    post_only: bool | None = None
 
     model_config = {"extra": "forbid"}
 

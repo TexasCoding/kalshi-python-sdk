@@ -19,6 +19,29 @@ class RateLimit(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class EndpointTokenCost(BaseModel):
+    """Configured token cost for a single API endpoint."""
+
+    method: str
+    path: str
+    cost: int
+
+    model_config = {"extra": "allow"}
+
+
+class AccountEndpointCosts(BaseModel):
+    """Response from GET /account/endpoint_costs.
+
+    Lists API v2 endpoints whose configured token cost differs from
+    ``default_cost``. Endpoints using the default are omitted.
+    """
+
+    default_cost: int
+    endpoint_costs: list[EndpointTokenCost]
+
+    model_config = {"extra": "allow"}
+
+
 class AccountApiLimits(BaseModel):
     """Rate limits associated with the authenticated user's API tier.
 

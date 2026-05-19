@@ -35,12 +35,14 @@ class IncentiveProgramsResource(SyncResource):
         *,
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
+        incentive_description: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
         params = _params(
             status=status,
             type=incentive_type,
+            incentive_description=incentive_description,
             limit=limit,
             cursor=cursor,
         )
@@ -57,11 +59,17 @@ class IncentiveProgramsResource(SyncResource):
         *,
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
+        incentive_description: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
     ) -> Iterator[IncentiveProgram]:
         _validate_max_pages(max_pages)
-        params = _params(status=status, type=incentive_type, limit=limit)
+        params = _params(
+            status=status,
+            type=incentive_type,
+            incentive_description=incentive_description,
+            limit=limit,
+        )
         return self._list_all(
             "/incentive_programs",
             IncentiveProgram,
@@ -80,12 +88,14 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         *,
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
+        incentive_description: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
         params = _params(
             status=status,
             type=incentive_type,
+            incentive_description=incentive_description,
             limit=limit,
             cursor=cursor,
         )
@@ -102,12 +112,18 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         *,
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
+        incentive_description: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
-        params = _params(status=status, type=incentive_type, limit=limit)
+        params = _params(
+            status=status,
+            type=incentive_type,
+            incentive_description=incentive_description,
+            limit=limit,
+        )
         return self._list_all(
             "/incentive_programs",
             IncentiveProgram,

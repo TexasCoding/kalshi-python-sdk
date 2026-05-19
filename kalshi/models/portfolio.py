@@ -13,12 +13,40 @@ SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
 """Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
 
 
+class IndexedBalance(BaseModel):
+    """Balance for a single exchange shard. Added by spec v3.18.0 alongside
+    the ``balance_breakdown`` field on :class:`Balance`.
+
+    Currently only ``exchange_index=0`` is supported per spec.
+
+    **Type note:** ``balance`` here is ``DollarDecimal`` (fixed-point
+    dollar string per spec), unlike :attr:`Balance.balance` which is
+    integer cents. Same field name, different semantics — be deliberate
+    when reading from ``balance.balance_breakdown[i].balance`` versus
+    ``balance.balance``. The :attr:`Balance.balance_dollars` field
+    rendered in dollars matches the breakdown's units.
+    """
+
+    exchange_index: int
+    balance: DollarDecimal
+
+    model_config = {"extra": "allow"}
+
+
 class Balance(BaseModel):
-    """Account balance. Values are integer cents."""
+    """Account balance.
+
+    ``balance`` is integer cents (legacy field). ``balance_dollars`` is the
+    same value as a fixed-point dollar string, added by spec v3.18.0 and
+    now required on every response. ``balance_breakdown`` (optional) splits
+    the total across exchange shards when present.
+    """
 
     balance: int
+    balance_dollars: DollarDecimal
     portfolio_value: int
     updated_ts: int
+    balance_breakdown: list[IndexedBalance] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -103,6 +131,44 @@ class PositionsResponse(BaseModel):
     @property
     def has_next(self) -> bool:
         return bool(self.cursor)
+
+    model_config = {"extra": "allow"}
+
+
+PaymentStatusLiteral = Literal["pending", "applied", "failed", "returned"]
+"""Status of a Deposit/Withdrawal. Spec defines two structurally-identical
+inline enums (Deposit.status, Withdrawal.status); the SDK shares one alias
+since the values are identical.
+"""
+
+PaymentTypeLiteral = Literal["ach", "wire", "crypto", "debit", "apm"]
+"""Payment method used for a deposit/withdrawal."""
+
+
+class Deposit(BaseModel):
+    """A single deposit history entry. Amounts are integer cents."""
+
+    id: str
+    status: PaymentStatusLiteral
+    type: PaymentTypeLiteral
+    amount_cents: int
+    fee_cents: int
+    created_ts: int
+    finalized_ts: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class Withdrawal(BaseModel):
+    """A single withdrawal history entry. Amounts are integer cents."""
+
+    id: str
+    status: PaymentStatusLiteral
+    type: PaymentTypeLiteral
+    amount_cents: int
+    fee_cents: int
+    created_ts: int
+    finalized_ts: int | None = None
 
     model_config = {"extra": "allow"}
 
