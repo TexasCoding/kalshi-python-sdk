@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.models.orders import BookSideLiteral, SideLiteral
 from kalshi.types import DollarDecimal
 
 
@@ -30,6 +31,11 @@ class TradePayload(BaseModel):
     )  # _fp format
     taker_side: str | None = None
     ts: int | None = None
+    # v0.14+ backfill (#162). taker_outcome_side/taker_book_side are the
+    # canonical direction encoding; ts_ms supersedes ts. taker_side stays.
+    taker_outcome_side: SideLiteral | None = None
+    taker_book_side: BookSideLiteral | None = None
+    ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -40,3 +46,4 @@ class TradeMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: TradePayload
+    model_config = {"extra": "allow"}

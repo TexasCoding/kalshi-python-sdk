@@ -50,3 +50,4 @@ class MarketPositionsMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketPositionsPayload
+    model_config = {"extra": "allow"}

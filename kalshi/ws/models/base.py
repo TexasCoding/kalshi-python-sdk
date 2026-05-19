@@ -8,6 +8,7 @@ class SubscriptionInfo(BaseModel):
     """Subscription confirmation payload."""
     channel: str
     sid: int
+    model_config = {"extra": "allow"}
 
 
 class ErrorPayload(BaseModel):
@@ -16,6 +17,7 @@ class ErrorPayload(BaseModel):
     msg: str
     market_ticker: str | None = None
     market_id: str | None = None
+    model_config = {"extra": "allow"}
 
 
 class BaseMessage(BaseModel):
@@ -32,6 +34,7 @@ class SubscribedMessage(BaseModel):
     id: int = 0
     type: str = "subscribed"
     msg: SubscriptionInfo
+    model_config = {"extra": "allow"}
 
 
 class UnsubscribedMessage(BaseModel):
@@ -40,6 +43,7 @@ class UnsubscribedMessage(BaseModel):
     sid: int
     seq: int
     type: str = "unsubscribed"
+    model_config = {"extra": "allow"}
 
 
 class OkMessage(BaseModel):
@@ -57,3 +61,4 @@ class ErrorMessage(BaseModel):
     id: int = 0
     type: str = "error"
     msg: ErrorPayload
+    model_config = {"extra": "allow"}

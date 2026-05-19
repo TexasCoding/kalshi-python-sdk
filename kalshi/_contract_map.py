@@ -353,8 +353,16 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.ws.models.communications.QuoteExecutedPayload",
         spec_schema="quoteExecutedPayload",
     ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.base.ErrorPayload",
+        spec_schema="errorResponsePayload",
+        notes=(
+            "WS error-frame payload surfaced via KalshiSubscriptionError. "
+            "Spec name is `errorResponsePayload`; SDK class is `ErrorPayload`."
+        ),
+    ),
     # Intentionally excluded:
     # - eventLifecyclePayload: SDK reuses MarketLifecyclePayload for both channels
     # - multivariateMarketLifecyclePayload: allOf with marketLifecycleV2Payload, covered by base
-    # - Control messages (ErrorPayload, SubscriptionInfo, OkMessage): structural, low drift risk
+    # - Control envelopes (SubscriptionInfo, OkMessage): structural, low drift risk
 ]

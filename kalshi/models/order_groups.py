@@ -17,6 +17,9 @@ class OrderGroup(BaseModel):
     )
     is_auto_cancel_enabled: bool
 
+    # v3.18.0 backfill (#161). Mirrors exchange_index on Market/Order/Event.
+    exchange_index: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -30,6 +33,9 @@ class GetOrderGroupResponse(BaseModel):
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
     )
 
+    # v3.18.0 backfill (#161).
+    exchange_index: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -37,6 +43,11 @@ class CreateOrderGroupResponse(BaseModel):
     """Create response — wraps the new group's id."""
 
     order_group_id: str
+
+    # v3.18.0 backfill (#161). Server echoes the routing context (subaccount +
+    # exchange shard) on the create response.
+    subaccount: int | None = None
+    exchange_index: int | None = None
 
     model_config = {"extra": "allow"}
 

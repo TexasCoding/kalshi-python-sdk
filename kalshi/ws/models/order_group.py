@@ -13,6 +13,8 @@ class OrderGroupPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
     )  # _fp format
+    # v0.14+ backfill (#162). Matching engine timestamp in Unix ms.
+    ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -23,3 +25,4 @@ class OrderGroupMessage(BaseModel):
     sid: int
     seq: int  # Required — one of few channels with required seq
     msg: OrderGroupPayload
+    model_config = {"extra": "allow"}

@@ -55,6 +55,13 @@ class TickerPayload(BaseModel):
         validation_alias=AliasChoices("last_trade_size_fp", "last_trade_size"),
     )  # _fp format
     ts: int | None = None
+    # v0.14+ backfill (#162). Spec promotes ts_ms (Unix ms) as the primary
+    # timestamp; ts (seconds) stays for compat. Do NOT auto-convert.
+    price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("price_dollars", "price"),
+    )
+    ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -65,3 +72,4 @@ class TickerMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: TickerPayload
+    model_config = {"extra": "allow"}

@@ -1,10 +1,14 @@
-"""Contract tests: verify hand-written SDK models match OpenAPI spec schemas.
+"""Contract tests: verify hand-written SDK models match OpenAPI / AsyncAPI spec schemas.
 
 Drift detection:
-- Additive drift (spec has fields SDK doesn't): WARNING
+- Additive drift (spec has fields SDK doesn't): **FAILURE** (#163)
+- Unmapped WS payload models: **FAILURE** (#163)
+- Unmapped REST models: WARNING (sub-models / V2 family — separate mapping pass)
 - Required mismatch (spec required, SDK optional): WARNING (SDK is intentionally permissive)
 - Missing schema in spec: FAILURE
-- Unmapped SDK models: WARNING
+
+Intentional deviations require an entry in ``EXCLUSIONS``
+(``tests/_contract_support.py``) with a typed ``kind`` and ``reason``.
 """
 
 from __future__ import annotations
@@ -648,10 +652,9 @@ class TestSpecDrift:
         model_class = _get_sdk_model_class(entry.sdk_model)
         additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
         if additive:
-            warnings.warn(
+            pytest.fail(
                 f"Additive drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {a}" for a in additive),
-                stacklevel=1,
             )
 
     @pytest.mark.parametrize(
@@ -707,6 +710,12 @@ class TestSpecDrift:
                         unmapped.append(fqn)
 
         if unmapped:
+            # REST completeness stays as warn-only pending sub-model + V2 model
+            # mapping work (~42 entries: nested model classes like Candlestick /
+            # OrderbookLevel, V2 request/response families, internal containers
+            # like PositionsResponse). Out of scope for #163; the WS completeness
+            # check IS hard-fail since ErrorPayload registration cleared it.
+            # Track follow-up in a separate issue if mapping these is desired.
             warnings.warn(
                 "SDK models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),
@@ -746,10 +755,9 @@ class TestWsSpecDrift:
         model_class = _get_sdk_model_class(entry.sdk_model)
         additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
         if additive:
-            warnings.warn(
+            pytest.fail(
                 f"WS additive drift in {entry.sdk_model}:\n"
                 + "\n".join(f"  - {a}" for a in additive),
-                stacklevel=1,
             )
 
     @pytest.mark.parametrize(
@@ -918,10 +926,9 @@ class TestWsSpecDrift:
                         unmapped.append(fqn)
 
         if unmapped:
-            warnings.warn(
+            pytest.fail(
                 "WS payload models without contract map entries:\n"
                 + "\n".join(f"  - {m}" for m in unmapped),
-                stacklevel=1,
             )
 
 

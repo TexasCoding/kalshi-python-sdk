@@ -52,6 +52,9 @@ class RFQ(BaseModel):
     cancelled_ts: datetime | None = None
     updated_ts: datetime | None = None
 
+    # v3.18.0 backfill (#161).
+    creator_subaccount: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -98,6 +101,12 @@ class Quote(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_contracts_fp", "no_contracts"),
     )
+
+    # v3.18.0 backfill (#161). post_only mirrors CreateQuoteRequest.post_only —
+    # server echoes the value on Quote when the caller is the creator.
+    creator_subaccount: int | None = None
+    rfq_creator_subaccount: int | None = None
+    post_only: bool | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

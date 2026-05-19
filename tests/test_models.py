@@ -4,13 +4,20 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import ClassVar
 
 import pytest
 
+from kalshi.models.communications import RFQ, Quote
 from kalshi.models.events import Event, EventMetadata
 from kalshi.models.historical import Trade
 from kalshi.models.incentive_programs import IncentiveProgram
 from kalshi.models.markets import Market
+from kalshi.models.order_groups import (
+    CreateOrderGroupResponse,
+    GetOrderGroupResponse,
+    OrderGroup,
+)
 from kalshi.models.orders import Fill, Order
 from kalshi.models.portfolio import Settlement
 from kalshi.types import to_decimal
@@ -465,6 +472,111 @@ class TestIncentiveProgramV3180Fields:
             paid_out=False,
         )
         assert p.incentive_description is None
+
+
+class TestRFQV3180Fields:
+    """v3.18.0 backfill (issue #161): 1 new optional field on ``RFQ``."""
+
+    def test_parses_creator_subaccount(self) -> None:
+        r = RFQ.model_validate({
+            "id": "rfq-1",
+            "creator_id": "user-1",
+            "market_ticker": "MKT",
+            "contracts_fp": "10.00",
+            "status": "open",
+            "created_ts": "2026-05-01T00:00:00Z",
+            "creator_subaccount": 3,
+        })
+        assert r.creator_subaccount == 3
+
+    def test_creator_subaccount_defaults_to_none(self) -> None:
+        r = RFQ.model_validate({
+            "id": "rfq-1",
+            "creator_id": "user-1",
+            "market_ticker": "MKT",
+            "contracts_fp": "10.00",
+            "status": "open",
+            "created_ts": "2026-05-01T00:00:00Z",
+        })
+        assert r.creator_subaccount is None
+
+
+class TestQuoteV3180Fields:
+    """v3.18.0 backfill (issue #161): 3 new optional fields on ``Quote``."""
+
+    _MINIMAL: ClassVar[dict[str, str]] = {
+        "id": "q-1",
+        "rfq_id": "rfq-1",
+        "creator_id": "user-1",
+        "rfq_creator_id": "user-2",
+        "market_ticker": "MKT",
+        "contracts_fp": "10.00",
+        "yes_bid_dollars": "0.5500",
+        "no_bid_dollars": "0.4500",
+        "created_ts": "2026-05-01T00:00:00Z",
+        "updated_ts": "2026-05-01T00:00:00Z",
+        "status": "open",
+    }
+
+    def test_parses_all_new_fields(self) -> None:
+        q = Quote.model_validate(
+            self._MINIMAL | {
+                "creator_subaccount": 3,
+                "rfq_creator_subaccount": 5,
+                "post_only": True,
+            }
+        )
+        assert q.creator_subaccount == 3
+        assert q.rfq_creator_subaccount == 5
+        assert q.post_only is True
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        q = Quote.model_validate(self._MINIMAL)
+        assert q.creator_subaccount is None
+        assert q.rfq_creator_subaccount is None
+        assert q.post_only is None
+
+
+class TestOrderGroupV3180Fields:
+    """v3.18.0 backfill (issue #161): exchange_index on OrderGroup + responses."""
+
+    def test_order_group_parses_exchange_index(self) -> None:
+        g = OrderGroup.model_validate({
+            "id": "g-1",
+            "is_auto_cancel_enabled": True,
+            "exchange_index": 7,
+        })
+        assert g.exchange_index == 7
+
+    def test_order_group_exchange_index_defaults_to_none(self) -> None:
+        g = OrderGroup.model_validate({
+            "id": "g-1",
+            "is_auto_cancel_enabled": True,
+        })
+        assert g.exchange_index is None
+
+    def test_get_order_group_response_parses_exchange_index(self) -> None:
+        r = GetOrderGroupResponse.model_validate({
+            "is_auto_cancel_enabled": True,
+            "orders": ["ord-1"],
+            "exchange_index": 7,
+        })
+        assert r.exchange_index == 7
+
+    def test_create_order_group_response_parses_subaccount_and_exchange_index(self) -> None:
+        """Server echoes the routing context (subaccount + shard) on create."""
+        r = CreateOrderGroupResponse.model_validate({
+            "order_group_id": "g-1",
+            "subaccount": 4,
+            "exchange_index": 7,
+        })
+        assert r.subaccount == 4
+        assert r.exchange_index == 7
+
+    def test_create_order_group_response_defaults_to_none(self) -> None:
+        r = CreateOrderGroupResponse.model_validate({"order_group_id": "g-1"})
+        assert r.subaccount is None
+        assert r.exchange_index is None
 
 
 class TestErrorHierarchy:
