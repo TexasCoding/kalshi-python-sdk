@@ -2,6 +2,42 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.1.0 — 2026-05-18
+
+OpenAPI spec sync from v3.13.0 → v3.18.0. Adds the V2 event-market
+orders family, deposits/withdrawals history, account endpoint-cost
+introspection, and several optional query / body fields. Also fixes
+a recurring false-alarm in the weekly spec-sync workflow.
+
+### Added
+
+- **V2 event-market orders** (`/portfolio/events/orders/*`). Legacy
+  `/portfolio/orders` will be deprecated no earlier than May 6, 2026.
+  - `orders.create_v2(request=CreateOrderV2Request(...))`
+  - `orders.cancel_v2(order_id, subaccount=..., exchange_index=...)`
+  - `orders.amend_v2(order_id, request=AmendOrderV2Request(...))`
+  - `orders.decrease_v2(order_id, request=DecreaseOrderV2Request(...))`
+  - `orders.batch_create_v2(request=BatchCreateOrdersV2Request(...))`
+  - `orders.batch_cancel_v2(request=BatchCancelOrdersV2Request(...))`
+- `portfolio.deposits()` / `portfolio.deposits_all()` — deposit history.
+- `portfolio.withdrawals()` / `portfolio.withdrawals_all()` — withdrawal history.
+- `account.endpoint_costs()` — lists endpoints whose token cost differs from the default.
+- Optional `exchange_index` on `CreateOrderRequest`, `AmendOrderRequest`,
+  `DecreaseOrderRequest`, `BatchCancelOrdersRequestOrder`, `CreateOrderGroupRequest`,
+  and as a query kwarg on `orders.cancel` / `order_groups.delete`.
+- Optional `user_filter` on `communications.list_rfqs` / `list_all_rfqs`;
+  `user_filter` + `rfq_user_filter` on `communications.list_quotes` / `list_all_quotes`.
+- Optional `incentive_description` on `incentive_programs.list` / `list_all`.
+- Optional `post_only` on `CreateQuoteRequest`.
+
+### Fixed
+
+- `specs/asyncapi.yaml` is now committed as a pinned snapshot, matching the
+  long-standing intent on `specs/openapi.yaml`. The weekly spec-sync workflow
+  no longer reports a bogus "AsyncAPI 0 → 13 channels" delta every Monday
+  (the file was previously gitignored, so each cron diffed the fresh
+  download against a non-existent old file).
+
 ## 2.0.0 — 2026-05-17
 
 Audit-driven hardening release. 30 audit-findings landed across five

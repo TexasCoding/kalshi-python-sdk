@@ -1346,6 +1346,70 @@ class TestBatchCreateV2:
 
 class TestBatchCancelV2:
     @respx.mock
+    def test_sends_body(self, orders: OrdersResource) -> None:
+        """Spec says DELETE /portfolio/events/orders/batched carries a JSON
+        body. Regression guard against the body silently dropping off the
+        request — httpx + the DELETE-with-body helper need to keep this wired.
+        """
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
+        ).mock(
+            return_value=httpx.Response(200, json={"orders": []}),
+        )
+        orders.batch_cancel_v2(
+            request=BatchCancelOrdersV2Request(
+                orders=[
+                    BatchCancelOrdersV2RequestOrder(order_id="ord-a", subaccount=3),
+                    BatchCancelOrdersV2RequestOrder(order_id="ord-b"),
+                ],
+            ),
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body == {
+            "orders": [
+                {"order_id": "ord-a", "subaccount": 3},
+                {"order_id": "ord-b"},
+            ],
+        }
+
+    @respx.mock
+    def test_error_entry_parses(self, orders: OrdersResource) -> None:
+        """Per spec, an errored cancel still carries order_id + reduced_by=0
+        alongside the error block. Document the spec contract here so we
+        catch upstream divergence early.
+        """
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "ord-bad",
+                            "reduced_by": "0",
+                            "error": {
+                                "code": "order_not_found",
+                                "message": "no such order",
+                            },
+                        },
+                    ],
+                },
+            )
+        )
+        result = orders.batch_cancel_v2(
+            request=BatchCancelOrdersV2Request(
+                orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-bad")],
+            ),
+        )
+        assert result.orders[0].order_id == "ord-bad"
+        assert result.orders[0].reduced_by == Decimal("0")
+        assert result.orders[0].error == {
+            "code": "order_not_found",
+            "message": "no such order",
+        }
+
+    @respx.mock
     def test_returns_response(self, orders: OrdersResource) -> None:
         respx.delete(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",

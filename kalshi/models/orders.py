@@ -390,7 +390,7 @@ class CreateOrderV2Request(BaseModel):
     post_only: bool | None = None
     cancel_order_on_pause: bool | None = None
     reduce_only: bool | None = None
-    subaccount: int | None = None
+    subaccount: int | None = Field(default=None, ge=0, le=32)
     order_group_id: str | None = None
     exchange_index: int | None = None
 
@@ -434,6 +434,9 @@ class DecreaseOrderV2Request(BaseModel):
     exchange_index: int | None = None
 
     model_config = {"extra": "forbid"}
+
+    # DecreaseOrderV2Request has no subaccount field — the V2 spec routes
+    # that as a query param on the resource method, not on the request body.
 
     @model_validator(mode="after")
     def _enforce_reduce_xor(self) -> DecreaseOrderV2Request:
@@ -522,7 +525,7 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
     """Single entry in BatchCancelOrdersV2Request.orders."""
 
     order_id: str
-    subaccount: int | None = None
+    subaccount: int | None = Field(default=None, ge=0, le=32)
     exchange_index: int | None = None
 
     model_config = {"extra": "forbid"}
