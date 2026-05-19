@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.models.orders import BookSideLiteral, SideLiteral
 from kalshi.types import DollarDecimal
 
 
@@ -38,6 +39,11 @@ class FillPayload(BaseModel):
     purchased_side: str | None = None
     client_order_id: str | None = None
     subaccount: int | None = None
+    # v0.14+ backfill (#162). outcome_side/book_side are the canonical
+    # direction encoding; ts_ms supersedes ts. action/side stay for compat.
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -48,3 +54,4 @@ class FillMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: FillPayload
+    model_config = {"extra": "allow"}

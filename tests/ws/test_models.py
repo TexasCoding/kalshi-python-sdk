@@ -13,6 +13,7 @@ from kalshi.ws.models.base import (
 from kalshi.ws.models.communications import (
     CommunicationsMessage,
     QuoteAcceptedPayload,
+    QuoteCreatedPayload,
     QuoteExecutedPayload,
     RfqCreatedPayload,
 )
@@ -663,3 +664,174 @@ class TestCommunicationsModel:
         )
         assert payload.order_id == "ord-001"
         assert payload.executed_ts == "2026-04-19T18:43:37Z"
+
+
+# ---------- v0.14+ backfill (#162): one (de)serialization test per payload ----------
+
+
+class TestWsV0140Backfill:
+    """Verify the v0.14+ AsyncAPI backfill fields parse end-to-end.
+
+    One assertion per payload covering at least one of the newly-added
+    fields. Defaults-to-None paths are already exercised by the existing
+    ``test_*_minimal`` tests in each per-payload class.
+    """
+
+    def test_ticker_price_and_ts_ms(self) -> None:
+        msg = TickerMessage.model_validate({
+            "type": "ticker",
+            "sid": 1,
+            "msg": {"market_ticker": "T", "price_dollars": "0.5500", "ts_ms": 1700000000000},
+        })
+        assert msg.msg.price == Decimal("0.5500")
+        assert msg.msg.ts_ms == 1700000000000
+
+    def test_fill_outcome_book_side_and_ts_ms(self) -> None:
+        msg = FillMessage.model_validate({
+            "type": "fill",
+            "sid": 1,
+            "msg": {
+                "trade_id": "t1",
+                "outcome_side": "yes",
+                "book_side": "bid",
+                "ts_ms": 1700000000000,
+            },
+        })
+        assert msg.msg.outcome_side == "yes"
+        assert msg.msg.book_side == "bid"
+        assert msg.msg.ts_ms == 1700000000000
+
+    def test_orderbook_delta_ts_ms(self) -> None:
+        msg = OrderbookDeltaMessage.model_validate({
+            "type": "orderbook_delta",
+            "sid": 1,
+            "seq": 1,
+            "msg": {
+                "market_ticker": "T",
+                "market_id": "x",
+                "price_dollars": "0.5500",
+                "delta_fp": "10.00",
+                "side": "yes",
+                "ts_ms": 1700000000000,
+            },
+        })
+        assert msg.msg.ts_ms == 1700000000000
+
+    def test_trade_taker_outcome_book_side_and_ts_ms(self) -> None:
+        msg = TradeMessage.model_validate({
+            "type": "trade",
+            "sid": 1,
+            "msg": {
+                "trade_id": "t1",
+                "market_ticker": "T",
+                "taker_outcome_side": "no",
+                "taker_book_side": "ask",
+                "ts_ms": 1700000000000,
+            },
+        })
+        assert msg.msg.taker_outcome_side == "no"
+        assert msg.msg.taker_book_side == "ask"
+        assert msg.msg.ts_ms == 1700000000000
+
+    def test_user_orders_outcome_book_stp_and_ts_ms_trio(self) -> None:
+        msg = UserOrdersMessage.model_validate({
+            "type": "user_order",
+            "sid": 1,
+            "msg": {
+                "order_id": "o1",
+                "outcome_side": "yes",
+                "book_side": "bid",
+                "self_trade_prevention_type": "taker_at_cross",
+                "created_ts_ms": 1700000000000,
+                "last_updated_ts_ms": 1700000001000,
+                "expiration_ts_ms": 1700000002000,
+            },
+        })
+        assert msg.msg.outcome_side == "yes"
+        assert msg.msg.book_side == "bid"
+        assert msg.msg.self_trade_prevention_type == "taker_at_cross"
+        assert msg.msg.created_ts_ms == 1700000000000
+        assert msg.msg.last_updated_ts_ms == 1700000001000
+        assert msg.msg.expiration_ts_ms == 1700000002000
+
+    def test_market_lifecycle_metadata_strike_structure_subtitle(self) -> None:
+        msg = MarketLifecycleMessage.model_validate({
+            "type": "market_lifecycle_v2",
+            "sid": 1,
+            "msg": {
+                "event_type": "metadata_updated",
+                "market_ticker": "T",
+                "additional_metadata": {"title": "Updated", "rules_primary": "rules"},
+                "floor_strike": 50.5,
+                "price_level_structure": "linear_cent",
+                "yes_sub_title": "Will it happen?",
+            },
+        })
+        assert msg.msg.additional_metadata == {"title": "Updated", "rules_primary": "rules"}
+        assert msg.msg.floor_strike == Decimal("50.5")
+        assert msg.msg.price_level_structure == "linear_cent"
+        assert msg.msg.yes_sub_title == "Will it happen?"
+
+    def test_order_group_ts_ms(self) -> None:
+        msg = OrderGroupMessage.model_validate({
+            "type": "order_group_updates",
+            "sid": 1,
+            "seq": 1,
+            "msg": {
+                "event_type": "created",
+                "order_group_id": "g1",
+                "ts_ms": 1700000000000,
+            },
+        })
+        assert msg.msg.ts_ms == 1700000000000
+
+    def test_rfq_created_mve_fields(self) -> None:
+        payload = RfqCreatedPayload.model_validate({
+            "id": "rfq-1",
+            "mve_collection_ticker": "COLL-001",
+            "mve_selected_legs": [
+                {"event_ticker": "EVT-1", "market_ticker": "MKT-1", "side": "yes"},
+            ],
+        })
+        assert payload.mve_collection_ticker == "COLL-001"
+        assert payload.mve_selected_legs is not None
+        assert payload.mve_selected_legs[0]["event_ticker"] == "EVT-1"
+
+    def test_rfq_deleted_rfq_context(self) -> None:
+        from kalshi.ws.models.communications import RfqDeletedPayload
+
+        payload = RfqDeletedPayload.model_validate({
+            "id": "rfq-1",
+            "event_ticker": "EVT-1",
+            "contracts_fp": "10.00",
+            "target_cost_dollars": "5.5000",
+        })
+        assert payload.event_ticker == "EVT-1"
+        assert payload.contracts == Decimal("10.00")
+        assert payload.target_cost == Decimal("5.5000")
+
+    def test_quote_created_rfq_context(self) -> None:
+        payload = QuoteCreatedPayload.model_validate({
+            "quote_id": "q-1",
+            "event_ticker": "EVT-1",
+            "yes_contracts_offered_fp": "5.00",
+            "no_contracts_offered_fp": "3.00",
+            "rfq_target_cost_dollars": "1.5000",
+        })
+        assert payload.event_ticker == "EVT-1"
+        assert payload.yes_contracts_offered == Decimal("5.00")
+        assert payload.no_contracts_offered == Decimal("3.00")
+        assert payload.rfq_target_cost == Decimal("1.5000")
+
+    def test_quote_accepted_rfq_context(self) -> None:
+        payload = QuoteAcceptedPayload.model_validate({
+            "quote_id": "q-1",
+            "event_ticker": "EVT-1",
+            "yes_contracts_offered_fp": "5.00",
+            "no_contracts_offered_fp": "3.00",
+            "rfq_target_cost_dollars": "1.5000",
+        })
+        assert payload.event_ticker == "EVT-1"
+        assert payload.yes_contracts_offered == Decimal("5.00")
+        assert payload.no_contracts_offered == Decimal("3.00")
+        assert payload.rfq_target_cost == Decimal("1.5000")

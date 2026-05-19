@@ -49,6 +49,8 @@ class OrderbookDeltaPayload(BaseModel):
     client_order_id: str | None = None
     subaccount: int | None = None
     ts: str | None = None
+    # v0.14+ backfill (#162). ts_ms (Unix ms) supersedes ts (RFC3339).
+    ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -58,6 +60,7 @@ class OrderbookSnapshotMessage(BaseModel):
     sid: int
     seq: int
     msg: OrderbookSnapshotPayload
+    model_config = {"extra": "allow"}
 
 
 class OrderbookDeltaMessage(BaseModel):
@@ -66,3 +69,4 @@ class OrderbookDeltaMessage(BaseModel):
     sid: int
     seq: int
     msg: OrderbookDeltaPayload
+    model_config = {"extra": "allow"}

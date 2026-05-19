@@ -1,6 +1,9 @@
 """Market lifecycle v2 channel message models."""
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Any
+
 from pydantic import BaseModel
 
 from kalshi.types import DollarDecimal
@@ -31,6 +34,14 @@ class MarketLifecyclePayload(BaseModel):
     title: str | None = None
     subtitle: str | None = None
     series_ticker: str | None = None
+
+    # v0.14+ backfill (#162). additional_metadata is emitted for `created`
+    # events; floor_strike/yes_sub_title for `metadata_updated`;
+    # price_level_structure for `price_level_structure_updated` (or `created`).
+    additional_metadata: dict[str, Any] | None = None
+    floor_strike: Decimal | None = None
+    price_level_structure: str | None = None
+    yes_sub_title: str | None = None
     model_config = {"extra": "allow"}
 
 
@@ -41,3 +52,4 @@ class MarketLifecycleMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketLifecyclePayload
+    model_config = {"extra": "allow"}

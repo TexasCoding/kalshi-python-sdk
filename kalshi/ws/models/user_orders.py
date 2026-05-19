@@ -3,6 +3,11 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.models.orders import (
+    BookSideLiteral,
+    SelfTradePreventionTypeLiteral,
+    SideLiteral,
+)
 from kalshi.types import DollarDecimal
 
 
@@ -61,6 +66,15 @@ class UserOrdersPayload(BaseModel):
     last_update_time: str | None = None
     expiration_time: str | None = None
     subaccount_number: int | None = None
+    # v0.14+ backfill (#162). outcome_side/book_side/self_trade_prevention_type
+    # mirror Order from #159. *_ts_ms (Unix ms) supersede the *_time RFC3339
+    # siblings — both stay; do NOT auto-convert.
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
+    created_ts_ms: int | None = None
+    last_updated_ts_ms: int | None = None
+    expiration_ts_ms: int | None = None
     model_config = {"extra": "allow"}
 
 
@@ -71,3 +85,4 @@ class UserOrdersMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: UserOrdersPayload
+    model_config = {"extra": "allow"}
