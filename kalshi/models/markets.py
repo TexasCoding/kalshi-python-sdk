@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -134,6 +134,21 @@ class Market(BaseModel):
     cap_strike: Decimal | None = None
     rules_primary: str | None = None
     rules_secondary: str | None = None
+
+    # v3.18.0 backfill (#159). mve_selected_legs is list[MveSelectedLeg] and
+    # price_ranges is list[PriceRange] on the wire — kept as list[dict] here;
+    # no nested model classes yet (separable polish).
+    custom_strike: dict[str, Any] | None = None
+    early_close_condition: str | None = None
+    exchange_index: int | None = None
+    fee_waiver_expiration_time: datetime | None = None
+    functional_strike: str | None = None
+    is_provisional: bool | None = None
+    mve_collection_ticker: str | None = None
+    mve_selected_legs: list[dict[str, Any]] | None = None
+    price_level_structure: str | None = None
+    price_ranges: list[dict[str, Any]] | None = None
+    primary_participant_key: str | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

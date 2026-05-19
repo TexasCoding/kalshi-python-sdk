@@ -100,6 +100,18 @@ class Order(BaseModel):
     client_order_id: str | None = None
     subaccount: int | None = None
 
+    # v3.18.0 backfill (#159). outcome_side/book_side are the canonical
+    # direction encoding going forward; deprecated action/side/is_yes stay
+    # for back-compat. subaccount_number is distinct from subaccount.
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    last_update_time: datetime | None = None
+    self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
+    order_group_id: str | None = None
+    cancel_order_on_pause: bool | None = None
+    subaccount_number: int | None = None
+    exchange_index: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -135,6 +147,13 @@ class Fill(BaseModel):
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
     created_time: datetime | None = None
+
+    # v3.18.0 backfill (#159). ts is Unix-ms int per spec — distinct from
+    # the typed created_time: datetime; do NOT coerce.
+    outcome_side: SideLiteral | None = None
+    book_side: BookSideLiteral | None = None
+    subaccount_number: int | None = None
+    ts: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

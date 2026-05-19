@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from kalshi.models.markets import Market
-from kalshi.models.orders import Order
+from kalshi.models.orders import Fill, Order
 from kalshi.types import to_decimal
 
 
@@ -147,8 +147,6 @@ class TestDollarsAliasFields:
         assert "order_type" in Order.model_fields
 
     def test_fill_accepts_dollars_suffix(self) -> None:
-        from kalshi.models.orders import Fill
-
         f = Fill.model_validate({
             "trade_id": "t1",
             "yes_price_dollars": "0.5000",
@@ -194,6 +192,165 @@ class TestDollarsAliasFields:
         assert "yes_price_dollars" in data
         assert data["yes_price_dollars"] == "0.65"
         assert "yes_price" not in data
+
+
+class TestMarketV3180Fields:
+    """v3.18.0 backfill (issue #159): 11 new optional fields on ``Market``.
+
+    Spec adds direction-of-evolution fields (``price_level_structure`` /
+    ``price_ranges`` superseding the deprecated ``response_price_units``)
+    plus multivariate-event linkage and exchange-shard metadata.
+    """
+
+    def test_parses_all_new_scalar_fields(self) -> None:
+        m = Market.model_validate({
+            "ticker": "T",
+            "early_close_condition": "if_settled_early",
+            "exchange_index": 7,
+            "fee_waiver_expiration_time": "2026-06-01T00:00:00Z",
+            "functional_strike": "x**2",
+            "is_provisional": True,
+            "mve_collection_ticker": "COLL-001",
+            "price_level_structure": "tick_5_cent",
+            "primary_participant_key": "team-a",
+        })
+        assert m.early_close_condition == "if_settled_early"
+        assert m.exchange_index == 7
+        assert m.fee_waiver_expiration_time is not None
+        assert m.fee_waiver_expiration_time.year == 2026
+        assert isinstance(m.fee_waiver_expiration_time, datetime)
+        assert m.functional_strike == "x**2"
+        assert m.is_provisional is True
+        assert m.mve_collection_ticker == "COLL-001"
+        assert m.price_level_structure == "tick_5_cent"
+        assert m.primary_participant_key == "team-a"
+
+    def test_parses_object_and_array_fields(self) -> None:
+        m = Market.model_validate({
+            "ticker": "T",
+            "custom_strike": {"yes_threshold": 50, "no_threshold": 100},
+            "mve_selected_legs": [
+                {"event_ticker": "EVT-001", "market_ticker": "MKT-001", "side": "yes"},
+            ],
+            "price_ranges": [
+                {"start": "0.01", "end": "0.99", "step": "0.01"},
+            ],
+        })
+        assert m.custom_strike == {"yes_threshold": 50, "no_threshold": 100}
+        assert m.mve_selected_legs is not None
+        assert m.mve_selected_legs[0]["event_ticker"] == "EVT-001"
+        assert m.price_ranges is not None
+        assert m.price_ranges[0]["step"] == "0.01"
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        m = Market(ticker="T")
+        for name in (
+            "custom_strike",
+            "early_close_condition",
+            "exchange_index",
+            "fee_waiver_expiration_time",
+            "functional_strike",
+            "is_provisional",
+            "mve_collection_ticker",
+            "mve_selected_legs",
+            "price_level_structure",
+            "price_ranges",
+            "primary_participant_key",
+        ):
+            assert getattr(m, name) is None, f"{name} should default to None"
+
+
+class TestOrderV3180Fields:
+    """v3.18.0 backfill (issue #159): 8 new optional fields on ``Order``.
+
+    ``outcome_side`` / ``book_side`` are the canonical direction encoding
+    going forward; the deprecated ``action`` field (allowlisted in #158)
+    stays for back-compat. ``subaccount_number`` is distinct from the
+    existing ``subaccount`` field.
+    """
+
+    def test_parses_outcome_and_book_side(self) -> None:
+        o = Order.model_validate({
+            "order_id": "x",
+            "outcome_side": "yes",
+            "book_side": "bid",
+        })
+        assert o.outcome_side == "yes"
+        assert o.book_side == "bid"
+
+    def test_parses_remaining_new_fields(self) -> None:
+        o = Order.model_validate({
+            "order_id": "x",
+            "cancel_order_on_pause": True,
+            "exchange_index": 3,
+            "last_update_time": "2026-05-01T12:00:00Z",
+            "order_group_id": "group-42",
+            "self_trade_prevention_type": "taker_at_cross",
+            "subaccount_number": 5,
+        })
+        assert o.cancel_order_on_pause is True
+        assert o.exchange_index == 3
+        assert o.last_update_time is not None
+        assert isinstance(o.last_update_time, datetime)
+        assert o.order_group_id == "group-42"
+        assert o.self_trade_prevention_type == "taker_at_cross"
+        assert o.subaccount_number == 5
+
+    def test_subaccount_number_is_distinct_from_subaccount(self) -> None:
+        """``subaccount_number`` was added in v3.18.0 separately from the
+        existing ``subaccount`` field. Both must coexist."""
+        o = Order.model_validate({
+            "order_id": "x",
+            "subaccount": 1,
+            "subaccount_number": 5,
+        })
+        assert o.subaccount == 1
+        assert o.subaccount_number == 5
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        o = Order(order_id="x")
+        for name in (
+            "outcome_side",
+            "book_side",
+            "last_update_time",
+            "self_trade_prevention_type",
+            "order_group_id",
+            "cancel_order_on_pause",
+            "subaccount_number",
+            "exchange_index",
+        ):
+            assert getattr(o, name) is None, f"{name} should default to None"
+
+
+class TestFillV3180Fields:
+    """v3.18.0 backfill (issue #159): 4 new optional fields on ``Fill``."""
+
+    def test_parses_new_fields(self) -> None:
+        f = Fill.model_validate({
+            "trade_id": "t1",
+            "outcome_side": "no",
+            "book_side": "ask",
+            "subaccount_number": 2,
+            "ts": 1733047200000,
+        })
+        assert f.outcome_side == "no"
+        assert f.book_side == "ask"
+        assert f.subaccount_number == 2
+        assert f.ts == 1733047200000
+
+    def test_ts_is_int_not_datetime(self) -> None:
+        """Spec declares ``ts: integer`` (Unix-ms timestamp). The SDK must NOT
+        coerce it to ``datetime`` — it's the legacy companion to the typed
+        ``created_time: datetime`` field, and callers depend on the raw int."""
+        f = Fill.model_validate({"trade_id": "t1", "ts": 1733047200000})
+        assert f.ts == 1733047200000
+        assert isinstance(f.ts, int)
+        assert not isinstance(f.ts, bool)  # bools are ints; guard against ambiguity
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        f = Fill(trade_id="t1")
+        for name in ("outcome_side", "book_side", "subaccount_number", "ts"):
+            assert getattr(f, name) is None, f"{name} should default to None"
 
 
 class TestErrorHierarchy:
