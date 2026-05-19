@@ -37,6 +37,29 @@ a recurring false-alarm in the weekly spec-sync workflow.
 - New `IndexedBalance` model (`exchange_index`, `balance`) exposed from
   `kalshi` and `kalshi.models`.
 
+### Changed
+
+- ``Balance`` gained a required ``balance_dollars: DollarDecimal`` field
+  (added by spec v3.18.0). Callers who construct ``Balance`` from API
+  responses are unaffected — the server now guarantees the field. But
+  callers who build ``Balance(...)`` instances directly in their own
+  tests or mocks will hit ``ValidationError`` until they add it. This is
+  a soft breaking change at the model-construction surface; the field is
+  required because the spec marks it ``required``, not optional-in-practice.
+
+  ```python
+  # before v2.1.0
+  Balance(balance=50000, portfolio_value=75000, updated_ts=ts)
+
+  # v2.1.0+
+  Balance(
+      balance=50000,
+      balance_dollars=Decimal("500.00"),  # new required field
+      portfolio_value=75000,
+      updated_ts=ts,
+  )
+  ```
+
 ### Migration note
 
 - ``CreateOrderV2Request.client_order_id`` is **required**. V1's

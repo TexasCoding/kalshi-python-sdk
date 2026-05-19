@@ -11,7 +11,7 @@ import respx
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiAuthError
+from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.portfolio import AsyncPortfolioResource, PortfolioResource
 
 
@@ -34,6 +34,16 @@ def async_portfolio(
     test_auth: KalshiAuth, config: KalshiConfig
 ) -> AsyncPortfolioResource:
     return AsyncPortfolioResource(AsyncTransport(test_auth, config))
+
+
+@pytest.fixture
+def unauth_portfolio(config: KalshiConfig) -> PortfolioResource:
+    return PortfolioResource(SyncTransport(None, config))
+
+
+@pytest.fixture
+def unauth_async_portfolio(config: KalshiConfig) -> AsyncPortfolioResource:
+    return AsyncPortfolioResource(AsyncTransport(None, config))
 
 
 # ── Sync tests ──────────────────────────────────────────────
@@ -534,6 +544,19 @@ class TestPortfolioDeposits:
         with pytest.raises(KalshiAuthError):
             portfolio.deposits()
 
+    def test_deposits_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.deposits()
+
+    def test_deposits_all_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        # *_all returns an iterator — must raise eagerly, not on first iteration.
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.deposits_all()
+
 
 class TestPortfolioWithdrawals:
     @respx.mock
@@ -579,6 +602,18 @@ class TestPortfolioWithdrawals:
         )
         with pytest.raises(KalshiAuthError):
             portfolio.withdrawals()
+
+    def test_withdrawals_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.withdrawals()
+
+    def test_withdrawals_all_requires_auth(
+        self, unauth_portfolio: PortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.withdrawals_all()
 
 
 # ── Async tests ─────────────────────────────────────────────
@@ -960,3 +995,33 @@ class TestAsyncPortfolioWithdrawals:
         )
         with pytest.raises(KalshiAuthError):
             await async_portfolio.withdrawals()
+
+    @pytest.mark.asyncio
+    async def test_withdrawals_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.withdrawals()
+
+    def test_withdrawals_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        # withdrawals_all is plain `def` returning AsyncIterator; auth check
+        # must fire at call time, not on first iteration.
+        with pytest.raises(AuthRequiredError):
+            unauth_async_portfolio.withdrawals_all()
+
+
+class TestAsyncPortfolioDepositsAuth:
+    @pytest.mark.asyncio
+    async def test_deposits_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.deposits()
+
+    def test_deposits_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_async_portfolio.deposits_all()

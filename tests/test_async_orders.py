@@ -1188,6 +1188,52 @@ class TestAsyncCreateOrderV2:
         )
         assert result.order_id == "ord-v2-1"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_serializes_body(
+        self, orders: AsyncOrdersResource,
+    ) -> None:
+        """Async parity with TestCreateOrderV2.test_serializes_body —
+        guards DollarDecimal / FixedPointCount mode="json" serialization
+        on the async dispatch path.
+        """
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "order_id": "ord-v2-1",
+                    "fill_count": "0",
+                    "remaining_count": "10",
+                    "ts_ms": 0,
+                },
+            )
+        )
+        await orders.create_v2(
+            request=CreateOrderV2Request(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                exchange_index=0,
+            ),
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body == {
+            "ticker": "MKT-A",
+            "client_order_id": "cli-1",
+            "side": "bid",
+            "count": "10",
+            "price": "0.50",
+            "time_in_force": "good_till_canceled",
+            "self_trade_prevention_type": "taker_at_cross",
+            "exchange_index": 0,
+        }
+
 
 class TestAsyncCancelOrderV2:
     @respx.mock
