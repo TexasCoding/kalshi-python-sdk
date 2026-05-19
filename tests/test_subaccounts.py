@@ -190,15 +190,21 @@ class TestSubaccountRequestModels:
                 amount_cents=0,
             )
 
-    def test_transfer_request_rejects_out_of_range_subaccount(self) -> None:
-        with pytest.raises(ValidationError):
-            ApplySubaccountTransferRequest(
-                client_transfer_id=_TEST_XFER_ID,
-                from_subaccount=0,
-                to_subaccount=33,
-                amount_cents=100,
-            )
+    def test_transfer_request_accepts_subaccount_above_32(self) -> None:
+        """Regression guard for #164: demo allocates subaccount numbers above 32.
 
+        Spec describes ``1-32`` in prose but defines no JSON-schema maximum,
+        and an integration test caught the SDK rejecting a server-assigned 41
+        before the request could leave the client. The SDK validates only the
+        lower bound (``ge=0``); the server is the source of truth on the upper.
+        """
+        req = ApplySubaccountTransferRequest(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=41,
+            amount_cents=100,
+        )
+        assert req.to_subaccount == 41
     def test_update_netting_request_serializes(self) -> None:
         req = UpdateSubaccountNettingRequest(subaccount_number=2, enabled=True)
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")

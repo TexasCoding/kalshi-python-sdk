@@ -22,13 +22,17 @@ class ApplySubaccountTransferRequest(BaseModel):
 
     ``amount_cents`` is integer cents per spec (matches the ``buy_max_cost``
     convention on ``CreateOrderRequest``). Pass ``500`` for $5.00, never
-    a Decimal. ``from_subaccount`` and ``to_subaccount`` use ``0`` for
-    the primary account and ``1-32`` for numbered subaccounts.
+    a Decimal. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
+    primary account and a positive integer for numbered subaccounts. The
+    server is the source of truth for the upper bound: spec describes
+    ``1-32`` in prose but defines no JSON-schema maximum, and demo has
+    been observed allocating values above 32. The SDK validates only the
+    lower bound (``ge=0``) so server-assigned numbers always round-trip.
     """
 
     client_transfer_id: UUID
-    from_subaccount: int = Field(ge=0, le=32)
-    to_subaccount: int = Field(ge=0, le=32)
+    from_subaccount: int = Field(ge=0)
+    to_subaccount: int = Field(ge=0)
     amount_cents: int = Field(gt=0)
 
     model_config = {"extra": "forbid"}
@@ -79,7 +83,7 @@ class SubaccountTransfer(BaseModel):
 class UpdateSubaccountNettingRequest(BaseModel):
     """Body for PUT /portfolio/subaccounts/netting."""
 
-    subaccount_number: int = Field(ge=0, le=32)
+    subaccount_number: int = Field(ge=0)
     enabled: bool
 
     model_config = {"extra": "forbid"}
