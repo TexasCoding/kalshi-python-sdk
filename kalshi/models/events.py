@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -30,6 +31,13 @@ class Event(BaseModel):
     product_metadata: dict[str, Any] | None = None
     last_updated_ts: datetime | None = None
     markets: NullableList[Market] = []
+
+    # v3.18.0 backfill (#160). fee_multiplier_override is `type: number,
+    # format: double` per spec — Decimal (matches Market.floor_strike /
+    # cap_strike precedent for the same wire shape).
+    fee_type_override: str | None = None
+    fee_multiplier_override: Decimal | None = None
+    exchange_index: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -60,5 +68,9 @@ class EventMetadata(BaseModel):
     featured_image_url: str | None = None
     market_details: list[MarketMetadata] | None = None
     settlement_sources: list[SettlementSource] | None = None
+
+    # v3.18.0 backfill (#160).
+    competition: str | None = None
+    competition_scope: str | None = None
 
     model_config = {"extra": "allow"}

@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
+from kalshi.models.orders import BookSideLiteral, SideLiteral
 from kalshi.types import DollarDecimal, FixedPointCount
 
 # Single-value enum per spec (MveHistoricalFilterQuery). mypy rejects plain
@@ -44,5 +45,10 @@ class Trade(BaseModel):
     )
     taker_side: str | None = None
     created_time: datetime | None = None
+
+    # v3.18.0 backfill (#160). Mirrors Order.outcome_side / book_side from #159
+    # — canonical direction encoding superseding the deprecated `taker_side`.
+    taker_outcome_side: SideLiteral | None = None
+    taker_book_side: BookSideLiteral | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
