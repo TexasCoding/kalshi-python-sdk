@@ -1425,6 +1425,9 @@ class TestAsyncAmendDecreaseV2QueryParams:
         )
         request = route.calls[0].request
         assert dict(request.url.params) == {"subaccount": "4"}
+        body = json.loads(request.content)
+        assert body.get("exchange_index") == 0
+        assert "exchange_index" not in request.url.params
 
 
 class TestAsyncV2RequiresAuth:

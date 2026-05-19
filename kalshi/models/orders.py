@@ -504,7 +504,15 @@ class BatchCreateOrdersV2Request(BaseModel):
 
 
 class BatchCreateOrdersV2ResponseEntry(BaseModel):
-    """Single entry in BatchCreateOrdersV2Response — may carry an error per-order."""
+    """Single entry in BatchCreateOrdersV2Response — may carry an error per-order.
+
+    All fields are optional because each entry can be either a success
+    (``order_id`` + ``fill_count`` + ``remaining_count`` + ``ts_ms`` set)
+    or an error (only ``error`` set, others omitted). Note this differs
+    from :class:`CreateOrderV2Response` where ``ts_ms`` is required —
+    that response is for a single order which either succeeds with a
+    timestamp or raises an HTTP error, never a per-entry error block.
+    """
 
     order_id: str | None = None
     client_order_id: str | None = None

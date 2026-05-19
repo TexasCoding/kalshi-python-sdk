@@ -291,6 +291,7 @@ class AsyncPortfolioResource(AsyncResource):
         limit: int | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[Deposit]:
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _params(limit=limit)
@@ -317,6 +318,7 @@ class AsyncPortfolioResource(AsyncResource):
         limit: int | None = None,
         max_pages: int | None = None,
     ) -> AsyncIterator[Withdrawal]:
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _params(limit=limit)

@@ -18,6 +18,13 @@ class IndexedBalance(BaseModel):
     the ``balance_breakdown`` field on :class:`Balance`.
 
     Currently only ``exchange_index=0`` is supported per spec.
+
+    **Type note:** ``balance`` here is ``DollarDecimal`` (fixed-point
+    dollar string per spec), unlike :attr:`Balance.balance` which is
+    integer cents. Same field name, different semantics — be deliberate
+    when reading from ``balance.balance_breakdown[i].balance`` versus
+    ``balance.balance``. The :attr:`Balance.balance_dollars` field
+    rendered in dollars matches the breakdown's units.
     """
 
     exchange_index: int

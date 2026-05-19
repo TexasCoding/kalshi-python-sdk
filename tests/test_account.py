@@ -183,6 +183,21 @@ class TestAsyncAccountEndpointCosts:
         assert costs.default_cost == 10
         assert costs.endpoint_costs[0].cost == 100
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_empty_costs(
+        self, async_account: AsyncAccountResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/endpoint_costs",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"default_cost": 10, "endpoint_costs": []},
+            )
+        )
+        costs = await async_account.endpoint_costs()
+        assert costs.endpoint_costs == []
+
     @pytest.mark.asyncio
     async def test_requires_auth(
         self, unauth_async_account: AsyncAccountResource,

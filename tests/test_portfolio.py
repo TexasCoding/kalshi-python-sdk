@@ -570,6 +570,16 @@ class TestPortfolioWithdrawals:
         items = list(portfolio.withdrawals_all())
         assert [w.id for w in items] == ["wd_1", "wd_2"]
 
+    @respx.mock
+    def test_auth_failure(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            portfolio.withdrawals()
+
 
 # ── Async tests ─────────────────────────────────────────────
 
@@ -937,3 +947,16 @@ class TestAsyncPortfolioWithdrawals:
         )
         items = [w async for w in async_portfolio.withdrawals_all(max_pages=2)]
         assert len(items) == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_auth_failure(
+        self, async_portfolio: AsyncPortfolioResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
+        ).mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            await async_portfolio.withdrawals()
