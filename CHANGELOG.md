@@ -2,6 +2,39 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## Unreleased
+
+Response-side spec drift hardening stack (#157). Backfills the remaining
+v3.18.0 / v0.14 fields and promotes additive drift to a hard CI failure.
+
+### Added
+
+- `Market` gains 11 spec fields, `Order` gains 8, `Fill` gains 4 (#159).
+- `Event` gains 3, `EventMetadata` 2, `Settlement` 1, `Trade` 2,
+  `IncentiveProgram` 1 (#160).
+- `RFQ` gains 1, `Quote` 3, `OrderGroup` 1, `GetOrderGroupResponse` 1,
+  `CreateOrderGroupResponse` 2 (#161).
+- 33 fields across 11 WebSocket payload models (#162) — Unix-ms
+  timestamps (`*_ts_ms`), `outcome_side` / `book_side` direction
+  encoding, MVE linkage, and RFQ/Quote context echoes.
+- `ErrorPayload` registered in `WS_CONTRACT_MAP` so WS contract coverage
+  is complete.
+
+### Changed
+
+- Response-side additive spec drift now **hard-fails CI** (was a
+  warning). Closes the regression path that allowed
+  `Balance.balance_dollars` to ship missing in v2.1.0 across five
+  rounds of review. Intentional deviations require an entry in
+  `EXCLUSIONS` (`tests/_contract_support.py`) with a typed `kind` and
+  `reason`.
+- Unmapped SDK models (REST + WS) also now hard-fail — same regression
+  surface.
+- WS envelope and helper models now use `extra="allow"`, matching the
+  WS payload policy from #143. Closes the matching ROADMAP item.
+- Required-but-Optional drift stays as warning-only (~204 entries;
+  separate policy decision).
+
 ## 2.1.0 — 2026-05-18
 
 OpenAPI spec sync from v3.13.0 → v3.18.0. Adds the V2 event-market

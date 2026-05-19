@@ -12,6 +12,7 @@ class SelectedMarket(BaseModel):
     event_ticker: str | None = None
     market_ticker: str | None = None
     side: str | None = None
+    model_config = {"extra": "allow"}
 
 
 class MultivariatePayload(BaseModel):
@@ -31,6 +32,7 @@ class MultivariateMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MultivariatePayload
+    model_config = {"extra": "allow"}
 
 
 class MultivariateLifecycleMessage(BaseModel):
@@ -40,3 +42,4 @@ class MultivariateLifecycleMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketLifecyclePayload
+    model_config = {"extra": "allow"}

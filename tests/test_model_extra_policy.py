@@ -67,3 +67,60 @@ def test_request_bodies_use_extra_forbid(name: str, cls: type[BaseModel]) -> Non
         f"Request body {name} has extra={extra!r}; expected 'forbid' so "
         f"phantom kwargs fail at call time (CLAUDE.md key convention)."
     )
+
+
+# ---------------------------------------------------------------------------
+# WebSocket models — payloads, envelopes, AND helpers all use extra="allow"
+# (#163). The WS surface has no request bodies, so the policy is uniform.
+# This pins the rule so a future model addition that forgets the config
+# fails this test instead of slipping through.
+# ---------------------------------------------------------------------------
+
+
+def _ws_model_classes() -> list[tuple[str, type[BaseModel]]]:
+    """Every BaseModel subclass defined in any ``kalshi.ws.models.*`` module."""
+    import importlib
+    import inspect
+    import pkgutil
+
+    import kalshi.ws.models as ws_pkg
+
+    out: list[tuple[str, type[BaseModel]]] = []
+    seen: set[type[BaseModel]] = set()
+    for mod_info in pkgutil.iter_modules(ws_pkg.__path__):
+        if mod_info.name.startswith("_"):
+            continue
+        module = importlib.import_module(f"kalshi.ws.models.{mod_info.name}")
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(obj, BaseModel)
+                and obj is not BaseModel
+                and obj.__module__ == module.__name__
+                and obj not in seen
+            ):
+                out.append((f"{mod_info.name}.{name}", obj))
+                seen.add(obj)
+    return out
+
+
+_WS_MODELS = _ws_model_classes()
+
+
+@pytest.mark.parametrize(
+    "name,cls", _WS_MODELS, ids=[n for n, _ in _WS_MODELS],
+)
+def test_ws_models_use_extra_allow(name: str, cls: type[BaseModel]) -> None:
+    """Every WS model (payload, envelope, helper) must opt into ``extra='allow'``.
+
+    Locks in the policy so a future WS model addition that omits the
+    config fails CI loudly. Closes the matching ROADMAP item — payloads
+    were already covered in #143; this extends it to the envelopes and
+    helpers.
+    """
+    cfg = getattr(cls, "model_config", {})
+    extra = cfg.get("extra")
+    assert extra == "allow", (
+        f"WS model {name} has extra={extra!r}; expected 'allow'. WS is "
+        f"unidirectional and forwards-compatibility is the whole point — "
+        f"the spec adds fields routinely (e.g. v0.14 ts_ms backfill)."
+    )
