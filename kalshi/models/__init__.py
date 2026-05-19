@@ -29,6 +29,7 @@ from kalshi.models.communications import (
     GetRFQsResponse,
     MveSelectedLeg,
     Quote,
+    UserFilterLiteral,
 )
 from kalshi.models.events import (
     Event,
@@ -130,9 +131,9 @@ from kalshi.models.orders import (
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
-    DepositStatusLiteral,
     EventPosition,
     MarketPosition,
+    PaymentStatusLiteral,
     PaymentTypeLiteral,
     PositionsResponse,
     Settlement,
@@ -217,7 +218,6 @@ __all__ = [
     "DecreaseOrderV2Request",
     "DecreaseOrderV2Response",
     "Deposit",
-    "DepositStatusLiteral",
     "EndpointTokenCost",
     "Event",
     "EventCandlesticks",
@@ -275,6 +275,7 @@ __all__ = [
     "Orderbook",
     "OrderbookLevel",
     "Page",
+    "PaymentStatusLiteral",
     "PaymentTypeLiteral",
     "PercentilePoint",
     "PlayByPlay",
@@ -304,6 +305,7 @@ __all__ = [
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",
     "UserDataTimestamp",
+    "UserFilterLiteral",
     "WeeklySchedule",
     "Withdrawal",
 ]

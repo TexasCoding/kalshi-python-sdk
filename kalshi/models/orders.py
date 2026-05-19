@@ -384,8 +384,8 @@ class CreateOrderV2Request(BaseModel):
     side: BookSideLiteral
     count: FixedPointCount
     price: DollarDecimal
-    time_in_force: str
-    self_trade_prevention_type: str
+    time_in_force: TimeInForceLiteral
+    self_trade_prevention_type: SelfTradePreventionTypeLiteral
     expiration_time: int | None = None
     post_only: bool | None = None
     cancel_order_on_pause: bool | None = None

@@ -18,6 +18,7 @@ from kalshi.models.communications import (
     GetQuoteResponse,
     GetRFQResponse,
     Quote,
+    UserFilterLiteral,
 )
 from kalshi.resources._base import (
     AsyncResource,
@@ -26,9 +27,6 @@ from kalshi.resources._base import (
     _params,
     _validate_max_pages,
 )
-
-UserFilterLiteral = Literal["self"]
-"""Filter for items created by the authenticated user. Spec: UserFilter enum."""
 
 
 def _require_quote_filter(

@@ -14,7 +14,12 @@ from kalshi._base_client import AsyncTransport
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiValidationError
+from kalshi.errors import (
+    AuthRequiredError,
+    KalshiError,
+    KalshiNotFoundError,
+    KalshiValidationError,
+)
 from kalshi.models.orders import (
     AmendOrderResponse,
     AmendOrderV2Request,
@@ -1343,6 +1348,132 @@ class TestAsyncBatchCancelV2:
         ).mock(return_value=httpx.Response(204))
         with pytest.raises(KalshiError, match="204 No Content"):
             await orders.batch_cancel_v2(
+                request=BatchCancelOrdersV2Request(
+                    orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+                ),
+            )
+
+
+class TestAsyncAmendDecreaseV2QueryParams:
+    """Regression guard: subaccount must reach the query string (not the body)
+    on both amend_v2 and decrease_v2 — exchange_index stays in the body.
+    """
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_amend_v2(self, orders: AsyncOrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"order_id": "ord-1", "ts_ms": 0},
+            )
+        )
+        await orders.amend_v2(
+            "ord-1",
+            request=AmendOrderV2Request(
+                ticker="MKT-A", side="bid",
+                price=Decimal("0.55"), count=Decimal("10"),
+                exchange_index=0,
+            ),
+            subaccount=7,
+        )
+        request = route.calls[0].request
+        assert dict(request.url.params) == {"subaccount": "7"}
+        body = json.loads(request.content)
+        assert body.get("exchange_index") == 0
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_decrease_v2(self, orders: AsyncOrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/decrease",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order_id": "ord-1", "remaining_count": "0", "ts_ms": 0},
+            )
+        )
+        await orders.decrease_v2(
+            "ord-1",
+            request=DecreaseOrderV2Request(
+                reduce_by=Decimal("2"), exchange_index=0,
+            ),
+            subaccount=4,
+        )
+        request = route.calls[0].request
+        assert dict(request.url.params) == {"subaccount": "4"}
+
+
+class TestAsyncV2RequiresAuth:
+    @pytest.fixture
+    def _create_request(self) -> CreateOrderV2Request:
+        return CreateOrderV2Request(
+            ticker="MKT-A",
+            client_order_id="cli-1",
+            side="bid",
+            count=Decimal("10"),
+            price=Decimal("0.50"),
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_v2(
+        self,
+        unauth_orders_async: AsyncOrdersResource,
+        _create_request: CreateOrderV2Request,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.create_v2(request=_create_request)
+
+    @pytest.mark.asyncio
+    async def test_cancel_v2(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.cancel_v2("ord-1")
+
+    @pytest.mark.asyncio
+    async def test_amend_v2(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.amend_v2(
+                "ord-1",
+                request=AmendOrderV2Request(
+                    ticker="MKT-A", side="bid",
+                    price=Decimal("0.55"), count=Decimal("10"),
+                ),
+            )
+
+    @pytest.mark.asyncio
+    async def test_decrease_v2(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.decrease_v2(
+                "ord-1",
+                request=DecreaseOrderV2Request(reduce_by=Decimal("2")),
+            )
+
+    @pytest.mark.asyncio
+    async def test_batch_create_v2(
+        self,
+        unauth_orders_async: AsyncOrdersResource,
+        _create_request: CreateOrderV2Request,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.batch_create_v2(
+                request=BatchCreateOrdersV2Request(orders=[_create_request]),
+            )
+
+    @pytest.mark.asyncio
+    async def test_batch_cancel_v2(
+        self, unauth_orders_async: AsyncOrdersResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.batch_cancel_v2(
                 request=BatchCancelOrdersV2Request(
                     orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
                 ),

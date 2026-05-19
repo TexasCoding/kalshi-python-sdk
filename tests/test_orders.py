@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -13,7 +14,12 @@ from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiValidationError
+from kalshi.errors import (
+    AuthRequiredError,
+    KalshiError,
+    KalshiNotFoundError,
+    KalshiValidationError,
+)
 from kalshi.models.orders import (
     AmendOrderV2Request,
     BatchCancelOrdersV2Request,
@@ -1213,6 +1219,35 @@ class TestAmendOrderV2:
                 count=Decimal("10"),
             )
 
+    @respx.mock
+    def test_passes_subaccount_query(self, orders: OrdersResource) -> None:
+        """Spec puts subaccount in the query, exchange_index in the body.
+
+        Regression guard against the params kwarg being dropped from _post.
+        """
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"order_id": "ord-1", "ts_ms": 0},
+            )
+        )
+        orders.amend_v2(
+            "ord-1",
+            request=AmendOrderV2Request(
+                ticker="MKT-A", side="bid",
+                price=Decimal("0.55"), count=Decimal("10"),
+                exchange_index=0,
+            ),
+            subaccount=7,
+        )
+        request = route.calls[0].request
+        assert dict(request.url.params) == {"subaccount": "7"}
+        body = json.loads(request.content)
+        assert body.get("exchange_index") == 0
+        # exchange_index is body-only, must not leak into query
+        assert "exchange_index" not in request.url.params
+
 
 class TestDecreaseOrderV2:
     @respx.mock
@@ -1244,6 +1279,28 @@ class TestDecreaseOrderV2:
     def test_xor_requires_one(self) -> None:
         with pytest.raises(ValueError, match="requires either"):
             DecreaseOrderV2Request()
+
+    @respx.mock
+    def test_passes_subaccount_query(self, orders: OrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/decrease",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order_id": "ord-1", "remaining_count": "0", "ts_ms": 0},
+            )
+        )
+        orders.decrease_v2(
+            "ord-1",
+            request=DecreaseOrderV2Request(
+                reduce_by=Decimal("2"), exchange_index=0,
+            ),
+            subaccount=4,
+        )
+        request = route.calls[0].request
+        assert dict(request.url.params) == {"subaccount": "4"}
+        body = json.loads(request.content)
+        assert body.get("exchange_index") == 0
 
 
 class TestBatchCreateV2:
@@ -1321,6 +1378,67 @@ class TestBatchCancelV2:
         ).mock(return_value=httpx.Response(204))
         with pytest.raises(KalshiError, match="204 No Content"):
             orders.batch_cancel_v2(
+                request=BatchCancelOrdersV2Request(
+                    orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+                ),
+            )
+
+
+class TestV2RequiresAuth:
+    """Every V2 method must reject an unauthenticated client before
+    issuing the request (matches the V1 cancel/create/etc. tests).
+    """
+
+    @pytest.fixture
+    def _create_request(self) -> CreateOrderV2Request:
+        return CreateOrderV2Request(
+            ticker="MKT-A",
+            client_order_id="cli-1",
+            side="bid",
+            count=Decimal("10"),
+            price=Decimal("0.50"),
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
+
+    def test_create_v2(
+        self, unauth_orders: OrdersResource, _create_request: CreateOrderV2Request,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.create_v2(request=_create_request)
+
+    def test_cancel_v2(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.cancel_v2("ord-1")
+
+    def test_amend_v2(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.amend_v2(
+                "ord-1",
+                request=AmendOrderV2Request(
+                    ticker="MKT-A", side="bid",
+                    price=Decimal("0.55"), count=Decimal("10"),
+                ),
+            )
+
+    def test_decrease_v2(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.decrease_v2(
+                "ord-1",
+                request=DecreaseOrderV2Request(reduce_by=Decimal("2")),
+            )
+
+    def test_batch_create_v2(
+        self, unauth_orders: OrdersResource, _create_request: CreateOrderV2Request,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.batch_create_v2(
+                request=BatchCreateOrdersV2Request(orders=[_create_request]),
+            )
+
+    def test_batch_cancel_v2(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.batch_cancel_v2(
                 request=BatchCancelOrdersV2Request(
                     orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
                 ),

@@ -107,8 +107,11 @@ class PositionsResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
-DepositStatusLiteral = Literal["pending", "applied", "failed", "returned"]
-"""Status of a Deposit/Withdrawal. Spec: GetDepositsResponse / GetWithdrawalsResponse."""
+PaymentStatusLiteral = Literal["pending", "applied", "failed", "returned"]
+"""Status of a Deposit/Withdrawal. Spec defines two structurally-identical
+inline enums (Deposit.status, Withdrawal.status); the SDK shares one alias
+since the values are identical.
+"""
 
 PaymentTypeLiteral = Literal["ach", "wire", "crypto", "debit", "apm"]
 """Payment method used for a deposit/withdrawal."""
@@ -118,7 +121,7 @@ class Deposit(BaseModel):
     """A single deposit history entry. Amounts are integer cents."""
 
     id: str
-    status: DepositStatusLiteral
+    status: PaymentStatusLiteral
     type: PaymentTypeLiteral
     amount_cents: int
     fee_cents: int
@@ -132,7 +135,7 @@ class Withdrawal(BaseModel):
     """A single withdrawal history entry. Amounts are integer cents."""
 
     id: str
-    status: DepositStatusLiteral
+    status: PaymentStatusLiteral
     type: PaymentTypeLiteral
     amount_cents: int
     fee_cents: int

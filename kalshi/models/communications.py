@@ -9,6 +9,9 @@ from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
+UserFilterLiteral = Literal["self"]
+"""Filter for items created by the authenticated user. Spec: UserFilter enum."""
+
 
 class MveSelectedLeg(BaseModel):
     """A selected leg within a multivariate event collection RFQ."""
