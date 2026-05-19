@@ -71,10 +71,51 @@ client.communications.confirm_quote(resp.quote.quote_id)
 ```
 
 !!! warning "`list_quotes` requires a user-id filter"
-    `list_quotes` and `list_all_quotes` **must** be called with one of
-    `quote_creator_user_id=` or `rfq_creator_user_id=`. Passing `rfq_id=`
-    alone raises `ValueError` locally before the round trip — this enforces
-    a server-side requirement.
+    `list_quotes` and `list_all_quotes` **must** be called with at least one of:
+
+    - `quote_creator_user_id=` (filter to a specific quoter)
+    - `rfq_creator_user_id=` (filter to a specific RFQ originator)
+    - `user_filter="self"` (server-side shorthand for "the caller's quotes")
+    - `rfq_user_filter="self"` (server-side shorthand for "quotes on the caller's RFQs")
+
+    `user_filter` / `rfq_user_filter` were added in spec v3.18.0 and let
+    you avoid round-tripping `get_id()` first. Passing `rfq_id=` alone
+    raises `ValueError` locally before the round trip — this enforces a
+    server-side requirement.
+
+## Filtering shortcuts (v2.1.0)
+
+```python
+# All quotes you made — no get_id() needed.
+for q in client.communications.list_all_quotes(user_filter="self"):
+    print(q.quote_id, q.yes_bid)
+
+# All quotes against RFQs you originated.
+for q in client.communications.list_all_quotes(rfq_user_filter="self"):
+    ...
+
+# Same shortcut on RFQs:
+for rfq in client.communications.list_all_rfqs(user_filter="self"):
+    ...
+```
+
+`UserFilterLiteral` only accepts `"self"` today — the spec leaves room for
+server-side shorthands like `"organization"` in the future without an SDK
+upgrade.
+
+## Post-only quotes
+
+`create_quote()` accepts `post_only=True` (added in v2.1.0) to ensure your
+resting order is canceled rather than crossed if it would take liquidity:
+
+```python
+client.communications.create_quote(
+    rfq_id="rfq_abc",
+    yes_bid="0.60", no_bid="0.40",
+    rest_remainder=True,
+    post_only=True,    # cancel rather than cross
+)
+```
 
 ## RFQ statuses
 

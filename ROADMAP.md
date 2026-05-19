@@ -4,6 +4,15 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **v2.1.0 (2026-05-18)** — OpenAPI sync v3.13.0 → v3.18.0 (`#155`). V2
+  event-market orders family (`create_v2` / `amend_v2` / `decrease_v2` /
+  `cancel_v2` + batched variants on `/portfolio/events/orders/*`),
+  deposit/withdrawal history, account endpoint-cost introspection,
+  `Balance.balance_dollars` (soft-breaking at construction sites only),
+  optional `exchange_index` / `user_filter` / `rfq_user_filter` /
+  `incentive_description` / `post_only` kwargs on existing endpoints.
+  Also fixes a recurring false-alarm in the weekly spec-drift workflow
+  by committing `specs/asyncapi.yaml` as a pinned snapshot.
 - **v2.0.0 (2026-05-17)** — audit-driven hardening. 30 audit findings closed
   across five parallel waves (`#77`–`#106`) plus follow-ups: WebSocket
   recv-loop overhaul (5 reconnect races + narrowed exceptions),
@@ -36,7 +45,13 @@ See `CHANGELOG.md` for full release history.
 
 ## Next milestone
 
-Not scoped. Candidates from the v2.0 audit backlog:
+Not scoped. Carry-overs from v2.1 and v2.0 audit backlog:
+
+- **Response-side spec drift detection.** v2.1 contract tests cover request
+  bodies (`TestRequestBodyDrift`) but not response models, which is how
+  `Balance.balance_dollars` slipped through 5 rounds of review. Add a
+  `RESPONSE_MODEL_MAP` + walker that asserts spec-required fields exist on
+  the SDK model.
 
 - Apply `extra="allow"` policy to WS envelope models (`kalshi/ws/models/`)
   to mirror the response-model uniformity from `#114`.

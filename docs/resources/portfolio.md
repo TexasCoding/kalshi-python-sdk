@@ -11,15 +11,43 @@ Auth required throughout.
 | `positions(*, ...)` | `GET /portfolio/positions` |
 | `settlements(...)` / `settlements_all(...)` | `GET /portfolio/settlements` |
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
+| `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
+| `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
 
 ## Balance
 
 ```python
 bal = client.portfolio.balance()
-print(bal.balance, bal.portfolio_value, bal.updated_ts)
+print(bal.balance, bal.balance_dollars, bal.portfolio_value, bal.updated_ts)
 ```
 
-`Balance.balance` and `portfolio_value` are **integer cents**, not dollars.
+`Balance.balance` and `portfolio_value` are **integer cents**.
+`Balance.balance_dollars` (required, new in v2.1.0) is the same amount as a
+`DollarDecimal` — use whichever shape your code expects without manually
+dividing by 100.
+
+`Balance.balance_breakdown` (optional, also new in v2.1.0) splits the total
+across exchange shards:
+
+```python
+if bal.balance_breakdown is not None:
+    for shard in bal.balance_breakdown:
+        # IndexedBalance.balance is DollarDecimal, not cents — same name
+        # as Balance.balance but a different type. See note below.
+        print(shard.exchange_index, shard.balance)
+```
+
+!!! warning "Type collision: `Balance.balance` vs. `IndexedBalance.balance`"
+    `Balance.balance` is **integer cents**. `IndexedBalance.balance` (inside
+    `balance_breakdown`) is `DollarDecimal` (dollars), matching
+    `Balance.balance_dollars` units. Same field name, different types — be
+    deliberate when iterating the breakdown.
+
+!!! note "Constructing `Balance` directly"
+    v2.1.0 made `balance_dollars` required to match spec v3.18.0. Existing
+    code that calls `client.portfolio.balance()` is unaffected. Code that
+    builds `Balance(...)` directly (typically in tests/mocks) needs the
+    field added — see [Migration](../migration.md#v20-v21).
 
 ## Positions
 
@@ -84,6 +112,34 @@ print(total.total_value)
 !!! warning "FCM members only"
     Non-FCM accounts get a `403` (mapped to `KalshiAuthError`). Demo mirrors
     production behavior here.
+
+## Deposits and withdrawals
+
+New in v2.1.0. Standard `Page[T]` pagination — see [Pagination](../pagination.md).
+
+```python
+# Most recent deposits
+page = client.portfolio.deposits(limit=50)
+for d in page:
+    print(d.id, d.status, d.type, d.amount_cents, d.created_ts)
+
+# All deposits
+for d in client.portfolio.deposits_all():
+    ...
+
+# Withdrawals follow the same shape
+for w in client.portfolio.withdrawals_all():
+    print(w.id, w.status, w.amount_cents, w.fee_cents)
+```
+
+`Deposit` and `Withdrawal` are structurally identical: `id`, `status`
+(`PaymentStatusLiteral`: `"pending"` / `"applied"` / `"failed"` /
+`"returned"`), `type` (`PaymentTypeLiteral`: `"ach"` / `"wire"` /
+`"crypto"` / `"debit"` / `"apm"`), `amount_cents` (int), `fee_cents`
+(int), `created_ts` (int Unix seconds), and `finalized_ts: int | None`
+which is `None` until the transfer settles.
+
+Both `*_all` variants accept `max_pages=N` to bound iteration.
 
 ## Position fields
 

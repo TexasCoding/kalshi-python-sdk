@@ -66,6 +66,14 @@ anything with `_dollars` or `yes_price` / `no_price` is `Decimal` dollars.
 - **Position** — your aggregate exposure on a market (signed by side).
 - **Settlement** — what the exchange paid out when the market resolved.
 
+Orders come in two families:
+
+- **V1** — `/portfolio/orders/*`. Yes/no sides, paired `yes_price` /
+  `no_price`. Stable surface; deprecation no earlier than May 6, 2026.
+- **V2** — `/portfolio/events/orders/*`. Event-scoped, single-book
+  `bid` / `ask` sides, single `price` field, required `client_order_id`
+  acting as an idempotency key. Use this for new event-market integrations.
+
 See [Orders](resources/orders.md), [Portfolio](resources/portfolio.md).
 
 ## RFQ and Quote

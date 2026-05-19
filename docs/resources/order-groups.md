@@ -11,8 +11,8 @@ Auth required throughout.
 |---|---|
 | `list(*, subaccount=None)` | `GET /portfolio/order_groups` |
 | `get(order_group_id, *, subaccount=None)` | `GET /portfolio/order_groups/{id}` |
-| `create(*, contracts_limit, subaccount=None)` | `POST /portfolio/order_groups/create` |
-| `delete(order_group_id, *, subaccount=None)` | `DELETE /portfolio/order_groups/{id}` |
+| `create(*, contracts_limit, subaccount=None, exchange_index=None)` | `POST /portfolio/order_groups/create` |
+| `delete(order_group_id, *, subaccount=None, exchange_index=None)` | `DELETE /portfolio/order_groups/{id}` |
 | `reset(order_group_id, *, subaccount=None)` | `PUT /portfolio/order_groups/{id}/reset` |
 | `trigger(order_group_id, *, subaccount=None)` | `PUT /portfolio/order_groups/{id}/trigger` |
 | `update_limit(order_group_id, *, contracts_limit)` | `PUT /portfolio/order_groups/{id}/limit` |
@@ -66,6 +66,19 @@ client.order_groups.update_limit("og_abc", contracts_limit=200)
 `update_limit` has **no `subaccount=` kwarg** — the OpenAPI spec omits the
 subaccount query parameter on this path. Route via the group's own
 subaccount-on-create instead.
+
+## Exchange index (v2.1.0)
+
+`create()` and `delete()` gained an optional `exchange_index: int | None`
+parameter. Currently only `exchange_index=0` is supported per spec; the
+field is reserved for future multi-shard fanout. Pass it for forward
+compatibility if you're writing infrastructure that may target a non-zero
+shard later:
+
+```python
+client.order_groups.create(contracts_limit=100, exchange_index=0)
+client.order_groups.delete("og_abc", exchange_index=0)
+```
 
 ## Reference
 

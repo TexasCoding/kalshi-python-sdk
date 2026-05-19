@@ -88,7 +88,7 @@ tests/
   with `_dollars` suffix field names. SDK models use short Python names (`yes_bid`)
   with `validation_alias=AliasChoices("yes_bid_dollars", "yes_bid")` to accept both.
   `CreateOrderRequest` serializes with `_dollars` suffix via `serialization_alias`.
-  Verified against OpenAPI spec v3.13.0 on 2026-04-12.
+  Verified against OpenAPI spec v3.18.0 on 2026-05-18.
 - All prices use `Decimal` via the `DollarDecimal` custom Pydantic type.
 - Auth signing payload: `str(timestamp_ms) + METHOD + path_only` (path from urlparse,
   no query params, no trailing slash).
@@ -116,14 +116,14 @@ tests/
 
 ## Testing
 
-- pytest + pytest-asyncio + respx (httpx mock); 1455 tests collected (1407 passing, 48 skipped without live credentials).
+- pytest + pytest-asyncio + respx (httpx mock); ~1920 tests across unit + contract drift suites.
 - Use `respx.mock` for HTTP mocking. Generate test RSA keys via conftest.py fixtures.
 - New function → write a test. Bug fix → write a regression test. New error path → write a test that triggers it.
 
 ## API Reference
 
-- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.13.0, 90+ endpoints)
-- AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (11 WebSocket channels)
+- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.18.0, 85 endpoints)
+- AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (13 WebSocket channels)
 - Base URL: https://api.elections.kalshi.com/trade-api/v2
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2
 - Auth: RSA-PSS / SHA256 / MGF1(SHA256) / salt_length=DIGEST_LENGTH / base64

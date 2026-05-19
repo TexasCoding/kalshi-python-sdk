@@ -44,11 +44,19 @@ Some fields are plain `int` cents, **not** `DollarDecimal`:
 | Field | Where | Unit |
 |---|---|---|
 | `Balance.balance` / `portfolio_value` | `client.portfolio.balance()` | cents |
+| `Deposit.amount_cents` / `fee_cents` | `client.portfolio.deposits()` | cents |
+| `Withdrawal.amount_cents` / `fee_cents` | `client.portfolio.withdrawals()` | cents |
 | `CreateOrderRequest.buy_max_cost` | `client.orders.create(..., buy_max_cost=500)` | cents — `500` means $5.00 |
 | `ApplySubaccountTransferRequest.amount_cents` | `client.subaccounts.transfer(...)` | cents |
 
 Passing a `Decimal` or `float` to one of these raises `ValueError` at
 construction — by design, so silent ×100 corruption can't happen.
+
+!!! warning "`Balance.balance` vs. `IndexedBalance.balance` — same name, different type"
+    `Balance.balance` is integer **cents**. `IndexedBalance.balance` (inside
+    `Balance.balance_breakdown`) is `DollarDecimal` (**dollars**) per the
+    spec. The dollars-form of the top-level total is exposed separately as
+    `Balance.balance_dollars` (required since v2.1.0).
 
 ## Nullable lists
 
@@ -64,7 +72,8 @@ Every enum-like kwarg uses a `Literal` alias so your IDE auto-completes and
 
 | Alias | Values |
 |---|---|
-| `SideLiteral` | `"yes"`, `"no"` |
+| `SideLiteral` | `"yes"`, `"no"` (V1 orders) |
+| `BookSideLiteral` | `"bid"`, `"ask"` (V2 event-market orders) |
 | `ActionLiteral` | `"buy"`, `"sell"` |
 | `TimeInForceLiteral` | `"fill_or_kill"`, `"good_till_canceled"`, `"immediate_or_cancel"` |
 | `SelfTradePreventionTypeLiteral` | `"taker_at_cross"`, `"maker"` |
@@ -77,6 +86,9 @@ Every enum-like kwarg uses a `Literal` alias so your IDE auto-completes and
 | `SettlementStatusLiteral` | `"all"`, `"unsettled"`, `"settled"` |
 | `IncentiveProgramStatusLiteral` | `"all"`, `"active"`, `"upcoming"`, `"closed"`, … |
 | `IncentiveProgramTypeLiteral` | `"all"`, `"liquidity"`, `"volume"` |
+| `UserFilterLiteral` | `"self"` (server-side shorthand for the caller's user-id; see [Communications](resources/communications.md#filtering-shortcuts-v210)) |
+| `PaymentStatusLiteral` | `"pending"`, `"applied"`, `"failed"`, `"returned"` — used on `Deposit.status` and `Withdrawal.status` |
+| `PaymentTypeLiteral` | `"ach"`, `"wire"`, `"crypto"`, `"debit"`, `"apm"` — used on `Deposit.type` and `Withdrawal.type` |
 
 !!! tip "Markets pause; events don't"
     `MarketStatusLiteral` has a `"paused"` value that `EventStatusLiteral`
