@@ -1,13 +1,27 @@
-"""Request-side contract support: SDK method → OpenAPI endpoint mapping and helpers.
+"""Contract test infrastructure: SDK ↔ spec mapping + the EXCLUSIONS allowlist.
 
-This module is test infrastructure. It lives in ``tests/`` (not ``kalshi/``) so that
-users importing the SDK don't get spec-parsing code shipped in the PyPI wheel.
+This module is test infrastructure. It lives in ``tests/`` (not ``kalshi/``) so
+that users importing the SDK don't get spec-parsing code shipped in the PyPI
+wheel.
 
-The map covers ``path``, ``query``, and ``requestBody`` surface. Body schemas
-for POST/PUT endpoints are referenced via ``MethodEndpointEntry.request_body_schema``
-(a spec ``$ref`` string) and resolved via ``_resolve_request_body_schema``. Drift
-tests that consume this infrastructure (``TestRequestParamDrift``,
-``TestRequestBodyDrift``) land in subsequent v0.8.0 tasks.
+``METHOD_ENDPOINT_MAP`` covers the request side: ``path``, ``query``, and
+``requestBody`` surface. Body schemas for POST/PUT/DELETE-with-body endpoints
+are referenced via ``MethodEndpointEntry.request_body_schema`` (a spec ``$ref``
+string) and resolved via ``_resolve_request_body_schema``.
+
+``EXCLUSIONS`` is consulted by FOUR drift checks:
+
+  - ``TestRequestParamDrift``  — query/path kwargs vs. spec parameters
+  - ``TestRequestBodyDrift``   — request body model properties vs. spec
+  - ``TestSpecDrift``          — REST response model fields vs. OpenAPI
+                                 (``test_additive_drift`` + ``test_required_drift``)
+  - ``TestWsSpecDrift``        — WS payload model fields vs. AsyncAPI
+                                 (``test_ws_additive_drift`` + ``test_ws_required_drift``)
+
+A single ``(sdk_fqn, field_name)`` key may serve more than one check — e.g.
+``CreateOrderRequest`` and ``CreateRFQRequest`` are both request bodies AND
+response schemas in the spec, so a field exclusion is reused by both sides.
+Add a new entry once at the model+field coordinate; do NOT duplicate it.
 
 Async siblings are derived at test time via ``Async<ClassName>`` substitution
 with identical method names. Do NOT add separate async entries to the map.
@@ -737,24 +751,25 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
 
 
 # ---------------------------------------------------------------------------
-# EXCLUSIONS allowlist for request-side drift tests
+# EXCLUSIONS allowlist for drift tests (request + response)
 # ---------------------------------------------------------------------------
 # Keys are ``(sdk_fqn, param_or_field_name)`` tuples. Values are ``Exclusion``
-# dataclasses with a required ``reason`` string. An entry declares "this is
-# not drift; here's why." Tests that fail to find the corresponding drift
-# should also fail (see ``test_exclusion_map_is_current``), so stale entries
-# don't accumulate.
+# dataclasses with required ``reason`` and ``kind`` fields. An entry declares
+# "this is not drift; here's why."
 #
-# BOOTSTRAP (v0.8.0) — two classes of entries:
-#   1. ``CreateOrderRequest`` spec fields the SDK deliberately omits (cent-form
-#      redundant with ``_dollars`` variants; deprecated-in-spec).
-#   2. ``cursor`` on every ``list_all`` method — paginator-handled internally;
-#      the kwarg is absent from the method signature by design.
+# Consumers (see this module's docstring for full coverage):
+#   - request side : ``TestRequestParamDrift``, ``TestRequestBodyDrift``
+#   - response side: ``TestSpecDrift`` (additive + required),
+#                    ``TestWsSpecDrift`` (additive + required)
 #
-# Additional entries for ``AmendOrderRequest`` get appended in Task 3 (after
-# that model is created). Do NOT preload them here — forward references to
-# a model that doesn't exist yet will trip mypy on import.
-
+# A single key may serve more than one check — e.g. ``CreateOrderRequest`` is
+# both a request body and a response schema in the spec, so a field-level
+# exclusion is reused by both sides. Add a new entry once at the model+field
+# coordinate; do NOT duplicate it per drift test.
+#
+# Tests that fail to find the corresponding drift should also fail (see
+# ``test_exclusion_map_is_current``), so stale entries can't silently
+# accumulate.
 EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     # --- CreateOrderRequest spec fields deliberately not on the model ---
     ("kalshi.models.orders.CreateOrderRequest", "yes_price"): Exclusion(
@@ -1110,6 +1125,31 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
+    ),
+    # --- Response-side additive drift: spec fields the SDK intentionally omits ---
+    # Consumed by TestSpecDrift / TestWsSpecDrift in addition to any request-side
+    # body/param checks above that happen to share the same model+field key.
+    # Each entry is a spec-documented deviation; flipping it to a hard fail
+    # would surface as a real bug (see issue #157 stack for the v2.1.0
+    # ``Balance.balance_dollars`` regression that motivated this PR).
+    ("kalshi.models.markets.Market", "response_price_units"): Exclusion(
+        reason="spec marks DEPRECATED; superseded by price_level_structure / price_ranges",
+        kind="spec_deprecated",
+    ),
+    ("kalshi.models.orders.Order", "action"): Exclusion(
+        reason="spec marks Deprecated; superseded by outcome_side / book_side",
+        kind="spec_deprecated",
+    ),
+    ("kalshi.models.markets.Orderbook", "orderbook_fp"): Exclusion(
+        reason=(
+            "SDK reshapes the orderbook_fp nested object into yes/no level lists "
+            "at the resource layer; the model itself holds the unwrapped lists"
+        ),
+        kind="wire_normalization",
+    ),
+    ("kalshi.ws.models.ticker.TickerPayload", "time"): Exclusion(
+        reason="spec marks deprecated; superseded by ts_ms",
+        kind="spec_deprecated",
     ),
 }
 
