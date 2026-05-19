@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from kalshi.models.markets import Market
-from kalshi.models.orders import Order
+from kalshi.models.orders import Fill, Order
 from kalshi.types import to_decimal
 
 
@@ -147,8 +147,6 @@ class TestDollarsAliasFields:
         assert "order_type" in Order.model_fields
 
     def test_fill_accepts_dollars_suffix(self) -> None:
-        from kalshi.models.orders import Fill
-
         f = Fill.model_validate({
             "trade_id": "t1",
             "yes_price_dollars": "0.5000",
@@ -328,8 +326,6 @@ class TestFillV3180Fields:
     """v3.18.0 backfill (issue #159): 4 new optional fields on ``Fill``."""
 
     def test_parses_new_fields(self) -> None:
-        from kalshi.models.orders import Fill
-
         f = Fill.model_validate({
             "trade_id": "t1",
             "outcome_side": "no",
@@ -346,16 +342,12 @@ class TestFillV3180Fields:
         """Spec declares ``ts: integer`` (Unix-ms timestamp). The SDK must NOT
         coerce it to ``datetime`` — it's the legacy companion to the typed
         ``created_time: datetime`` field, and callers depend on the raw int."""
-        from kalshi.models.orders import Fill
-
         f = Fill.model_validate({"trade_id": "t1", "ts": 1733047200000})
         assert f.ts == 1733047200000
         assert isinstance(f.ts, int)
         assert not isinstance(f.ts, bool)  # bools are ints; guard against ambiguity
 
     def test_all_new_fields_default_to_none(self) -> None:
-        from kalshi.models.orders import Fill
-
         f = Fill(trade_id="t1")
         for name in ("outcome_side", "book_side", "subaccount_number", "ts"):
             assert getattr(f, name) is None, f"{name} should default to None"

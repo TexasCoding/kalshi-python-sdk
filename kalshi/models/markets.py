@@ -135,11 +135,9 @@ class Market(BaseModel):
     rules_primary: str | None = None
     rules_secondary: str | None = None
 
-    # v3.18.0 backfill: new optional response fields (issue #159).
-    # See specs/openapi.yaml `Market` schema. `mve_selected_legs` is
-    # `list[MveSelectedLeg]` on the wire and `price_ranges` is `list[PriceRange]`;
-    # both are kept as `list[dict[str, Any]]` here to avoid introducing new
-    # nested model classes in the backfill PR (separable polish per issue).
+    # v3.18.0 backfill (#159). mve_selected_legs is list[MveSelectedLeg] and
+    # price_ranges is list[PriceRange] on the wire — kept as list[dict] here;
+    # no nested model classes yet (separable polish).
     custom_strike: dict[str, Any] | None = None
     early_close_condition: str | None = None
     exchange_index: int | None = None
