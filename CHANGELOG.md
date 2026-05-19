@@ -29,6 +29,13 @@ a recurring false-alarm in the weekly spec-sync workflow.
   `user_filter` + `rfq_user_filter` on `communications.list_quotes` / `list_all_quotes`.
 - Optional `incentive_description` on `incentive_programs.list` / `list_all`.
 - Optional `post_only` on `CreateQuoteRequest`.
+- `Balance.balance_dollars` (required, `DollarDecimal`) — the same value as
+  `balance` (cents) rendered as a fixed-point dollar string. Required in
+  the v3.18.0 spec for `GetBalanceResponse`.
+- `Balance.balance_breakdown` (optional, `list[IndexedBalance]`) — splits
+  the balance across exchange shards when present.
+- New `IndexedBalance` model (`exchange_index`, `balance`) exposed from
+  `kalshi` and `kalshi.models`.
 
 ### Migration note
 

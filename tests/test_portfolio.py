@@ -47,6 +47,7 @@ class TestPortfolioBalance:
                 200,
                 json={
                     "balance": 50000,
+                    "balance_dollars": "500.00",
                     "portfolio_value": 75000,
                     "updated_ts": 1700000000,
                 },
@@ -54,6 +55,7 @@ class TestPortfolioBalance:
         )
         balance = portfolio.balance()
         assert balance.balance == 50000
+        assert balance.balance_dollars == Decimal("500.00")
         assert balance.portfolio_value == 75000
         assert balance.updated_ts == 1700000000
 
@@ -62,11 +64,17 @@ class TestPortfolioBalance:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
-                json={"balance": 0, "portfolio_value": 0, "updated_ts": 0},
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         balance = portfolio.balance()
         assert balance.balance == 0
+        assert balance.balance_dollars == Decimal("0.00")
         assert balance.portfolio_value == 0
 
     @respx.mock
@@ -82,11 +90,57 @@ class TestPortfolioBalance:
         """v0.7.0 ADD: subaccount kwarg reaches the wire."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
-                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+                200,
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         portfolio.balance(subaccount=42)
         assert route.calls[0].request.url.params["subaccount"] == "42"
+
+    @respx.mock
+    def test_balance_breakdown(self, portfolio: PortfolioResource) -> None:
+        """Spec v3.18.0 adds balance_breakdown — optional per-shard split."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                    "balance_breakdown": [
+                        {"exchange_index": 0, "balance": "500.00"},
+                    ],
+                },
+            )
+        )
+        balance = portfolio.balance()
+        assert balance.balance_breakdown is not None
+        assert len(balance.balance_breakdown) == 1
+        assert balance.balance_breakdown[0].exchange_index == 0
+        assert balance.balance_breakdown[0].balance == Decimal("500.00")
+
+    @respx.mock
+    def test_balance_breakdown_omitted(self, portfolio: PortfolioResource) -> None:
+        """balance_breakdown is optional — must default to None when absent."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                },
+            )
+        )
+        balance = portfolio.balance()
+        assert balance.balance_breakdown is None
 
 
 class TestPortfolioPositions:
@@ -529,11 +583,17 @@ class TestAsyncPortfolioBalance:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
-                json={"balance": 50000, "portfolio_value": 75000, "updated_ts": 1700000000},
+                json={
+                    "balance": 50000,
+                    "balance_dollars": "500.00",
+                    "portfolio_value": 75000,
+                    "updated_ts": 1700000000,
+                },
             )
         )
         balance = await async_portfolio.balance()
         assert balance.balance == 50000
+        assert balance.balance_dollars == Decimal("500.00")
         assert balance.portfolio_value == 75000
 
     @respx.mock
@@ -546,7 +606,13 @@ class TestAsyncPortfolioBalance:
             "https://test.kalshi.com/trade-api/v2/portfolio/balance"
         ).mock(
             return_value=httpx.Response(
-                200, json={"balance": 0, "portfolio_value": 0, "updated_ts": 0}
+                200,
+                json={
+                    "balance": 0,
+                    "balance_dollars": "0.00",
+                    "portfolio_value": 0,
+                    "updated_ts": 0,
+                },
             )
         )
         await async_portfolio.balance(subaccount=42)

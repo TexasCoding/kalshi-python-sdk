@@ -13,12 +13,33 @@ SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
 """Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
 
 
+class IndexedBalance(BaseModel):
+    """Balance for a single exchange shard. Added by spec v3.18.0 alongside
+    the ``balance_breakdown`` field on :class:`Balance`.
+
+    Currently only ``exchange_index=0`` is supported per spec.
+    """
+
+    exchange_index: int
+    balance: DollarDecimal
+
+    model_config = {"extra": "allow"}
+
+
 class Balance(BaseModel):
-    """Account balance. Values are integer cents."""
+    """Account balance.
+
+    ``balance`` is integer cents (legacy field). ``balance_dollars`` is the
+    same value as a fixed-point dollar string, added by spec v3.18.0 and
+    now required on every response. ``balance_breakdown`` (optional) splits
+    the total across exchange shards when present.
+    """
 
     balance: int
+    balance_dollars: DollarDecimal
     portfolio_value: int
     updated_ts: int
+    balance_breakdown: list[IndexedBalance] | None = None
 
     model_config = {"extra": "allow"}
 

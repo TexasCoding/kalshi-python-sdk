@@ -1219,6 +1219,28 @@ class TestAsyncCancelOrderV2:
         with pytest.raises(KalshiError, match="204 No Content"):
             await orders.cancel_v2("ord-1")
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_passes_query_params(
+        self, orders: AsyncOrdersResource,
+    ) -> None:
+        """Async parity with sync TestCancelOrderV2.test_passes_query_params:
+        cancel_v2 routes BOTH subaccount and exchange_index to query params
+        (unlike amend_v2/decrease_v2 where exchange_index is body).
+        """
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order_id": "ord-1", "reduced_by": "0", "ts_ms": 0},
+            )
+        )
+        await orders.cancel_v2("ord-1", subaccount=3, exchange_index=0)
+        params = dict(route.calls[0].request.url.params)
+        assert params["subaccount"] == "3"
+        assert params["exchange_index"] == "0"
+
 
 class TestAsyncAmendOrderV2:
     @respx.mock

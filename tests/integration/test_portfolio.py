@@ -41,6 +41,8 @@ class TestPortfolioSync:
         assert isinstance(result, Balance)
         assert_model_fields(result)
         assert isinstance(result.balance, int)
+        # spec v3.18.0 added balance_dollars as a required field
+        assert result.balance_dollars is not None
 
     def test_positions(self, sync_client: KalshiClient) -> None:
         result = sync_client.portfolio.positions()
