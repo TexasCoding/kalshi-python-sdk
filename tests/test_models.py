@@ -7,8 +7,12 @@ from decimal import Decimal
 
 import pytest
 
+from kalshi.models.events import Event, EventMetadata
+from kalshi.models.historical import Trade
+from kalshi.models.incentive_programs import IncentiveProgram
 from kalshi.models.markets import Market
 from kalshi.models.orders import Fill, Order
+from kalshi.models.portfolio import Settlement
 from kalshi.types import to_decimal
 
 
@@ -351,6 +355,116 @@ class TestFillV3180Fields:
         f = Fill(trade_id="t1")
         for name in ("outcome_side", "book_side", "subaccount_number", "ts"):
             assert getattr(f, name) is None, f"{name} should default to None"
+
+
+class TestEventV3180Fields:
+    """v3.18.0 backfill (issue #160): 3 new optional fields on ``Event``."""
+
+    def test_parses_new_fields(self) -> None:
+        e = Event.model_validate({
+            "event_ticker": "EVT-001",
+            "fee_type_override": "quadratic",
+            "fee_multiplier_override": "1.25",
+            "exchange_index": 7,
+        })
+        assert e.fee_type_override == "quadratic"
+        assert e.fee_multiplier_override == Decimal("1.25")
+        assert isinstance(e.fee_multiplier_override, Decimal)
+        assert e.exchange_index == 7
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        e = Event(event_ticker="EVT-001")
+        for name in ("fee_type_override", "fee_multiplier_override", "exchange_index"):
+            assert getattr(e, name) is None, f"{name} should default to None"
+
+
+class TestEventMetadataV3180Fields:
+    """v3.18.0 backfill (issue #160): 2 new optional fields on ``EventMetadata``."""
+
+    def test_parses_new_fields(self) -> None:
+        m = EventMetadata.model_validate({
+            "competition": "NBA Eastern Conference",
+            "competition_scope": "playoffs",
+        })
+        assert m.competition == "NBA Eastern Conference"
+        assert m.competition_scope == "playoffs"
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        m = EventMetadata()
+        assert m.competition is None
+        assert m.competition_scope is None
+
+
+class TestSettlementV3180Fields:
+    """v3.18.0 backfill (issue #160): 1 new optional field on ``Settlement``.
+
+    ``value`` is integer cents per spec ("Payout of a single yes contract in
+    cents") — NOT ``DollarDecimal``. Distinct from the existing
+    ``yes_total_cost_dollars`` / ``no_total_cost_dollars`` fields.
+    """
+
+    def test_value_is_int_not_decimal(self) -> None:
+        s = Settlement.model_validate({"ticker": "T", "value": 100})
+        assert s.value == 100
+        assert isinstance(s.value, int)
+        assert not isinstance(s.value, bool)  # bools are ints; guard
+
+    def test_value_defaults_to_none(self) -> None:
+        s = Settlement(ticker="T")
+        assert s.value is None
+
+
+class TestTradeV3180Fields:
+    """v3.18.0 backfill (issue #160): 2 new optional fields on ``Trade``.
+
+    Mirrors ``Order.outcome_side`` / ``book_side`` from PR1 — canonical
+    direction encoding superseding the deprecated ``taker_side``.
+    """
+
+    def test_parses_new_fields(self) -> None:
+        t = Trade.model_validate({
+            "trade_id": "tr-001",
+            "taker_outcome_side": "yes",
+            "taker_book_side": "bid",
+        })
+        assert t.taker_outcome_side == "yes"
+        assert t.taker_book_side == "bid"
+
+    def test_all_new_fields_default_to_none(self) -> None:
+        t = Trade(trade_id="tr-001")
+        assert t.taker_outcome_side is None
+        assert t.taker_book_side is None
+
+
+class TestIncentiveProgramV3180Fields:
+    """v3.18.0 backfill (issue #160): 1 new optional field on ``IncentiveProgram``."""
+
+    def test_parses_new_field(self) -> None:
+        p = IncentiveProgram.model_validate({
+            "id": "ip-001",
+            "market_id": "mkt-001",
+            "market_ticker": "MKT-001",
+            "incentive_type": "volume",
+            "start_date": "2026-01-01T00:00:00Z",
+            "end_date": "2026-02-01T00:00:00Z",
+            "period_reward": 10000,
+            "paid_out": False,
+            "incentive_description": "Liquidity provision rewards",
+        })
+        assert p.incentive_description == "Liquidity provision rewards"
+
+    def test_incentive_description_defaults_to_none(self) -> None:
+        p = IncentiveProgram(
+            id="ip-001",
+            market_id="mkt-001",
+            market_ticker="MKT-001",
+            incentive_type="volume",
+            start_date=datetime(2026, 1, 1),
+            end_date=datetime(2026, 2, 1),
+            period_reward=10000,
+            paid_out=False,
+        )
+        assert p.incentive_description is None
 
 
 class TestErrorHierarchy:

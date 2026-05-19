@@ -37,6 +37,9 @@ class IncentiveProgram(BaseModel):
     discount_factor_bps: int | None = None
     target_size_fp: FixedPointCount | None = None
 
+    # v3.18.0 backfill (#160).
+    incentive_description: str | None = None
+
     model_config = {"extra": "allow"}
 
 

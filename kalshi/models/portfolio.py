@@ -202,4 +202,8 @@ class Settlement(BaseModel):
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
 
+    # v3.18.0 backfill (#160). `value` is integer cents per spec
+    # ("Payout of a single yes contract in cents") — plain int, NOT DollarDecimal.
+    value: int | None = None
+
     model_config = {"extra": "allow", "populate_by_name": True}
