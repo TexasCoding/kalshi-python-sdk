@@ -414,7 +414,7 @@ class CreateOrderV2Request(BaseModel):
     post_only: bool | None = None
     cancel_order_on_pause: bool | None = None
     reduce_only: bool | None = None
-    subaccount: int | None = Field(default=None, ge=0, le=32)
+    subaccount: int | None = Field(default=None, ge=0)
     order_group_id: str | None = None
     exchange_index: int | None = None
 
@@ -557,7 +557,7 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
     """Single entry in BatchCancelOrdersV2Request.orders."""
 
     order_id: str
-    subaccount: int | None = Field(default=None, ge=0, le=32)
+    subaccount: int | None = Field(default=None, ge=0)
     exchange_index: int | None = None
 
     model_config = {"extra": "forbid"}

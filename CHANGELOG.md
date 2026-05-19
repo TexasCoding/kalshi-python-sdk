@@ -35,6 +35,23 @@ v3.18.0 / v0.14 fields and promotes additive drift to a hard CI failure.
 - Required-but-Optional drift stays as warning-only (~204 entries;
   separate policy decision).
 
+### Fixed
+
+- Subaccount-number request fields no longer cap at 32. Demo allocates
+  ephemeral subaccount numbers above 32 (observed: 41), but the SDK was
+  rejecting them client-side with a ``ValidationError`` because seven
+  request-side model fields carried a ``le=32`` bound derived from spec
+  prose. The actual OpenAPI schema defines no upper bound; only the
+  description text mentions ``1-32``. Affected fields:
+  ``ApplySubaccountTransferRequest.{from,to}_subaccount``,
+  ``UpdateSubaccountNettingRequest.subaccount_number``,
+  ``CreateOrderRequest.subaccount``,
+  ``BatchCancelOrdersV2RequestOrder.subaccount``,
+  ``CreateRFQRequest.subaccount``,
+  ``CreateQuoteRequest.subaccount``.
+  The ``ge=0`` lower bound is unchanged. Unblocks the
+  ``test_transfer_between_subaccounts`` nightly integration test (#164).
+
 ## 2.1.0 — 2026-05-18
 
 OpenAPI spec sync from v3.13.0 → v3.18.0. Adds the V2 event-market
