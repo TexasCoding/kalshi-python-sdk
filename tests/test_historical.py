@@ -13,7 +13,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError
 from kalshi.resources.historical import AsyncHistoricalResource, HistoricalResource
-from tests._model_fixtures import fill_dict, market_dict, order_dict, trade_dict
+from tests._model_fixtures import candlestick_dict, fill_dict, market_dict, order_dict, trade_dict
 
 
 @pytest.fixture
@@ -197,18 +197,18 @@ class TestHistoricalCandlesticks:
                 200,
                 json={
                     "candlesticks": [
-                        {
-                            "end_period_ts": 1700000000,
-                            "yes_bid": {
+                        candlestick_dict(
+                            end_period_ts=1700000000,
+                            yes_bid={
                                 "open_dollars": "0.40",
                                 "high_dollars": "0.50",
                                 "low_dollars": "0.35",
                                 "close_dollars": "0.45",
                             },
-                            "price": {"open_dollars": "0.45", "close_dollars": "0.50"},
-                            "volume_fp": "500.00",
-                            "open_interest_fp": "1000.00",
-                        }
+                            price={"open_dollars": "0.45", "close_dollars": "0.50"},
+                            volume_fp="500.00",
+                            open_interest_fp="1000.00",
+                        )
                     ]
                 },
             )
@@ -694,16 +694,16 @@ class TestAsyncHistoricalCandlesticks:
                 200,
                 json={
                     "candlesticks": [
-                        {
-                            "end_period_ts": 1700000000,
-                            "yes_bid": {
+                        candlestick_dict(
+                            end_period_ts=1700000000,
+                            yes_bid={
                                 "open_dollars": "0.40",
                                 "high_dollars": "0.50",
                                 "low_dollars": "0.35",
                                 "close_dollars": "0.45",
                             },
-                            "volume_fp": "500.00",
-                        }
+                            volume_fp="500.00",
+                        )
                     ]
                 },
             )

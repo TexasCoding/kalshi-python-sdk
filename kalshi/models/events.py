@@ -46,8 +46,8 @@ class MarketMetadata(BaseModel):
     """Metadata for a market within an event."""
 
     market_ticker: str
-    image_url: str | None = None
-    color_code: str | None = None
+    image_url: str
+    color_code: str
 
     model_config = {"extra": "allow"}
 

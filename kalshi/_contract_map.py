@@ -252,14 +252,202 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.order_groups.CreateOrderGroupResponse",
         spec_schema="CreateOrderGroupResponse",
     ),
-    # Intentionally excluded from contract map:
-    # - Candlestick, BidAskDistribution, PriceDistribution, OrderbookLevel:
-    #   Nested/composite models, no direct 1:1 spec schema match
-    # - DailySchedule, WeeklySchedule, MaintenanceWindow, Schedule:
-    #   Simple sub-schemas validated through parent model tests
-    # - PositionsResponse: SDK-internal container shape
-    # - MarketMetadata, SettlementSource: Simple sub-schemas
-    # - Page[T]: SDK-internal pagination wrapper
+    # -- markets sub-models (#171) ---------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.markets.BidAskDistribution",
+        spec_schema="BidAskDistribution",
+        notes="OHLC sub-model on Candlestick.yes_bid / .yes_ask",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.PriceDistribution",
+        spec_schema="PriceDistribution",
+        notes="OHLC sub-model on Candlestick.price",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.Candlestick",
+        spec_schema="MarketCandlestick",
+        notes="Spec uses 'MarketCandlestick'; SDK calls it 'Candlestick'",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.OrderbookLevel",
+        spec_schema="PriceLevelDollarsCountFp",
+        notes=(
+            "Spec encodes price levels as a positional 2-tuple "
+            "['<dollars_string>', '<fp_count_string>']; the SDK exposes it "
+            "as a named object with `price` / `quantity`. No field-by-field "
+            "comparison is meaningful — _get_schema_fields returns {} for "
+            "this array-typed schema."
+        ),
+    ),
+    # -- orders V2 family (#171) -----------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.orders.AmendOrderRequest",
+        spec_schema="AmendOrderRequest",
+        notes="Request body for /portfolio/orders/{order_id}/amend",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.DecreaseOrderRequest",
+        spec_schema="DecreaseOrderRequest",
+        notes="Request body for /portfolio/orders/{order_id}/decrease",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersRequest",
+        spec_schema="BatchCreateOrdersRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersRequest",
+        spec_schema="BatchCancelOrdersRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersRequestOrder",
+        spec_schema="BatchCancelOrdersRequest.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.CreateOrderV2Request",
+        spec_schema="CreateOrderV2Request",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.CreateOrderV2Response",
+        spec_schema="CreateOrderV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.AmendOrderV2Request",
+        spec_schema="AmendOrderV2Request",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.AmendOrderV2Response",
+        spec_schema="AmendOrderV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.DecreaseOrderV2Request",
+        spec_schema="DecreaseOrderV2Request",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.DecreaseOrderV2Response",
+        spec_schema="DecreaseOrderV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.CancelOrderV2Response",
+        spec_schema="CancelOrderV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersV2Request",
+        spec_schema="BatchCreateOrdersV2Request",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersV2Response",
+        spec_schema="BatchCreateOrdersV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersV2ResponseEntry",
+        spec_schema="BatchCreateOrdersV2Response.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersV2Request",
+        spec_schema="BatchCancelOrdersV2Request",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersV2RequestOrder",
+        spec_schema="BatchCancelOrdersV2Request.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersV2Response",
+        spec_schema="BatchCancelOrdersV2Response",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersV2ResponseEntry",
+        spec_schema="BatchCancelOrdersV2Response.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
+    # -- events sub-models (#171) ----------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.events.MarketMetadata",
+        spec_schema="MarketMetadata",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.events.SettlementSource",
+        spec_schema="SettlementSource",
+    ),
+    # -- exchange sub-models (#171) --------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.Schedule",
+        spec_schema="Schedule",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.DailySchedule",
+        spec_schema="DailySchedule",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.WeeklySchedule",
+        spec_schema="WeeklySchedule",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.exchange.MaintenanceWindow",
+        spec_schema="MaintenanceWindow",
+    ),
+    # -- portfolio sub-models (#171) -------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.IndexedBalance",
+        spec_schema="IndexedBalance",
+        notes="Per-shard balance entry on Balance.balance_breakdown",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.PositionsResponse",
+        spec_schema="GetPositionsResponse",
+        notes="Spec uses 'GetPositionsResponse'; SDK exposes as 'PositionsResponse'",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.Deposit",
+        spec_schema="Deposit",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.Withdrawal",
+        spec_schema="Withdrawal",
+    ),
+    # -- series sub-models (#171) ----------------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.series.EventCandlesticks",
+        spec_schema="GetEventCandlesticksResponse",
+        notes="Spec wraps event candlesticks in GetEventCandlesticksResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.series.PercentilePoint",
+        spec_schema="PercentilePoint",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.series.ForecastPercentilesPoint",
+        spec_schema="ForecastPercentilesPoint",
+    ),
+    # -- multivariate sub-models (#171) ----------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.AssociatedEvent",
+        spec_schema="AssociatedEvent",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest",
+        spec_schema="CreateMarketInMultivariateEventCollectionRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.CreateMarketResponse",
+        spec_schema="CreateMarketInMultivariateEventCollectionResponse",
+        notes="Long-form CreateMarketInMultivariateEventCollectionResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.LookupTickersForMarketInMultivariateEventCollectionRequest",
+        spec_schema="LookupTickersForMarketInMultivariateEventCollectionRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.LookupTickersResponse",
+        spec_schema="LookupTickersForMarketInMultivariateEventCollectionResponse",
+        notes="Spec name is the long-form ...Response; SDK shortens",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.multivariate.LookupPoint",
+        spec_schema="LookupPoint",
+    ),
 ]
 
 # WS payload models → AsyncAPI schema components.

@@ -23,6 +23,7 @@ from kalshi.models.portfolio import Settlement
 from kalshi.types import to_decimal
 from tests._model_fixtures import (
     create_order_group_response_dict,
+    candlestick_dict,
     event_dict,
     event_metadata_dict,
     fill_dict,
@@ -191,20 +192,20 @@ class TestDollarsAliasFields:
         from kalshi.models.markets import Candlestick
 
         c = Candlestick.model_validate(
-            {
-                "end_period_ts": 1700000000,
-                "yes_bid": {
+            candlestick_dict(
+                end_period_ts=1700000000,
+                yes_bid={
                     "open_dollars": "0.4000",
                     "high_dollars": "0.5000",
                     "low_dollars": "0.3500",
                     "close_dollars": "0.4500",
                 },
-                "price": {
+                price={
                     "open_dollars": "0.5000",
                     "close_dollars": "0.5500",
                 },
-                "volume_fp": "100.00",
-            }
+                volume_fp="100.00",
+            )
         )
         assert c.yes_bid is not None
         assert c.yes_bid.open == Decimal("0.4000")

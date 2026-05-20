@@ -15,7 +15,7 @@ from kalshi.errors import AuthRequiredError, KalshiError, KalshiNotFoundError
 from kalshi.models.historical import Trade
 from kalshi.models.markets import MarketCandlesticks, Orderbook
 from kalshi.resources.markets import MarketsResource
-from tests._model_fixtures import market_dict, trade_dict
+from tests._model_fixtures import candlestick_dict, market_dict, trade_dict
 
 
 @pytest.fixture
@@ -501,7 +501,7 @@ class TestMarketsBulkCandlesticks:
                         {
                             "market_ticker": "MKT-A",
                             "candlesticks": [
-                                {"end_period_ts": 1, "volume_fp": "0"},
+                                candlestick_dict(end_period_ts=1, volume_fp="0"),
                             ],
                         },
                         {"market_ticker": "MKT-B", "candlesticks": []},

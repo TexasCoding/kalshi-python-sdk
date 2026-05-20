@@ -114,8 +114,8 @@ class EventPosition(BaseModel):
 class PositionsResponse(BaseModel):
     """Response from the positions endpoint containing both market and event positions."""
 
-    market_positions: NullableList[MarketPosition] = []
-    event_positions: NullableList[EventPosition] = []
+    market_positions: NullableList[MarketPosition]
+    event_positions: NullableList[EventPosition]
     cursor: str | None = None
 
     @property

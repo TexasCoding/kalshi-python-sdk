@@ -11,6 +11,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError
 from kalshi.resources.series import AsyncSeriesResource, SeriesResource
+from tests._model_fixtures import candlestick_dict
 
 
 @pytest.fixture
@@ -134,7 +135,7 @@ class TestSeriesEventCandlesticks:
         respx.get(f"{BASE}/series/SER/events/EVT/candlesticks").mock(
             return_value=httpx.Response(200, json={
                 "market_tickers": ["MKT-A"],
-                "market_candlesticks": [[{"end_period_ts": 1000, "volume_fp": "10.00"}]],
+                "market_candlesticks": [[candlestick_dict(end_period_ts=1000, volume_fp="10.00")]],
                 "adjusted_end_ts": 2000,
             })
         )

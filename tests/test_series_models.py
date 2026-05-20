@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from tests._model_fixtures import candlestick_dict
+
 from kalshi.models.series import (
     EventCandlesticks,
     ForecastPercentilesPoint,
@@ -188,8 +190,11 @@ class TestEventCandlesticksModel:
         ec = EventCandlesticks.model_validate({
             "market_tickers": ["MKT-A", "MKT-B"],
             "market_candlesticks": [
-                [{"end_period_ts": 1000, "volume_fp": "50.00"}],
-                [{"end_period_ts": 1000, "volume_fp": "30.00"}, {"end_period_ts": 2000}],
+                [candlestick_dict(end_period_ts=1000, volume_fp="50.00")],
+                [
+                    candlestick_dict(end_period_ts=1000, volume_fp="30.00"),
+                    candlestick_dict(end_period_ts=2000),
+                ],
             ],
             "adjusted_end_ts": 3000,
         })
