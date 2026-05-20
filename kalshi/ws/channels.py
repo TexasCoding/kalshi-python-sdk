@@ -157,10 +157,17 @@ class SubscriptionManager:
         notice congestion.
         """
         sid = data.get("sid")
-        if sid is None:
+        # The Kalshi protocol uses monotonically-increasing integer sids;
+        # this guard catches malformed frames (non-int sid, missing sid)
+        # without corrupting the typed `dict[int, ...]` stash. Sids are
+        # also assumed unique within a single resubscribe cycle — keys
+        # collide only if the server reused a value, which would be a
+        # protocol bug, not a stash bug.
+        if not isinstance(sid, int):
             logger.debug(
-                "Stash mode: dropping non-matching frame with no sid: type=%s",
-                data.get("type"),
+                "Stash mode: dropping non-matching frame with non-int sid: "
+                "type=%s sid=%r",
+                data.get("type"), sid,
             )
             return
         bucket = self._stash.get(sid)

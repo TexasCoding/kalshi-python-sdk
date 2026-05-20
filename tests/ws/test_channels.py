@@ -358,21 +358,25 @@ class TestResubscribeStash:
         ]
         assert list(sub_mgr._stash[2]) == ['{"sid": 2, "seq": 1}']
 
-    def test_maybe_stash_drops_frame_without_sid(
+    def test_maybe_stash_drops_frame_with_non_int_sid(
         self, sub_mgr: SubscriptionManager
     ) -> None:
-        """Control envelopes without a sid have nowhere to replay to — drop."""
+        """Control envelopes without a sid (or with a non-int sid from a
+        malformed/foreign frame) have nowhere to replay to and would
+        corrupt the typed `dict[int, ...]` stash. Drop with a debug log."""
         sub_mgr._maybe_stash('{"type": "ok"}', {"type": "ok"})
+        sub_mgr._maybe_stash('{"sid": "x"}', {"sid": "x"})
+        sub_mgr._maybe_stash('{"sid": 1.5}', {"sid": 1.5})
         assert sub_mgr._stash == {}
 
     def test_maybe_stash_maxlen_evicts_oldest_with_one_warning_per_fill(
         self, connected_mgr, caplog  # type: ignore[no-untyped-def]
     ) -> None:
         """Per-sid deque is bounded; on overflow, oldest evicts and EXACTLY
-        ONE WARNING fires per (sid, resubscribe cycle) — not one per frame
-        (#187 review fix). Without the per-sid gate, every append after the
-        deque fills would log, producing per-frame spam on high-volume
-        channels during a prolonged stall."""
+        ONE WARNING fires per (sid, resubscribe cycle) — not one per frame.
+        Without the per-sid gate, every append after the deque fills would
+        log, producing per-frame spam on high-volume channels during a
+        prolonged stall."""
         mgr = SubscriptionManager(connected_mgr, stash_maxlen=3)
         with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
             for i in range(10):
@@ -428,10 +432,10 @@ class TestResubscribeStash:
         sub_mgr: SubscriptionManager,
         fake_ws,  # type: ignore[no-untyped-def]
     ) -> None:
-        """#187 review: if a prior resubscribe raised before take_stash()
-        ran, _stash + _stash_warned could survive into the next cycle and
-        replay stale frames or muddy overflow warnings. resubscribe_all
-        now defensively clears both at the start.
+        """If a prior resubscribe raised before take_stash() ran, _stash +
+        _stash_warned could survive into the next cycle and replay stale
+        frames or muddy overflow warnings. resubscribe_all defensively
+        clears both at the start.
 
         Simulates the leak by injecting stale stash state, then runs a
         clean resubscribe (no active subs → loop body skipped, but the
