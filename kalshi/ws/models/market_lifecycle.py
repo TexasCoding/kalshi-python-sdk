@@ -20,6 +20,13 @@ class MarketLifecyclePayload(BaseModel):
     """
 
     event_type: str  # created/activated/deactivated/close_date_updated/determined/settled/etc
+    # `market_ticker` is required per AsyncAPI v0.14 — tightened in #172.
+    # All observed lifecycle event types (`created`, `activated`,
+    # `deactivated`, `close_date_updated`, `determined`, `settled`,
+    # `metadata_updated`, `price_level_structure_updated`) carry it.
+    # If the server emits a market-scoped lifecycle event without it,
+    # the nightly integration job will catch the `ValidationError`; move to
+    # `EXCLUSIONS` with `kind="server_omits_despite_required"` at that point.
     market_ticker: str
     event_ticker: str | None = None
     # Conditional fields depending on event_type

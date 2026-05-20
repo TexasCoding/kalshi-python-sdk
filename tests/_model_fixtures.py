@@ -464,3 +464,109 @@ def market_positions_payload_dict(**overrides: Any) -> dict[str, Any]:
     }
     base.update(overrides)
     return base
+
+
+def rfq_created_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped RfqCreatedPayload msg dict."""
+    base: dict[str, Any] = {
+        "id": "rfq-1",
+        "creator_id": "user-1",
+        "market_ticker": "MKT-A",
+        "created_ts": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def rfq_deleted_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped RfqDeletedPayload msg dict."""
+    base: dict[str, Any] = {
+        "id": "rfq-1",
+        "creator_id": "user-1",
+        "market_ticker": "MKT-A",
+        "deleted_ts": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def quote_created_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped QuoteCreatedPayload msg dict."""
+    base: dict[str, Any] = {
+        "quote_id": "q-1",
+        "rfq_id": "rfq-1",
+        "quote_creator_id": "user-1",
+        "market_ticker": "MKT-A",
+        "yes_bid_dollars": "0.5000",
+        "no_bid_dollars": "0.5000",
+        "created_ts": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def quote_accepted_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped QuoteAcceptedPayload msg dict."""
+    base: dict[str, Any] = {
+        "quote_id": "q-1",
+        "rfq_id": "rfq-1",
+        "quote_creator_id": "user-1",
+        "market_ticker": "MKT-A",
+        "yes_bid_dollars": "0.5000",
+        "no_bid_dollars": "0.5000",
+    }
+    base.update(overrides)
+    return base
+
+
+def quote_executed_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped QuoteExecutedPayload msg dict."""
+    base: dict[str, Any] = {
+        "quote_id": "q-1",
+        "rfq_id": "rfq-1",
+        "quote_creator_id": "user-1",
+        "rfq_creator_id": "user-2",
+        "order_id": "ord-1",
+        "client_order_id": "cli-1",
+        "market_ticker": "MKT-A",
+        "executed_ts": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def multivariate_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped MultivariatePayload msg dict."""
+    base: dict[str, Any] = {
+        "collection_ticker": "COLL-A",
+        "selected_markets": [],
+        "market_ticker": "MKT-A",
+        "event_ticker": "EVT-A",
+    }
+    base.update(overrides)
+    return base
+
+
+def market_lifecycle_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped MarketLifecyclePayload msg dict.
+
+    `event_type` and `market_ticker` are required; all per-event_type
+    conditional fields are left out (override per test).
+    """
+    base: dict[str, Any] = {
+        "event_type": "created",
+        "market_ticker": "MKT-A",
+    }
+    base.update(overrides)
+    return base
+
+
+def order_group_payload_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped OrderGroupPayload msg dict."""
+    base: dict[str, Any] = {
+        "event_type": "created",
+        "order_group_id": "og-1",
+        "ts_ms": 1735689600000,
+    }
+    base.update(overrides)
+    return base

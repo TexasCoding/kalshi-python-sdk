@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+from pydantic import ValidationError
+
 from kalshi.ws.models.base import (
     BaseMessage,
     ErrorMessage,
@@ -183,13 +186,22 @@ class TestTickerModel:
         msg = TickerMessage.model_validate(raw)
         assert msg.seq is None
 
-    def test_ticker_minimal_payload(self) -> None:
-        # #172: test obsolete default-to-none contract
-        pass
+    def test_ticker_missing_required_raises(self) -> None:
+        """Post-#172: TickerPayload requires `yes_bid`, `yes_ask`, etc.
+        A minimal payload omitting them must raise instead of defaulting to None."""
+        raw = {"type": "ticker", "sid": 1, "msg": {"market_ticker": "T"}}
+        with pytest.raises(ValidationError):
+            TickerMessage.model_validate(raw)
 
     def test_ticker_extra_fields(self) -> None:
-        # #172: test obsolete default-to-none contract
-        pass
+        """Extra fields are tolerated via `extra="allow"` on the envelope+payload."""
+        raw = {
+            "type": "ticker",
+            "sid": 1,
+            "msg": ticker_payload_dict(market_ticker="T", market_id="x", new_field="surprise"),
+        }
+        msg = TickerMessage.model_validate(raw)
+        assert msg.msg.market_ticker == "T"
 
 
 # ---------- Trade ----------
@@ -226,9 +238,12 @@ class TestTradeModel:
         msg = TradeMessage.model_validate(raw)
         assert msg.seq is None
 
-    def test_trade_minimal(self) -> None:
-        # #172: test obsolete default-to-none contract
-        pass
+    def test_trade_missing_required_raises(self) -> None:
+        """Post-#172: TradePayload requires yes_price/taker_side/etc.
+        A minimal payload must raise instead of defaulting to None."""
+        raw = {"type": "trade", "sid": 1, "msg": {"trade_id": "t1", "market_ticker": "T"}}
+        with pytest.raises(ValidationError):
+            TradeMessage.model_validate(raw)
 
 
 # ---------- Fill ----------
@@ -540,12 +555,30 @@ class TestMultivariateModel:
         assert msg.msg.selected_markets[1].side == "no"
 
     def test_multivariate_no_seq(self) -> None:
-        # #172: test obsolete default-to-none contract
-        pass
+        """`seq` is optional on this channel — full payload must still parse without it."""
+        raw = {
+            "type": "multivariate",
+            "sid": 8,
+            "msg": {
+                "collection_ticker": "COL-1",
+                "selected_markets": [],
+                "market_ticker": "MKT-A",
+                "event_ticker": "EVT-1",
+            },
+        }
+        msg = MultivariateMessage.model_validate(raw)
+        assert msg.seq is None
 
-    def test_multivariate_empty_selected_markets(self) -> None:
-        # #172: test obsolete default-to-none contract
-        pass
+    def test_multivariate_missing_required_raises(self) -> None:
+        """Post-#172: MultivariatePayload requires market_ticker / event_ticker.
+        Omitting them must raise instead of leaving them None."""
+        raw = {
+            "type": "multivariate",
+            "sid": 8,
+            "msg": {"collection_ticker": "COL-1", "selected_markets": []},
+        }
+        with pytest.raises(ValidationError):
+            MultivariateMessage.model_validate(raw)
 
     def test_multivariate_lifecycle(self) -> None:
         raw = {

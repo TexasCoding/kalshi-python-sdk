@@ -132,7 +132,7 @@ class Market(BaseModel):
     mve_collection_ticker: str | None = None
     mve_selected_legs: list[dict[str, Any]] | None = None
     price_level_structure: str
-    price_ranges: list[dict[str, Any]]
+    price_ranges: NullableList[dict[str, Any]]
     primary_participant_key: str | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}

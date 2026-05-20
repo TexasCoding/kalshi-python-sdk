@@ -482,12 +482,16 @@ class TestTradeV3180Fields:
         assert t.taker_outcome_side == "yes"
         assert t.taker_book_side == "bid"
 
-    def test_all_new_fields_default_to_none(self) -> None:
-        # NOTE: taker_outcome_side / taker_book_side were optional in v3.18.0
-        # but #172 promoted them to required; this default-to-None contract
-        # no longer holds. The "parses_new_fields" sibling test covers the
-        # field round-trip.
-        pass
+    def test_taker_outcome_side_missing_raises(self) -> None:
+        """Post-#172: ``taker_outcome_side`` / ``taker_book_side`` are required.
+        Omitting them on parse must raise instead of defaulting to None."""
+        from pydantic import ValidationError
+
+        data = trade_dict()
+        data.pop("taker_outcome_side")
+        data.pop("taker_book_side")
+        with pytest.raises(ValidationError):
+            Trade.model_validate(data)
 
 
 class TestIncentiveProgramV3180Fields:
@@ -509,11 +513,15 @@ class TestIncentiveProgramV3180Fields:
         )
         assert p.incentive_description == "Liquidity provision rewards"
 
-    def test_incentive_description_defaults_to_none(self) -> None:
-        # NOTE: incentive_description was optional in v3.18.0 but #172
-        # promoted it to required. Default-to-None contract no longer holds;
-        # round-trip is covered by test_parses_new_field above.
-        pass
+    def test_incentive_description_missing_raises(self) -> None:
+        """Post-#172: ``incentive_description`` is required.
+        Omitting it on parse must raise instead of defaulting to None."""
+        from pydantic import ValidationError
+
+        data = incentive_program_dict()
+        data.pop("incentive_description")
+        with pytest.raises(ValidationError):
+            IncentiveProgram.model_validate(data)
 
 
 class TestRFQV3180Fields:
