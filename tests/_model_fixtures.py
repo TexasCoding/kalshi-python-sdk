@@ -598,7 +598,12 @@ def bid_ask_distribution_dict(**overrides: Any) -> dict[str, Any]:
 
 
 def price_distribution_dict(**overrides: Any) -> dict[str, Any]:
-    """Spec-shaped PriceDistribution dict (Candlestick.price). All optional."""
+    """Spec-shaped PriceDistribution dict (Candlestick.price).
+
+    All fields are optional per spec — the OHLC window may contain no
+    trades — so the default base is intentionally ``{}``. Pass overrides
+    when the test exercises specific fields.
+    """
     base: dict[str, Any] = {}
     base.update(overrides)
     return base

@@ -40,7 +40,6 @@ added to `tests/_model_fixtures.py` (3 new). Test fixtures parsing
 `Candlestick` / `EventCandlesticks` / `MarketCandlesticks` now use those
 builders.
 
-
 ### Required-but-optional drift closure (#172)
 
 Required-but-optional drift closure (#172). Drops `None` defaults on 226

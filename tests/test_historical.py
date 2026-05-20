@@ -217,7 +217,6 @@ class TestHistoricalCandlesticks:
             "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
         )
         assert len(candles) == 1
-        assert candles[0].yes_bid is not None
         assert candles[0].yes_bid.open == Decimal("0.40")
         assert candles[0].volume == Decimal("500.00")
 
@@ -712,7 +711,6 @@ class TestAsyncHistoricalCandlesticks:
             "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
         )
         assert len(candles) == 1
-        assert candles[0].yes_bid is not None
         assert candles[0].yes_bid.open == Decimal("0.40")
 
 

@@ -280,13 +280,20 @@ def _resolve_schema(spec: dict[str, Any], schema_name: str) -> dict[str, Any]:
         if "$ref" in node:
             node = _resolve_ref(spec, node["$ref"])
         if segment == "items":
-            node = node.get("items", {})
+            if "items" not in node:
+                pytest.fail(
+                    f"Schema path '{schema_name}' failed at segment {segment!r}: "
+                    f"parent has no 'items'"
+                )
+            node = node["items"]
         else:
-            node = node.get("properties", {}).get(segment, {})
-        if not node:
-            pytest.fail(
-                f"Schema path '{schema_name}' failed at segment {segment!r}"
-            )
+            properties = node.get("properties", {})
+            if segment not in properties:
+                pytest.fail(
+                    f"Schema path '{schema_name}' failed at segment {segment!r}: "
+                    f"not in parent properties"
+                )
+            node = properties[segment]
     if "$ref" in node:
         node = _resolve_ref(spec, node["$ref"])
     return node

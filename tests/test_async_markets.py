@@ -316,9 +316,7 @@ class TestAsyncMarketsCandlesticks:
         assert len(candles) == 1
         c = candles[0]
         assert c.end_period_ts == 1700000000
-        assert c.yes_bid is not None
         assert c.yes_bid.open == Decimal("0.4000")
-        assert c.price is not None
         assert c.price.close == Decimal("0.5000")
         assert c.volume == Decimal("1234.50")
         assert c.open_interest == Decimal("5000.00")
