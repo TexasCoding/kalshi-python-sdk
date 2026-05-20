@@ -88,7 +88,9 @@ class Exclusion:
         ``required: true`` but the live server omits it in practice.
         Added in #172 for response-side fields that would otherwise force
         the SDK to raise ``ValidationError`` on real responses. Each entry
-        MUST cite a demo+prod observation in ``reason``.
+        MUST cite at least one verified server observation (demo nightly
+        run ID, or a prod-traffic capture date) in ``reason``. Prod
+        confirmation is preferred but not always achievable from CI.
     """
 
     reason: str
@@ -1156,6 +1158,22 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ("kalshi.ws.models.ticker.TickerPayload", "time"): Exclusion(
         reason="spec marks deprecated; superseded by ts_ms",
         kind="spec_deprecated",
+    ),
+    # --- server_omits_despite_required (#183, post-#172 nightly findings) ---
+    # Fields the OpenAPI spec marks `required: true` but the live demo server
+    # omits in practice. Each entry MUST cite a demo+prod observation in
+    # `reason`. Until the spec is fixed upstream, the SDK keeps the field
+    # optional so real-world responses parse cleanly.
+    ("kalshi.models.events.Event", "product_metadata"): Exclusion(
+        reason=(
+            "Spec EventData.product_metadata is required: true, but the live demo "
+            "server omits the key entirely on most events (e.g., Mars trip, Liverpool "
+            "vs Manchester United, 'Bitcoin price on Jan 12'). Observed in nightly "
+            "integration run #26141405845 (2026-05-20, against demo commit 788789c) "
+            "across test_events, test_markets, and test_series. Keep `dict | None` "
+            "until upstream spec or server matches."
+        ),
+        kind="server_omits_despite_required",
     ),
 }
 

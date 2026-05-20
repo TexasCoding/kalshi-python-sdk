@@ -424,6 +424,15 @@ class TestEventV3180Fields:
         for name in ("fee_type_override", "fee_multiplier_override", "exchange_index"):
             assert getattr(e, name) is None, f"{name} should default to None"
 
+    def test_parses_when_server_omits_product_metadata(self) -> None:
+        """#183 regression: the live demo server omits `product_metadata` on most
+        events even though spec marks it required. SDK must tolerate the omission
+        instead of raising. Tracked via EXCLUSIONS server_omits_despite_required."""
+        data = event_dict()
+        data.pop("product_metadata")
+        e = Event.model_validate(data)
+        assert e.product_metadata is None
+
 
 class TestEventMetadataV3180Fields:
     """v3.18.0 backfill (issue #160): 2 new optional fields on ``EventMetadata``."""
@@ -442,6 +451,15 @@ class TestEventMetadataV3180Fields:
         m = EventMetadata.model_validate(event_metadata_dict())
         assert m.competition is None
         assert m.competition_scope is None
+
+    def test_parses_when_server_sends_null_market_details(self) -> None:
+        """#183 regression: the live demo server sends JSON null for
+        `market_details` instead of a list. `NullableList` coerces null -> []
+        so callers always see a list."""
+        data = event_metadata_dict()
+        data["market_details"] = None
+        m = EventMetadata.model_validate(data)
+        assert m.market_details == []
 
 
 class TestSettlementV3180Fields:

@@ -1448,7 +1448,41 @@ def test_exclusion_map_is_current() -> None:
                 )
 
             model_cls = _get_model_class_from_fqn(fqn)
-            if name in _model_aliases(model_cls):
+            # ``server_omits_despite_required`` is the inverse of the other model
+            # exclusion kinds: the field IS on the SDK model (to parse responses
+            # when the server does send it), but the server omits it in practice
+            # so it must be typed Optional. Verify SDK still emits it AND that
+            # the field is now optional — flagging the entry as stale if the SDK
+            # has re-tightened it would mean responses break in production.
+            if excl.kind == "server_omits_despite_required":
+                # `name` here is the SPEC field name. The Python attribute name
+                # may differ via ``validation_alias`` (``AliasChoices`` or str) or
+                # ``serialization_alias``. Reuse :func:`_extract_spec_names` —
+                # the same alias-walk the rest of the spec-drift pipeline uses —
+                # so the is_required() check below covers all alias forms.
+                matched_field_info = next(
+                    (
+                        info
+                        for fld_name, info in model_cls.model_fields.items()
+                        if name in _extract_spec_names(info, fld_name)
+                    ),
+                    None,
+                )
+                if matched_field_info is None:
+                    stale.append(
+                        f"EXCLUSIONS[{(fqn, name)}] claims server omits "
+                        f"spec-required {name!r} on {fqn}, but the SDK "
+                        f"model no longer emits the field at all — entry is "
+                        f"stale or misclassified."
+                    )
+                elif matched_field_info.is_required():
+                    stale.append(
+                        f"EXCLUSIONS[{(fqn, name)}] says server omits "
+                        f"spec-required {name!r} on {fqn}, but the SDK "
+                        f"field is required — drop the exclusion or "
+                        f"loosen the SDK type."
+                    )
+            elif name in _model_aliases(model_cls):
                 stale.append(
                     f"EXCLUSIONS[{(fqn, name)}] claims SDK excludes {name!r} "
                     f"from {fqn}, but the model DOES emit it — entry is stale."

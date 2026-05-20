@@ -4,6 +4,31 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### Nightly integration server-omission fixes (#183)
+
+First two `server_omits_despite_required` cases caught by the post-#172
+nightly integration job (run #26141405845 against demo commit `788789c`):
+
+- **`Event.product_metadata`** — spec marks `required: true` but the live
+  demo server omits the key entirely on most events (Mars trip, Liverpool
+  vs Manchester United, "Bitcoin price on Jan 12" and others). Reverted to
+  `dict[str, Any] | None = None` and registered the deviation in
+  `EXCLUSIONS` with `kind="server_omits_despite_required"`. This is the
+  first usage of the new exclusion kind shipped in #172.
+- **`EventMetadata.market_details`** — spec marks `required: true` (`list`)
+  but the live demo server sends JSON `null` for the value. Swapped
+  `list[MarketMetadata]` → `NullableList[MarketMetadata]`. The spec
+  contract (key present) is still enforced; callers always see a list.
+
+Together these unblock 20 cascading integration-test failures across
+`tests/integration/test_events.py`, `test_markets.py`, and `test_series.py`
+(every test that calls `events.get()`).
+
+`test_exclusion_map_is_current` learned about `server_omits_despite_required`
+as the inverse of the other model exclusion kinds: the SDK field still has
+to be present (so we can parse responses when the server *does* send it) but
+must be optional. Stale-exclusion detection now flags either side flipping.
+
 ### WS / auth polish batch (#173 + #174 + #178)
 
 - **#173 — `MessageQueue` defense-in-depth.** The WS `MessageQueue` underlying
