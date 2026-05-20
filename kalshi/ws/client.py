@@ -527,9 +527,30 @@ class KalshiWebSocket:
         return decorator
 
     async def run_forever(self) -> None:
-        """Block until the connection is closed. Use with callback API."""
-        if self._recv_task:
-            await self._recv_task
+        """Block until the recv loop terminates. Use with the callback API.
+
+        Requires at least one prior ``subscribe_*`` (or generic
+        :meth:`subscribe`) call in the same session — the recv loop is
+        started lazily by the subscribe machinery, and without it there
+        is nothing to drain. Registering an ``@ws.on(channel)`` callback
+        does NOT subscribe; the server only sends frames for channels you
+        have explicitly subscribed to, so a callback without a matching
+        subscribe sees nothing.
+
+        :raises KalshiSubscriptionError: ``run_forever()`` was called
+            before any ``subscribe_*`` request landed (formerly a silent
+            no-op return — fixed in #175).
+        """
+        if self._recv_task is None:
+            raise KalshiSubscriptionError(
+                "run_forever() requires at least one active subscription. "
+                "Call subscribe_ticker(...) / subscribe_trade(...) / etc. "
+                "(or the generic subscribe(channel, ...)) before run_forever() "
+                "so the recv loop has something to drain. Registering an "
+                "@ws.on(channel) callback does not subscribe — the server "
+                "only sends frames for channels you explicitly subscribe to."
+            )
+        await self._recv_task
 
     # ------------------------------------------------------------------
     # Orderbook convenience
