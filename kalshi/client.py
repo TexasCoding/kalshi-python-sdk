@@ -140,6 +140,8 @@ class KalshiClient:
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""
         self._transport.close()
+        if self._auth is not None:
+            self._auth.close()
 
     def __enter__(self) -> KalshiClient:
         return self

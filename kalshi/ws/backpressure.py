@@ -38,7 +38,12 @@ class MessageQueue(Generic[T]):
     ) -> None:
         self._maxsize = maxsize
         self._overflow = overflow
-        self._buffer: collections.deque[T | object] = collections.deque(maxlen=None)
+        # `maxlen=maxsize+1` is a hard memory ceiling enforced by deque itself,
+        # independent of `_size`. If the counter ever drifts (a put path that
+        # forgets to increment, an exception between append and increment, etc.)
+        # the buffer still cannot grow without bound. +1 because put_sentinel
+        # appends without going through the size-check overflow path. (#173)
+        self._buffer: collections.deque[T | object] = collections.deque(maxlen=maxsize + 1)
         self._event = asyncio.Event()
         self._closed = False
         # O(1) size tracking: counts real items only (excludes sentinel).

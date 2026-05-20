@@ -98,10 +98,14 @@ class ConnectionManager:
         """
         await self._set_state(ConnectionState.STREAMING)
 
-    def _build_auth_headers(self) -> dict[str, str]:
-        """Build RSA-PSS auth headers for the WebSocket upgrade request."""
+    async def _build_auth_headers(self) -> dict[str, str]:
+        """Build RSA-PSS auth headers for the WebSocket upgrade request.
+
+        Async + executor-offloaded so the ~1-10 ms RSA-PSS sign doesn't
+        block the event loop on connect / reconnect. See #178.
+        """
         ws_path = urlparse(self._config.ws_base_url).path
-        return self._auth.sign_request("GET", ws_path)
+        return await self._auth.sign_request_async("GET", ws_path)
 
     async def connect(self) -> None:
         """Establish a WebSocket connection with RSA-PSS auth headers.
@@ -113,7 +117,7 @@ class ConnectionManager:
         """
         await self._set_state(ConnectionState.CONNECTING)
         try:
-            headers = self._build_auth_headers()
+            headers = await self._build_auth_headers()
             self._ws = await connect(
                 self._config.ws_base_url,
                 additional_headers=headers,
@@ -168,7 +172,7 @@ class ConnectionManager:
             await asyncio.sleep(delay)
             try:
                 await self._set_state(ConnectionState.CONNECTING)
-                headers = self._build_auth_headers()
+                headers = await self._build_auth_headers()
                 self._ws = await connect(
                     self._config.ws_base_url,
                     additional_headers=headers,
