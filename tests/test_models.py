@@ -22,8 +22,8 @@ from kalshi.models.orders import Fill, Order
 from kalshi.models.portfolio import Settlement
 from kalshi.types import to_decimal
 from tests._model_fixtures import (
-    create_order_group_response_dict,
     candlestick_dict,
+    create_order_group_response_dict,
     event_dict,
     event_metadata_dict,
     fill_dict,
@@ -207,10 +207,8 @@ class TestDollarsAliasFields:
                 volume_fp="100.00",
             )
         )
-        assert c.yes_bid is not None
         assert c.yes_bid.open == Decimal("0.4000")
         assert c.yes_bid.high == Decimal("0.5000")
-        assert c.price is not None
         assert c.price.open == Decimal("0.5000")
         assert c.price.close == Decimal("0.5500")
         assert c.volume == Decimal("100.00")

@@ -5,14 +5,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from tests._model_fixtures import candlestick_dict
-
 from kalshi.models.series import (
     EventCandlesticks,
     ForecastPercentilesPoint,
     Series,
     SeriesFeeChange,
 )
+from tests._model_fixtures import candlestick_dict
 
 
 class TestSeriesModel:

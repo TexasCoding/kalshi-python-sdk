@@ -330,11 +330,7 @@ def _get_required_fields(spec: dict[str, Any], schema_name: str) -> set[str]:
     Supports the same dotted-path syntax as :func:`_get_schema_fields`. Returns
     an empty set for non-object schemas.
     """
-    schemas = spec.get("components", {}).get("schemas", {})
-    if "." in schema_name:
-        schema = _resolve_schema(spec, schema_name)
-    else:
-        schema = schemas.get(schema_name, {})
+    schema = _resolve_schema(spec, schema_name)
 
     required: set[str] = set(schema.get("required", []))
 
