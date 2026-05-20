@@ -400,8 +400,10 @@ class TestRunForever:
             await session.subscribe_ticker(tickers=["T1"])
             stop = asyncio.Event()
             run_task = asyncio.create_task(session.run_forever(stop_event=stop))
-            # Give the loop a tick to settle on the recv await.
-            await asyncio.sleep(0.05)
+            # Give the loop a tick to settle on the recv await. 100 ms is
+            # generous enough for resource-constrained CI runners while
+            # still keeping the test fast.
+            await asyncio.sleep(0.1)
             assert not run_task.done()
             # Trigger cooperative shutdown.
             stop.set()
@@ -457,6 +459,9 @@ class TestRunForever:
                 async for msg in stream:
                     collected.append(msg)
             await asyncio.wait_for(drain(), timeout=2.0)
+            # No frames ever sent through fake_ws, so the iterator should
+            # have terminated immediately on the sentinel.
+            assert collected == []
 
 
 # ---------------------------------------------------------------------------

@@ -118,13 +118,27 @@ class KalshiWebSocket:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._recv_task
 
-        # Send sentinels to all active queues
-        if self._sub_mgr:
-            for sub in self._sub_mgr.active_subscriptions.values():
-                await sub.queue.put_sentinel()
+        await self._broadcast_sentinels()
 
         if self._connection:
             await self._connection.close()
+
+    async def _broadcast_sentinels(self) -> None:
+        """Put a shutdown sentinel on every active subscription queue.
+
+        Iterator consumers see the sentinel and exit their ``async for``
+        loops. ``MessageQueue.put_sentinel`` is idempotent — calling
+        twice puts two sentinels in the queue, the iterator reads the
+        first and raises ``StopAsyncIteration`` without ever touching
+        the second.
+
+        Used by ``_stop()`` (post-cancel cleanup), the cooperative
+        shutdown branch of ``run_forever(stop_event=...)`` (#177), and
+        ``_recv_loop``'s fatal-error broadcast paths.
+        """
+        if self._sub_mgr is not None:
+            for sub in self._sub_mgr.active_subscriptions.values():
+                await sub.queue.put_sentinel()
 
     def _ensure_recv_loop(self) -> None:
         """Start the recv_loop background task if not already running."""
@@ -187,9 +201,7 @@ class KalshiWebSocket:
                 try:
                     await inner
                 except (KalshiBackpressureError, KalshiSubscriptionError):
-                    if self._sub_mgr:
-                        for sub in self._sub_mgr.active_subscriptions.values():
-                            await sub.queue.put_sentinel()
+                    await self._broadcast_sentinels()
                 except Exception:
                     logger.debug(
                         "Shielded dispatch raised during cancel cleanup",
@@ -203,9 +215,7 @@ class KalshiWebSocket:
                 logger.error(
                     "Fatal WS error in recv loop", exc_info=True,
                 )
-                if self._sub_mgr:
-                    for sub in self._sub_mgr.active_subscriptions.values():
-                        await sub.queue.put_sentinel()
+                await self._broadcast_sentinels()
                 break
             except (json.JSONDecodeError, ValidationError, KeyError):
                 # #83: genuinely-non-fatal per-message errors. Log with
@@ -224,9 +234,7 @@ class KalshiWebSocket:
                     "Unexpected error in recv loop; broadcasting sentinels",
                     exc_info=True,
                 )
-                if self._sub_mgr:
-                    for sub in self._sub_mgr.active_subscriptions.values():
-                        await sub.queue.put_sentinel()
+                await self._broadcast_sentinels()
                 raise
 
     async def _process_frame(self, raw: str) -> None:
@@ -321,9 +329,7 @@ class KalshiWebSocket:
                 logger.error(
                     "Reconnect failed: %s", reconnect_err, exc_info=True,
                 )
-                if self._sub_mgr:
-                    for sub in self._sub_mgr.active_subscriptions.values():
-                        await sub.queue.put_sentinel()
+                await self._broadcast_sentinels()
                 self._running = False
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
@@ -586,10 +592,21 @@ class KalshiWebSocket:
                 {self._recv_task, stop_waiter},
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            if stop_waiter in done and self._recv_task not in done:
-                # Cooperative shutdown requested. Clearing _running first
-                # means the recv loop's ConnectionClosed branch hits the
-                # `if not self._running: break` path instead of reconnecting.
+            if stop_waiter in done:
+                # Cooperative shutdown takes priority — broadcast sentinels
+                # at the end even if _recv_task happens to also be in
+                # `done` (server-side close racing the stop signal). The
+                # recv loop's clean `not self._running: break` exits do
+                # NOT broadcast on their own; only its error paths do. So
+                # the simultaneous-completion case (both tasks done in the
+                # same wait round) MUST go through this branch to avoid
+                # leaving iterator consumers hanging.
+                #
+                # Clearing _running first means a still-running recv loop's
+                # ConnectionClosed branch hits `if not self._running:
+                # break` instead of reconnecting. We do NOT cancel
+                # _recv_task — cancellation would re-introduce the very
+                # CancelledError leak this hook exists to avoid (#177).
                 #
                 # Nested try/finally so a close() exception still drains
                 # the recv task AND broadcasts queue sentinels — otherwise
@@ -604,16 +621,21 @@ class KalshiWebSocket:
                         await self._connection.close()
                 finally:
                     try:
-                        await self._recv_task
+                        if not self._recv_task.done():
+                            await self._recv_task
+                        else:
+                            # Already done. .result() re-raises any
+                            # exception, surfaced as run_forever's exception.
+                            self._recv_task.result()
                     finally:
-                        if self._sub_mgr is not None:
-                            for sub in self._sub_mgr.active_subscriptions.values():
-                                await sub.queue.put_sentinel()
-            # If recv_task finished first (server-side close, etc.) just
-            # surface any exception it raised — same semantics as the
-            # no-stop-event branch above.
+                        await self._broadcast_sentinels()
             elif self._recv_task in done:
-                self._recv_task.result()  # re-raises if the task errored
+                # Server-side close / crash without stop event firing. The
+                # recv loop's error paths broadcast sentinels themselves;
+                # its clean ConnectionClosed break does not, but in that
+                # case the user didn't request shutdown and __aexit__ will
+                # handle the teardown. Just re-surface any exception.
+                self._recv_task.result()
         finally:
             if not stop_waiter.done():
                 stop_waiter.cancel()
