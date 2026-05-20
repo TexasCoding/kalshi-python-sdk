@@ -570,3 +570,16 @@ def order_group_payload_dict(**overrides: Any) -> dict[str, Any]:
     }
     base.update(overrides)
     return base
+
+
+def series_fee_change_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped SeriesFeeChange response dict."""
+    base: dict[str, Any] = {
+        "id": "sfc-1",
+        "series_ticker": "SER-A",
+        "fee_type": "quadratic",
+        "fee_multiplier": 0.0,
+        "scheduled_ts": "2026-01-01T00:00:00Z",
+    }
+    base.update(overrides)
+    return base
