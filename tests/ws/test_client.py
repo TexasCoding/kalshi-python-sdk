@@ -1,4 +1,5 @@
 """Tests for KalshiWebSocket client."""
+
 from __future__ import annotations
 
 import asyncio
@@ -6,6 +7,11 @@ import asyncio
 from kalshi.config import KalshiConfig
 from kalshi.ws.client import KalshiWebSocket, _WebSocketSession
 from kalshi.ws.connection import ConnectionState
+from tests._model_fixtures import (
+    fill_payload_dict,
+    ticker_payload_dict,
+    trade_payload_dict,
+)
 
 # ---------------------------------------------------------------------------
 # Context manager lifecycle
@@ -71,10 +77,15 @@ class TestSubscribeTicker:
         async with ws.connect() as session:
             stream = await session.subscribe_ticker(tickers=["T1"])
 
-            await fake_ws.send_to_all({
-                "type": "ticker", "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 55},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T1", market_id="x", yes_bid_dollars="55"
+                    ),
+                }
+            )
 
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.market_ticker == "T1"
@@ -103,13 +114,19 @@ class TestSubscribeOrderbookDelta:
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             stream = await session.subscribe_orderbook_delta(tickers=["T1"])
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot", "sid": 1, "seq": 1,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x",
-                    "yes": [["0.50", "100"]], "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.type == "orderbook_snapshot"
 
@@ -120,10 +137,13 @@ class TestSubscribeTrade:
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             stream = await session.subscribe_trade(tickers=["T1"])
-            await fake_ws.send_to_all({
-                "type": "trade", "sid": 1,
-                "msg": {"trade_id": "t1", "market_ticker": "T1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "trade",
+                    "sid": 1,
+                    "msg": trade_payload_dict(trade_id="t1", market_ticker="T1"),
+                }
+            )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.trade_id == "t1"
 
@@ -134,10 +154,13 @@ class TestSubscribeFill:
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             stream = await session.subscribe_fill()
-            await fake_ws.send_to_all({
-                "type": "fill", "sid": 1,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 1,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.trade_id == "t1"
 
@@ -153,10 +176,13 @@ class TestGenericSubscribe:
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             stream = await session.subscribe("fill")
-            await fake_ws.send_to_all({
-                "type": "fill", "sid": 1,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 1,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.trade_id == "t1"  # type: ignore[union-attr]
 
@@ -173,13 +199,19 @@ class TestOrderbookConvenience:
         async with ws.connect() as session:
             stream = await session.orderbook("T1")
 
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot", "sid": 1, "seq": 1,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x",
-                    "yes": [["0.50", "100"]], "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
 
             book = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert book.ticker == "T1"
@@ -205,10 +237,13 @@ class TestCallbackAPI:
                 got_one.set()
 
             await session.subscribe_fill()
-            await fake_ws.send_to_all({
-                "type": "fill", "sid": 1,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 1,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
 
             # Deterministic wait: the callback signals us; we don't sleep blindly.
             await asyncio.wait_for(got_one.wait(), timeout=2.0)
@@ -229,14 +264,22 @@ class TestMultipleChannels:
             fill_stream = await session.subscribe_fill()
 
             # Server assigns sid=1 to ticker, sid=2 to fill
-            await fake_ws.send_to_all({
-                "type": "ticker", "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 55},
-            })
-            await fake_ws.send_to_all({
-                "type": "fill", "sid": 2,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T1", market_id="x", yes_bid_dollars="55"
+                    ),
+                }
+            )
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 2,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
 
             ticker_msg = await asyncio.wait_for(ticker_stream.__anext__(), timeout=2.0)
             fill_msg = await asyncio.wait_for(fill_stream.__anext__(), timeout=2.0)
@@ -259,30 +302,39 @@ class TestMultipleChannels:
 
             # Two distinct subscribes -> two distinct server sids
             assert session._sub_mgr is not None
-            sids = [
-                sub.server_sid
-                for sub in session._sub_mgr.active_subscriptions.values()
-            ]
+            sids = [sub.server_sid for sub in session._sub_mgr.active_subscriptions.values()]
             assert len(sids) == 2
             assert sids[0] != sids[1]
             sid_a, sid_b = sids[0], sids[1]
             assert sid_a is not None and sid_b is not None
 
             # Push one message to each sid
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot", "sid": sid_a, "seq": 1,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x",
-                    "yes": [["0.50", "100"]], "no": [],
-                },
-            })
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot", "sid": sid_b, "seq": 1,
-                "msg": {
-                    "market_ticker": "T2", "market_id": "y",
-                    "yes": [["0.60", "200"]], "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": sid_a,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": sid_b,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T2",
+                        "market_id": "y",
+                        "yes": [["0.60", "200"]],
+                        "no": [],
+                    },
+                }
+            )
 
             msg_a = await asyncio.wait_for(stream_a.__anext__(), timeout=2.0)
             msg_b = await asyncio.wait_for(stream_b.__anext__(), timeout=2.0)
@@ -310,7 +362,9 @@ class TestRunForever:
             # Stopping the session (via context manager exit) will end run_forever
 
     async def test_run_forever_returns_immediately_without_subscribe(
-        self, fake_ws, test_auth,  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
@@ -340,10 +394,12 @@ class TestErrorCallback:
             await session.subscribe_ticker(tickers=["T1"])
 
             # Send an error message
-            await fake_ws.send_to_all({
-                "type": "error",
-                "msg": {"code": 400, "msg": "bad request"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "error",
+                    "msg": {"code": 400, "msg": "bad request"},
+                }
+            )
             # Deterministic wait: the callback signals us; we don't sleep blindly.
             await asyncio.wait_for(got_one.wait(), timeout=2.0)
             assert len(errors) == 1

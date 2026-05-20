@@ -14,7 +14,7 @@ class OrderGroupPayload(BaseModel):
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
     )  # _fp format
     # v0.14+ backfill (#162). Matching engine timestamp in Unix ms.
-    ts_ms: int | None = None
+    ts_ms: int
     model_config = {"extra": "allow"}
 
 

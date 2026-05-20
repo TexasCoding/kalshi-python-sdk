@@ -13,30 +13,24 @@ class MarketPositionsPayload(BaseModel):
     convention. ``position`` is a fixed-point contract count (string).
     """
 
-    user_id: str | None = None
+    user_id: str
     market_ticker: str
-    position: str | None = Field(
-        default=None,
+    position: str = Field(
         validation_alias=AliasChoices("position_fp", "position"),
     )  # _fp format
-    position_cost: DollarDecimal | None = Field(
-        default=None,
+    position_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("position_cost_dollars", "position_cost"),
     )
-    realized_pnl: DollarDecimal | None = Field(
-        default=None,
+    realized_pnl: DollarDecimal = Field(
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )
-    fees_paid: DollarDecimal | None = Field(
-        default=None,
+    fees_paid: DollarDecimal = Field(
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )
-    position_fee_cost: DollarDecimal | None = Field(
-        default=None,
+    position_fee_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("position_fee_cost_dollars", "position_fee_cost"),
     )
-    volume: str | None = Field(
-        default=None,
+    volume: str = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )  # _fp format
     subaccount: int | None = None

@@ -4,6 +4,7 @@ These tests exercise the full stack: ConnectionManager, SubscriptionManager,
 MessageDispatcher, SequenceTracker, OrderbookManager, and KalshiWebSocket
 all wired together against the FakeKalshiWS test server.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,6 +19,7 @@ from kalshi.ws.client import KalshiWebSocket
 from kalshi.ws.connection import ConnectionState
 from kalshi.ws.models.base import ErrorMessage
 from kalshi.ws.sequence import SequenceGap
+from tests._model_fixtures import fill_payload_dict, ticker_payload_dict, trade_payload_dict
 
 from .conftest import FakeKalshiWS
 
@@ -51,16 +53,15 @@ class TestIntegrationTickerFlow:
         async with ws.connect() as session:
             stream = await session.subscribe_ticker(tickers=["ECON-GDP-25Q1"])
 
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {
-                    "market_ticker": "ECON-GDP-25Q1",
-                    "market_id": "x",
-                    "yes_bid": 55,
-                    "yes_ask": 58,
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="ECON-GDP-25Q1", yes_bid_dollars="55", yes_ask_dollars="58"
+                    ),
+                }
+            )
 
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.type == "ticker"
@@ -80,11 +81,13 @@ class TestIntegrationTickerFlow:
             stream = await session.subscribe_ticker(tickers=["T1"])
 
             for price in [50, 55, 60]:
-                await fake_ws.send_to_all({
-                    "type": "ticker",
-                    "sid": 1,
-                    "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": price},
-                })
+                await fake_ws.send_to_all(
+                    {
+                        "type": "ticker",
+                        "sid": 1,
+                        "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars=price),
+                    }
+                )
 
             received: list[Any] = []
             for _ in range(3):
@@ -112,17 +115,19 @@ class TestIntegrationOrderbook:
             stream = await session.orderbook("T1")
 
             # Server sends snapshot: yes side has two levels
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot",
-                "sid": 1,
-                "seq": 1,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "yes": [["0.50", "100"], ["0.55", "200"]],
-                    "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"], ["0.55", "200"]],
+                        "no": [],
+                    },
+                }
+            )
 
             book = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert book.ticker == "T1"
@@ -131,18 +136,20 @@ class TestIntegrationOrderbook:
             assert book.yes[1].quantity == Decimal("200")
 
             # Server sends delta: add 50 contracts at $0.50
-            await fake_ws.send_to_all({
-                "type": "orderbook_delta",
-                "sid": 1,
-                "seq": 2,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "price_dollars": "0.50",
-                    "delta_fp": "50",
-                    "side": "yes",
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": 1,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price_dollars": "0.50",
+                        "delta_fp": "50",
+                        "side": "yes",
+                    },
+                }
+            )
 
             book2 = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert book2.yes[0].quantity == Decimal("150")
@@ -159,33 +166,37 @@ class TestIntegrationOrderbook:
             stream = await session.orderbook("T1")
 
             # Snapshot with one yes level of 100 cents
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot",
-                "sid": 1,
-                "seq": 1,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "yes": [["0.50", "100"]],
-                    "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
             book = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert len(book.yes) == 1
 
             # Delta: subtract 100 contracts (removes level)
-            await fake_ws.send_to_all({
-                "type": "orderbook_delta",
-                "sid": 1,
-                "seq": 2,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "price_dollars": "0.50",
-                    "delta_fp": "-100",
-                    "side": "yes",
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": 1,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price_dollars": "0.50",
+                        "delta_fp": "-100",
+                        "side": "yes",
+                    },
+                }
+            )
             book2 = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert len(book2.yes) == 0
 
@@ -209,26 +220,28 @@ class TestIntegrationMultiChannel:
             fill_stream = await session.subscribe_fill()
 
             # Ticker goes to sid=1, fill goes to sid=2
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "yes_bid": 50,
-                },
-            })
-            await fake_ws.send_to_all({
-                "type": "fill",
-                "sid": 2,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="50"),
+                }
+            )
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 2,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
 
             ticker_msg = await asyncio.wait_for(
-                ticker_stream.__anext__(), timeout=2.0,
+                ticker_stream.__anext__(),
+                timeout=2.0,
             )
             fill_msg = await asyncio.wait_for(
-                fill_stream.__anext__(), timeout=2.0,
+                fill_stream.__anext__(),
+                timeout=2.0,
             )
 
             assert ticker_msg.msg.market_ticker == "T1"
@@ -249,21 +262,27 @@ class TestIntegrationMultiChannel:
             fill_stream = await session.subscribe_fill()
             trade_stream = await session.subscribe_trade(tickers=["T1"])
 
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 42},
-            })
-            await fake_ws.send_to_all({
-                "type": "fill",
-                "sid": 2,
-                "msg": {"trade_id": "f1", "order_id": "o1"},
-            })
-            await fake_ws.send_to_all({
-                "type": "trade",
-                "sid": 3,
-                "msg": {"trade_id": "tr1", "market_ticker": "T1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="42"),
+                }
+            )
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 2,
+                    "msg": fill_payload_dict(trade_id="f1", order_id="o1"),
+                }
+            )
+            await fake_ws.send_to_all(
+                {
+                    "type": "trade",
+                    "sid": 3,
+                    "msg": trade_payload_dict(trade_id="tr1", market_ticker="T1"),
+                }
+            )
 
             t = await asyncio.wait_for(ticker_stream.__anext__(), timeout=2.0)
             f = await asyncio.wait_for(fill_stream.__anext__(), timeout=2.0)
@@ -298,11 +317,13 @@ class TestIntegrationReconnect:
             stream = await session.subscribe_ticker(tickers=["T1"])
 
             # First message triggers disconnect_after
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 50},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="50"),
+                }
+            )
 
             # Read the first message
             msg1 = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
@@ -318,17 +339,15 @@ class TestIntegrationReconnect:
 
             # After reconnect, server assigns new sids starting from where it left off
             # Resubscribe gets a new sid. Find the latest sid.
-            latest_sid = (
-                max(fake_ws.subscriptions.keys())
-                if fake_ws.subscriptions
-                else 1
-            )
+            latest_sid = max(fake_ws.subscriptions.keys()) if fake_ws.subscriptions else 1
 
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": latest_sid,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 75},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": latest_sid,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="75"),
+                }
+            )
 
             msg2 = await asyncio.wait_for(stream.__anext__(), timeout=3.0)
             assert msg2.msg.yes_bid == 75
@@ -369,10 +388,13 @@ class TestIntegrationReconnect:
             fake_ws.reject_auth = True
 
             # First message arrives, then the server closes the connection.
-            await fake_ws.send_to_all({
-                "type": "ticker", "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 42},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="42"),
+                }
+            )
 
             # We should get the first message via the iterator,
             # then the sentinel — async-for exits with no further items.
@@ -423,47 +445,53 @@ class TestIntegrationSequenceGap:
             stream = await session.subscribe_orderbook_delta(tickers=["T1"])
 
             # Send snapshot (seq=1)
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot",
-                "sid": 1,
-                "seq": 1,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "yes": [["0.50", "100"]],
-                    "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
             await asyncio.wait_for(stream.__anext__(), timeout=2.0)
 
             # Send seq=2 (OK)
-            await fake_ws.send_to_all({
-                "type": "orderbook_delta",
-                "sid": 1,
-                "seq": 2,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "price_dollars": "0.50",
-                    "delta_fp": "10",
-                    "side": "yes",
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": 1,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price_dollars": "0.50",
+                        "delta_fp": "10",
+                        "side": "yes",
+                    },
+                }
+            )
             await asyncio.wait_for(stream.__anext__(), timeout=2.0)
 
             # Send seq=5 (skip 3, 4 -> gap!)
-            await fake_ws.send_to_all({
-                "type": "orderbook_delta",
-                "sid": 1,
-                "seq": 5,
-                "msg": {
-                    "market_ticker": "T1",
-                    "market_id": "x",
-                    "price_dollars": "0.55",
-                    "delta_fp": "20",
-                    "side": "yes",
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": 1,
+                    "seq": 5,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price_dollars": "0.55",
+                        "delta_fp": "20",
+                        "side": "yes",
+                    },
+                }
+            )
 
             # Gap message is NOT dispatched (skipped by recv loop).
             # Deterministic wait: gap handler signals us; no blind sleep.
@@ -505,21 +533,26 @@ class TestIntegrationCallbackAndIterator:
             await session.subscribe_fill()
 
             # Send ticker (goes to iterator queue)
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 55},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="55"),
+                }
+            )
             # Send fill (goes to callback)
-            await fake_ws.send_to_all({
-                "type": "fill",
-                "sid": 2,
-                "msg": {"trade_id": "t1", "order_id": "o1"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "fill",
+                    "sid": 2,
+                    "msg": fill_payload_dict(trade_id="t1", order_id="o1"),
+                }
+            )
 
             # Read ticker from iterator
             ticker_msg = await asyncio.wait_for(
-                ticker_stream.__anext__(), timeout=2.0,
+                ticker_stream.__anext__(),
+                timeout=2.0,
             )
             assert ticker_msg.msg.market_ticker == "T1"
             assert ticker_msg.msg.yes_bid == 55
@@ -547,11 +580,13 @@ class TestIntegrationShutdown:
         async with ws.connect() as session:
             stream = await session.subscribe_ticker(tickers=["T1"])
             # Session is active, send a message to prove it works
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 42},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="42"),
+                }
+            )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.yes_bid == 42
             # Context manager exit happens here
@@ -604,17 +639,21 @@ class TestIntegrationErrorCallback:
             got_error.set()
 
         ws = KalshiWebSocket(
-            auth=test_auth, config=ws_config, on_error=on_error,
+            auth=test_auth,
+            config=ws_config,
+            on_error=on_error,
         )
         async with ws.connect() as session:
             # Subscribe to start the recv loop
             await session.subscribe_ticker(tickers=["T1"])
 
-            await fake_ws.send_to_all({
-                "type": "error",
-                "id": 0,
-                "msg": {"code": 5, "msg": "something went wrong"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "error",
+                    "id": 0,
+                    "msg": {"code": 5, "msg": "something went wrong"},
+                }
+            )
 
             # Deterministic wait: callback signals; no blind sleep.
             await asyncio.wait_for(got_error.wait(), timeout=2.0)
@@ -633,18 +672,22 @@ class TestIntegrationErrorCallback:
         async with ws.connect() as session:
             await session.subscribe_ticker(tickers=["T1"])
 
-            await fake_ws.send_to_all({
-                "type": "error",
-                "id": 0,
-                "msg": {"code": 99, "msg": "ignored error"},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "error",
+                    "id": 0,
+                    "msg": {"code": 99, "msg": "ignored error"},
+                }
+            )
 
             # Should not crash; just ignored. Verify recv loop is still alive.
-            await fake_ws.send_to_all({
-                "type": "ticker",
-                "sid": 1,
-                "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 30},
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="30"),
+                }
+            )
             # Wait a bit then check recv loop is still operational
             await asyncio.sleep(0.2)
 
@@ -665,12 +708,15 @@ class TestIntegrationStateTracking:
         states: list[tuple[ConnectionState, ConnectionState]] = []
 
         async def on_state(
-            old: ConnectionState, new: ConnectionState,
+            old: ConnectionState,
+            new: ConnectionState,
         ) -> None:
             states.append((old, new))
 
         ws = KalshiWebSocket(
-            auth=test_auth, config=ws_config, on_state_change=on_state,
+            auth=test_auth,
+            config=ws_config,
+            on_state_change=on_state,
         )
         async with ws.connect() as session:
             # Should have transitioned to CONNECTED

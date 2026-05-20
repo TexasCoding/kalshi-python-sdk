@@ -38,7 +38,7 @@ class IncentiveProgram(BaseModel):
     target_size_fp: FixedPointCount | None = None
 
     # v3.18.0 backfill (#160).
-    incentive_description: str | None = None
+    incentive_description: str
 
     model_config = {"extra": "allow"}
 

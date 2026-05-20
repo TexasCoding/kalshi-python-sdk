@@ -176,14 +176,14 @@ class TestLookup:
 
 @pytest.mark.asyncio
 class TestUpdateSubscription:
-    async def test_update_subscription_not_found_raises(
-        self, sub_mgr: SubscriptionManager
-    ) -> None:
+    async def test_update_subscription_not_found_raises(self, sub_mgr: SubscriptionManager) -> None:
         with pytest.raises(KalshiSubscriptionError):
             await sub_mgr.update_subscription(999, "add_markets", market_tickers=["T"])
 
     async def test_update_subscription_sends_command(
-        self, sub_mgr: SubscriptionManager, fake_ws  # type: ignore[no-untyped-def]
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
     ) -> None:
         sub = await sub_mgr.subscribe("ticker")
         await sub_mgr.update_subscription(
@@ -209,7 +209,9 @@ class TestUpdateSubscription:
 @pytest.mark.asyncio
 class TestResubscribeAll:
     async def test_resubscribe_all_after_reconnect(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """Simulate reconnect: subscribe, disconnect, reconnect, resubscribe."""
         config = KalshiConfig(
@@ -259,7 +261,9 @@ class TestResubscribeAll:
         assert len(sub_mgr.active_subscriptions) == 0
 
     async def test_resubscribe_orderbook_gets_snapshot(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """orderbook_delta channels get send_initial_snapshot on resubscribe."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -293,7 +297,9 @@ class TestResubscribeAll:
 @pytest.mark.asyncio
 class TestSubscribeError:
     async def test_subscribe_error_response_raises(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """When the server returns an error response, subscribe should raise."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -318,7 +324,9 @@ class TestSubscribeError:
 @pytest.mark.asyncio
 class TestMsgIdAutoIncrement:
     async def test_msg_ids_are_sequential(
-        self, sub_mgr: SubscriptionManager, fake_ws  # type: ignore[no-untyped-def]
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
     ) -> None:
         await sub_mgr.subscribe("ticker")
         await sub_mgr.subscribe("fill")

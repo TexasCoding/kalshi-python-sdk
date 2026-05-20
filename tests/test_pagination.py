@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from kalshi.models.common import Page
 from kalshi.models.markets import Market
+from tests._model_fixtures import market_dict
 
 
 def _market(ticker: str) -> Market:
-    return Market(ticker=ticker)
+    return Market.model_validate(market_dict(ticker=ticker))
 
 
 class TestPage:

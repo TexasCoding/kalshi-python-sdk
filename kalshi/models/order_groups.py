@@ -27,7 +27,7 @@ class GetOrderGroupResponse(BaseModel):
     """Single-group response — omits id (path param), adds member order IDs."""
 
     is_auto_cancel_enabled: bool
-    orders: NullableList[str] = []
+    orders: NullableList[str]
     contracts_limit: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
@@ -46,7 +46,7 @@ class CreateOrderGroupResponse(BaseModel):
 
     # v3.18.0 backfill (#161). Server echoes the routing context (subaccount +
     # exchange shard) on the create response.
-    subaccount: int | None = None
+    subaccount: int
     exchange_index: int | None = None
 
     model_config = {"extra": "allow"}

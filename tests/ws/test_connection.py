@@ -36,9 +36,7 @@ class TestConnectionState:
 
 
 class TestConnectionManagerConnect:
-    async def test_connect_to_fake_server(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_connect_to_fake_server(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()
@@ -48,16 +46,12 @@ class TestConnectionManagerConnect:
         closed_state: ConnectionState = mgr.state
         assert closed_state == ConnectionState.CLOSED
 
-    async def test_initial_state_is_disconnected(
-        self, test_auth: object
-    ) -> None:
+    async def test_initial_state_is_disconnected(self, test_auth: object) -> None:
         config = KalshiConfig(timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         assert mgr.state == ConnectionState.DISCONNECTED
 
-    async def test_auth_rejection(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_auth_rejection(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         fake_ws.reject_auth = True
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
@@ -66,9 +60,7 @@ class TestConnectionManagerConnect:
         assert mgr.state == ConnectionState.CLOSED
 
     async def test_connect_invalid_url(self, test_auth: object) -> None:
-        config = KalshiConfig(
-            ws_base_url="ws://127.0.0.1:1", timeout=1.0
-        )
+        config = KalshiConfig(ws_base_url="ws://127.0.0.1:1", timeout=1.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         with pytest.raises(KalshiConnectionError):
             await mgr.connect()
@@ -86,7 +78,9 @@ class TestConnectionManagerConnect:
 
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(
-            auth=test_auth, config=config, on_state_change=on_state,  # type: ignore[arg-type]
+            auth=test_auth,
+            config=config,
+            on_state_change=on_state,  # type: ignore[arg-type]
         )
         await mgr.connect()
         states.clear()
@@ -95,9 +89,7 @@ class TestConnectionManagerConnect:
         assert states == [(ConnectionState.CONNECTED, ConnectionState.STREAMING)]
         await mgr.close()
 
-    async def test_connect_error_does_not_leak_url(
-        self, test_auth: object
-    ) -> None:
+    async def test_connect_error_does_not_leak_url(self, test_auth: object) -> None:
         """Issue #84 F-O-09: connection-failure str() must not include the
         ws URL (which may contain token-like query params)."""
         # URL with a sensitive-looking query param
@@ -116,18 +108,14 @@ class TestConnectionManagerConnect:
         # so urlparse returns "" — assert by not crashing rather than substring.
         assert "WebSocket connection failed" in msg
 
-    async def test_close_when_already_disconnected(
-        self, test_auth: object
-    ) -> None:
+    async def test_close_when_already_disconnected(self, test_auth: object) -> None:
         config = KalshiConfig(timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         # Should not raise
         await mgr.close()
         assert mgr.state == ConnectionState.CLOSED
 
-    async def test_double_close(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_double_close(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()
@@ -143,9 +131,7 @@ class TestConnectionManagerConnect:
 
 
 class TestConnectionManagerSendRecv:
-    async def test_send_and_recv(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_send_and_recv(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()
@@ -164,17 +150,13 @@ class TestConnectionManagerSendRecv:
         assert data["msg"]["channel"] == "ticker"
         await mgr.close()
 
-    async def test_send_when_not_connected_raises(
-        self, test_auth: object
-    ) -> None:
+    async def test_send_when_not_connected_raises(self, test_auth: object) -> None:
         config = KalshiConfig(timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         with pytest.raises(KalshiConnectionError, match="Not connected"):
             await mgr.send({"cmd": "subscribe"})
 
-    async def test_recv_when_not_connected_raises(
-        self, test_auth: object
-    ) -> None:
+    async def test_recv_when_not_connected_raises(self, test_auth: object) -> None:
         config = KalshiConfig(timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         with pytest.raises(KalshiConnectionError, match="Not connected"):
@@ -202,9 +184,7 @@ class TestConnectionManagerSendRecv:
         assert channels == {"ticker", "orderbook_delta"}
         await mgr.close()
 
-    async def test_unsubscribe(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_unsubscribe(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()
@@ -219,18 +199,14 @@ class TestConnectionManagerSendRecv:
         raw = await mgr.recv()
         sid = json.loads(raw)["msg"]["sid"]
         # Unsubscribe
-        await mgr.send(
-            {"id": 2, "cmd": "unsubscribe", "params": {"sids": [sid]}}
-        )
+        await mgr.send({"id": 2, "cmd": "unsubscribe", "params": {"sids": [sid]}})
         raw = await mgr.recv()
         data = json.loads(raw)
         assert data["type"] == "unsubscribed"
         assert data["sid"] == sid
         await mgr.close()
 
-    async def test_list_subscriptions(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_list_subscriptions(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()
@@ -264,9 +240,7 @@ class TestConnectionManagerStateCallback:
     ) -> None:
         states: list[tuple[str, str]] = []
 
-        async def on_change(
-            old: ConnectionState, new: ConnectionState
-        ) -> None:
+        async def on_change(old: ConnectionState, new: ConnectionState) -> None:
             states.append((old.value, new.value))
 
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -287,9 +261,7 @@ class TestConnectionManagerStateCallback:
         fake_ws.reject_auth = True
         states: list[tuple[str, str]] = []
 
-        async def on_change(
-            old: ConnectionState, new: ConnectionState
-        ) -> None:
+        async def on_change(old: ConnectionState, new: ConnectionState) -> None:
             states.append((old.value, new.value))
 
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -303,9 +275,7 @@ class TestConnectionManagerStateCallback:
         assert ("disconnected", "connecting") in states
         assert ("connecting", "closed") in states
 
-    async def test_no_callback_when_none(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_no_callback_when_none(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         """Ensure no error when on_state_change is None."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(
@@ -323,9 +293,7 @@ class TestConnectionManagerStateCallback:
 
 
 class TestConnectionManagerWsProperty:
-    async def test_ws_property_raises_when_not_connected(
-        self, test_auth: object
-    ) -> None:
+    async def test_ws_property_raises_when_not_connected(self, test_auth: object) -> None:
         config = KalshiConfig(timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         with pytest.raises(KalshiConnectionError, match="Not connected"):
@@ -348,9 +316,7 @@ class TestConnectionManagerWsProperty:
 
 
 class TestConnectionManagerReconnect:
-    async def test_reconnect_succeeds(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_reconnect_succeeds(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(
             ws_base_url=fake_ws.url,
             timeout=5.0,
@@ -368,9 +334,7 @@ class TestConnectionManagerReconnect:
     ) -> None:
         states: list[tuple[str, str]] = []
 
-        async def on_change(
-            old: ConnectionState, new: ConnectionState
-        ) -> None:
+        async def on_change(old: ConnectionState, new: ConnectionState) -> None:
             states.append((old.value, new.value))
 
         config = KalshiConfig(
@@ -392,7 +356,8 @@ class TestConnectionManagerReconnect:
         await mgr.close()
 
     async def test_reconnect_max_retries_exceeded(
-        self, test_auth: object,
+        self,
+        test_auth: object,
     ) -> None:
         """When the server is unreachable, reconnect should fail after max retries."""
         config = KalshiConfig(
@@ -403,9 +368,7 @@ class TestConnectionManagerReconnect:
             ws_max_retries=2,
         )
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
-        with pytest.raises(
-            KalshiConnectionError, match="Max reconnect attempts"
-        ):
+        with pytest.raises(KalshiConnectionError, match="Max reconnect attempts"):
             await mgr.reconnect()
         assert mgr.state == ConnectionState.CLOSED
 
@@ -422,9 +385,7 @@ class TestConnectionManagerReconnect:
         fake_ws.reject_auth = True
         attempt_count = 0
 
-        async def on_change(
-            old: ConnectionState, new: ConnectionState
-        ) -> None:
+        async def on_change(old: ConnectionState, new: ConnectionState) -> None:
             nonlocal attempt_count
             if new == ConnectionState.CONNECTING:
                 attempt_count += 1
@@ -454,9 +415,7 @@ class TestConnectionManagerReconnect:
 
 
 class TestConnectionManagerAuth:
-    async def test_auth_headers_sent(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_auth_headers_sent(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         """Verify the connection succeeds (auth headers accepted by the server)."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
@@ -465,9 +424,7 @@ class TestConnectionManagerAuth:
         # The fake server accepted us (no 401 rejection)
         await mgr.close()
 
-    async def test_build_auth_headers_uses_ws_path(
-        self, test_auth: object
-    ) -> None:
+    async def test_build_auth_headers_uses_ws_path(self, test_auth: object) -> None:
         """_build_auth_headers should sign with the WS URL path."""
         config = KalshiConfig(
             ws_base_url="wss://api.elections.kalshi.com/trade-api/ws/v2",
@@ -486,9 +443,7 @@ class TestConnectionManagerAuth:
 
 
 class TestFakeKalshiWSBroadcast:
-    async def test_send_to_all(
-        self, fake_ws: FakeKalshiWS, test_auth: object
-    ) -> None:
+    async def test_send_to_all(self, fake_ws: FakeKalshiWS, test_auth: object) -> None:
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
         await mgr.connect()

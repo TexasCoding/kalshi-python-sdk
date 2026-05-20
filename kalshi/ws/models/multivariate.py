@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from kalshi.types import NullableList
 from kalshi.ws.models.market_lifecycle import MarketLifecyclePayload
 
 
@@ -18,10 +19,10 @@ class SelectedMarket(BaseModel):
 class MultivariatePayload(BaseModel):
     """Payload for multivariate messages (public channel)."""
 
-    collection_ticker: str | None = None
-    event_ticker: str | None = None
-    market_ticker: str | None = None
-    selected_markets: list[SelectedMarket] = []
+    collection_ticker: str
+    event_ticker: str
+    market_ticker: str
+    selected_markets: NullableList[SelectedMarket]
     model_config = {"extra": "allow"}
 
 

@@ -30,6 +30,7 @@ from kalshi.models.orders import (
     DecreaseOrderV2Request,
 )
 from kalshi.resources.orders import OrdersResource
+from tests._model_fixtures import fill_dict, order_dict
 
 
 @pytest.fixture
@@ -50,6 +51,7 @@ def orders(test_auth: KalshiAuth, config: KalshiConfig) -> OrdersResource:
 def client(test_auth: KalshiAuth) -> KalshiClient:
     """KalshiClient wired to the demo base URL (matches wire-shape test mocks)."""
     from kalshi.config import DEMO_BASE_URL
+
     cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
     return KalshiClient(auth=test_auth, config=cfg)
 
@@ -59,12 +61,7 @@ def unauth_orders(config: KalshiConfig) -> OrdersResource:
     return OrdersResource(SyncTransport(None, config))
 
 
-_MINIMAL_ORDER = {
-    "order_id": "ord-123",
-    "ticker": "MKT",
-    "side": "yes",
-    "status": "resting",
-}
+_MINIMAL_ORDER = order_dict(order_id="ord-123", ticker="MKT", side="yes", status="resting")
 
 
 class TestCreateOrderWireShape:
@@ -73,13 +70,15 @@ class TestCreateOrderWireShape:
     field; count must serialize as count_fp; new fields reach the wire."""
 
     def test_no_phantom_type_in_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(ticker="MKT", side="yes", yes_price=0.5)
 
@@ -87,13 +86,15 @@ class TestCreateOrderWireShape:
         assert "type" not in body
 
     def test_count_fp_not_count_in_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(ticker="MKT", side="yes", yes_price=0.5, count=3)
 
@@ -103,16 +104,20 @@ class TestCreateOrderWireShape:
         assert "count" not in body
 
     def test_time_in_force_reaches_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
             time_in_force="fill_or_kill",
         )
 
@@ -120,17 +125,22 @@ class TestCreateOrderWireShape:
         assert body["time_in_force"] == "fill_or_kill"
 
     def test_post_only_reduce_only_reach_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
-            post_only=True, reduce_only=False,
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
+            post_only=True,
+            reduce_only=False,
         )
 
         body = json.loads(route.calls[0].request.content)
@@ -138,14 +148,16 @@ class TestCreateOrderWireShape:
         assert body["reduce_only"] is False
 
     def test_buy_max_cost_int_cents_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         """Spec says cents. SDK must send int on the wire."""
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(ticker="MKT", side="yes", yes_price=0.5, buy_max_cost=500)
 
@@ -154,17 +166,22 @@ class TestCreateOrderWireShape:
         assert isinstance(body["buy_max_cost"], int)
 
     def test_subaccount_order_group_cancel_on_pause_stp_wire(
-        self, client: KalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         import json
 
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
-            subaccount=2, order_group_id="grp-x",
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
+            subaccount=2,
+            order_group_id="grp-x",
             cancel_order_on_pause=True,
             self_trade_prevention_type="maker",
         )
@@ -179,7 +196,8 @@ class TestCreateOrderWireShape:
         """v0.8.0 removed the `type` kwarg from orders.create()."""
         with pytest.raises(TypeError):
             client.orders.create(
-                ticker="MKT", side="yes",
+                ticker="MKT",
+                side="yes",
                 type="market",  # type: ignore[call-arg]
             )
 
@@ -191,14 +209,14 @@ class TestOrdersCreate:
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-123",
-                        "ticker": "TEST-MKT",
-                        "side": "yes",
-                        "status": "resting",
-                        "yes_price_dollars": "0.6500",
-                        "count": 10,
-                    }
+                    "order": order_dict(
+                        order_id="ord-123",
+                        ticker="TEST-MKT",
+                        side="yes",
+                        status="resting",
+                        yes_price_dollars="0.6500",
+                        count_fp="10",
+                    )
                 },
             )
         )
@@ -213,11 +231,7 @@ class TestOrdersCreate:
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-456",
-                        "ticker": "TEST-MKT",
-                        "status": "executed",
-                    }
+                    "order": order_dict(order_id="ord-456", ticker="TEST-MKT", status="executed")
                 },
             )
         )
@@ -228,12 +242,13 @@ class TestOrdersCreate:
     def test_decimal_price_conversion(self, orders: OrdersResource) -> None:
         route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
-                200, json={"order": {"order_id": "ord-789", "ticker": "T"}}
+                200, json={"order": order_dict(order_id="ord-789", ticker="T")}
             )
         )
         orders.create(ticker="T", side="yes", yes_price=0.65)
 
         import json
+
         body = json.loads(route.calls[0].request.content)
         # Must be sent as yes_price_dollars (FixedPointDollars string)
         assert body["yes_price_dollars"] == "0.65"
@@ -254,7 +269,7 @@ class TestOrdersGet:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123").mock(
             return_value=httpx.Response(
                 200,
-                json={"order": {"order_id": "ord-123", "ticker": "MKT", "status": "resting"}},
+                json={"order": order_dict(order_id="ord-123", ticker="MKT", status="resting")},
             )
         )
         order = orders.get("ord-123")
@@ -280,9 +295,9 @@ class TestOrdersCancel:
 
     @respx.mock
     def test_cancel_with_subaccount(self, orders: OrdersResource) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456"
-        ).mock(return_value=httpx.Response(200, json={}))
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456").mock(
+            return_value=httpx.Response(200, json={})
+        )
         orders.cancel("ord-456", subaccount=42)
         params = dict(route.calls[0].request.url.params)
         assert params["subaccount"] == "42"
@@ -296,8 +311,8 @@ class TestOrdersList:
                 200,
                 json={
                     "orders": [
-                        {"order_id": "ord-1", "ticker": "A"},
-                        {"order_id": "ord-2", "ticker": "B"},
+                        order_dict(order_id="ord-1", ticker="A"),
+                        order_dict(order_id="ord-2", ticker="B"),
                     ],
                     "cursor": "next",
                 },
@@ -373,7 +388,7 @@ class TestOrdersListAll:
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
-                json={"orders": [{"order_id": "ord-x", "ticker": "MKT-A"}], "cursor": ""},
+                json={"orders": [order_dict(order_id="ord-x", ticker="MKT-A")], "cursor": ""},
             )
         )
         list(
@@ -405,15 +420,15 @@ class TestOrdersBatch:
                 200,
                 json={
                     "orders": [
-                        {"order_id": "b1", "ticker": "A"},
-                        {"order_id": "b2", "ticker": "B"},
+                        order_dict(order_id="b1", ticker="A"),
+                        order_dict(order_id="b2", ticker="B"),
                     ]
                 },
             )
         )
         reqs = [
-            CreateOrderRequest(ticker="A", side="yes"),
-            CreateOrderRequest(ticker="B", side="no"),
+            CreateOrderRequest(ticker="A", side="yes", action="buy"),
+            CreateOrderRequest(ticker="B", side="no", action="buy"),
         ]
         result = orders.batch_create(reqs)
         assert len(result) == 2
@@ -428,12 +443,9 @@ class TestOrdersFills:
                 200,
                 json={
                     "fills": [
-                        {
-                            "trade_id": "t1",
-                            "order_id": "o1",
-                            "yes_price_dollars": "0.5000",
-                            "count": 5,
-                        }
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5000", count_fp="5"
+                        )
                     ]
                 },
             )
@@ -476,14 +488,14 @@ class TestOrdersFillsAll:
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "a", "yes_price_dollars": "0.50"}],
+                        "fills": [fill_dict(trade_id="a", yes_price_dollars="0.50")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "b", "yes_price_dollars": "0.60"}],
+                        "fills": [fill_dict(trade_id="b", yes_price_dollars="0.60")],
                         "cursor": "",
                     },
                 ),
@@ -497,7 +509,8 @@ class TestOrdersFillsAll:
         """Consolidated coverage for v0.7.0 ADDs on fills_all: min_ts, max_ts, subaccount."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
             return_value=httpx.Response(
-                200, json={"fills": [{"trade_id": "x", "yes_price_dollars": "0.5"}], "cursor": ""}
+                200,
+                json={"fills": [fill_dict(trade_id="x", yes_price_dollars="0.5")], "cursor": ""},
             )
         )
         list(
@@ -522,28 +535,26 @@ class TestOrdersFillsAll:
 class TestOrdersAmend:
     @respx.mock
     def test_amend_price(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-100/amend"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-100/amend").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "old_order": {
-                        "order_id": "ord-100",
-                        "ticker": "MKT-A",
-                        "side": "yes",
-                        "status": "resting",
-                        "yes_price_dollars": "0.5000",
-                        "count": 10,
-                    },
-                    "order": {
-                        "order_id": "ord-100",
-                        "ticker": "MKT-A",
-                        "side": "yes",
-                        "status": "resting",
-                        "yes_price_dollars": "0.6000",
-                        "count": 10,
-                    },
+                    "old_order": order_dict(
+                        order_id="ord-100",
+                        ticker="MKT-A",
+                        side="yes",
+                        status="resting",
+                        yes_price_dollars="0.5000",
+                        count_fp="10",
+                    ),
+                    "order": order_dict(
+                        order_id="ord-100",
+                        ticker="MKT-A",
+                        side="yes",
+                        status="resting",
+                        yes_price_dollars="0.6000",
+                        count_fp="10",
+                    ),
                 },
             )
         )
@@ -566,8 +577,8 @@ class TestOrdersAmend:
             return_value=httpx.Response(
                 200,
                 json={
-                    "old_order": {"order_id": "ord-200", "ticker": "T"},
-                    "order": {"order_id": "ord-200", "ticker": "T"},
+                    "old_order": order_dict(order_id="ord-200", ticker="T"),
+                    "order": order_dict(order_id="ord-200", ticker="T"),
                 },
             )
         )
@@ -590,17 +601,17 @@ class TestOrdersAmend:
 
     @respx.mock
     def test_amend_not_found(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/amend"
-        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/amend").mock(
+            return_value=httpx.Response(404, json={"message": "order not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             orders.amend("fake", ticker="T", side="yes", action="buy", yes_price=0.50)
 
     @respx.mock
     def test_amend_validation_error(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-300/amend"
-        ).mock(return_value=httpx.Response(400, json={"message": "invalid side"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-300/amend").mock(
+            return_value=httpx.Response(400, json={"message": "invalid side"})
+        )
         with pytest.raises(KalshiValidationError):
             orders.amend("ord-300", ticker="T", side="invalid", action="buy", yes_price=0.50)
 
@@ -612,18 +623,13 @@ class TestOrdersAmend:
 class TestOrdersDecrease:
     @respx.mock
     def test_decrease_by(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-400/decrease"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-400/decrease").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-400",
-                        "ticker": "MKT-B",
-                        "status": "resting",
-                        "remaining_count_fp": "5",
-                    }
+                    "order": order_dict(
+                        order_id="ord-400", ticker="MKT-B", status="resting", remaining_count_fp="5"
+                    )
                 },
             )
         )
@@ -633,18 +639,16 @@ class TestOrdersDecrease:
 
     @respx.mock
     def test_decrease_to(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-500/decrease"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-500/decrease").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-500",
-                        "ticker": "MKT-C",
-                        "status": "cancelled",
-                        "remaining_count_fp": "0",
-                    }
+                    "order": order_dict(
+                        order_id="ord-500",
+                        ticker="MKT-C",
+                        status="cancelled",
+                        remaining_count_fp="0",
+                    )
                 },
             )
         )
@@ -654,17 +658,15 @@ class TestOrdersDecrease:
 
     @respx.mock
     def test_decrease_not_found(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease"
-        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease").mock(
+            return_value=httpx.Response(404, json={"message": "order not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             orders.decrease("fake", reduce_by=1)
 
     @respx.mock
     def test_decrease_validation_error(self, orders: OrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-600/decrease"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-600/decrease").mock(
             return_value=httpx.Response(400, json={"message": "reduce_by must be > 0"})
         )
         with pytest.raises(KalshiValidationError):
@@ -682,9 +684,7 @@ class TestOrdersDecrease:
 class TestOrdersQueuePositions:
     @respx.mock
     def test_queue_positions(self, orders: OrdersResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -713,18 +713,16 @@ class TestOrdersQueuePositions:
     def test_queue_positions_with_filter(self, orders: OrdersResource) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
-        ).mock(
-            return_value=httpx.Response(200, json={"queue_positions": []})
-        )
+        ).mock(return_value=httpx.Response(200, json={"queue_positions": []}))
         orders.queue_positions(event_ticker="EVT-1")
         params = dict(route.calls[0].request.url.params)
         assert params["event_ticker"] == "EVT-1"
 
     @respx.mock
     def test_queue_positions_empty(self, orders: OrdersResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
-        ).mock(return_value=httpx.Response(200, json={"queue_positions": []}))
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions").mock(
+            return_value=httpx.Response(200, json={"queue_positions": []})
+        )
         positions = orders.queue_positions()
         assert positions == []
 
@@ -732,9 +730,7 @@ class TestOrdersQueuePositions:
     def test_queue_positions_with_list_tickers(self, orders: OrdersResource) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions"
-        ).mock(
-            return_value=httpx.Response(200, json={"queue_positions": []})
-        )
+        ).mock(return_value=httpx.Response(200, json={"queue_positions": []}))
         orders.queue_positions(market_tickers=["MKT-A", "MKT-B"])
         params = dict(route.calls[0].request.url.params)
         assert params["market_tickers"] == "MKT-A,MKT-B"
@@ -743,11 +739,7 @@ class TestOrdersQueuePositions:
     def test_queue_position_single(self, orders: OrdersResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-800/queue_position"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"queue_position_fp": "5"}
-            )
-        )
+        ).mock(return_value=httpx.Response(200, json={"queue_position_fp": "5"}))
         pos = orders.queue_position("ord-800")
         assert pos == Decimal("5")
 
@@ -755,11 +747,7 @@ class TestOrdersQueuePositions:
     def test_queue_position_fallback_key(self, orders: OrdersResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-900/queue_position"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"queue_position": "12"}
-            )
-        )
+        ).mock(return_value=httpx.Response(200, json={"queue_position": "12"}))
         pos = orders.queue_position("ord-900")
         assert pos == Decimal("12")
 
@@ -775,9 +763,9 @@ class TestOrdersQueuePositions:
 
     @respx.mock
     def test_queue_position_not_found(self, orders: OrdersResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position"
-        ).mock(return_value=httpx.Response(404, json={"message": "order not found"}))
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position").mock(
+            return_value=httpx.Response(404, json={"message": "order not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             orders.queue_position("fake")
 
@@ -785,62 +773,63 @@ class TestOrdersQueuePositions:
 class TestOrdersAuthGuards:
     def test_amend_requires_auth(self, unauth_orders: OrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             unauth_orders.amend("ord-123", ticker="T", side="yes", action="buy")
 
     def test_decrease_requires_auth(self, unauth_orders: OrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             unauth_orders.decrease("ord-123", reduce_by=1)
 
     def test_queue_positions_requires_auth(self, unauth_orders: OrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             unauth_orders.queue_positions()
 
     def test_queue_position_requires_auth(self, unauth_orders: OrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             unauth_orders.queue_position("ord-123")
 
 
 class TestBatchCancelWireShape:
     @respx.mock
-    def test_wraps_str_ids_into_orders(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_wraps_str_ids_into_orders(self, orders: OrdersResource) -> None:
         import json
 
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
         orders.batch_cancel(["ord-1", "ord-2"])
 
         body = json.loads(route.calls[0].request.content)
         assert "ids" not in body  # deprecated field no longer used
-        assert "orders" in body
         assert body["orders"] == [
             {"order_id": "ord-1"},
             {"order_id": "ord-2"},
         ]
 
     @respx.mock
-    def test_accepts_typed_order_entries(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_accepts_typed_order_entries(self, orders: OrdersResource) -> None:
         import json
 
         from kalshi.models.orders import BatchCancelOrdersRequestOrder
 
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
-        orders.batch_cancel([
-            BatchCancelOrdersRequestOrder(order_id="ord-1", subaccount=5),
-            BatchCancelOrdersRequestOrder(order_id="ord-2"),
-        ])
+        orders.batch_cancel(
+            [
+                BatchCancelOrdersRequestOrder(order_id="ord-1", subaccount=5),
+                BatchCancelOrdersRequestOrder(order_id="ord-2"),
+            ]
+        )
 
         body = json.loads(route.calls[0].request.content)
         assert body["orders"] == [
@@ -857,17 +846,16 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
     """
 
     @respx.mock
-    def test_batch_cancel_uses_delete_with_body_helper(
-        self, orders: OrdersResource
-    ) -> None:
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+    def test_batch_cancel_uses_delete_with_body_helper(self, orders: OrdersResource) -> None:
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
         # patch.object + wraps forwards every call to the real method,
         # so the respx mock above still resolves; the spy only records.
         with patch.object(
-            orders, "_delete_with_body",
+            orders,
+            "_delete_with_body",
             wraps=orders._delete_with_body,
         ) as spy:
             orders.batch_cancel(["ord-1", "ord-2"])
@@ -877,37 +865,31 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
             )
 
     @respx.mock
-    def test_batch_cancel_parses_200_with_json_body(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_batch_cancel_parses_200_with_json_body(self, orders: OrdersResource) -> None:
         """New base-class helper reads the response body on non-204; the
         old local helper discarded it. Confirms the sync path parses JSON
         without raising when the server returns 200 with content.
         """
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={"cancelled": 2}))
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"cancelled": 2})
+        )
 
         orders.batch_cancel(["ord-1", "ord-2"])  # must not raise on JSON body
 
     @respx.mock
-    def test_batch_cancel_handles_204_no_content(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_batch_cancel_handles_204_no_content(self, orders: OrdersResource) -> None:
         """Helper returns None on 204 — verifies sync goes through the
         shared response-handling path, not a raw ``transport.request`` call.
         Mirrors the async sibling.
         """
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(204))
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(204)
+        )
 
         orders.batch_cancel(["ord-1"])  # must not raise on empty body
 
     @respx.mock
-    def test_batch_cancel_200_with_empty_body_raises(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_batch_cancel_200_with_empty_body_raises(self, orders: OrdersResource) -> None:
         """Documents an intentional behavior change: the old local helper
         discarded the response, so a hypothetical 200 with an empty body
         would have been silent. The new shared helper parses JSON on
@@ -917,9 +899,9 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
         """
         import json as _json
 
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200))
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200)
+        )
 
         with pytest.raises(_json.JSONDecodeError):
             orders.batch_cancel(["ord-1"])
@@ -936,10 +918,15 @@ class TestAmendWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         orders.amend(
             "ord-99",
@@ -959,10 +946,15 @@ class TestAmendWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         orders.amend(
             "ord-99",
@@ -982,10 +974,15 @@ class TestAmendWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         orders.amend(
             "ord-99",
@@ -1019,10 +1016,15 @@ class TestAmendWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         orders.amend(
             "ord-99",
@@ -1048,9 +1050,16 @@ class TestDecreaseWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
-        ).mock(return_value=httpx.Response(200, json={
-            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": order_dict(
+                        order_id="ord-99", ticker="MKT", side="yes", status="resting"
+                    ),
+                },
+            )
+        )
 
         orders.decrease("ord-99", reduce_by=5, subaccount=1)
 
@@ -1063,9 +1072,16 @@ class TestDecreaseWireShape:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
-        ).mock(return_value=httpx.Response(200, json={
-            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": order_dict(
+                        order_id="ord-99", ticker="MKT", side="yes", status="resting"
+                    ),
+                },
+            )
+        )
 
         orders.decrease("ord-99", reduce_to=2)
 
@@ -1080,14 +1096,16 @@ class TestBatchCreateWireShape:
     def test_wraps_orders_key(self, orders: OrdersResource) -> None:
         import json
 
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
 
-        orders.batch_create([
-            CreateOrderRequest(ticker="A", side="yes"),
-            CreateOrderRequest(ticker="B", side="no"),
-        ])
+        orders.batch_create(
+            [
+                CreateOrderRequest(ticker="A", side="yes", action="buy"),
+                CreateOrderRequest(ticker="B", side="no", action="buy"),
+            ]
+        )
 
         body = json.loads(route.calls[0].request.content)
         assert "orders" in body
@@ -1240,7 +1258,8 @@ class TestAmendOrderV2:
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
         ).mock(
             return_value=httpx.Response(
-                200, json={"order_id": "ord-1", "ts_ms": 1700000000000},
+                200,
+                json={"order_id": "ord-1", "ts_ms": 1700000000000},
             )
         )
         result = orders.amend_v2(
@@ -1273,14 +1292,17 @@ class TestAmendOrderV2:
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
         ).mock(
             return_value=httpx.Response(
-                200, json={"order_id": "ord-1", "ts_ms": 0},
+                200,
+                json={"order_id": "ord-1", "ts_ms": 0},
             )
         )
         orders.amend_v2(
             "ord-1",
             request=AmendOrderV2Request(
-                ticker="MKT-A", side="bid",
-                price=Decimal("0.55"), count=Decimal("10"),
+                ticker="MKT-A",
+                side="bid",
+                price=Decimal("0.55"),
+                count=Decimal("10"),
                 exchange_index=0,
             ),
             subaccount=7,
@@ -1317,7 +1339,8 @@ class TestDecreaseOrderV2:
     def test_xor_rejects_both(self) -> None:
         with pytest.raises(ValueError, match="not both"):
             DecreaseOrderV2Request(
-                reduce_by=Decimal("2"), reduce_to=Decimal("5"),
+                reduce_by=Decimal("2"),
+                reduce_to=Decimal("5"),
             )
 
     def test_xor_requires_one(self) -> None:
@@ -1337,7 +1360,8 @@ class TestDecreaseOrderV2:
         orders.decrease_v2(
             "ord-1",
             request=DecreaseOrderV2Request(
-                reduce_by=Decimal("2"), exchange_index=0,
+                reduce_by=Decimal("2"),
+                exchange_index=0,
             ),
             subaccount=4,
         )
@@ -1510,7 +1534,9 @@ class TestV2RequiresAuth:
         )
 
     def test_create_v2(
-        self, unauth_orders: OrdersResource, _create_request: CreateOrderV2Request,
+        self,
+        unauth_orders: OrdersResource,
+        _create_request: CreateOrderV2Request,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_orders.create_v2(request=_create_request)
@@ -1524,8 +1550,10 @@ class TestV2RequiresAuth:
             unauth_orders.amend_v2(
                 "ord-1",
                 request=AmendOrderV2Request(
-                    ticker="MKT-A", side="bid",
-                    price=Decimal("0.55"), count=Decimal("10"),
+                    ticker="MKT-A",
+                    side="bid",
+                    price=Decimal("0.55"),
+                    count=Decimal("10"),
                 ),
             )
 
@@ -1537,7 +1565,9 @@ class TestV2RequiresAuth:
             )
 
     def test_batch_create_v2(
-        self, unauth_orders: OrdersResource, _create_request: CreateOrderV2Request,
+        self,
+        unauth_orders: OrdersResource,
+        _create_request: CreateOrderV2Request,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_orders.batch_create_v2(

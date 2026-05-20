@@ -17,33 +17,30 @@ class FillPayload(BaseModel):
     """
 
     trade_id: str
-    order_id: str | None = None
-    market_ticker: str | None = None
-    is_taker: bool | None = None
-    side: str | None = None
-    yes_price: DollarDecimal | None = Field(
-        default=None,
+    order_id: str
+    market_ticker: str
+    is_taker: bool
+    side: str
+    yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    count: str | None = Field(
-        default=None,
+    count: str = Field(
         validation_alias=AliasChoices("count_fp", "count"),
     )  # _fp format
-    fee_cost: DollarDecimal | None = None
-    action: str | None = None  # buy/sell
-    ts: int | None = None
-    post_position: str | None = Field(
-        default=None,
+    fee_cost: DollarDecimal
+    action: str  # buy/sell
+    ts: int
+    post_position: str = Field(
         validation_alias=AliasChoices("post_position_fp", "post_position"),
     )  # _fp format
-    purchased_side: str | None = None
+    purchased_side: str
     client_order_id: str | None = None
     subaccount: int | None = None
     # v0.14+ backfill (#162). outcome_side/book_side are the canonical
     # direction encoding; ts_ms supersedes ts. action/side stay for compat.
-    outcome_side: SideLiteral | None = None
-    book_side: BookSideLiteral | None = None
-    ts_ms: int | None = None
+    outcome_side: SideLiteral
+    book_side: BookSideLiteral
+    ts_ms: int
     model_config = {"extra": "allow"}
 
 

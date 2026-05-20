@@ -13,6 +13,11 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.portfolio import AsyncPortfolioResource, PortfolioResource
+from tests._model_fixtures import (
+    event_position_dict,
+    market_position_dict,
+    settlement_dict,
+)
 
 
 @pytest.fixture
@@ -30,9 +35,7 @@ def portfolio(test_auth: KalshiAuth, config: KalshiConfig) -> PortfolioResource:
 
 
 @pytest.fixture
-def async_portfolio(
-    test_auth: KalshiAuth, config: KalshiConfig
-) -> AsyncPortfolioResource:
+def async_portfolio(test_auth: KalshiAuth, config: KalshiConfig) -> AsyncPortfolioResource:
     return AsyncPortfolioResource(AsyncTransport(test_auth, config))
 
 
@@ -161,25 +164,25 @@ class TestPortfolioPositions:
                 200,
                 json={
                     "market_positions": [
-                        {
-                            "ticker": "MKT-A",
-                            "total_traded_dollars": "100.0000",
-                            "position_fp": "50.00",
-                            "market_exposure_dollars": "25.0000",
-                            "realized_pnl_dollars": "10.0000",
-                            "fees_paid_dollars": "1.5000",
-                            "resting_orders_count": 2,
-                        }
+                        market_position_dict(
+                            ticker="MKT-A",
+                            total_traded_dollars="100.0000",
+                            position_fp="50.00",
+                            market_exposure_dollars="25.0000",
+                            realized_pnl_dollars="10.0000",
+                            fees_paid_dollars="1.5000",
+                            resting_orders_count=2,
+                        )
                     ],
                     "event_positions": [
-                        {
-                            "event_ticker": "EVT-1",
-                            "total_cost_dollars": "200.0000",
-                            "total_cost_shares_fp": "100.00",
-                            "event_exposure_dollars": "50.0000",
-                            "realized_pnl_dollars": "20.0000",
-                            "fees_paid_dollars": "3.0000",
-                        }
+                        event_position_dict(
+                            event_ticker="EVT-1",
+                            total_cost_dollars="200.0000",
+                            total_cost_shares_fp="100.00",
+                            event_exposure_dollars="50.0000",
+                            realized_pnl_dollars="20.0000",
+                            fees_paid_dollars="3.0000",
+                        )
                     ],
                     "cursor": "next-page",
                 },
@@ -247,9 +250,7 @@ class TestPortfolioPositions:
     @respx.mock
     def test_positions_with_all_new_filters(self, portfolio: PortfolioResource) -> None:
         """v0.7.0 ADDs: count_filter, ticker, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/positions"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200, json={"market_positions": [], "event_positions": [], "cursor": ""}
             )
@@ -315,17 +316,17 @@ class TestPortfolioSettlements:
                 200,
                 json={
                     "settlements": [
-                        {
-                            "ticker": "MKT-V",
-                            "market_result": "void",
-                            "yes_count_fp": "5.00",
-                            "yes_total_cost_dollars": "3.0000",
-                            "no_count_fp": "0.00",
-                            "no_total_cost_dollars": "0.0000",
-                            "revenue": 300,
-                            "settled_time": "2026-04-12T12:00:00Z",
-                            "fee_cost": "0.0000",
-                        }
+                        settlement_dict(
+                            ticker="MKT-V",
+                            market_result="void",
+                            yes_count_fp="5.00",
+                            yes_total_cost_dollars="3.0000",
+                            no_count_fp="0.00",
+                            no_total_cost_dollars="0.0000",
+                            revenue=300,
+                            settled_time="2026-04-12T12:00:00Z",
+                            fee_cost="0.0000",
+                        )
                     ],
                     "cursor": "",
                 },
@@ -350,17 +351,17 @@ class TestPortfolioSettlements:
                     200,
                     json={
                         "settlements": [
-                            {
-                                "ticker": "A",
-                                "market_result": "yes",
-                                "yes_count_fp": "1.00",
-                                "yes_total_cost_dollars": "0.50",
-                                "no_count_fp": "0",
-                                "no_total_cost_dollars": "0",
-                                "revenue": 100,
-                                "settled_time": "2026-04-12T12:00:00Z",
-                                "fee_cost": "0.01",
-                            }
+                            settlement_dict(
+                                ticker="A",
+                                market_result="yes",
+                                yes_count_fp="1.00",
+                                yes_total_cost_dollars="0.50",
+                                no_count_fp="0",
+                                no_total_cost_dollars="0",
+                                revenue=100,
+                                settled_time="2026-04-12T12:00:00Z",
+                                fee_cost="0.01",
+                            )
                         ],
                         "cursor": "page2",
                     },
@@ -369,17 +370,17 @@ class TestPortfolioSettlements:
                     200,
                     json={
                         "settlements": [
-                            {
-                                "ticker": "B",
-                                "market_result": "no",
-                                "yes_count_fp": "0",
-                                "yes_total_cost_dollars": "0",
-                                "no_count_fp": "2.00",
-                                "no_total_cost_dollars": "1.00",
-                                "revenue": 200,
-                                "settled_time": "2026-04-12T13:00:00Z",
-                                "fee_cost": "0.02",
-                            }
+                            settlement_dict(
+                                ticker="B",
+                                market_result="no",
+                                yes_count_fp="0",
+                                yes_total_cost_dollars="0",
+                                no_count_fp="2.00",
+                                no_total_cost_dollars="1.00",
+                                revenue=200,
+                                settled_time="2026-04-12T13:00:00Z",
+                                fee_cost="0.02",
+                            )
                         ],
                         "cursor": "",
                     },
@@ -390,13 +391,11 @@ class TestPortfolioSettlements:
         assert tickers == ["A", "B"]
 
     @respx.mock
-    def test_settlements_with_all_new_filters(
-        self, portfolio: PortfolioResource
-    ) -> None:
+    def test_settlements_with_all_new_filters(self, portfolio: PortfolioResource) -> None:
         """v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
-        ).mock(return_value=httpx.Response(200, json={"settlements": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
+            return_value=httpx.Response(200, json={"settlements": []})
+        )
         portfolio.settlements(
             ticker="MKT-A",
             event_ticker="EVT-X",
@@ -412,16 +411,10 @@ class TestPortfolioSettlements:
         assert params["subaccount"] == "7"
 
     @respx.mock
-    def test_settlements_all_with_all_new_filters(
-        self, portfolio: PortfolioResource
-    ) -> None:
+    def test_settlements_all_with_all_new_filters(self, portfolio: PortfolioResource) -> None:
         """v0.7.0 ADDs on settlements_all match settlements (no cursor)."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"settlements": [], "cursor": ""}
-            )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
+            return_value=httpx.Response(200, json={"settlements": [], "cursor": ""})
         )
         list(
             portfolio.settlements_all(
@@ -447,7 +440,8 @@ class TestPortfolioTotalRestingOrderValue:
             "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
         ).mock(
             return_value=httpx.Response(
-                200, json={"total_resting_order_value": 12345},
+                200,
+                json={"total_resting_order_value": 12345},
             )
         )
         result = portfolio.total_resting_order_value()
@@ -464,14 +458,22 @@ class TestPortfolioTotalRestingOrderValue:
 
 
 _DEPOSIT = {
-    "id": "dep_1", "status": "applied", "type": "ach",
-    "amount_cents": 10000, "fee_cents": 0, "created_ts": 1700000000,
+    "id": "dep_1",
+    "status": "applied",
+    "type": "ach",
+    "amount_cents": 10000,
+    "fee_cents": 0,
+    "created_ts": 1700000000,
     "finalized_ts": 1700001000,
 }
 
 _WITHDRAWAL = {
-    "id": "wd_1", "status": "pending", "type": "wire",
-    "amount_cents": 5000, "fee_cents": 25, "created_ts": 1700000000,
+    "id": "wd_1",
+    "status": "pending",
+    "type": "wire",
+    "amount_cents": 5000,
+    "fee_cents": 25,
+    "created_ts": 1700000000,
     "finalized_ts": None,
 }
 
@@ -481,7 +483,8 @@ class TestPortfolioDeposits:
     def test_returns_page(self, portfolio: PortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
             return_value=httpx.Response(
-                200, json={"deposits": [_DEPOSIT], "cursor": "abc"},
+                200,
+                json={"deposits": [_DEPOSIT], "cursor": "abc"},
             )
         )
         page = portfolio.deposits(limit=10)
@@ -524,7 +527,8 @@ class TestPortfolioDeposits:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
             side_effect=[
                 httpx.Response(
-                    200, json={"deposits": [_DEPOSIT], "cursor": "p2"},
+                    200,
+                    json={"deposits": [_DEPOSIT], "cursor": "p2"},
                 ),
                 httpx.Response(
                     200,
@@ -545,13 +549,15 @@ class TestPortfolioDeposits:
             portfolio.deposits()
 
     def test_deposits_requires_auth(
-        self, unauth_portfolio: PortfolioResource,
+        self,
+        unauth_portfolio: PortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_portfolio.deposits()
 
     def test_deposits_all_requires_auth(
-        self, unauth_portfolio: PortfolioResource,
+        self,
+        unauth_portfolio: PortfolioResource,
     ) -> None:
         # *_all returns an iterator — must raise eagerly, not on first iteration.
         with pytest.raises(AuthRequiredError):
@@ -565,7 +571,8 @@ class TestPortfolioWithdrawals:
             "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
         ).mock(
             return_value=httpx.Response(
-                200, json={"withdrawals": [_WITHDRAWAL], "cursor": None},
+                200,
+                json={"withdrawals": [_WITHDRAWAL], "cursor": None},
             )
         )
         page = portfolio.withdrawals()
@@ -582,7 +589,8 @@ class TestPortfolioWithdrawals:
         ).mock(
             side_effect=[
                 httpx.Response(
-                    200, json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
+                    200,
+                    json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
                 ),
                 httpx.Response(
                     200,
@@ -597,20 +605,20 @@ class TestPortfolioWithdrawals:
     def test_auth_failure(self, portfolio: PortfolioResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
-        ).mock(
-            return_value=httpx.Response(401, json={"error": "unauthorized"})
-        )
+        ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
         with pytest.raises(KalshiAuthError):
             portfolio.withdrawals()
 
     def test_withdrawals_requires_auth(
-        self, unauth_portfolio: PortfolioResource,
+        self,
+        unauth_portfolio: PortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_portfolio.withdrawals()
 
     def test_withdrawals_all_requires_auth(
-        self, unauth_portfolio: PortfolioResource,
+        self,
+        unauth_portfolio: PortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_portfolio.withdrawals_all()
@@ -622,9 +630,7 @@ class TestPortfolioWithdrawals:
 class TestAsyncPortfolioBalance:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_balance(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_returns_balance(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
@@ -643,13 +649,9 @@ class TestAsyncPortfolioBalance:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_balance_with_subaccount(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_balance_with_subaccount(self, async_portfolio: AsyncPortfolioResource) -> None:
         """v0.7.0 ADD: subaccount kwarg reaches the wire."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/balance"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -667,22 +669,20 @@ class TestAsyncPortfolioBalance:
 class TestAsyncPortfolioPositions:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_positions(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_returns_positions(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "market_positions": [
-                        {
-                            "ticker": "MKT-A",
-                            "total_traded_dollars": "100.0000",
-                            "position_fp": "50.00",
-                            "market_exposure_dollars": "25.0000",
-                            "realized_pnl_dollars": "10.0000",
-                            "fees_paid_dollars": "1.5000",
-                        }
+                        market_position_dict(
+                            ticker="MKT-A",
+                            total_traded_dollars="100.0000",
+                            position_fp="50.00",
+                            market_exposure_dollars="25.0000",
+                            realized_pnl_dollars="10.0000",
+                            fees_paid_dollars="1.5000",
+                        )
                     ],
                     "event_positions": [],
                     "cursor": "next",
@@ -696,9 +696,7 @@ class TestAsyncPortfolioPositions:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_empty_positions(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_empty_positions(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200,
@@ -723,9 +721,7 @@ class TestAsyncPortfolioPositions:
         self, async_portfolio: AsyncPortfolioResource
     ) -> None:
         """v0.7.0 ADDs: count_filter, ticker, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/positions"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200, json={"market_positions": [], "event_positions": [], "cursor": ""}
             )
@@ -750,25 +746,23 @@ class TestAsyncPortfolioPositions:
 class TestAsyncPortfolioSettlements:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_settlements(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_returns_settlements(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "settlements": [
-                        {
-                            "ticker": "MKT-A",
-                            "market_result": "yes",
-                            "yes_count_fp": "10.00",
-                            "yes_total_cost_dollars": "6.5000",
-                            "no_count_fp": "0",
-                            "no_total_cost_dollars": "0",
-                            "revenue": 1000,
-                            "settled_time": "2026-04-12T12:00:00Z",
-                            "fee_cost": "0.34",
-                        }
+                        settlement_dict(
+                            ticker="MKT-A",
+                            market_result="yes",
+                            yes_count_fp="10.00",
+                            yes_total_cost_dollars="6.5000",
+                            no_count_fp="0",
+                            no_total_cost_dollars="0",
+                            revenue=1000,
+                            settled_time="2026-04-12T12:00:00Z",
+                            fee_cost="0.34",
+                        )
                     ],
                     "cursor": "",
                 },
@@ -780,26 +774,24 @@ class TestAsyncPortfolioSettlements:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_settlements_all_paginates(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_settlements_all_paginates(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
             side_effect=[
                 httpx.Response(
                     200,
                     json={
                         "settlements": [
-                            {
-                                "ticker": "A",
-                                "market_result": "yes",
-                                "yes_count_fp": "1",
-                                "yes_total_cost_dollars": "0.5",
-                                "no_count_fp": "0",
-                                "no_total_cost_dollars": "0",
-                                "revenue": 100,
-                                "settled_time": "2026-04-12T12:00:00Z",
-                                "fee_cost": "0.01",
-                            }
+                            settlement_dict(
+                                ticker="A",
+                                market_result="yes",
+                                yes_count_fp="1",
+                                yes_total_cost_dollars="0.5",
+                                no_count_fp="0",
+                                no_total_cost_dollars="0",
+                                revenue=100,
+                                settled_time="2026-04-12T12:00:00Z",
+                                fee_cost="0.01",
+                            )
                         ],
                         "cursor": "p2",
                     },
@@ -808,17 +800,17 @@ class TestAsyncPortfolioSettlements:
                     200,
                     json={
                         "settlements": [
-                            {
-                                "ticker": "B",
-                                "market_result": "no",
-                                "yes_count_fp": "0",
-                                "yes_total_cost_dollars": "0",
-                                "no_count_fp": "1",
-                                "no_total_cost_dollars": "0.5",
-                                "revenue": 100,
-                                "settled_time": "2026-04-12T13:00:00Z",
-                                "fee_cost": "0.01",
-                            }
+                            settlement_dict(
+                                ticker="B",
+                                market_result="no",
+                                yes_count_fp="0",
+                                yes_total_cost_dollars="0",
+                                no_count_fp="1",
+                                no_total_cost_dollars="0.5",
+                                revenue=100,
+                                settled_time="2026-04-12T13:00:00Z",
+                                fee_cost="0.01",
+                            )
                         ],
                         "cursor": "",
                     },
@@ -834,9 +826,9 @@ class TestAsyncPortfolioSettlements:
         self, async_portfolio: AsyncPortfolioResource
     ) -> None:
         """v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
-        ).mock(return_value=httpx.Response(200, json={"settlements": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
+            return_value=httpx.Response(200, json={"settlements": []})
+        )
         await async_portfolio.settlements(
             ticker="MKT-A",
             event_ticker="EVT-X",
@@ -857,20 +849,19 @@ class TestAsyncPortfolioSettlements:
         self, async_portfolio: AsyncPortfolioResource
     ) -> None:
         """v0.7.0 ADDs on settlements_all match settlements (no cursor)."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/settlements"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"settlements": [], "cursor": ""}
-            )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/settlements").mock(
+            return_value=httpx.Response(200, json={"settlements": [], "cursor": ""})
         )
-        _ = [s async for s in async_portfolio.settlements_all(
-            ticker="MKT-A",
-            event_ticker="EVT-X",
-            min_ts=1700000000,
-            max_ts=1700099999,
-            subaccount=7,
-        )]
+        _ = [
+            s
+            async for s in async_portfolio.settlements_all(
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                subaccount=7,
+            )
+        ]
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
@@ -883,13 +874,15 @@ class TestAsyncPortfolioTotalRestingOrderValue:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_value(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/summary/total_resting_order_value",
         ).mock(
             return_value=httpx.Response(
-                200, json={"total_resting_order_value": 99999},
+                200,
+                json={"total_resting_order_value": 99999},
             )
         )
         result = await async_portfolio.total_resting_order_value()
@@ -898,7 +891,8 @@ class TestAsyncPortfolioTotalRestingOrderValue:
     @respx.mock
     @pytest.mark.asyncio
     async def test_unauthorized(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         """Demo returns 401/403 for non-FCM accounts — verify error mapping."""
         respx.get(
@@ -912,11 +906,13 @@ class TestAsyncPortfolioDeposits:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_page(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
             return_value=httpx.Response(
-                200, json={"deposits": [_DEPOSIT], "cursor": None},
+                200,
+                json={"deposits": [_DEPOSIT], "cursor": None},
             )
         )
         page = await async_portfolio.deposits()
@@ -926,12 +922,14 @@ class TestAsyncPortfolioDeposits:
     @respx.mock
     @pytest.mark.asyncio
     async def test_all_paginates(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/deposits").mock(
             side_effect=[
                 httpx.Response(
-                    200, json={"deposits": [_DEPOSIT], "cursor": "p2"},
+                    200,
+                    json={"deposits": [_DEPOSIT], "cursor": "p2"},
                 ),
                 httpx.Response(
                     200,
@@ -947,13 +945,15 @@ class TestAsyncPortfolioWithdrawals:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_page(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
         ).mock(
             return_value=httpx.Response(
-                200, json={"withdrawals": [_WITHDRAWAL]},
+                200,
+                json={"withdrawals": [_WITHDRAWAL]},
             )
         )
         page = await async_portfolio.withdrawals()
@@ -962,14 +962,16 @@ class TestAsyncPortfolioWithdrawals:
     @respx.mock
     @pytest.mark.asyncio
     async def test_all_max_pages_caps(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
         ).mock(
             side_effect=[
                 httpx.Response(
-                    200, json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
+                    200,
+                    json={"withdrawals": [_WITHDRAWAL], "cursor": "p2"},
                 ),
                 httpx.Response(
                     200,
@@ -986,25 +988,26 @@ class TestAsyncPortfolioWithdrawals:
     @respx.mock
     @pytest.mark.asyncio
     async def test_auth_failure(
-        self, async_portfolio: AsyncPortfolioResource,
+        self,
+        async_portfolio: AsyncPortfolioResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/withdrawals",
-        ).mock(
-            return_value=httpx.Response(401, json={"error": "unauthorized"})
-        )
+        ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
         with pytest.raises(KalshiAuthError):
             await async_portfolio.withdrawals()
 
     @pytest.mark.asyncio
     async def test_withdrawals_requires_auth(
-        self, unauth_async_portfolio: AsyncPortfolioResource,
+        self,
+        unauth_async_portfolio: AsyncPortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_portfolio.withdrawals()
 
     def test_withdrawals_all_requires_auth(
-        self, unauth_async_portfolio: AsyncPortfolioResource,
+        self,
+        unauth_async_portfolio: AsyncPortfolioResource,
     ) -> None:
         # withdrawals_all is plain `def` returning AsyncIterator; auth check
         # must fire at call time, not on first iteration.
@@ -1015,13 +1018,15 @@ class TestAsyncPortfolioWithdrawals:
 class TestAsyncPortfolioDepositsAuth:
     @pytest.mark.asyncio
     async def test_deposits_requires_auth(
-        self, unauth_async_portfolio: AsyncPortfolioResource,
+        self,
+        unauth_async_portfolio: AsyncPortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_portfolio.deposits()
 
     def test_deposits_all_requires_auth(
-        self, unauth_async_portfolio: AsyncPortfolioResource,
+        self,
+        unauth_async_portfolio: AsyncPortfolioResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_async_portfolio.deposits_all()

@@ -13,6 +13,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError
 from kalshi.resources.events import AsyncEventsResource, EventsResource
+from tests._model_fixtures import event_dict, event_metadata_dict, market_dict
 
 
 @pytest.fixture
@@ -30,9 +31,7 @@ def events(test_auth: KalshiAuth, config: KalshiConfig) -> EventsResource:
 
 
 @pytest.fixture
-def async_events(
-    test_auth: KalshiAuth, config: KalshiConfig
-) -> AsyncEventsResource:
+def async_events(test_auth: KalshiAuth, config: KalshiConfig) -> AsyncEventsResource:
     return AsyncEventsResource(AsyncTransport(test_auth, config))
 
 
@@ -47,17 +46,13 @@ class TestEventsList:
                 200,
                 json={
                     "events": [
-                        {
-                            "event_ticker": "EVT-A",
-                            "title": "Event A",
-                            "series_ticker": "SER-1",
-                            "mutually_exclusive": True,
-                        },
-                        {
-                            "event_ticker": "EVT-B",
-                            "title": "Event B",
-                            "series_ticker": "SER-2",
-                        },
+                        event_dict(
+                            event_ticker="EVT-A",
+                            title="Event A",
+                            series_ticker="SER-1",
+                            mutually_exclusive=True,
+                        ),
+                        event_dict(event_ticker="EVT-B", title="Event B", series_ticker="SER-2"),
                     ],
                     "cursor": "page2",
                 },
@@ -96,13 +91,13 @@ class TestEventsListAll:
                 httpx.Response(
                     200,
                     json={
-                        "events": [{"event_ticker": "A"}, {"event_ticker": "B"}],
+                        "events": [event_dict(event_ticker="A"), event_dict(event_ticker="B")],
                         "cursor": "page2",
                     },
                 ),
                 httpx.Response(
                     200,
-                    json={"events": [{"event_ticker": "C"}], "cursor": ""},
+                    json={"events": [event_dict(event_ticker="C")], "cursor": ""},
                 ),
             ]
         )
@@ -117,12 +112,12 @@ class TestEventsGet:
             return_value=httpx.Response(
                 200,
                 json={
-                    "event": {
-                        "event_ticker": "EVT-1",
-                        "title": "Test Event",
-                        "series_ticker": "SER-1",
-                        "mutually_exclusive": False,
-                    },
+                    "event": event_dict(
+                        event_ticker="EVT-1",
+                        title="Test Event",
+                        series_ticker="SER-1",
+                        mutually_exclusive=False,
+                    ),
                     "markets": [],
                 },
             )
@@ -139,11 +134,10 @@ class TestEventsGet:
                 200,
                 json={
                     "event": {
-                        "event_ticker": "EVT-1",
-                        "title": "Test Event",
+                        **event_dict(event_ticker="EVT-1", title="Test Event"),
                         "markets": [
-                            {"ticker": "MKT-1", "yes_bid_dollars": "0.45"},
-                            {"ticker": "MKT-2", "yes_bid_dollars": "0.55"},
+                            market_dict(ticker="MKT-1", yes_bid_dollars="0.45"),
+                            market_dict(ticker="MKT-2", yes_bid_dollars="0.55"),
                         ],
                     },
                     "markets": [],
@@ -173,8 +167,10 @@ class TestEventsMetadata:
             return_value=httpx.Response(
                 200,
                 json={
-                    "image_url": "https://example.com/event.png",
-                    "featured_image_url": "https://example.com/featured.png",
+                    **event_metadata_dict(
+                        image_url="https://example.com/event.png",
+                        featured_image_url="https://example.com/featured.png",
+                    ),
                     "market_details": [
                         {
                             "market_ticker": "MKT-1",
@@ -209,10 +205,13 @@ class TestEventsListMultivariate:
     @respx.mock
     def test_list_multivariate(self, events: EventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
-            return_value=httpx.Response(200, json={
-                "events": [{"event_ticker": "MVE-1", "series_ticker": "SER-1"}],
-                "cursor": "next",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "events": [event_dict(event_ticker="MVE-1", series_ticker="SER-1")],
+                    "cursor": "next",
+                },
+            )
         )
         page = events.list_multivariate()
         assert len(page.items) == 1
@@ -238,14 +237,20 @@ class TestEventsListMultivariate:
     def test_list_all_multivariate(self, events: EventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
             side_effect=[
-                httpx.Response(200, json={
-                    "events": [{"event_ticker": "MVE-1"}],
-                    "cursor": "page2",
-                }),
-                httpx.Response(200, json={
-                    "events": [{"event_ticker": "MVE-2"}],
-                    "cursor": "",
-                }),
+                httpx.Response(
+                    200,
+                    json={
+                        "events": [event_dict(event_ticker="MVE-1")],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "events": [event_dict(event_ticker="MVE-2")],
+                        "cursor": "",
+                    },
+                ),
             ]
         )
         items = list(events.list_all_multivariate())
@@ -276,7 +281,7 @@ class TestAsyncEventsList:
             return_value=httpx.Response(
                 200,
                 json={
-                    "events": [{"event_ticker": "EVT-A", "title": "Event A"}],
+                    "events": [event_dict(event_ticker="EVT-A", title="Event A")],
                     "cursor": "p2",
                 },
             )
@@ -296,13 +301,13 @@ class TestAsyncEventsListAll:
                 httpx.Response(
                     200,
                     json={
-                        "events": [{"event_ticker": "A"}],
+                        "events": [event_dict(event_ticker="A")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
-                    json={"events": [{"event_ticker": "B"}], "cursor": ""},
+                    json={"events": [event_dict(event_ticker="B")], "cursor": ""},
                 ),
             ]
         )
@@ -318,10 +323,7 @@ class TestAsyncEventsGet:
             return_value=httpx.Response(
                 200,
                 json={
-                    "event": {
-                        "event_ticker": "EVT-1",
-                        "title": "Async Event",
-                    },
+                    "event": event_dict(event_ticker="EVT-1", title="Async Event"),
                     "markets": [],
                 },
             )
@@ -362,10 +364,13 @@ class TestAsyncEventsListMultivariate:
     @pytest.mark.asyncio
     async def test_list_multivariate(self, async_events: AsyncEventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
-            return_value=httpx.Response(200, json={
-                "events": [{"event_ticker": "MVE-1"}],
-                "cursor": "",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "events": [event_dict(event_ticker="MVE-1")],
+                    "cursor": "",
+                },
+            )
         )
         page = await async_events.list_multivariate()
         assert len(page.items) == 1
@@ -375,8 +380,10 @@ class TestAsyncEventsListMultivariate:
     async def test_list_all_multivariate(self, async_events: AsyncEventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
             side_effect=[
-                httpx.Response(200, json={"events": [{"event_ticker": "A"}], "cursor": "p2"}),
-                httpx.Response(200, json={"events": [{"event_ticker": "B"}], "cursor": ""}),
+                httpx.Response(
+                    200, json={"events": [event_dict(event_ticker="A")], "cursor": "p2"}
+                ),
+                httpx.Response(200, json={"events": [event_dict(event_ticker="B")], "cursor": ""}),
             ]
         )
         tickers = [e.event_ticker async for e in async_events.list_all_multivariate()]
@@ -402,9 +409,7 @@ class TestBoolParamSerialization:
         assert params["with_milestones"] == "false"
 
     @respx.mock
-    def test_list_with_nested_markets_none_is_dropped(
-        self, events: EventsResource
-    ) -> None:
+    def test_list_with_nested_markets_none_is_dropped(self, events: EventsResource) -> None:
         route = respx.get("https://test.kalshi.com/trade-api/v2/events").mock(
             return_value=httpx.Response(200, json={"events": [], "cursor": ""})
         )
@@ -415,8 +420,8 @@ class TestBoolParamSerialization:
 
     @respx.mock
     def test_list_multivariate_false_is_sent(self, events: EventsResource) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/events/multivariate"
-        ).mock(return_value=httpx.Response(200, json={"events": [], "cursor": ""}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
         events.list_multivariate(with_nested_markets=False)
         assert route.calls[0].request.url.params["with_nested_markets"] == "false"

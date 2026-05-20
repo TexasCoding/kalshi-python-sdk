@@ -23,9 +23,9 @@ class RfqCreatedPayload(BaseModel):
     """
 
     id: str
-    creator_id: str | None = None
-    market_ticker: str | None = None
-    created_ts: str | None = None
+    creator_id: str
+    market_ticker: str
+    created_ts: str
     event_ticker: str | None = None
     contracts: str | None = Field(
         default=None,
@@ -52,9 +52,9 @@ class RfqDeletedPayload(BaseModel):
     """
 
     id: str
-    creator_id: str | None = None
-    market_ticker: str | None = None
-    deleted_ts: str | None = None
+    creator_id: str
+    market_ticker: str
+    deleted_ts: str
 
     # v0.14+ backfill (#162). Same RFQ context as RfqCreatedPayload —
     # surfaced again on delete for clients that subscribed mid-RFQ.
@@ -74,18 +74,16 @@ class QuoteCreatedPayload(BaseModel):
     """Quote created notification payload."""
 
     quote_id: str
-    rfq_id: str | None = None
-    quote_creator_id: str | None = None
-    market_ticker: str | None = None
-    yes_bid: DollarDecimal | None = Field(
-        default=None,
+    rfq_id: str
+    quote_creator_id: str
+    market_ticker: str
+    yes_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    no_bid: DollarDecimal | None = Field(
-        default=None,
+    no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
-    created_ts: str | None = None
+    created_ts: str
 
     # v0.14+ backfill (#162). Event linkage + RFQ offer/cost context echoed
     # on the quote so subscribers don't need to look up the parent RFQ.
@@ -109,15 +107,13 @@ class QuoteAcceptedPayload(BaseModel):
     """Quote accepted notification payload."""
 
     quote_id: str
-    rfq_id: str | None = None
-    quote_creator_id: str | None = None
-    market_ticker: str | None = None
-    yes_bid: DollarDecimal | None = Field(
-        default=None,
+    rfq_id: str
+    quote_creator_id: str
+    market_ticker: str
+    yes_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    no_bid: DollarDecimal | None = Field(
-        default=None,
+    no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
     accepted_side: str | None = None
@@ -148,13 +144,13 @@ class QuoteExecutedPayload(BaseModel):
     """Quote executed notification payload."""
 
     quote_id: str
-    rfq_id: str | None = None
-    quote_creator_id: str | None = None
-    rfq_creator_id: str | None = None
-    order_id: str | None = None
-    client_order_id: str | None = None
-    market_ticker: str | None = None
-    executed_ts: str | None = None
+    rfq_id: str
+    quote_creator_id: str
+    rfq_creator_id: str
+    order_id: str
+    client_order_id: str
+    market_ticker: str
+    executed_ts: str
     model_config = {"extra": "allow"}
 
 

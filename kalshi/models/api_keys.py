@@ -25,7 +25,7 @@ class ApiKey(BaseModel):
 
     api_key_id: str
     name: str
-    scopes: NullableList[str] = []
+    scopes: NullableList[str]
 
     model_config = {"extra": "allow"}
 

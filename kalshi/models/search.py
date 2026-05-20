@@ -20,7 +20,7 @@ from kalshi.types import NullableList
 class ScopeList(BaseModel):
     """Scopes available for a specific competition within a sport."""
 
-    scopes: NullableList[str] = []
+    scopes: NullableList[str]
 
     model_config = {"extra": "allow"}
 
@@ -33,8 +33,8 @@ class SportFilterDetails(BaseModel):
     subset.
     """
 
-    scopes: NullableList[str] = []
-    competitions: dict[str, ScopeList] = {}
+    scopes: NullableList[str]
+    competitions: dict[str, ScopeList]
 
     model_config = {"extra": "allow"}
 

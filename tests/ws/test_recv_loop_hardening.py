@@ -19,6 +19,7 @@ from kalshi.errors import KalshiConnectionError
 from kalshi.ws.channels import SubscriptionManager
 from kalshi.ws.client import KalshiWebSocket
 from kalshi.ws.connection import ConnectionManager
+from tests._model_fixtures import ticker_payload_dict
 
 # ---------------------------------------------------------------------------
 # F-P-01 — per-sub resubscribe failure no longer aborts the whole reconnect
@@ -28,7 +29,9 @@ from kalshi.ws.connection import ConnectionManager
 @pytest.mark.asyncio
 class TestResubscribeIsolation:
     async def test_one_failed_resubscribe_does_not_kill_others(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """F-P-01: if one sub's resubscribe errors, the others still succeed."""
         config = KalshiConfig(
@@ -61,11 +64,15 @@ class TestResubscribeIsolation:
                 call_count["n"] += 1
                 if call_count["n"] == 2:
                     msg_id = msg.get("id", 0)
-                    await ws.send(json.dumps({
-                        "id": msg_id,
-                        "type": "error",
-                        "msg": {"code": 400, "msg": "simulated failure"},
-                    }))
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "id": msg_id,
+                                "type": "error",
+                                "msg": {"code": 400, "msg": "simulated failure"},
+                            }
+                        )
+                    )
                     return
             await original_handle(ws, msg)
 
@@ -94,7 +101,9 @@ class TestResubscribeIsolation:
 @pytest.mark.asyncio
 class TestSubscribeConnectionClosed:
     async def test_connection_closed_mid_subscribe_raises_kalshi_error(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """F-P-05: a connection drop during _wait_for_response surfaces as
         KalshiConnectionError, not raw websockets ConnectionClosed."""
@@ -123,7 +132,9 @@ class TestSubscribeConnectionClosed:
 @pytest.mark.asyncio
 class TestUnsubscribeSentinel:
     async def test_unsubscribe_pushes_sentinel(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """F-P-08: unsubscribe must push a sentinel so iterators stop hanging."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -151,7 +162,9 @@ class TestUnsubscribeSentinel:
 @pytest.mark.asyncio
 class TestPauseDoesNotDropFrames:
     async def test_inflight_frame_dispatched_when_recv_task_cancelled(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """F-P-04: a frame mid-dispatch when the recv task is cancelled must
         still be delivered. We monkey-patch the dispatcher's dispatch() with
@@ -170,7 +183,9 @@ class TestPauseDoesNotDropFrames:
             allow_dispatch_finish = asyncio.Event()
 
             async def slow_dispatch(
-                data: dict[str, Any], *, pre_validated: Any = None,
+                data: dict[str, Any],
+                *,
+                pre_validated: Any = None,
             ) -> None:
                 dispatch_started.set()
                 await allow_dispatch_finish.wait()
@@ -181,12 +196,13 @@ class TestPauseDoesNotDropFrames:
             sid = next(iter(session._sub_mgr.active_subscriptions.values())).server_sid  # type: ignore[union-attr]
             # Send one frame. recv loop reads it, enters _process_frame,
             # calls slow_dispatch which blocks on the event.
-            await fake_ws.send_to_all({
-                "type": "ticker", "sid": sid,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x", "yes_bid": 22,
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": sid,
+                    "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="22"),
+                }
+            )
             await asyncio.wait_for(dispatch_started.wait(), timeout=2.0)
 
             # Now request a pause (cancellation). The shield must keep the
@@ -217,7 +233,9 @@ class TestPauseDoesNotDropFrames:
 @pytest.mark.asyncio
 class TestReconnectHoldsSubscribeLock:
     async def test_handle_reconnect_acquires_subscribe_lock(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """F-P-03: reconnect must hold _subscribe_lock so concurrent user
         subscribe_* cannot race the sid-remap.
@@ -251,8 +269,7 @@ class TestReconnectHoldsSubscribeLock:
 
             await asyncio.wait_for(wait_for_lock_contention(), timeout=2.0)
             assert not reconnect_task.done(), (
-                "F-P-03 regression: _handle_reconnect did not take "
-                "_subscribe_lock"
+                "F-P-03 regression: _handle_reconnect did not take _subscribe_lock"
             )
 
             # Release; reconnect proceeds
@@ -268,7 +285,9 @@ class TestReconnectHoldsSubscribeLock:
 @pytest.mark.asyncio
 class TestRecvLoopExceptionPolicy:
     async def test_backpressure_error_breaks_loop_and_sentinels(
-        self, fake_ws, test_auth  # type: ignore[no-untyped-def]
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
         """#83: KalshiBackpressureError no longer swallowed. The recv loop
         exits and consumers see sentinel.
@@ -282,7 +301,8 @@ class TestRecvLoopExceptionPolicy:
         async with ws.connect() as session:
             # ERROR strategy with maxsize=1 -> second message overflows
             stream = await session.subscribe_orderbook_delta(
-                tickers=["T1"], maxsize=1,
+                tickers=["T1"],
+                maxsize=1,
             )
 
             assert session._sub_mgr is not None
@@ -290,24 +310,37 @@ class TestRecvLoopExceptionPolicy:
             assert sid is not None
 
             # Fill the queue: snapshot lands as the single allowed item.
-            await fake_ws.send_to_all({
-                "type": "orderbook_snapshot", "sid": sid, "seq": 1,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x",
-                    "yes": [["0.50", "100"]], "no": [],
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": sid,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
             # Yield to let recv loop process the snapshot
             await asyncio.sleep(0.1)
 
             # Second frame overflows -> KalshiBackpressureError
-            await fake_ws.send_to_all({
-                "type": "orderbook_delta", "sid": sid, "seq": 2,
-                "msg": {
-                    "market_ticker": "T1", "market_id": "x",
-                    "price": "0.51", "delta": "10", "side": "yes",
-                },
-            })
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": sid,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price": "0.51",
+                        "delta": "10",
+                        "side": "yes",
+                    },
+                }
+            )
 
             # Wait for the recv loop to process the delta and exit on
             # BackpressureError. The recv task should complete (loop broke).
@@ -354,13 +387,13 @@ class TestRecvLoopExceptionPolicy:
                 for conn in fake_ws.connections:
                     await conn.send("{not valid json")
 
-                await fake_ws.send_to_all({
-                    "type": "ticker", "sid": sid,
-                    "msg": {
-                        "market_ticker": "T1", "market_id": "x",
-                        "yes_bid": 77,
-                    },
-                })
+                await fake_ws.send_to_all(
+                    {
+                        "type": "ticker",
+                        "sid": sid,
+                        "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="77"),
+                    }
+                )
 
                 msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
                 assert msg.msg.yes_bid == 77
@@ -397,19 +430,19 @@ class TestRecvLoopExceptionPolicy:
             session._dispatcher.dispatch = boom  # type: ignore[method-assign]
 
             with caplog.at_level(logging.ERROR, logger="kalshi.ws"):
-                await fake_ws.send_to_all({
-                    "type": "ticker", "sid": sid,
-                    "msg": {"market_ticker": "T1", "market_id": "x", "yes_bid": 1},
-                })
+                await fake_ws.send_to_all(
+                    {
+                        "type": "ticker",
+                        "sid": sid,
+                        "msg": ticker_payload_dict(market_ticker="T1", yes_bid_dollars="1"),
+                    }
+                )
 
                 # Iterator must see sentinel (StopAsyncIteration) within timeout.
                 with pytest.raises(StopAsyncIteration):
                     await asyncio.wait_for(stream.__anext__(), timeout=2.0)
 
-            assert any(
-                "Unexpected error in recv loop" in r.message
-                for r in caplog.records
-            )
+            assert any("Unexpected error in recv loop" in r.message for r in caplog.records)
             # Recv task is in failed state (we re-raised after sentinel).
             recv_task = session._recv_task
             assert recv_task is not None

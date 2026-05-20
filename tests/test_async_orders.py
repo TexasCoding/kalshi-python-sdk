@@ -31,6 +31,7 @@ from kalshi.models.orders import (
     DecreaseOrderV2Request,
 )
 from kalshi.resources.orders import AsyncOrdersResource
+from tests._model_fixtures import fill_dict, order_dict
 
 
 @pytest.fixture
@@ -43,9 +44,7 @@ def config() -> KalshiConfig:
 
 
 @pytest.fixture
-def orders(
-    test_auth: KalshiAuth, config: KalshiConfig
-) -> AsyncOrdersResource:
+def orders(test_auth: KalshiAuth, config: KalshiConfig) -> AsyncOrdersResource:
     return AsyncOrdersResource(AsyncTransport(test_auth, config))
 
 
@@ -58,16 +57,12 @@ def unauth_orders_async(config: KalshiConfig) -> AsyncOrdersResource:
 def client(test_auth: KalshiAuth) -> AsyncKalshiClient:
     """AsyncKalshiClient wired to the demo base URL (matches wire-shape test mocks)."""
     from kalshi.config import DEMO_BASE_URL
+
     cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
     return AsyncKalshiClient(auth=test_auth, config=cfg)
 
 
-_MINIMAL_ORDER = {
-    "order_id": "ord-123",
-    "ticker": "MKT",
-    "side": "yes",
-    "status": "resting",
-}
+_MINIMAL_ORDER = order_dict(order_id="ord-123", ticker="MKT", side="yes", status="resting")
 
 
 class TestCreateOrderWireShapeAsync:
@@ -78,11 +73,13 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_no_phantom_type_in_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(ticker="MKT", side="yes", yes_price=0.5)
 
@@ -92,11 +89,13 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_count_fp_not_count_in_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(ticker="MKT", side="yes", yes_price=0.5, count=3)
 
@@ -108,14 +107,18 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_time_in_force_reaches_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
             time_in_force="fill_or_kill",
         )
 
@@ -125,15 +128,20 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_post_only_reduce_only_reach_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
-            post_only=True, reduce_only=False,
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
+            post_only=True,
+            reduce_only=False,
         )
 
         body = json.loads(route.calls[0].request.content)
@@ -143,15 +151,20 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_buy_max_cost_int_cents_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
         """Spec says cents. SDK must send int on the wire."""
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5, buy_max_cost=500,
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
+            buy_max_cost=500,
         )
 
         body = json.loads(route.calls[0].request.content)
@@ -161,15 +174,20 @@ class TestCreateOrderWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_subaccount_order_group_cancel_on_pause_stp_wire(
-        self, client: AsyncKalshiClient, respx_mock: respx.MockRouter,
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         await client.orders.create(
-            ticker="MKT", side="yes", yes_price=0.5,
-            subaccount=2, order_group_id="grp-x",
+            ticker="MKT",
+            side="yes",
+            yes_price=0.5,
+            subaccount=2,
+            order_group_id="grp-x",
             cancel_order_on_pause=True,
             self_trade_prevention_type="maker",
         )
@@ -185,7 +203,8 @@ class TestCreateOrderWireShapeAsync:
         """v0.8.0 removed the `type` kwarg from orders.create()."""
         with pytest.raises(TypeError):
             await client.orders.create(
-                ticker="MKT", side="yes",
+                ticker="MKT",
+                side="yes",
                 type="market",  # type: ignore[call-arg]
             )
 
@@ -193,49 +212,35 @@ class TestCreateOrderWireShapeAsync:
 class TestAsyncOrdersCreate:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_create_limit_order(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+    async def test_create_limit_order(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-123",
-                        "ticker": "TEST-MKT",
-                        "side": "yes",
-                        "status": "resting",
-                        "yes_price_dollars": "0.6500",
-                        "count": 10,
-                    }
+                    "order": order_dict(
+                        order_id="ord-123",
+                        ticker="TEST-MKT",
+                        side="yes",
+                        status="resting",
+                        yes_price_dollars="0.6500",
+                        count_fp="10",
+                    )
                 },
             )
         )
-        order = await orders.create(
-            ticker="TEST-MKT", side="yes", count=10, yes_price=0.65
-        )
+        order = await orders.create(ticker="TEST-MKT", side="yes", count=10, yes_price=0.65)
         assert order.order_id == "ord-123"
         assert order.yes_price == Decimal("0.6500")
         assert order.count == 10
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_create_order_no_price(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+    async def test_create_order_no_price(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "order": {
-                        "order_id": "ord-456",
-                        "ticker": "TEST-MKT",
-                        "status": "executed",
-                    }
+                    "order": order_dict(order_id="ord-456", ticker="TEST-MKT", status="executed")
                 },
             )
         )
@@ -244,17 +249,11 @@ class TestAsyncOrdersCreate:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_decimal_price_conversion(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+    async def test_decimal_price_conversion(self, orders: AsyncOrdersResource) -> None:
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
-                json={
-                    "order": {"order_id": "ord-789", "ticker": "T"}
-                },
+                json={"order": order_dict(order_id="ord-789", ticker="T")},
             )
         )
         await orders.create(ticker="T", side="yes", yes_price=0.65)
@@ -265,15 +264,9 @@ class TestAsyncOrdersCreate:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_validation_error(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
-            return_value=httpx.Response(
-                400, json={"message": "invalid ticker"}
-            )
+    async def test_validation_error(self, orders: AsyncOrdersResource) -> None:
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(400, json={"message": "invalid ticker"})
         )
         with pytest.raises(KalshiValidationError):
             await orders.create(ticker="INVALID", side="yes")
@@ -282,21 +275,11 @@ class TestAsyncOrdersCreate:
 class TestAsyncOrdersGet:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_order(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123"
-        ).mock(
+    async def test_returns_order(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123").mock(
             return_value=httpx.Response(
                 200,
-                json={
-                    "order": {
-                        "order_id": "ord-123",
-                        "ticker": "MKT",
-                        "status": "resting",
-                    }
-                },
+                json={"order": order_dict(order_id="ord-123", ticker="MKT", status="resting")},
             )
         )
         order = await orders.get("ord-123")
@@ -305,15 +288,9 @@ class TestAsyncOrdersGet:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_not_found(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake"
-        ).mock(
-            return_value=httpx.Response(
-                404, json={"message": "order not found"}
-            )
+    async def test_not_found(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake").mock(
+            return_value=httpx.Response(404, json={"message": "order not found"})
         )
         with pytest.raises(KalshiNotFoundError):
             await orders.get("fake")
@@ -322,22 +299,18 @@ class TestAsyncOrdersGet:
 class TestAsyncOrdersCancel:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_cancel_order(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123"
-        ).mock(return_value=httpx.Response(200, json={}))
+    async def test_cancel_order(self, orders: AsyncOrdersResource) -> None:
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123").mock(
+            return_value=httpx.Response(200, json={})
+        )
         await orders.cancel("ord-123")  # should not raise
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_cancel_with_subaccount(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456"
-        ).mock(return_value=httpx.Response(200, json={}))
+    async def test_cancel_with_subaccount(self, orders: AsyncOrdersResource) -> None:
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-456").mock(
+            return_value=httpx.Response(200, json={})
+        )
         await orders.cancel("ord-456", subaccount=42)
         params = dict(route.calls[0].request.url.params)
         assert params["subaccount"] == "42"
@@ -346,18 +319,14 @@ class TestAsyncOrdersCancel:
 class TestAsyncOrdersList:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_page(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+    async def test_returns_page(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "orders": [
-                        {"order_id": "ord-1", "ticker": "A"},
-                        {"order_id": "ord-2", "ticker": "B"},
+                        order_dict(order_id="ord-1", ticker="A"),
+                        order_dict(order_id="ord-2", ticker="B"),
                     ],
                     "cursor": "next",
                 },
@@ -370,15 +339,9 @@ class TestAsyncOrdersList:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_with_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"orders": []}
-            )
+    async def test_with_filters(self, orders: AsyncOrdersResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
         )
         await orders.list(status="resting", ticker="MKT-A")
         params = dict(route.calls[0].request.url.params)
@@ -387,13 +350,11 @@ class TestAsyncOrdersList:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_list_with_all_new_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_list_with_all_new_filters(self, orders: AsyncOrdersResource) -> None:
         """Consolidated coverage for v0.7.0 ADDs: event_ticker, min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
         await orders.list(
             ticker="MKT-A",
             event_ticker="EVT-X",
@@ -416,26 +377,22 @@ class TestAsyncOrdersList:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_empty_string_ticker_passes_through(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_empty_string_ticker_passes_through(self, orders: AsyncOrdersResource) -> None:
         """Regression: empty-string ticker reaches the wire after _params() standardization."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
         await orders.list(ticker="")
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == ""
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_empty_string_status_passes_through(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_empty_string_status_passes_through(self, orders: AsyncOrdersResource) -> None:
         """Regression: same fix as ticker — empty string status now reaches wire."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
         await orders.list(status="")
         params = dict(route.calls[0].request.url.params)
         assert params["status"] == ""
@@ -444,18 +401,14 @@ class TestAsyncOrdersList:
 class TestAsyncOrdersListAll:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_auto_paginates(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+    async def test_auto_paginates(self, orders: AsyncOrdersResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             side_effect=[
                 httpx.Response(
                     200,
                     json={
                         "orders": [
-                            {"order_id": "o1", "ticker": "A"},
+                            order_dict(order_id="o1", ticker="A"),
                         ],
                         "cursor": "page2",
                     },
@@ -464,42 +417,39 @@ class TestAsyncOrdersListAll:
                     200,
                     json={
                         "orders": [
-                            {"order_id": "o2", "ticker": "B"},
+                            order_dict(order_id="o2", ticker="B"),
                         ],
                         "cursor": None,
                     },
                 ),
             ]
         )
-        order_ids = [
-            o.order_id async for o in orders.list_all()
-        ]
+        order_ids = [o.order_id async for o in orders.list_all()]
         assert order_ids == ["o1", "o2"]
         assert route.call_count == 2
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_list_all_with_all_new_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_list_all_with_all_new_filters(self, orders: AsyncOrdersResource) -> None:
         """v0.7.0 ADDs on list_all: event_ticker, min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(
                 200,
-                json={"orders": [{"order_id": "ord-x", "ticker": "MKT-A"}], "cursor": ""},
+                json={"orders": [order_dict(order_id="ord-x", ticker="MKT-A")], "cursor": ""},
             )
         )
-        _ = [o async for o in orders.list_all(
-            ticker="MKT-A",
-            event_ticker="EVT-X",
-            status="resting",
-            min_ts=1700000000,
-            max_ts=1700099999,
-            limit=50,
-            subaccount=7,
-        )]
+        _ = [
+            o
+            async for o in orders.list_all(
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                status="resting",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                limit=50,
+                subaccount=7,
+            )
+        ]
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
@@ -513,26 +463,21 @@ class TestAsyncOrdersListAll:
 class TestAsyncOrdersBatch:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_batch_create(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2"
-            "/portfolio/orders/batched"
-        ).mock(
+    async def test_batch_create(self, orders: AsyncOrdersResource) -> None:
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "orders": [
-                        {"order_id": "b1", "ticker": "A"},
-                        {"order_id": "b2", "ticker": "B"},
+                        order_dict(order_id="b1", ticker="A"),
+                        order_dict(order_id="b2", ticker="B"),
                     ]
                 },
             )
         )
         reqs = [
-            CreateOrderRequest(ticker="A", side="yes"),
-            CreateOrderRequest(ticker="B", side="no"),
+            CreateOrderRequest(ticker="A", side="yes", action="buy"),
+            CreateOrderRequest(ticker="B", side="no", action="buy"),
         ]
         result = await orders.batch_create(reqs)
         assert len(result) == 2
@@ -545,35 +490,25 @@ class TestAsyncOrdersBatch:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_batch_cancel(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2"
-            "/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+    async def test_batch_cancel(self, orders: AsyncOrdersResource) -> None:
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
         await orders.batch_cancel(["o1", "o2"])  # should not raise
 
 
 class TestAsyncOrdersFills:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_fills(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
-        ).mock(
+    async def test_returns_fills(self, orders: AsyncOrdersResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "fills": [
-                        {
-                            "trade_id": "t1",
-                            "order_id": "o1",
-                            "yes_price_dollars": "0.5000",
-                            "count": 5,
-                        }
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5000", count_fp="5"
+                        )
                     ]
                 },
             )
@@ -585,15 +520,9 @@ class TestAsyncOrdersFills:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_fills_with_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"fills": []}
-            )
+    async def test_fills_with_filters(self, orders: AsyncOrdersResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
         )
         await orders.fills(ticker="MKT-A", order_id="ord-1")
         params = dict(route.calls[0].request.url.params)
@@ -602,13 +531,11 @@ class TestAsyncOrdersFills:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_fills_with_all_new_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_fills_with_all_new_filters(self, orders: AsyncOrdersResource) -> None:
         """Consolidated coverage for v0.7.0 ADDs: min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
-        ).mock(return_value=httpx.Response(200, json={"fills": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
         await orders.fills(
             ticker="MKT-A",
             order_id="ord-1",
@@ -637,14 +564,14 @@ class TestAsyncOrdersFillsAll:
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "a", "yes_price_dollars": "0.50"}],
+                        "fills": [fill_dict(trade_id="a", yes_price_dollars="0.50")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "b", "yes_price_dollars": "0.60"}],
+                        "fills": [fill_dict(trade_id="b", yes_price_dollars="0.60")],
                         "cursor": "",
                     },
                 ),
@@ -655,26 +582,25 @@ class TestAsyncOrdersFillsAll:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_fills_all_with_all_new_filters(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_fills_all_with_all_new_filters(self, orders: AsyncOrdersResource) -> None:
         """Consolidated coverage for v0.7.0 ADDs on fills_all: min_ts, max_ts, subaccount."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/fills"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
             return_value=httpx.Response(
                 200,
-                json={"fills": [{"trade_id": "x", "yes_price_dollars": "0.5"}], "cursor": ""},
+                json={"fills": [fill_dict(trade_id="x", yes_price_dollars="0.5")], "cursor": ""},
             )
         )
-        _ = [f async for f in orders.fills_all(
-            ticker="MKT-A",
-            order_id="ord-1",
-            min_ts=1700000000,
-            max_ts=1700099999,
-            limit=50,
-            subaccount=7,
-        )]
+        _ = [
+            f
+            async for f in orders.fills_all(
+                ticker="MKT-A",
+                order_id="ord-1",
+                min_ts=1700000000,
+                max_ts=1700099999,
+                limit=50,
+                subaccount=7,
+            )
+        ]
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["order_id"] == "ord-1"
@@ -689,10 +615,15 @@ class TestAsyncOrdersAmend:
     @pytest.mark.asyncio
     async def test_amend_price(self, orders: AsyncOrdersResource) -> None:
         respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend").mock(
-            return_value=httpx.Response(200, json={
-                "old_order": {"order_id": "ord-123", "ticker": "T", "yes_price_dollars": "0.5000"},
-                "order": {"order_id": "ord-456", "ticker": "T", "yes_price_dollars": "0.6500"},
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(
+                        order_id="ord-123", ticker="T", yes_price_dollars="0.5000"
+                    ),
+                    "order": order_dict(order_id="ord-456", ticker="T", yes_price_dollars="0.6500"),
+                },
+            )
         )
         result = await orders.amend("ord-123", ticker="T", side="yes", action="buy", yes_price=0.65)
         assert isinstance(result, AmendOrderResponse)
@@ -715,10 +646,13 @@ class TestAsyncOrdersAmend:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend"
         ).mock(
-            return_value=httpx.Response(200, json={
-                "old_order": {"order_id": "ord-123", "ticker": "T"},
-                "order": {"order_id": "ord-123", "ticker": "T"},
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-123", ticker="T"),
+                    "order": order_dict(order_id="ord-123", ticker="T"),
+                },
+            )
         )
         await orders.amend(
             "ord-123", ticker="T", side="yes", action="buy", yes_price=0.55, count=20
@@ -732,9 +666,9 @@ class TestAsyncOrdersAmend:
     @respx.mock
     @pytest.mark.asyncio
     async def test_amend_validation_error(self, orders: AsyncOrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend"
-        ).mock(return_value=httpx.Response(400, json={"message": "invalid"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/amend").mock(
+            return_value=httpx.Response(400, json={"message": "invalid"})
+        )
         with pytest.raises(KalshiValidationError):
             await orders.amend("ord-123", ticker="T", side="bad", action="buy", yes_price=0.50)
 
@@ -751,7 +685,7 @@ class TestAsyncOrdersDecrease:
         respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease").mock(
             return_value=httpx.Response(
                 200,
-                json={"order": {"order_id": "ord-123", "remaining_count_fp": "5"}},
+                json={"order": order_dict(order_id="ord-123", remaining_count_fp="5")},
             )
         )
         order = await orders.decrease("ord-123", reduce_by=5)
@@ -769,12 +703,10 @@ class TestAsyncOrdersDecrease:
     @respx.mock
     @pytest.mark.asyncio
     async def test_decrease_to(self, orders: AsyncOrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/decrease").mock(
             return_value=httpx.Response(
                 200,
-                json={"order": {"order_id": "ord-123", "remaining_count_fp": "0"}},
+                json={"order": order_dict(order_id="ord-123", remaining_count_fp="0")},
             )
         )
         order = await orders.decrease("ord-123", reduce_to=0)
@@ -783,9 +715,9 @@ class TestAsyncOrdersDecrease:
     @respx.mock
     @pytest.mark.asyncio
     async def test_decrease_not_found(self, orders: AsyncOrdersResource) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease"
-        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/decrease").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             await orders.decrease("fake", reduce_by=1)
 
@@ -805,12 +737,20 @@ class TestAsyncOrdersQueuePositions:
     @pytest.mark.asyncio
     async def test_queue_positions(self, orders: AsyncOrdersResource) -> None:
         from kalshi.models.orders import OrderQueuePosition
+
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/queue_positions").mock(
-            return_value=httpx.Response(200, json={
-                "queue_positions": [
-                    {"order_id": "ord-1", "market_ticker": "MKT-A", "queue_position_fp": "42.00"},
-                ],
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "queue_positions": [
+                        {
+                            "order_id": "ord-1",
+                            "market_ticker": "MKT-A",
+                            "queue_position_fp": "42.00",
+                        },
+                    ],
+                },
+            )
         )
         positions = await orders.queue_positions()
         assert len(positions) == 1
@@ -819,9 +759,9 @@ class TestAsyncOrdersQueuePositions:
     @respx.mock
     @pytest.mark.asyncio
     async def test_queue_position_single(self, orders: AsyncOrdersResource) -> None:
-        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/queue_position").mock(
-            return_value=httpx.Response(200, json={"queue_position_fp": "15.00"})
-        )
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-123/queue_position"
+        ).mock(return_value=httpx.Response(200, json={"queue_position_fp": "15.00"}))
         position = await orders.queue_position("ord-123")
         assert position == Decimal("15.00")
 
@@ -847,9 +787,9 @@ class TestAsyncOrdersQueuePositions:
     @respx.mock
     @pytest.mark.asyncio
     async def test_queue_position_not_found(self, orders: AsyncOrdersResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position"
-        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders/fake/queue_position").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             await orders.queue_position("fake")
 
@@ -869,28 +809,34 @@ class TestAsyncOrdersAuthGuards:
     @pytest.mark.asyncio
     async def test_amend_requires_auth(self, unauth_orders_async: AsyncOrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.amend("ord-123", ticker="T", side="yes", action="buy")
 
     @pytest.mark.asyncio
     async def test_decrease_requires_auth(self, unauth_orders_async: AsyncOrdersResource) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.decrease("ord-123", reduce_by=1)
 
     @pytest.mark.asyncio
     async def test_queue_positions_requires_auth(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.queue_positions()
 
     @pytest.mark.asyncio
     async def test_queue_position_requires_auth(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         from kalshi.errors import AuthRequiredError
+
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.queue_position("ord-123")
 
@@ -898,12 +844,10 @@ class TestAsyncOrdersAuthGuards:
 class TestBatchCancelWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_wraps_str_ids_into_orders(
-        self, orders: AsyncOrdersResource
-    ) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+    async def test_wraps_str_ids_into_orders(self, orders: AsyncOrdersResource) -> None:
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
         await orders.batch_cancel(["ord-1", "ord-2"])
 
@@ -917,19 +861,19 @@ class TestBatchCancelWireShapeAsync:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_accepts_typed_order_entries(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_accepts_typed_order_entries(self, orders: AsyncOrdersResource) -> None:
         from kalshi.models.orders import BatchCancelOrdersRequestOrder
 
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
-        await orders.batch_cancel([
-            BatchCancelOrdersRequestOrder(order_id="ord-1", subaccount=5),
-            BatchCancelOrdersRequestOrder(order_id="ord-2"),
-        ])
+        await orders.batch_cancel(
+            [
+                BatchCancelOrdersRequestOrder(order_id="ord-1", subaccount=5),
+                BatchCancelOrdersRequestOrder(order_id="ord-2"),
+            ]
+        )
 
         body = json.loads(route.calls[0].request.content)
         assert body["orders"] == [
@@ -950,15 +894,16 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
     async def test_batch_cancel_uses_delete_with_body_helper(
         self, orders: AsyncOrdersResource
     ) -> None:
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={}))
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={})
+        )
 
         # AsyncMock + wraps forwards every call to the real async method,
         # so the respx mock above still resolves and the helper's
         # status-code branching runs end-to-end; the spy only records.
         with patch.object(
-            orders, "_delete_with_body",
+            orders,
+            "_delete_with_body",
             wraps=orders._delete_with_body,
             new_callable=AsyncMock,
         ) as spy:
@@ -970,15 +915,13 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_batch_cancel_handles_204_no_content(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_batch_cancel_handles_204_no_content(self, orders: AsyncOrdersResource) -> None:
         """Helper returns None on 204 — verifies it goes through the
         shared response-handling path, not a raw ``transport.request`` call.
         """
-        respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(204))
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(204)
+        )
 
         await orders.batch_cancel(["ord-1"])  # must not raise on empty body
 
@@ -990,15 +933,18 @@ class TestAmendWireShapeAsync:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_price_serializes_dollars_alias(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_price_serializes_dollars_alias(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         await orders.amend(
             "ord-99",
@@ -1014,15 +960,18 @@ class TestAmendWireShapeAsync:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_count_serializes_fp_alias(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_count_serializes_fp_alias(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         await orders.amend(
             "ord-99",
@@ -1038,15 +987,18 @@ class TestAmendWireShapeAsync:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_required_and_optional_fields(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_required_and_optional_fields(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         await orders.amend(
             "ord-99",
@@ -1075,15 +1027,18 @@ class TestAmendWireShapeAsync:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_no_price_absent_when_not_passed(
-        self, orders: AsyncOrdersResource
-    ) -> None:
+    async def test_no_price_absent_when_not_passed(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/amend"
-        ).mock(return_value=httpx.Response(200, json={
-            "old_order": {"order_id": "ord-99", "ticker": "MKT"},
-            "order": {"order_id": "ord-99", "ticker": "MKT"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "old_order": order_dict(order_id="ord-99", ticker="MKT"),
+                    "order": order_dict(order_id="ord-99", ticker="MKT"),
+                },
+            )
+        )
 
         await orders.amend(
             "ord-99",
@@ -1108,9 +1063,16 @@ class TestDecreaseWireShapeAsync:
     async def test_reduce_by_body(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
-        ).mock(return_value=httpx.Response(200, json={
-            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": order_dict(
+                        order_id="ord-99", ticker="MKT", side="yes", status="resting"
+                    ),
+                },
+            )
+        )
 
         await orders.decrease("ord-99", reduce_by=5, subaccount=1)
 
@@ -1122,9 +1084,16 @@ class TestDecreaseWireShapeAsync:
     async def test_reduce_to_body(self, orders: AsyncOrdersResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord-99/decrease"
-        ).mock(return_value=httpx.Response(200, json={
-            "order": {"order_id": "ord-99", "ticker": "MKT", "side": "yes", "status": "resting"},
-        }))
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "order": order_dict(
+                        order_id="ord-99", ticker="MKT", side="yes", status="resting"
+                    ),
+                },
+            )
+        )
 
         await orders.decrease("ord-99", reduce_to=2)
 
@@ -1138,14 +1107,16 @@ class TestBatchCreateWireShapeAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_wraps_orders_key(self, orders: AsyncOrdersResource) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
 
-        await orders.batch_create([
-            CreateOrderRequest(ticker="A", side="yes"),
-            CreateOrderRequest(ticker="B", side="no"),
-        ])
+        await orders.batch_create(
+            [
+                CreateOrderRequest(ticker="A", side="yes", action="buy"),
+                CreateOrderRequest(ticker="B", side="no", action="buy"),
+            ]
+        )
 
         body = json.loads(route.calls[0].request.content)
         assert "orders" in body
@@ -1160,7 +1131,8 @@ class TestAsyncCreateOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
@@ -1191,7 +1163,8 @@ class TestAsyncCreateOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_serializes_body(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         """Async parity with TestCreateOrderV2.test_serializes_body —
         guards DollarDecimal / FixedPointCount mode="json" serialization
@@ -1239,7 +1212,8 @@ class TestAsyncCancelOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.delete(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1",
@@ -1268,7 +1242,8 @@ class TestAsyncCancelOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_passes_query_params(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         """Async parity with sync TestCancelOrderV2.test_passes_query_params:
         cancel_v2 routes BOTH subaccount and exchange_index to query params
@@ -1292,13 +1267,15 @@ class TestAsyncAmendOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
         ).mock(
             return_value=httpx.Response(
-                200, json={"order_id": "ord-1", "ts_ms": 1700000000000},
+                200,
+                json={"order_id": "ord-1", "ts_ms": 1700000000000},
             )
         )
         result = await orders.amend_v2(
@@ -1317,7 +1294,8 @@ class TestAsyncDecreaseOrderV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/decrease",
@@ -1342,7 +1320,8 @@ class TestAsyncBatchCreateV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
@@ -1383,7 +1362,8 @@ class TestAsyncBatchCancelV2:
     @respx.mock
     @pytest.mark.asyncio
     async def test_returns_response(
-        self, orders: AsyncOrdersResource,
+        self,
+        orders: AsyncOrdersResource,
     ) -> None:
         respx.delete(
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/batched",
@@ -1434,14 +1414,17 @@ class TestAsyncAmendDecreaseV2QueryParams:
             "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/amend",
         ).mock(
             return_value=httpx.Response(
-                200, json={"order_id": "ord-1", "ts_ms": 0},
+                200,
+                json={"order_id": "ord-1", "ts_ms": 0},
             )
         )
         await orders.amend_v2(
             "ord-1",
             request=AmendOrderV2Request(
-                ticker="MKT-A", side="bid",
-                price=Decimal("0.55"), count=Decimal("10"),
+                ticker="MKT-A",
+                side="bid",
+                price=Decimal("0.55"),
+                count=Decimal("10"),
                 exchange_index=0,
             ),
             subaccount=7,
@@ -1465,7 +1448,8 @@ class TestAsyncAmendDecreaseV2QueryParams:
         await orders.decrease_v2(
             "ord-1",
             request=DecreaseOrderV2Request(
-                reduce_by=Decimal("2"), exchange_index=0,
+                reduce_by=Decimal("2"),
+                exchange_index=0,
             ),
             subaccount=4,
         )
@@ -1500,27 +1484,32 @@ class TestAsyncV2RequiresAuth:
 
     @pytest.mark.asyncio
     async def test_cancel_v2(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.cancel_v2("ord-1")
 
     @pytest.mark.asyncio
     async def test_amend_v2(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.amend_v2(
                 "ord-1",
                 request=AmendOrderV2Request(
-                    ticker="MKT-A", side="bid",
-                    price=Decimal("0.55"), count=Decimal("10"),
+                    ticker="MKT-A",
+                    side="bid",
+                    price=Decimal("0.55"),
+                    count=Decimal("10"),
                 ),
             )
 
     @pytest.mark.asyncio
     async def test_decrease_v2(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.decrease_v2(
@@ -1541,7 +1530,8 @@ class TestAsyncV2RequiresAuth:
 
     @pytest.mark.asyncio
     async def test_batch_cancel_v2(
-        self, unauth_orders_async: AsyncOrdersResource,
+        self,
+        unauth_orders_async: AsyncOrdersResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_orders_async.batch_cancel_v2(

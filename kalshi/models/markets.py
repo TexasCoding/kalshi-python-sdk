@@ -26,67 +26,55 @@ class Market(BaseModel):
     """
 
     ticker: str
-    event_ticker: str | None = None
-    market_type: str | None = None
+    event_ticker: str
+    market_type: str
     title: str | None = None
     subtitle: str | None = None
-    yes_sub_title: str | None = None
-    no_sub_title: str | None = None
-    status: str | None = None
+    yes_sub_title: str
+    no_sub_title: str
+    status: str
 
     # Price fields (FixedPointDollars)
-    yes_bid: DollarDecimal | None = Field(
-        default=None,
+    yes_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    yes_ask: DollarDecimal | None = Field(
-        default=None,
+    yes_ask: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_ask_dollars", "yes_ask"),
     )
-    no_bid: DollarDecimal | None = Field(
-        default=None,
+    no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
-    no_ask: DollarDecimal | None = Field(
-        default=None,
+    no_ask: DollarDecimal = Field(
         validation_alias=AliasChoices("no_ask_dollars", "no_ask"),
     )
-    last_price: DollarDecimal | None = Field(
-        default=None,
+    last_price: DollarDecimal = Field(
         validation_alias=AliasChoices("last_price_dollars", "last_price"),
     )
-    previous_yes_bid: DollarDecimal | None = Field(
-        default=None,
+    previous_yes_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("previous_yes_bid_dollars", "previous_yes_bid"),
     )
-    previous_yes_ask: DollarDecimal | None = Field(
-        default=None,
+    previous_yes_ask: DollarDecimal = Field(
         validation_alias=AliasChoices("previous_yes_ask_dollars", "previous_yes_ask"),
     )
-    previous_price: DollarDecimal | None = Field(
-        default=None,
+    previous_price: DollarDecimal = Field(
         validation_alias=AliasChoices("previous_price_dollars", "previous_price"),
     )
-    notional_value: DollarDecimal | None = Field(
-        default=None,
+    notional_value: DollarDecimal = Field(
         validation_alias=AliasChoices("notional_value_dollars", "notional_value"),
     )
     settlement_value: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("settlement_value_dollars", "settlement_value"),
     )
-    liquidity: DollarDecimal | None = Field(
-        default=None,
+    liquidity: DollarDecimal = Field(
         validation_alias=AliasChoices("liquidity_dollars", "liquidity"),
     )
 
     # Size/volume fields (FixedPointCount)
-    yes_bid_size: FixedPointCount | None = Field(
-        default=None,
+    yes_bid_size: FixedPointCount = Field(
         validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
     )
-    yes_ask_size: FixedPointCount | None = Field(
-        default=None,
+    yes_ask_size: FixedPointCount = Field(
         validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
     )
     no_bid_size: FixedPointCount | None = Field(
@@ -97,43 +85,40 @@ class Market(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_ask_size_fp", "no_ask_size"),
     )
-    volume: FixedPointCount | None = Field(
-        default=None,
+    volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
-    volume_24h: FixedPointCount | None = Field(
-        default=None,
+    volume_24h: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_24h_fp", "volume_24h"),
     )
-    open_interest: FixedPointCount | None = Field(
-        default=None,
+    open_interest: FixedPointCount = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )
 
     # Timestamps
-    created_time: datetime | None = None
-    updated_time: datetime | None = None
-    open_time: datetime | None = None
-    close_time: datetime | None = None
-    latest_expiration_time: datetime | None = None
+    created_time: datetime
+    updated_time: datetime
+    open_time: datetime
+    close_time: datetime
+    latest_expiration_time: datetime
     expected_expiration_time: datetime | None = None
     expiration_time: datetime | None = None
     settlement_ts: datetime | None = None
     occurrence_datetime: datetime | None = None
 
     # Metadata
-    settlement_timer_seconds: int | None = None
-    result: str | None = None
-    can_close_early: bool | None = None
-    fractional_trading_enabled: bool | None = None
-    expiration_value: str | None = None
+    settlement_timer_seconds: int
+    result: str
+    can_close_early: bool
+    fractional_trading_enabled: bool
+    expiration_value: str
     category: str | None = None
     risk_limit_cents: int | None = None
     strike_type: str | None = None
     floor_strike: Decimal | None = None
     cap_strike: Decimal | None = None
-    rules_primary: str | None = None
-    rules_secondary: str | None = None
+    rules_primary: str
+    rules_secondary: str
 
     # v3.18.0 backfill (#159). mve_selected_legs is list[MveSelectedLeg] and
     # price_ranges is list[PriceRange] on the wire — kept as list[dict] here;
@@ -146,8 +131,8 @@ class Market(BaseModel):
     is_provisional: bool | None = None
     mve_collection_ticker: str | None = None
     mve_selected_legs: list[dict[str, Any]] | None = None
-    price_level_structure: str | None = None
-    price_ranges: list[dict[str, Any]] | None = None
+    price_level_structure: str
+    price_ranges: NullableList[dict[str, Any]]
     primary_participant_key: str | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
@@ -263,6 +248,6 @@ class MarketCandlesticks(BaseModel):
     # NullableList: Kalshi has returned JSON null for required list fields
     # in other envelopes (v0.9.0 Series fix). Coerce None -> [] to match the
     # pattern used on Orderbook.yes/no and envelope-level list fields.
-    candlesticks: NullableList[Candlestick] = []
+    candlesticks: NullableList[Candlestick]
 
     model_config = {"extra": "allow"}

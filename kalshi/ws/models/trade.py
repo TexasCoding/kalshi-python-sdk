@@ -17,25 +17,22 @@ class TradePayload(BaseModel):
 
     trade_id: str
     market_ticker: str
-    yes_price: DollarDecimal | None = Field(
-        default=None,
+    yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    no_price: DollarDecimal | None = Field(
-        default=None,
+    no_price: DollarDecimal = Field(
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    count: str | None = Field(
-        default=None,
+    count: str = Field(
         validation_alias=AliasChoices("count_fp", "count"),
     )  # _fp format
-    taker_side: str | None = None
-    ts: int | None = None
+    taker_side: str
+    ts: int
     # v0.14+ backfill (#162). taker_outcome_side/taker_book_side are the
     # canonical direction encoding; ts_ms supersedes ts. taker_side stays.
-    taker_outcome_side: SideLiteral | None = None
-    taker_book_side: BookSideLiteral | None = None
-    ts_ms: int | None = None
+    taker_outcome_side: SideLiteral
+    taker_book_side: BookSideLiteral
+    ts_ms: int
     model_config = {"extra": "allow"}
 
 

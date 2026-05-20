@@ -39,6 +39,7 @@ ExclusionKind = Literal[
     "wire_normalization",
     "kwarg_rename",
     "client_only",
+    "server_omits_despite_required",
 ]
 
 
@@ -83,6 +84,11 @@ class Exclusion:
       - ``client_only``: SDK kwarg with no wire counterpart — purely a
         client-side knob (e.g., ``max_pages`` cap on ``*_all`` paginators).
         Legitimately present in the signature; not drift.
+      - ``server_omits_despite_required``: spec marks the field
+        ``required: true`` but the live server omits it in practice.
+        Added in #172 for response-side fields that would otherwise force
+        the SDK to raise ``ValidationError`` on real responses. Each entry
+        MUST cite a demo+prod observation in ``reason``.
     """
 
     reason: str

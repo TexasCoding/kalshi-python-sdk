@@ -13,6 +13,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError
 from kalshi.resources.historical import AsyncHistoricalResource, HistoricalResource
+from tests._model_fixtures import fill_dict, market_dict, order_dict, trade_dict
 
 
 @pytest.fixture
@@ -67,8 +68,8 @@ class TestHistoricalMarkets:
                 200,
                 json={
                     "markets": [
-                        {"ticker": "HIST-A", "yes_bid_dollars": "0.9000"},
-                        {"ticker": "HIST-B", "yes_bid_dollars": "0.1000"},
+                        market_dict(ticker="HIST-A", yes_bid_dollars="0.9000"),
+                        market_dict(ticker="HIST-B", yes_bid_dollars="0.1000"),
                     ],
                     "cursor": "page2",
                 },
@@ -87,13 +88,13 @@ class TestHistoricalMarkets:
                 httpx.Response(
                     200,
                     json={
-                        "markets": [{"ticker": "A"}],
+                        "markets": [market_dict(ticker="A")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
-                    json={"markets": [{"ticker": "B"}], "cursor": ""},
+                    json={"markets": [market_dict(ticker="B")], "cursor": ""},
                 ),
             ]
         )
@@ -119,9 +120,7 @@ class TestHistoricalMarkets:
             historical.markets(ticker="X")  # type: ignore[call-arg]
 
     @respx.mock
-    def test_markets_with_all_new_filters(
-        self, historical: HistoricalResource
-    ) -> None:
+    def test_markets_with_all_new_filters(self, historical: HistoricalResource) -> None:
         """v0.7.0: tickers RENAME (list form) + mve_filter ADD."""
         route = respx.get(f"{BASE}/historical/markets").mock(
             return_value=httpx.Response(200, json={"markets": [], "cursor": ""})
@@ -143,9 +142,7 @@ class TestHistoricalMarkets:
         assert params["mve_filter"] == "filter-z"
 
     @respx.mock
-    def test_tickers_serialized_as_comma_join_list(
-        self, historical: HistoricalResource
-    ) -> None:
+    def test_tickers_serialized_as_comma_join_list(self, historical: HistoricalResource) -> None:
         """Spec says tickers is type:string (comma-separated), NOT explode:true."""
         route = respx.get(f"{BASE}/historical/markets").mock(
             return_value=httpx.Response(200, json={"markets": []})
@@ -156,9 +153,7 @@ class TestHistoricalMarkets:
         assert url.count("tickers=") == 1
 
     @respx.mock
-    def test_tickers_serialized_as_comma_join_string(
-        self, historical: HistoricalResource
-    ) -> None:
+    def test_tickers_serialized_as_comma_join_string(self, historical: HistoricalResource) -> None:
         """Pre-joined string passes through unchanged."""
         route = respx.get(f"{BASE}/historical/markets").mock(
             return_value=httpx.Response(200, json={"markets": []})
@@ -175,11 +170,9 @@ class TestHistoricalMarket:
             return_value=httpx.Response(
                 200,
                 json={
-                    "market": {
-                        "ticker": "HIST-MKT",
-                        "result": "yes",
-                        "yes_bid_dollars": "1.0000",
-                    }
+                    "market": market_dict(
+                        ticker="HIST-MKT", result="yes", yes_bid_dollars="1.0000"
+                    ),
                 },
             )
         )
@@ -247,19 +240,19 @@ class TestHistoricalFills:
                 200,
                 json={
                     "fills": [
-                        {
-                            "trade_id": "f1",
-                            "fill_id": "f1",
-                            "order_id": "o1",
-                            "ticker": "MKT-A",
-                            "side": "yes",
-                            "action": "buy",
-                            "count_fp": "10.00",
-                            "yes_price_dollars": "0.5000",
-                            "no_price_dollars": "0.5000",
-                            "is_taker": True,
-                            "fee_cost": "0.0500",
-                        }
+                        fill_dict(
+                            trade_id="f1",
+                            fill_id="f1",
+                            order_id="o1",
+                            ticker="MKT-A",
+                            side="yes",
+                            action="buy",
+                            count_fp="10.00",
+                            yes_price_dollars="0.5000",
+                            no_price_dollars="0.5000",
+                            is_taker=True,
+                            fee_cost_dollars="0.0500",
+                        )
                     ],
                     "cursor": "p2",
                 },
@@ -281,10 +274,10 @@ class TestHistoricalFills:
         respx.get(f"{BASE}/historical/fills").mock(
             side_effect=[
                 httpx.Response(
-                    200, json={"fills": [{"trade_id": "a", "count_fp": "1"}], "cursor": "p2"}
+                    200, json={"fills": [fill_dict(trade_id="a", count_fp="1")], "cursor": "p2"}
                 ),
                 httpx.Response(
-                    200, json={"fills": [{"trade_id": "b", "count_fp": "2"}], "cursor": ""}
+                    200, json={"fills": [fill_dict(trade_id="b", count_fp="2")], "cursor": ""}
                 ),
             ]
         )
@@ -311,7 +304,7 @@ class TestHistoricalOrders:
                 200,
                 json={
                     "orders": [
-                        {"order_id": "o1", "ticker": "MKT-A", "status": "executed"},
+                        order_dict(order_id="o1", ticker="MKT-A", status="executed"),
                     ],
                     "cursor": "",
                 },
@@ -325,8 +318,8 @@ class TestHistoricalOrders:
     def test_orders_all_paginates(self, historical: HistoricalResource) -> None:
         respx.get(f"{BASE}/historical/orders").mock(
             side_effect=[
-                httpx.Response(200, json={"orders": [{"order_id": "a"}], "cursor": "p2"}),
-                httpx.Response(200, json={"orders": [{"order_id": "b"}], "cursor": ""}),
+                httpx.Response(200, json={"orders": [order_dict(order_id="a")], "cursor": "p2"}),
+                httpx.Response(200, json={"orders": [order_dict(order_id="b")], "cursor": ""}),
             ]
         )
         ids = [o.order_id for o in historical.orders_all()]
@@ -352,15 +345,15 @@ class TestHistoricalTrades:
                 200,
                 json={
                     "trades": [
-                        {
-                            "trade_id": "t1",
-                            "ticker": "MKT-A",
-                            "count_fp": "5.00",
-                            "yes_price_dollars": "0.6000",
-                            "no_price_dollars": "0.4000",
-                            "taker_side": "yes",
-                            "created_time": "2026-04-12T12:00:00Z",
-                        }
+                        trade_dict(
+                            trade_id="t1",
+                            ticker="MKT-A",
+                            count_fp="5.00",
+                            yes_price_dollars="0.6000",
+                            no_price_dollars="0.4000",
+                            taker_side="yes",
+                            created_time="2026-04-12T12:00:00Z",
+                        )
                     ],
                     "cursor": "",
                 },
@@ -382,13 +375,13 @@ class TestHistoricalTrades:
                     200,
                     json={
                         "trades": [
-                            {
-                                "trade_id": "a",
-                                "count_fp": "1",
-                                "yes_price_dollars": "0.5",
-                                "no_price_dollars": "0.5",
-                                "taker_side": "yes",
-                            }
+                            trade_dict(
+                                trade_id="a",
+                                count_fp="1",
+                                yes_price_dollars="0.5",
+                                no_price_dollars="0.5",
+                                taker_side="yes",
+                            )
                         ],
                         "cursor": "p2",
                     },
@@ -397,13 +390,13 @@ class TestHistoricalTrades:
                     200,
                     json={
                         "trades": [
-                            {
-                                "trade_id": "b",
-                                "count_fp": "2",
-                                "yes_price_dollars": "0.6",
-                                "no_price_dollars": "0.4",
-                                "taker_side": "no",
-                            }
+                            trade_dict(
+                                trade_id="b",
+                                count_fp="2",
+                                yes_price_dollars="0.6",
+                                no_price_dollars="0.4",
+                                taker_side="no",
+                            )
                         ],
                         "cursor": "",
                     },
@@ -419,9 +412,7 @@ class TestHistoricalTrades:
         route = respx.get(f"{BASE}/historical/trades").mock(
             return_value=httpx.Response(200, json={"trades": []})
         )
-        historical.trades(
-            ticker="MKT-A", min_ts=1700000000, max_ts=1700099999
-        )
+        historical.trades(ticker="MKT-A", min_ts=1700000000, max_ts=1700099999)
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["min_ts"] == "1700000000"
@@ -457,7 +448,7 @@ class TestAsyncHistoricalMarkets:
             return_value=httpx.Response(
                 200,
                 json={
-                    "markets": [{"ticker": "HIST-A", "yes_bid_dollars": "0.90"}],
+                    "markets": [market_dict(ticker="HIST-A", yes_bid_dollars="0.90")],
                     "cursor": "p2",
                 },
             )
@@ -471,17 +462,15 @@ class TestAsyncHistoricalMarkets:
     async def test_markets_all(self, async_historical: AsyncHistoricalResource) -> None:
         respx.get(f"{BASE}/historical/markets").mock(
             side_effect=[
-                httpx.Response(200, json={"markets": [{"ticker": "A"}], "cursor": "p2"}),
-                httpx.Response(200, json={"markets": [{"ticker": "B"}], "cursor": ""}),
+                httpx.Response(200, json={"markets": [market_dict(ticker="A")], "cursor": "p2"}),
+                httpx.Response(200, json={"markets": [market_dict(ticker="B")], "cursor": ""}),
             ]
         )
         tickers = [m.ticker async for m in async_historical.markets_all()]
         assert tickers == ["A", "B"]
 
     @pytest.mark.asyncio
-    async def test_ticker_kwarg_removed(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_ticker_kwarg_removed(self, async_historical: AsyncHistoricalResource) -> None:
         """Regression: v0.7.0 renamed `ticker` -> `tickers` (BREAKING)."""
         with pytest.raises(TypeError, match="ticker"):
             await async_historical.markets(ticker="X")  # type: ignore[call-arg]
@@ -548,14 +537,14 @@ class TestAsyncHistoricalTrades:
                 200,
                 json={
                     "trades": [
-                        {
-                            "trade_id": "t1",
-                            "ticker": "MKT",
-                            "count_fp": "5.00",
-                            "yes_price_dollars": "0.60",
-                            "no_price_dollars": "0.40",
-                            "taker_side": "yes",
-                        }
+                        trade_dict(
+                            trade_id="t1",
+                            ticker="MKT",
+                            count_fp="5.00",
+                            yes_price_dollars="0.60",
+                            no_price_dollars="0.40",
+                            taker_side="yes",
+                        )
                     ],
                     "cursor": "",
                 },
@@ -574,13 +563,13 @@ class TestAsyncHistoricalTrades:
                     200,
                     json={
                         "trades": [
-                            {
-                                "trade_id": "a",
-                                "count_fp": "1",
-                                "yes_price_dollars": "0.5",
-                                "no_price_dollars": "0.5",
-                                "taker_side": "yes",
-                            }
+                            trade_dict(
+                                trade_id="a",
+                                count_fp="1",
+                                yes_price_dollars="0.5",
+                                no_price_dollars="0.5",
+                                taker_side="yes",
+                            )
                         ],
                         "cursor": "p2",
                     },
@@ -589,13 +578,13 @@ class TestAsyncHistoricalTrades:
                     200,
                     json={
                         "trades": [
-                            {
-                                "trade_id": "b",
-                                "count_fp": "2",
-                                "yes_price_dollars": "0.6",
-                                "no_price_dollars": "0.4",
-                                "taker_side": "no",
-                            }
+                            trade_dict(
+                                trade_id="b",
+                                count_fp="2",
+                                yes_price_dollars="0.6",
+                                no_price_dollars="0.4",
+                                taker_side="no",
+                            )
                         ],
                         "cursor": "",
                     },
@@ -607,16 +596,12 @@ class TestAsyncHistoricalTrades:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_trades_with_min_max_ts(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_trades_with_min_max_ts(self, async_historical: AsyncHistoricalResource) -> None:
         """v0.7.0 ADDs: min_ts AND max_ts kwargs reach the wire."""
         route = respx.get(f"{BASE}/historical/trades").mock(
             return_value=httpx.Response(200, json={"trades": []})
         )
-        await async_historical.trades(
-            ticker="MKT-A", min_ts=1700000000, max_ts=1700099999
-        )
+        await async_historical.trades(ticker="MKT-A", min_ts=1700000000, max_ts=1700099999)
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["min_ts"] == "1700000000"
@@ -632,13 +617,13 @@ class TestAsyncHistoricalFills:
                 200,
                 json={
                     "fills": [
-                        {
-                            "trade_id": "f1",
-                            "count_fp": "10",
-                            "yes_price_dollars": "0.50",
-                            "no_price_dollars": "0.50",
-                            "fee_cost": "0.05",
-                        }
+                        fill_dict(
+                            trade_id="f1",
+                            count_fp="10",
+                            yes_price_dollars="0.50",
+                            no_price_dollars="0.50",
+                            fee_cost_dollars="0.05",
+                        ),
                     ],
                     "cursor": "",
                 },
@@ -656,14 +641,14 @@ class TestAsyncHistoricalFills:
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "a", "count_fp": "1"}],
+                        "fills": [fill_dict(trade_id="a", count_fp="1")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
                     json={
-                        "fills": [{"trade_id": "b", "count_fp": "2"}],
+                        "fills": [fill_dict(trade_id="b", count_fp="2")],
                         "cursor": "",
                     },
                 ),
@@ -674,9 +659,7 @@ class TestAsyncHistoricalFills:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_fills_with_max_ts(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_fills_with_max_ts(self, async_historical: AsyncHistoricalResource) -> None:
         """v0.7.0 ADD: max_ts kwarg reaches the wire."""
         route = respx.get(f"{BASE}/historical/fills").mock(
             return_value=httpx.Response(200, json={"fills": []})
@@ -694,7 +677,7 @@ class TestAsyncHistoricalMarket:
         respx.get(f"{BASE}/historical/markets/HIST-MKT").mock(
             return_value=httpx.Response(
                 200,
-                json={"market": {"ticker": "HIST-MKT", "result": "yes"}},
+                json={"market": market_dict(ticker="HIST-MKT", result="yes")},
             )
         )
         market = await async_historical.market("HIST-MKT")
@@ -705,9 +688,7 @@ class TestAsyncHistoricalMarket:
 class TestAsyncHistoricalCandlesticks:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_candlesticks(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_returns_candlesticks(self, async_historical: AsyncHistoricalResource) -> None:
         respx.get(f"{BASE}/historical/markets/MKT/candlesticks").mock(
             return_value=httpx.Response(
                 200,
@@ -743,7 +724,7 @@ class TestAsyncHistoricalOrders:
             return_value=httpx.Response(
                 200,
                 json={
-                    "orders": [{"order_id": "o1", "status": "executed"}],
+                    "orders": [order_dict(order_id="o1", status="executed")],
                     "cursor": "",
                 },
             )
@@ -760,14 +741,14 @@ class TestAsyncHistoricalOrders:
                 httpx.Response(
                     200,
                     json={
-                        "orders": [{"order_id": "a"}],
+                        "orders": [order_dict(order_id="a")],
                         "cursor": "p2",
                     },
                 ),
                 httpx.Response(
                     200,
                     json={
-                        "orders": [{"order_id": "b"}],
+                        "orders": [order_dict(order_id="b")],
                         "cursor": "",
                     },
                 ),
@@ -778,9 +759,7 @@ class TestAsyncHistoricalOrders:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_orders_with_max_ts(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_orders_with_max_ts(self, async_historical: AsyncHistoricalResource) -> None:
         """v0.7.0 ADD: max_ts kwarg reaches the wire."""
         route = respx.get(f"{BASE}/historical/orders").mock(
             return_value=httpx.Response(200, json={"orders": []})
