@@ -1455,17 +1455,16 @@ def test_exclusion_map_is_current() -> None:
             # the field is now optional — flagging the entry as stale if the SDK
             # has re-tightened it would mean responses break in production.
             if excl.kind == "server_omits_despite_required":
-                # `name` here is the SPEC field name, which may differ from the
-                # Python attribute name when the field uses `serialization_alias`.
-                # Look up the FieldInfo via the same wire→python mapping that
-                # `_model_aliases` is the forward of, so the is_required() check
-                # below doesn't silently pass when the EXCLUSIONS key happens to
-                # be a wire alias.
+                # `name` here is the SPEC field name. The Python attribute name
+                # may differ via ``validation_alias`` (``AliasChoices`` or str) or
+                # ``serialization_alias``. Reuse :func:`_extract_spec_names` —
+                # the same alias-walk the rest of the spec-drift pipeline uses —
+                # so the is_required() check below covers all alias forms.
                 matched_field_info = next(
                     (
                         info
                         for fld_name, info in model_cls.model_fields.items()
-                        if (info.serialization_alias or fld_name) == name
+                        if name in _extract_spec_names(info, fld_name)
                     ),
                     None,
                 )

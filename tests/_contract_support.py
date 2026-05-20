@@ -88,7 +88,9 @@ class Exclusion:
         ``required: true`` but the live server omits it in practice.
         Added in #172 for response-side fields that would otherwise force
         the SDK to raise ``ValidationError`` on real responses. Each entry
-        MUST cite a demo+prod observation in ``reason``.
+        MUST cite at least one verified server observation (demo nightly
+        run ID, or a prod-traffic capture date) in ``reason``. Prod
+        confirmation is preferred but not always achievable from CI.
     """
 
     reason: str
