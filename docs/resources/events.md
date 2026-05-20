@@ -73,6 +73,7 @@ print(md.tags, md.category)
 
     Both are tracked under `server_omits_despite_required` in the SDK's
     EXCLUSIONS map.
+
 ## Reference
 
 ::: kalshi.resources.events.EventsResource
