@@ -1455,22 +1455,34 @@ def test_exclusion_map_is_current() -> None:
             # the field is now optional — flagging the entry as stale if the SDK
             # has re-tightened it would mean responses break in production.
             if excl.kind == "server_omits_despite_required":
-                if name not in _model_aliases(model_cls):
+                # `name` here is the SPEC field name, which may differ from the
+                # Python attribute name when the field uses `serialization_alias`.
+                # Look up the FieldInfo via the same wire→python mapping that
+                # `_model_aliases` is the forward of, so the is_required() check
+                # below doesn't silently pass when the EXCLUSIONS key happens to
+                # be a wire alias.
+                matched_field_info = next(
+                    (
+                        info
+                        for fld_name, info in model_cls.model_fields.items()
+                        if (info.serialization_alias or fld_name) == name
+                    ),
+                    None,
+                )
+                if matched_field_info is None:
                     stale.append(
                         f"EXCLUSIONS[{(fqn, name)}] claims server omits "
                         f"spec-required {name!r} on {fqn}, but the SDK "
                         f"model no longer emits the field at all — entry is "
                         f"stale or misclassified."
                     )
-                else:
-                    field_info = model_cls.model_fields.get(name)
-                    if field_info is not None and field_info.is_required():
-                        stale.append(
-                            f"EXCLUSIONS[{(fqn, name)}] says server omits "
-                            f"spec-required {name!r} on {fqn}, but the SDK "
-                            f"field is required — drop the exclusion or "
-                            f"loosen the SDK type."
-                        )
+                elif matched_field_info.is_required():
+                    stale.append(
+                        f"EXCLUSIONS[{(fqn, name)}] says server omits "
+                        f"spec-required {name!r} on {fqn}, but the SDK "
+                        f"field is required — drop the exclusion or "
+                        f"loosen the SDK type."
+                    )
             elif name in _model_aliases(model_cls):
                 stale.append(
                     f"EXCLUSIONS[{(fqn, name)}] claims SDK excludes {name!r} "
