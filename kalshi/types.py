@@ -10,13 +10,14 @@ from pydantic import BeforeValidator, PlainSerializer
 T = TypeVar("T")
 
 
-def _to_decimal_dollars(value: Any) -> Decimal:
-    """Convert a raw API dollar-string value to Decimal.
+def _coerce_decimal(value: Any) -> Decimal:
+    """Coerce a wire value (str/int/float/Decimal) to ``Decimal`` without going through float.
 
-    Kalshi API returns price fields as FixedPointDollars strings
-    (e.g., ``"0.5600"``), with up to 6 decimal places of precision.
-    Response fields use a ``_dollars`` suffix (e.g., ``yes_bid_dollars``).
-    This converts them to Decimal without float intermediaries.
+    Used by both :data:`DollarDecimal` (price/cost fields with ``_dollars`` aliases) and
+    :data:`FixedPointCount` (volume/count fields with ``_fp`` aliases). The two aliases
+    differ only in their canonical wire name and intent; the decimal coercion is the same.
+    Going through ``str(value)`` for ``int`` / ``float`` avoids the binary-float
+    representation drift (``Decimal(0.65) == Decimal('0.65000000000000002...')``).
     """
     if isinstance(value, Decimal):
         return value
@@ -34,7 +35,7 @@ def _decimal_to_str(value: Decimal) -> str:
 
 DollarDecimal = Annotated[
     Decimal,
-    BeforeValidator(_to_decimal_dollars),
+    BeforeValidator(_coerce_decimal),
     PlainSerializer(_decimal_to_str, return_type=str),
 ]
 """A Decimal field that handles bidirectional conversion for Kalshi dollar values.
@@ -44,25 +45,13 @@ DollarDecimal = Annotated[
 """
 
 
-def _to_decimal_fp(value: Any) -> Decimal:
-    """Convert a raw API fixed-point count string to Decimal.
-
-    Kalshi API returns count/volume fields as FixedPoint strings
-    (e.g., ``"100.00"``), with ``_fp`` suffix field names (e.g., ``count_fp``).
-    This converts them to Decimal without float intermediaries.
-    """
-    if isinstance(value, Decimal):
-        return value
-    if isinstance(value, (int, float)):
-        return Decimal(str(value))
-    if isinstance(value, str):
-        return Decimal(value)
-    raise TypeError(f"Cannot convert {type(value).__name__} to Decimal")
+# FixedPointCount: count/volume fields (e.g., ``count_fp``, ``volume_fp``).
+# Uses the same decimal coercion as :data:`DollarDecimal`; see _coerce_decimal.
 
 
 FixedPointCount = Annotated[
     Decimal,
-    BeforeValidator(_to_decimal_fp),
+    BeforeValidator(_coerce_decimal),
     PlainSerializer(_decimal_to_str, return_type=str),
 ]
 """A Decimal field that handles bidirectional conversion for Kalshi count/volume values.

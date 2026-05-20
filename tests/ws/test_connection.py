@@ -431,7 +431,7 @@ class TestConnectionManagerAuth:
             timeout=5.0,
         )
         mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
-        headers = mgr._build_auth_headers()
+        headers = await mgr._build_auth_headers()
         assert "KALSHI-ACCESS-KEY" in headers
         assert "KALSHI-ACCESS-SIGNATURE" in headers
         assert "KALSHI-ACCESS-TIMESTAMP" in headers

@@ -13,11 +13,14 @@ Three headers per request:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from cryptography.exceptions import UnsupportedAlgorithm
@@ -57,6 +60,16 @@ class KalshiAuth:
     def __init__(self, key_id: str, private_key: rsa.RSAPrivateKey) -> None:
         self._key_id = key_id
         self._private_key = private_key
+        # Lazy-initialised dedicated ThreadPoolExecutor for async sign offload.
+        # Two threads is enough for any realistic REST burst on a single client
+        # (RSA-PSS sign ~1-3 ms on a 2048-bit key, ~10 ms on 4096-bit) and
+        # keeps crypto off asyncio's default executor - which is shared with
+        # `loop.getaddrinfo`, file I/O, and other `to_thread()` work. Without
+        # isolation, a cold DNS resolution (5-50 ms) during a reconnect storm
+        # would block sign behind it and re-introduce the loop stall as
+        # await-latency rather than inline CPU. (#178)
+        self._sign_executor: ThreadPoolExecutor | None = None
+        self._sign_executor_lock = threading.Lock()
 
     @classmethod
     def from_key_path(cls, key_id: str, key_path: str | Path) -> KalshiAuth:
@@ -205,3 +218,54 @@ class KalshiAuth:
             "KALSHI-ACCESS-SIGNATURE": sig_b64,
             "KALSHI-ACCESS-TIMESTAMP": ts_str,
         }
+
+    def _get_sign_executor(self) -> ThreadPoolExecutor:
+        """Return the dedicated sign-offload executor, creating it on first use.
+
+        Thread-safe lazy init: the lock guards the assignment, and the
+        double-checked pattern keeps the fast path lock-free after first use.
+        """
+        if self._sign_executor is None:
+            with self._sign_executor_lock:
+                if self._sign_executor is None:
+                    self._sign_executor = ThreadPoolExecutor(
+                        max_workers=2,
+                        thread_name_prefix="kalshi-sign",
+                    )
+        return self._sign_executor
+
+    async def sign_request_async(
+        self, method: str, path: str, timestamp_ms: int | None = None
+    ) -> dict[str, str]:
+        """Async variant of :meth:`sign_request` that offloads to a dedicated executor.
+
+        Uses ``loop.run_in_executor(self._sign_executor, ...)`` so the
+        ~1-10 ms of RSA-PSS CPU does not block the asyncio event loop.
+        The executor is dedicated (not asyncio's default pool) so signs
+        don't queue behind `getaddrinfo` / file I/O / other `to_thread()`
+        work — relevant during WS reconnect storms where DNS dominates.
+
+        The sync :meth:`sign_request` API is unchanged; callers running
+        on the sync transport should keep using it.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            self._get_sign_executor(),
+            self.sign_request,
+            method,
+            path,
+            timestamp_ms,
+        )
+
+    def close(self) -> None:
+        """Shut down the sign-offload executor if one was created.
+
+        Idempotent. Safe to call without an executor having been initialised.
+        Long-lived clients ordinarily rely on interpreter-shutdown cleanup
+        (atexit-joined executor threads); this hook is for tests and other
+        callers that want deterministic teardown.
+        """
+        with self._sign_executor_lock:
+            if self._sign_executor is not None:
+                self._sign_executor.shutdown(wait=False)
+                self._sign_executor = None

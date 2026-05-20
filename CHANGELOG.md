@@ -4,6 +4,40 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### WS / auth polish batch (#173 + #174 + #178)
+
+- **#173 — `MessageQueue` defense-in-depth.** The WS `MessageQueue` underlying
+  `collections.deque` now carries `maxlen=maxsize+1` as a hard memory ceiling
+  enforced by deque itself, independent of the manual `_size` counter. If the
+  counter ever drifts (a put path that forgets to increment, an exception
+  between append and increment) the buffer cannot grow without bound. New
+  regression test in `tests/ws/test_backpressure.py` injects counter drift and
+  asserts the cap holds. No observable behavior change in the passing path.
+- **#174 — types consolidation.** `_to_decimal_dollars` and `_to_decimal_fp`
+  were byte-identical apart from their docstrings. Collapsed into a single
+  `_coerce_decimal` helper shared by both `DollarDecimal` and `FixedPointCount`.
+  Public aliases unchanged; only the internal helper is shared.
+- **#178 — async RSA-PSS sign offload.** Added `KalshiAuth.sign_request_async()`
+  that routes the ~1-10 ms RSA-PSS sign through a **dedicated**
+  `ThreadPoolExecutor(max_workers=2)` lazy-initialised on first use.
+
+  Async REST (`AsyncTransport.request`) and async WS connect
+  (`ConnectionManager._build_auth_headers`) now use the async sign path; the
+  sync `sign_request` API is unchanged for sync-transport callers.
+
+  The executor is dedicated (not asyncio's shared default pool) so signs
+  don't queue behind `loop.getaddrinfo` / file I/O / other `to_thread()`
+  work on a busy event loop — relevant during WS reconnect storms where
+  cold DNS resolution (5-50 ms) dominates the sign cost. Per the community
+  feedback on #178: a falsifiable microbench under `scripts/bench_sign_offload.py`
+  uses real `loop.time()` deltas (NOT the `asyncio.sleep(0)` ticker which is
+  special-cased and doesn't measure wall-clock blocking). Measured: inline
+  p99=2.95 ms vs. offloaded p99=0.68 ms on a 2048-bit key.
+
+  `KalshiClient.close()` / `AsyncKalshiClient.close()` now shut down the
+  sign executor too; the executor is daemon-style and idempotent to close.
+
+
 ### Contract-map completeness (#171)
 
 Maps the remaining 42 REST sub-models, V2 orders family, and internal

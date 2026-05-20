@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import os
 import tempfile
@@ -216,6 +217,105 @@ class TestSignRequest:
         pub.verify(sig1, canonical_msg, pss, hashes.SHA256())
         pub.verify(sig2, canonical_msg, pss, hashes.SHA256())
 
+
+class TestSignRequestAsync:
+    """Async sign offload (#178).
+
+    Verifies the executor-offloaded path produces identical signatures to the
+    sync path, and (in the loop-blocking microbench) that signing in flight
+    does not stall the event loop.
+    """
+
+    @pytest.mark.asyncio
+    async def test_async_signature_verifies_for_same_message(self, test_auth: KalshiAuth) -> None:
+        """Sync and async signing produce headers that both verify against the
+        same canonical message. RSA-PSS is randomized (PSS salt), so signature
+        bytes differ between calls — assert verifiability, not equality.
+        """
+        ts = 1703123456789
+        sync_headers = test_auth.sign_request("GET", "/trade-api/v2/markets", timestamp_ms=ts)
+        async_headers = await test_auth.sign_request_async(
+            "GET", "/trade-api/v2/markets", timestamp_ms=ts
+        )
+        assert async_headers["KALSHI-ACCESS-KEY"] == sync_headers["KALSHI-ACCESS-KEY"]
+        assert async_headers["KALSHI-ACCESS-TIMESTAMP"] == sync_headers["KALSHI-ACCESS-TIMESTAMP"]
+        pub = test_auth._private_key.public_key()
+        canonical = (str(ts) + "GET/trade-api/v2/markets").encode("utf-8")
+        pss = padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.DIGEST_LENGTH,
+        )
+        pub.verify(
+            base64.b64decode(sync_headers["KALSHI-ACCESS-SIGNATURE"]),
+            canonical, pss, hashes.SHA256(),
+        )
+        pub.verify(
+            base64.b64decode(async_headers["KALSHI-ACCESS-SIGNATURE"]),
+            canonical, pss, hashes.SHA256(),
+        )
+
+    @pytest.mark.asyncio
+    async def test_lazy_executor_creation(self, test_auth: KalshiAuth) -> None:
+        assert test_auth._sign_executor is None
+        await test_auth.sign_request_async("GET", "/x", timestamp_ms=1)
+        assert test_auth._sign_executor is not None
+        # Idempotent — second call reuses the same pool.
+        first = test_auth._sign_executor
+        await test_auth.sign_request_async("GET", "/y", timestamp_ms=2)
+        assert test_auth._sign_executor is first
+        test_auth.close()
+        assert test_auth._sign_executor is None
+
+    @pytest.mark.asyncio
+    async def test_close_is_idempotent(self, test_auth: KalshiAuth) -> None:
+        test_auth.close()  # no executor yet
+        await test_auth.sign_request_async("GET", "/x", timestamp_ms=1)
+        test_auth.close()
+        test_auth.close()  # double-close OK
+
+    @pytest.mark.asyncio
+    async def test_concurrent_signs_do_not_stall_event_loop(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        """Microbench (#178). Run a real ``asyncio.sleep(0.01)`` ticker
+        concurrently with a batch of signs and confirm the ticker's
+        observed gaps stay tight.
+
+        Pre-offload (signs inline on the loop) the ticker would see gaps
+        proportional to the inline sign work (~1-3 ms per sign x N signs
+        between ticks). Post-offload, signs run on the dedicated executor
+        and the ticker only sees scheduler jitter.
+
+        The threshold is generous (max gap < 30 ms) so this test stays
+        green under load on CI runners. It's a regression bound, not a
+        precision benchmark — the script under ``scripts/`` runs the
+        precision version.
+        """
+        loop = asyncio.get_running_loop()
+        gaps: list[float] = []
+        target_interval = 0.01
+
+        async def ticker() -> None:
+            last = loop.time()
+            for _ in range(40):
+                await asyncio.sleep(target_interval)
+                now = loop.time()
+                gaps.append(now - last - target_interval)
+                last = now
+
+        async def signs() -> None:
+            # 200 signs covers a realistic batch_create burst.
+            for _ in range(200):
+                await test_auth.sign_request_async(
+                    "GET", "/trade-api/v2/markets", timestamp_ms=1
+                )
+
+        await asyncio.gather(ticker(), signs())
+        test_auth.close()
+
+        # Slack: schedule jitter + threadpool dispatch can each cost a few ms.
+        # Pre-offload inline RSA-PSS would push the max gap well past this.
+        assert max(gaps) < 0.030, f"max ticker gap {max(gaps) * 1000:.1f}ms exceeds 30ms budget"
 
 class TestFromKeyPath:
     def test_loads_valid_pem_file(self, pem_bytes: bytes) -> None:

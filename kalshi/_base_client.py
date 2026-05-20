@@ -258,7 +258,10 @@ class AsyncTransport:
         last_error: KalshiError | None = None
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
+            if self._auth:
+                auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
+            else:
+                auth_headers = {}
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",

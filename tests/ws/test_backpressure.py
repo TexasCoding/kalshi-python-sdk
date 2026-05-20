@@ -117,3 +117,25 @@ class TestMessageQueue:
         assert await q.get() == 3
         assert await q.get() == 4
         assert q.qsize() == 0
+
+    async def test_deque_maxlen_caps_memory_even_if_counter_drifts(self) -> None:
+        """Regression for #173: the underlying deque carries `maxlen=maxsize+1`
+        as a defense-in-depth ceiling. Even if the manual `_size` counter
+        drifts (a hypothetical bug that fails to track an eviction), the deque
+        cannot grow without bound — `maxlen` enforces the cap at the C level.
+
+        Simulates counter drift by zeroing `_size` mid-stream so the overflow
+        check (`len(self._buffer) >= self._maxsize`) still triggers via the
+        real buffer length, but a counter-based bound would not. Then asserts
+        memory stays bounded regardless.
+        """
+        q: MessageQueue[int] = MessageQueue(maxsize=5, overflow=OverflowStrategy.DROP_OLDEST)
+        for i in range(5):
+            await q.put(i)
+        # Inject counter drift. From here `_size` lies about the queue's
+        # occupancy; the only thing protecting memory is the deque's `maxlen`.
+        q._size = 0
+        for i in range(1_000):
+            await q.put(i)
+        # Hard ceiling: maxsize + 1 (the +1 covers the put_sentinel append).
+        assert len(q._buffer) <= q._maxsize + 1

@@ -171,6 +171,8 @@ class AsyncKalshiClient:
     async def close(self) -> None:
         """Close the underlying async HTTP connection pool."""
         await self._transport.close()
+        if self._auth is not None:
+            self._auth.close()
 
     async def __aenter__(self) -> AsyncKalshiClient:
         return self
