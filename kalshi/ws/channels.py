@@ -86,6 +86,13 @@ class SubscriptionManager:
         self._stash: dict[int, collections.deque[str]] = {}
         self._stashing: bool = False
         self._stash_maxlen: int = stash_maxlen
+        # Sids that have already triggered an overflow WARNING in the current
+        # resubscribe cycle. Cleared by `take_stash()` so the next resubscribe
+        # gets fresh warnings. Without this gating, the `len(bucket) ==
+        # maxlen` check below would be True on every append after the deque
+        # fills, producing one WARNING per frame on every high-volume
+        # channel during a prolonged stall.
+        self._stash_warned: set[int] = set()
 
     def _get_msg_id(self) -> int:
         mid = self._next_msg_id
@@ -160,8 +167,12 @@ class SubscriptionManager:
         if bucket is None:
             bucket = collections.deque(maxlen=self._stash_maxlen)
             self._stash[sid] = bucket
-        elif len(bucket) == self._stash_maxlen:
-            # About to evict oldest. Log once per fill, not per frame.
+        elif len(bucket) == self._stash_maxlen and sid not in self._stash_warned:
+            # About to evict oldest. Log once per (sid, resubscribe cycle):
+            # without the warned-set gate this fires on every subsequent
+            # append while the deque stays full, which under a prolonged
+            # stall becomes per-frame log spam on every high-volume sid.
+            self._stash_warned.add(sid)
             logger.warning(
                 "Stash for sid %d is full (%d frames); oldest frame will be "
                 "evicted. Resubscribe may be stalled or the channel is too "
@@ -344,6 +355,9 @@ class SubscriptionManager:
         be dropped by the caller with a log.
         """
         stash, self._stash = self._stash, {}
+        # Reset warning suppression so the next resubscribe cycle's overflow
+        # warnings aren't accidentally muted by stale state.
+        self._stash_warned.clear()
         return stash
 
     def get_subscription_by_sid(self, server_sid: int) -> Subscription | None:

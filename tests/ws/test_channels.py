@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
@@ -363,25 +364,40 @@ class TestResubscribeStash:
         sub_mgr._maybe_stash('{"type": "ok"}', {"type": "ok"})
         assert sub_mgr._stash == {}
 
-    def test_maybe_stash_maxlen_evicts_oldest(
+    def test_maybe_stash_maxlen_evicts_oldest_with_one_warning_per_fill(
         self, connected_mgr, caplog  # type: ignore[no-untyped-def]
     ) -> None:
-        """Per-sid deque is bounded; on overflow, oldest evicts and a WARNING fires."""
-        import logging
+        """Per-sid deque is bounded; on overflow, oldest evicts and EXACTLY
+        ONE WARNING fires per (sid, resubscribe cycle) — not one per frame
+        (#187 review fix). Without the per-sid gate, every append after the
+        deque fills would log, producing per-frame spam on high-volume
+        channels during a prolonged stall."""
         mgr = SubscriptionManager(connected_mgr, stash_maxlen=3)
         with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
-            for i in range(5):
+            for i in range(10):
                 mgr._maybe_stash(f'{{"sid": 7, "seq": {i}}}', {"sid": 7, "seq": i})
         bucket = mgr._stash[7]
-        # maxlen=3 → only the last 3 survive (oldest 0,1 evicted)
+        # maxlen=3 → only the last 3 survive (oldest 0..6 evicted)
         assert len(bucket) == 3
-        assert [json.loads(r)["seq"] for r in bucket] == [2, 3, 4]
-        # WARNING fired (once per fill event, not per frame)
-        assert any(
-            "is full (3 frames)" in rec.message
-            for rec in caplog.records
-            if rec.levelno == logging.WARNING
-        )
+        assert [json.loads(r)["seq"] for r in bucket] == [7, 8, 9]
+        # EXACTLY one WARNING for sid 7 across 10 appends.
+        warns = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "Stash for sid 7 is full" in r.message
+        ]
+        assert len(warns) == 1
+        # take_stash() clears the warning suppression so the next cycle
+        # gets fresh warnings.
+        mgr.take_stash()
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            for i in range(10, 15):
+                mgr._maybe_stash(f'{{"sid": 7, "seq": {i}}}', {"sid": 7, "seq": i})
+        warns2 = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "Stash for sid 7 is full" in r.message
+        ]
+        # Two cycles → two warnings total (the original + one for the new fill).
+        assert len(warns2) == 2
 
     def test_take_stash_returns_and_clears(
         self, sub_mgr: SubscriptionManager
