@@ -302,7 +302,7 @@ class SubscriptionManager:
         # chance to run, _stash and _stash_warned could carry stale state
         # into this cycle. Within the current KalshiWebSocket instance the
         # outer _handle_reconnect except sets _running=False so this case is
-        # rare; cheap to harden against anyway. (#187 review)
+        # rare; cheap to harden against anyway.
         self._stash.clear()
         self._stash_warned.clear()
 

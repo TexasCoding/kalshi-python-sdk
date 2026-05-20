@@ -36,6 +36,10 @@ Frames whose sid did not get re-mapped during ``resubscribe_all`` (a
 per-sub failure that #77's F-P-01 isolates) are dropped on drain with a
 debug log — there's no consumer to deliver them to.
 
+Drive-by: ``SubscriptionManager._wait_for_response`` swapped two deprecated
+``asyncio.get_event_loop().time()`` calls for ``asyncio.get_running_loop().time()``
+(the correct API inside an ``async def``).
+
 ### WS `run_forever(stop_event=...)` cooperative shutdown (#177)
 
 `KalshiWebSocket.run_forever()` now accepts an optional

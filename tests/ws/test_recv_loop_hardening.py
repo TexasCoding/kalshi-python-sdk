@@ -564,8 +564,6 @@ class TestResubscribeStashIntegration:
         frames stashed under a sid that the server did emit but that's
         no longer in `_sid_to_client` get dropped with a debug log
         rather than crashing the drain or routing to nowhere."""
-        import logging
-
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
