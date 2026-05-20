@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 
@@ -421,3 +422,30 @@ class TestResubscribeStash:
         resubscribe_all (or future opt-in callers). Default is off so
         normal subscribe paths don't accumulate stale state."""
         assert sub_mgr._stashing is False
+
+    async def test_resubscribe_clears_stale_stash_at_start(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#187 review: if a prior resubscribe raised before take_stash()
+        ran, _stash + _stash_warned could survive into the next cycle and
+        replay stale frames or muddy overflow warnings. resubscribe_all
+        now defensively clears both at the start.
+
+        Simulates the leak by injecting stale stash state, then runs a
+        clean resubscribe (no active subs → loop body skipped, but the
+        clear runs)."""
+        # Inject stale state from a hypothetical prior cycle that failed
+        # before draining.
+        sub_mgr._stash[42] = collections.deque(['{"sid": 42, "stale": true}'])
+        sub_mgr._stash_warned.add(42)
+        assert sub_mgr._stash != {}
+        assert sub_mgr._stash_warned == {42}
+
+        await sub_mgr.resubscribe_all()
+
+        # Stash + warned-set are both empty regardless of what the
+        # subscriptions loop did.
+        assert sub_mgr._stash == {}
+        assert sub_mgr._stash_warned == set()

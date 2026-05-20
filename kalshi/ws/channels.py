@@ -115,9 +115,9 @@ class SubscriptionManager:
         silently dropped — a real signal-loss bug under high-volume
         reconnect bursts.
         """
-        deadline = asyncio.get_event_loop().time() + timeout
+        deadline = asyncio.get_running_loop().time() + timeout
         while True:
-            remaining = deadline - asyncio.get_event_loop().time()
+            remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}"
@@ -297,6 +297,14 @@ class SubscriptionManager:
         # F-P-03: clear sid->client mapping before sending any resubscribe
         # so stale in-flight frames with old sids can't mis-route.
         self._sid_to_client.clear()
+        # Defensive reset: if a prior resubscribe cycle raised before
+        # _drain_resubscribe_stash (which goes through take_stash()) had a
+        # chance to run, _stash and _stash_warned could carry stale state
+        # into this cycle. Within the current KalshiWebSocket instance the
+        # outer _handle_reconnect except sets _running=False so this case is
+        # rare; cheap to harden against anyway. (#187 review)
+        self._stash.clear()
+        self._stash_warned.clear()
 
         self._stashing = True
         try:
