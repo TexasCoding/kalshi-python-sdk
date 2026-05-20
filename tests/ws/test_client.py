@@ -384,6 +384,51 @@ class TestRunForever:
             with pytest.raises(KalshiSubscriptionError, match="at least one active subscription"):
                 await session.run_forever()
 
+    async def test_run_forever_with_stop_event_returns_cleanly(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#177: stop_event signals cooperative shutdown. run_forever()
+        closes the connection and drains the recv loop without raising
+        CancelledError. The loop exits via its existing `not _running`
+        branch on the next ConnectionClosed, NOT via cancellation."""
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ticker(tickers=["T1"])
+            stop = asyncio.Event()
+            run_task = asyncio.create_task(session.run_forever(stop_event=stop))
+            # Give the loop a tick to settle on the recv await.
+            await asyncio.sleep(0.05)
+            assert not run_task.done()
+            # Trigger cooperative shutdown.
+            stop.set()
+            # Returns cleanly, no exception leaked.
+            await asyncio.wait_for(run_task, timeout=2.0)
+            assert run_task.exception() is None
+            assert session._connection is not None
+            assert session._connection.state == ConnectionState.CLOSED
+
+    async def test_run_forever_with_pre_set_stop_event_returns_immediately(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#177: a stop_event already set before run_forever() runs should
+        fire on the first scheduling tick — same cooperative-shutdown path,
+        just no wait. Guards against the race-free case being broken by
+        future refactors of the asyncio.wait() arrangement."""
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ticker(tickers=["T1"])
+            stop = asyncio.Event()
+            stop.set()
+            await asyncio.wait_for(session.run_forever(stop_event=stop), timeout=2.0)
+            assert session._connection is not None
+            assert session._connection.state == ConnectionState.CLOSED
+
 
 # ---------------------------------------------------------------------------
 # Error callback

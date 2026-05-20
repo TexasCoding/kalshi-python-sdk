@@ -526,7 +526,7 @@ class KalshiWebSocket:
             return func
         return decorator
 
-    async def run_forever(self) -> None:
+    async def run_forever(self, stop_event: asyncio.Event | None = None) -> None:
         """Block until the recv loop terminates. Use with the callback API.
 
         Requires at least one prior ``subscribe_*`` (or generic
@@ -536,6 +536,17 @@ class KalshiWebSocket:
         does NOT subscribe; the server only sends frames for channels you
         have explicitly subscribed to, so a callback without a matching
         subscribe sees nothing.
+
+        :param stop_event: optional ``asyncio.Event`` used to terminate
+            ``run_forever()`` cooperatively (#177). When set — typically
+            from a signal handler such as ``add_signal_handler(SIGINT,
+            stop.set)`` — this method clears ``_running``, closes the
+            connection, and drains the recv loop. The recv loop sees
+            ``ConnectionClosed`` on its next read and exits via the
+            normal ``not self._running`` branch, NOT via cancellation,
+            so no ``CancelledError`` leaks out. When ``None`` (the
+            default) the method blocks on ``_recv_task`` directly and
+            external cancellation still propagates as before.
 
         :raises KalshiSubscriptionError: ``run_forever()`` was called
             before any ``subscribe_*`` request landed (formerly a silent
@@ -550,7 +561,40 @@ class KalshiWebSocket:
                 "@ws.on(channel) callback does not subscribe — the server "
                 "only sends frames for channels you explicitly subscribe to."
             )
-        await self._recv_task
+        if stop_event is None:
+            await self._recv_task
+            return
+
+        # Race the recv loop against the stop event. Whichever finishes first
+        # wins; if stop wins, signal the recv loop to exit cleanly (via
+        # _running + connection.close()) so the loop's existing
+        # ConnectionClosed handler breaks instead of attempting reconnect.
+        # NOTE: we do NOT cancel _recv_task — cancellation would re-introduce
+        # the very CancelledError leak this hook exists to avoid (#177).
+        stop_waiter = asyncio.create_task(stop_event.wait())
+        try:
+            done, _ = await asyncio.wait(
+                {self._recv_task, stop_waiter},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if stop_waiter in done and self._recv_task not in done:
+                # Cooperative shutdown requested. Clearing _running first
+                # means the recv loop's ConnectionClosed branch hits the
+                # `if not self._running: break` path instead of reconnecting.
+                self._running = False
+                if self._connection is not None:
+                    await self._connection.close()
+                await self._recv_task
+            # If recv_task finished first (server-side close, etc.) just
+            # surface any exception it raised — same semantics as the
+            # no-stop-event branch above.
+            elif self._recv_task in done:
+                self._recv_task.result()  # re-raises if the task errored
+        finally:
+            if not stop_waiter.done():
+                stop_waiter.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await stop_waiter
 
     # ------------------------------------------------------------------
     # Orderbook convenience

@@ -4,6 +4,30 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### WS `run_forever(stop_event=...)` cooperative shutdown (#177)
+
+`KalshiWebSocket.run_forever()` now accepts an optional
+`stop_event: asyncio.Event | None = None` parameter. When set — typically
+from a SIGINT handler via `add_signal_handler(SIGINT, stop.set)` —
+`run_forever()` clears `_running`, closes the connection, and drains the
+recv loop via its existing `not self._running` branch. The recv task is
+NOT cancelled, so no `CancelledError` leaks out.
+
+```python
+import asyncio, signal
+
+stop = asyncio.Event()
+asyncio.get_running_loop().add_signal_handler(signal.SIGINT, stop.set)
+
+async with ws.connect() as session:
+    await session.subscribe_ticker(tickers=["EXAMPLE-25-T"])
+    await session.run_forever(stop_event=stop)
+```
+
+No behavior change when `stop_event` is omitted — external cancellation
+still propagates as before, and the #175 "missing subscription" guard
+remains in place.
+
 ### WS `run_forever()` raises on missing subscription (#175)
 
 `KalshiWebSocket.run_forever()` previously returned immediately when no
