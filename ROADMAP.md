@@ -4,6 +4,18 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **v2.2.0 (2026-05-19)** — response-side spec drift hardening (`#157`).
+  65 new optional fields backfilled across 16 REST + WS response models
+  for OpenAPI v3.18.0 / AsyncAPI v0.14 (`Market`, `Order`, `Fill`,
+  `Event`, `EventMetadata`, `Settlement`, `Trade`, `IncentiveProgram`,
+  `RFQ`, `Quote`, `OrderGroup` + 3 group responses, plus 11 WS payloads
+  including the new `*_ts_ms` Unix-ms timestamps and
+  `outcome_side` / `book_side` direction encoding). Promoted additive
+  drift from warn → hard fail in CI so the next missed field surfaces
+  loudly. Relaxed the request-side `le=32` cap on six subaccount fields
+  (demo allocates above 32). Registered `ErrorPayload` in
+  `WS_CONTRACT_MAP`; applied `extra="allow"` to all WS envelope and
+  helper classes to match the payload policy from `#143`.
 - **v2.1.0 (2026-05-18)** — OpenAPI sync v3.13.0 → v3.18.0 (`#155`). V2
   event-market orders family (`create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` + batched variants on `/portfolio/events/orders/*`),
@@ -47,20 +59,21 @@ See `CHANGELOG.md` for full release history.
 
 Not scoped. Carry-overs from v2.1 and v2.0 audit backlog:
 
-- **Response-side spec drift detection.** v2.1 contract tests cover request
-  bodies (`TestRequestBodyDrift`) but not response models, which is how
-  `Balance.balance_dollars` slipped through 5 rounds of review. Add a
-  `RESPONSE_MODEL_MAP` + walker that asserts spec-required fields exist on
-  the SDK model.
-
-- Apply `extra="allow"` policy to WS envelope models (`kalshi/ws/models/`)
-  to mirror the response-model uniformity from `#114`.
-- `MessageQueue._buffer = collections.deque(maxlen=maxsize+1)` for
+- **`MessageQueue._buffer = collections.deque(maxlen=maxsize+1)`** for
   defense-in-depth (#106 F-P-15 / F-R-02).
-- `_to_decimal_dollars` / `_to_decimal_fp` consolidation (#106 F-N-09 +
-  the follow-up noted in #140).
-- WS UX foot-guns: auto-start recv loop when no `subscribe_*` was called,
-  resubscribe-time data-frame stashing (#106 F-P-16 / F-R-13).
+- **`_to_decimal_dollars` / `_to_decimal_fp` consolidation** (#106
+  F-N-09 + the follow-up noted in #140).
+- **WS UX foot-guns**: auto-start recv loop when no `subscribe_*` was
+  called, resubscribe-time data-frame stashing (#106 F-P-16 / F-R-13).
+- **Map remaining REST sub-models / V2 family / internal containers**
+  (~42 entries) into `CONTRACT_MAP` and promote
+  `test_contract_map_completeness` (REST) to hard-fail. WS side already
+  hard-fails as of v2.2.0; the REST side stays warn-only until the
+  mapping work lands.
+- **Required-but-Optional drift policy decision** (~204 entries on
+  `test_required_drift` / `test_ws_required_drift`). Currently warn-only;
+  promote to fail behind either an allowlist or a tightening pass that
+  drops `None` defaults on fields the server reliably sends.
 
 Pick from `gh issue list` and the deferred items in `#106` opportunistically.
 
