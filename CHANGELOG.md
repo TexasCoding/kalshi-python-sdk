@@ -4,6 +4,34 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### WS `run_forever()` raises on missing subscription (#175)
+
+`KalshiWebSocket.run_forever()` previously returned immediately when no
+`subscribe_*` call had landed — `_recv_task` was `None` and the silent
+no-op masked a real user mistake. Documented as a known foot-gun in
+`#106` F-P-16; the callback-style example in `docs/websockets.md`
+propagated the trap.
+
+Now raises `KalshiSubscriptionError` at the call site with an
+actionable message:
+
+> `run_forever() requires at least one active subscription. Call
+> subscribe_ticker(...) / subscribe_trade(...) / etc. (or the generic
+> subscribe(channel, ...)) before run_forever() so the recv loop has
+> something to drain. Registering an @ws.on(channel) callback does not
+> subscribe — the server only sends frames for channels you explicitly
+> subscribe to.`
+
+Docs updated: the callback example now shows the correct
+`subscribe_ticker(...) → run_forever()` pairing with a comment
+explaining that the iterator return value is unused (callbacks fan out
+alongside it).
+
+Soft-breaking: code that relied on `run_forever()` returning silently
+as a sleep-until-disconnect for a connection it never intended to use
+for streaming now raises. There's no production usage of that shape;
+the foot-gun was the bug.
+
 ### Nightly integration server-omission fixes (#183)
 
 First two `server_omits_despite_required` cases caught by the post-#172

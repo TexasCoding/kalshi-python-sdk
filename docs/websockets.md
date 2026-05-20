@@ -115,9 +115,18 @@ ws = KalshiWebSocket(auth=auth, config=config)
 async def on_ticker(msg: TickerMessage) -> None:
     print(msg.msg.yes_bid)
 
-async with ws.connect():
-    await ws.run_forever()
+async with ws.connect() as session:
+    # Subscribing is what tells the server to send frames; the @ws.on
+    # callback above is purely the routing destination. The iterator
+    # returned by subscribe_ticker is unused here — callbacks fan out
+    # alongside iterators, so registering the callback is enough.
+    await session.subscribe_ticker(tickers=["EXAMPLE-25-T"])
+    await session.run_forever()
 ```
+
+`run_forever()` raises ``KalshiSubscriptionError`` if no ``subscribe_*`` call
+has landed in the session — a callback alone doesn't tell the server to
+send frames, and the previous silent-no-op behavior was a foot-gun (#175).
 
 `on()` works both before and after `connect()`; callbacks registered before
 the socket opens are buffered and applied when the session starts.

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiSubscriptionError
 from kalshi.ws.client import KalshiWebSocket, _WebSocketSession
 from kalshi.ws.connection import ConnectionState
 from tests._model_fixtures import (
@@ -361,16 +364,25 @@ class TestRunForever:
             assert not run_task.done()
             # Stopping the session (via context manager exit) will end run_forever
 
-    async def test_run_forever_returns_immediately_without_subscribe(
+    async def test_run_forever_without_subscription_raises(
         self,
-        fake_ws,
+        fake_ws,  # type: ignore[no-untyped-def]
         test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
+        """#175: run_forever() without a prior subscribe used to silently
+        return because _recv_task was None. The recv loop only starts inside
+        the subscribe machinery; registering an @ws.on() callback alone does
+        NOT cause the server to send frames, so the callback would never fire
+        and run_forever would return immediately with no signal.
+
+        Post-#175 the foot-gun is loud: KalshiSubscriptionError at the call
+        site instead of a silent no-op.
+        """
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
-            # No subscribe, so no recv_task; run_forever returns immediately
-            await asyncio.wait_for(session.run_forever(), timeout=1.0)
+            with pytest.raises(KalshiSubscriptionError, match="at least one active subscription"):
+                await session.run_forever()
 
 
 # ---------------------------------------------------------------------------
