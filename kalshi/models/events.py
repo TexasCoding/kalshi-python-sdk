@@ -28,7 +28,10 @@ class Event(BaseModel):
     strike_date: datetime | None = None
     strike_period: str | None = None
     available_on_brokers: bool
-    product_metadata: dict[str, Any]
+    # Spec marks `product_metadata` required, but the live demo server omits
+    # it on most events (observed run #26141405845, 2026-05-20). Recorded in
+    # tests/_contract_support.py EXCLUSIONS as `server_omits_despite_required`.
+    product_metadata: dict[str, Any] | None = None
     last_updated_ts: datetime | None = None
     markets: NullableList[Market] = []
 
@@ -66,7 +69,11 @@ class EventMetadata(BaseModel):
 
     image_url: str
     featured_image_url: str | None = None
-    market_details: list[MarketMetadata]
+    # Spec says `market_details: list[MarketMetadata]` required, but the live
+    # demo server sends JSON null for the value (observed run #26141405845).
+    # NullableList coerces null -> [] so callers see a stable list type; the
+    # spec contract (key present) is still enforced.
+    market_details: NullableList[MarketMetadata]
     settlement_sources: list[SettlementSource]
 
     # v3.18.0 backfill (#160).
