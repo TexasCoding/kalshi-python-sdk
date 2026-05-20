@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import json
 import logging
 from typing import Any
@@ -61,12 +62,37 @@ class SubscriptionManager:
     - server_sid -> client_id mapping (rebuilt on reconnect)
     """
 
-    def __init__(self, connection: ConnectionManager) -> None:
+    def __init__(
+        self,
+        connection: ConnectionManager,
+        *,
+        stash_maxlen: int = 1000,
+    ) -> None:
         self._connection = connection
         self._subscriptions: dict[int, Subscription] = {}  # client_id -> Subscription
         self._sid_to_client: dict[int, int] = {}  # server_sid -> client_id
         self._next_client_id = 1
         self._next_msg_id = 1
+        # Stash for #176: data frames arriving during `_wait_for_response`
+        # while `_stashing` is True (i.e., during `resubscribe_all`) are
+        # captured here keyed by their server sid, then replayed through
+        # the dispatcher once resubscribe completes and all new sids are
+        # wired. Without this, the recv loop misses frames sent between
+        # `_sid_to_client.clear()` and the ack landing in
+        # `_wait_for_response`. Each per-sid deque is bounded by
+        # `stash_maxlen` (1000 default — generous enough for normal
+        # market-burst reconnects, low enough to bound memory if
+        # resubscribe stalls).
+        self._stash: dict[int, collections.deque[str]] = {}
+        self._stashing: bool = False
+        self._stash_maxlen: int = stash_maxlen
+        # Sids that have already triggered an overflow WARNING in the current
+        # resubscribe cycle. Cleared by `take_stash()` so the next resubscribe
+        # gets fresh warnings. Without this gating, the `len(bucket) ==
+        # maxlen` check below would be True on every append after the deque
+        # fills, producing one WARNING per frame on every high-volume
+        # channel during a prolonged stall.
+        self._stash_warned: set[int] = set()
 
     def _get_msg_id(self) -> int:
         mid = self._next_msg_id
@@ -78,13 +104,20 @@ class SubscriptionManager:
     ) -> dict[str, Any]:
         """Read frames until we get the response matching our command id.
 
-        Non-matching frames (e.g. data messages queued before the ack) are
-        logged and discarded.  The recv loop is paused during subscribe so
-        these frames would not have been consumed anyway.
+        Non-matching frames during a normal subscribe/unsubscribe are
+        logged and discarded; the recv loop is paused so these frames
+        would not have been consumed anyway.
+
+        During ``resubscribe_all`` (``self._stashing is True``) the
+        non-matching frames are STASHED by sid for replay after the
+        resubscribe completes (#176). Without this, frames arriving
+        between ``_sid_to_client.clear()`` and the new sid mapping are
+        silently dropped — a real signal-loss bug under high-volume
+        reconnect bursts.
         """
-        deadline = asyncio.get_event_loop().time() + timeout
+        deadline = asyncio.get_running_loop().time() + timeout
         while True:
-            remaining = deadline - asyncio.get_event_loop().time()
+            remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}"
@@ -103,11 +136,57 @@ class SubscriptionManager:
             data: dict[str, Any] = json.loads(raw)
             if data.get("id") == msg_id:
                 return data
-            # Non-matching frame (data message that arrived before ack)
+            # Non-matching frame. During resubscribe, stash it by sid for
+            # post-resubscribe replay; otherwise discard.
+            if self._stashing:
+                self._maybe_stash(raw, data)
+            else:
+                logger.debug(
+                    "Discarding non-matching frame during subscribe: type=%s",
+                    data.get("type"),
+                )
+
+    def _maybe_stash(self, raw: str, data: dict[str, Any]) -> None:
+        """Save a raw data frame to the per-sid stash, if it carries a sid.
+
+        Frames without a sid (control envelopes that fall through to the
+        wait loop) are still discarded — they have nowhere to replay to.
+        Per-sid deques are bounded by ``self._stash_maxlen``; on overflow,
+        the deque silently evicts oldest (deque's own ``maxlen`` semantics)
+        and a single WARNING per (sid, replay-cycle) is logged so callers
+        notice congestion.
+        """
+        sid = data.get("sid")
+        # The Kalshi protocol uses monotonically-increasing integer sids;
+        # this guard catches malformed frames (non-int sid, missing sid)
+        # without corrupting the typed `dict[int, ...]` stash. Sids are
+        # also assumed unique within a single resubscribe cycle — keys
+        # collide only if the server reused a value, which would be a
+        # protocol bug, not a stash bug.
+        if not isinstance(sid, int):
             logger.debug(
-                "Discarding non-matching frame during subscribe: type=%s",
-                data.get("type"),
+                "Stash mode: dropping non-matching frame with non-int sid: "
+                "type=%s sid=%r",
+                data.get("type"), sid,
             )
+            return
+        bucket = self._stash.get(sid)
+        if bucket is None:
+            bucket = collections.deque(maxlen=self._stash_maxlen)
+            self._stash[sid] = bucket
+        elif len(bucket) == self._stash_maxlen and sid not in self._stash_warned:
+            # About to evict oldest. Log once per (sid, resubscribe cycle):
+            # without the warned-set gate this fires on every subsequent
+            # append while the deque stays full, which under a prolonged
+            # stall becomes per-frame log spam on every high-volume sid.
+            self._stash_warned.add(sid)
+            logger.warning(
+                "Stash for sid %d is full (%d frames); oldest frame will be "
+                "evicted. Resubscribe may be stalled or the channel is too "
+                "high-volume for the configured stash_maxlen.",
+                sid, self._stash_maxlen,
+            )
+        bucket.append(raw)
 
     async def subscribe(
         self,
@@ -213,54 +292,88 @@ class SubscriptionManager:
         F-P-01: Each resubscribe is independent. If one fails, the failed
         subscription is removed and its iterator gets a sentinel, but other
         subscriptions continue working. The whole reconnect is not aborted.
+
+        #176: ``_stashing`` is enabled for the duration of this method so
+        non-matching data frames received by ``_wait_for_response`` are
+        captured by sid for post-resubscribe replay. The caller
+        (``KalshiWebSocket._handle_reconnect``) is responsible for
+        draining the stash via ``take_stash()`` and routing the frames
+        back through the dispatcher.
         """
         old_subs = dict(self._subscriptions)
         # F-P-03: clear sid->client mapping before sending any resubscribe
         # so stale in-flight frames with old sids can't mis-route.
         self._sid_to_client.clear()
+        # Defensive reset: if a prior resubscribe cycle raised before
+        # _drain_resubscribe_stash (which goes through take_stash()) had a
+        # chance to run, _stash and _stash_warned could carry stale state
+        # into this cycle. Within the current KalshiWebSocket instance the
+        # outer _handle_reconnect except sets _running=False so this case is
+        # rare; cheap to harden against anyway.
+        self._stash.clear()
+        self._stash_warned.clear()
 
-        for client_id, sub in old_subs.items():
-            sub.server_sid = None  # Clear old sid
-            try:
-                msg_id = self._get_msg_id()
-                # Re-subscribe with send_initial_snapshot for orderbook channels
-                params = sub.to_subscribe_params()
-                if sub.channel == "orderbook_delta":
-                    params["send_initial_snapshot"] = True
-                cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
-                await self._connection.send(cmd)
+        self._stashing = True
+        try:
+            for client_id, sub in old_subs.items():
+                sub.server_sid = None  # Clear old sid
+                try:
+                    msg_id = self._get_msg_id()
+                    # Re-subscribe with send_initial_snapshot for orderbook channels
+                    params = sub.to_subscribe_params()
+                    if sub.channel == "orderbook_delta":
+                        params["send_initial_snapshot"] = True
+                    cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
+                    await self._connection.send(cmd)
 
-                data = await self._wait_for_response(msg_id)
-                if data.get("type") == "error":
-                    error_msg = data.get("msg", {})
-                    raise KalshiSubscriptionError(
-                        str(error_msg.get("msg", "Resubscribe failed")),
-                        error_code=error_msg.get("code"),
+                    data = await self._wait_for_response(msg_id)
+                    if data.get("type") == "error":
+                        error_msg = data.get("msg", {})
+                        raise KalshiSubscriptionError(
+                            str(error_msg.get("msg", "Resubscribe failed")),
+                            error_code=error_msg.get("code"),
+                        )
+                    new_sid = data.get("msg", {}).get("sid")
+                    if new_sid is not None:
+                        sub.server_sid = new_sid
+                        self._sid_to_client[new_sid] = client_id
+                    logger.debug(
+                        "Resubscribed %s: client_id=%d, new_sid=%s",
+                        sub.channel,
+                        client_id,
+                        new_sid,
                     )
-                new_sid = data.get("msg", {}).get("sid")
-                if new_sid is not None:
-                    sub.server_sid = new_sid
-                    self._sid_to_client[new_sid] = client_id
-                logger.debug(
-                    "Resubscribed %s: client_id=%d, new_sid=%s",
-                    sub.channel,
-                    client_id,
-                    new_sid,
-                )
-            except Exception:
-                # F-P-01: per-sub failure is isolated. Push sentinel so the
-                # iterator exits cleanly, drop the subscription, continue with
-                # the rest. `exc_info=True` so an unexpected AttributeError /
-                # programming bug doesn't lose its traceback the way the
-                # earlier `: %s, e` formulation did.
-                logger.warning(
-                    "Resubscribe failed for client_id=%d channel=%s",
-                    client_id,
-                    sub.channel,
-                    exc_info=True,
-                )
-                await sub.queue.put_sentinel()
-                self._subscriptions.pop(client_id, None)
+                except Exception:
+                    # F-P-01: per-sub failure is isolated. Push sentinel so the
+                    # iterator exits cleanly, drop the subscription, continue with
+                    # the rest. `exc_info=True` so an unexpected AttributeError /
+                    # programming bug doesn't lose its traceback the way the
+                    # earlier `: %s, e` formulation did.
+                    logger.warning(
+                        "Resubscribe failed for client_id=%d channel=%s",
+                        client_id,
+                        sub.channel,
+                        exc_info=True,
+                    )
+                    await sub.queue.put_sentinel()
+                    self._subscriptions.pop(client_id, None)
+        finally:
+            self._stashing = False
+
+    def take_stash(self) -> dict[int, collections.deque[str]]:
+        """Return and clear the resubscribe-window stash atomically (#176).
+
+        Returns a ``{sid: deque[raw_frame]}`` mapping. The caller is
+        responsible for replaying the raw frames through the dispatcher
+        for each sid (typically via ``KalshiWebSocket._process_frame``).
+        Frames whose sid did not get re-mapped during resubscribe should
+        be dropped by the caller with a log.
+        """
+        stash, self._stash = self._stash, {}
+        # Reset warning suppression so the next resubscribe cycle's overflow
+        # warnings aren't accidentally muted by stale state.
+        self._stash_warned.clear()
+        return stash
 
     def get_subscription_by_sid(self, server_sid: int) -> Subscription | None:
         """Look up a subscription by current server sid."""

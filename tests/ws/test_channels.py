@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import collections
+import json
+import logging
+
 import pytest
 
 from kalshi.config import KalshiConfig
@@ -332,3 +336,120 @@ class TestMsgIdAutoIncrement:
         await sub_mgr.subscribe("fill")
         ids = [c["id"] for c in fake_ws.received_commands]
         assert ids == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# SubscriptionManager — resubscribe-window stash (#176)
+# ---------------------------------------------------------------------------
+
+
+class TestResubscribeStash:
+    def test_maybe_stash_collects_by_sid(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """Frames carrying a sid land in the per-sid deque in arrival order."""
+        sub_mgr._maybe_stash('{"sid": 1, "seq": 1}', {"sid": 1, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 2, "seq": 1}', {"sid": 2, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 1, "seq": 2}', {"sid": 1, "seq": 2})
+        assert set(sub_mgr._stash.keys()) == {1, 2}
+        assert list(sub_mgr._stash[1]) == [
+            '{"sid": 1, "seq": 1}',
+            '{"sid": 1, "seq": 2}',
+        ]
+        assert list(sub_mgr._stash[2]) == ['{"sid": 2, "seq": 1}']
+
+    def test_maybe_stash_drops_frame_with_non_int_sid(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """Control envelopes without a sid (or with a non-int sid from a
+        malformed/foreign frame) have nowhere to replay to and would
+        corrupt the typed `dict[int, ...]` stash. Drop with a debug log."""
+        sub_mgr._maybe_stash('{"type": "ok"}', {"type": "ok"})
+        sub_mgr._maybe_stash('{"sid": "x"}', {"sid": "x"})
+        sub_mgr._maybe_stash('{"sid": 1.5}', {"sid": 1.5})
+        assert sub_mgr._stash == {}
+
+    def test_maybe_stash_maxlen_evicts_oldest_with_one_warning_per_fill(
+        self, connected_mgr, caplog  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Per-sid deque is bounded; on overflow, oldest evicts and EXACTLY
+        ONE WARNING fires per (sid, resubscribe cycle) — not one per frame.
+        Without the per-sid gate, every append after the deque fills would
+        log, producing per-frame spam on high-volume channels during a
+        prolonged stall."""
+        mgr = SubscriptionManager(connected_mgr, stash_maxlen=3)
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            for i in range(10):
+                mgr._maybe_stash(f'{{"sid": 7, "seq": {i}}}', {"sid": 7, "seq": i})
+        bucket = mgr._stash[7]
+        # maxlen=3 → only the last 3 survive (oldest 0..6 evicted)
+        assert len(bucket) == 3
+        assert [json.loads(r)["seq"] for r in bucket] == [7, 8, 9]
+        # EXACTLY one WARNING for sid 7 across 10 appends.
+        warns = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "Stash for sid 7 is full" in r.message
+        ]
+        assert len(warns) == 1
+        # take_stash() clears the warning suppression so the next cycle
+        # gets fresh warnings.
+        mgr.take_stash()
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            for i in range(10, 15):
+                mgr._maybe_stash(f'{{"sid": 7, "seq": {i}}}', {"sid": 7, "seq": i})
+        warns2 = [
+            r for r in caplog.records
+            if r.levelno == logging.WARNING and "Stash for sid 7 is full" in r.message
+        ]
+        # Two cycles → two warnings total (the original + one for the new fill).
+        assert len(warns2) == 2
+
+    def test_take_stash_returns_and_clears(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """take_stash atomically returns the current stash and resets to empty."""
+        sub_mgr._maybe_stash('{"sid": 9, "seq": 1}', {"sid": 9, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 9, "seq": 2}', {"sid": 9, "seq": 2})
+        taken = sub_mgr.take_stash()
+        assert list(taken[9]) == [
+            '{"sid": 9, "seq": 1}',
+            '{"sid": 9, "seq": 2}',
+        ]
+        assert sub_mgr._stash == {}
+        # Second take is empty
+        assert sub_mgr.take_stash() == {}
+
+    def test_stashing_flag_off_by_default(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """_wait_for_response only stashes when explicitly toggled by
+        resubscribe_all (or future opt-in callers). Default is off so
+        normal subscribe paths don't accumulate stale state."""
+        assert sub_mgr._stashing is False
+
+    async def test_resubscribe_clears_stale_stash_at_start(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """If a prior resubscribe raised before take_stash() ran, _stash +
+        _stash_warned could survive into the next cycle and replay stale
+        frames or muddy overflow warnings. resubscribe_all defensively
+        clears both at the start.
+
+        Simulates the leak by injecting stale stash state, then runs a
+        clean resubscribe (no active subs → loop body skipped, but the
+        clear runs)."""
+        # Inject stale state from a hypothetical prior cycle that failed
+        # before draining.
+        sub_mgr._stash[42] = collections.deque(['{"sid": 42, "stale": true}'])
+        sub_mgr._stash_warned.add(42)
+        assert sub_mgr._stash != {}
+        assert sub_mgr._stash_warned == {42}
+
+        await sub_mgr.resubscribe_all()
+
+        # Stash + warned-set are both empty regardless of what the
+        # subscriptions loop did.
+        assert sub_mgr._stash == {}
+        assert sub_mgr._stash_warned == set()
