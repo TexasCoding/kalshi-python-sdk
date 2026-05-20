@@ -192,7 +192,7 @@ def settlement_dict(**overrides: Any) -> dict[str, Any]:
         "no_total_cost_dollars": "0.0000",
         "revenue": 0,
         "settled_time": "2026-01-01T00:00:00Z",
-        "fee_cost": 0,
+        "fee_cost_dollars": "0.0000",
         "market_result": "no",
     }
     base.update(overrides)
@@ -398,7 +398,7 @@ def fill_payload_dict(**overrides: Any) -> dict[str, Any]:
         "action": "buy",
         "count_fp": "10.00",
         "yes_price_dollars": "0.5000",
-        "fee_cost": 0,
+        "fee_cost": "0.0000",
         "ts": 1735689600,
         "ts_ms": 1735689600000,
         "post_position_fp": "10.00",
