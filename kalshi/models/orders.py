@@ -42,69 +42,59 @@ class Order(BaseModel):
     """
 
     order_id: str
-    ticker: str | None = None
-    user_id: str | None = None
-    status: str | None = None
-    side: str | None = None
+    ticker: str
+    user_id: str
+    status: str
+    side: str
     is_yes: bool | None = None
     # Spec field is named ``type`` (enum: limit, market). Renamed to
     # ``order_type`` on the SDK side to avoid shadowing the Python builtin —
     # same rationale as milestone_type / target_type / incentive_type
     # elsewhere. The wire still sends ``type``; validation alias accepts both.
-    order_type: str | None = Field(
-        default=None,
+    order_type: str = Field(
         validation_alias=AliasChoices("type", "order_type"),
     )
-    yes_price: DollarDecimal | None = Field(
-        default=None,
+    yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    no_price: DollarDecimal | None = Field(
-        default=None,
+    no_price: DollarDecimal = Field(
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
     count: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("count_fp", "count"),
     )
-    initial_count: FixedPointCount | None = Field(
-        default=None,
+    initial_count: FixedPointCount = Field(
         validation_alias=AliasChoices("initial_count_fp", "initial_count"),
     )
-    remaining_count: FixedPointCount | None = Field(
-        default=None,
+    remaining_count: FixedPointCount = Field(
         validation_alias=AliasChoices("remaining_count_fp", "remaining_count"),
     )
-    fill_count: FixedPointCount | None = Field(
-        default=None,
+    fill_count: FixedPointCount = Field(
         validation_alias=AliasChoices("fill_count_fp", "fill_count"),
     )
-    taker_fill_cost: DollarDecimal | None = Field(
-        default=None,
+    taker_fill_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("taker_fill_cost_dollars", "taker_fill_cost"),
     )
-    maker_fill_cost: DollarDecimal | None = Field(
-        default=None,
+    maker_fill_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("maker_fill_cost_dollars", "maker_fill_cost"),
     )
-    taker_fees: DollarDecimal | None = Field(
-        default=None,
+    taker_fees: DollarDecimal = Field(
         validation_alias=AliasChoices("taker_fees_dollars", "taker_fees"),
     )
-    maker_fees: DollarDecimal | None = Field(
-        default=None,
+    maker_fees: DollarDecimal = Field(
         validation_alias=AliasChoices("maker_fees_dollars", "maker_fees"),
     )
     created_time: datetime | None = None
     expiration_time: datetime | None = None
-    client_order_id: str | None = None
+    client_order_id: str
     subaccount: int | None = None
 
     # v3.18.0 backfill (#159). outcome_side/book_side are the canonical
     # direction encoding going forward; deprecated action/side/is_yes stay
     # for back-compat. subaccount_number is distinct from subaccount.
-    outcome_side: SideLiteral | None = None
-    book_side: BookSideLiteral | None = None
+    outcome_side: SideLiteral
+    book_side: BookSideLiteral
     last_update_time: datetime | None = None
     self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
     order_group_id: str | None = None
@@ -123,35 +113,31 @@ class Fill(BaseModel):
     """
 
     trade_id: str
-    fill_id: str | None = None
-    order_id: str | None = None
-    ticker: str | None = None
-    market_ticker: str | None = None
-    side: str | None = None
-    action: str | None = None
-    is_taker: bool | None = None
-    count: FixedPointCount | None = Field(
-        default=None,
+    fill_id: str
+    order_id: str
+    ticker: str
+    market_ticker: str
+    side: str
+    action: str
+    is_taker: bool
+    count: FixedPointCount = Field(
         validation_alias=AliasChoices("count_fp", "count"),
     )
-    yes_price: DollarDecimal | None = Field(
-        default=None,
+    yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    no_price: DollarDecimal | None = Field(
-        default=None,
+    no_price: DollarDecimal = Field(
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    fee_cost: DollarDecimal | None = Field(
-        default=None,
+    fee_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
     created_time: datetime | None = None
 
     # v3.18.0 backfill (#159). ts is Unix-ms int per spec — distinct from
     # the typed created_time: datetime; do NOT coerce.
-    outcome_side: SideLiteral | None = None
-    book_side: BookSideLiteral | None = None
+    outcome_side: SideLiteral
+    book_side: BookSideLiteral
     subaccount_number: int | None = None
     ts: int | None = None
 
@@ -175,9 +161,9 @@ class CreateOrderRequest(BaseModel):
     it. Callers passing ``type="market"`` (or similar) now get a
     ``ValidationError`` at construction time.
 
-    ``action`` defaults to ``"buy"`` — the pre-v0.8.0 default is
-    preserved to keep existing call sites working. ``ticker`` and
-    ``side`` remain required.
+    ``ticker``, ``side``, and ``action`` are all required by the spec.
+    Pre-v2.3.0 the SDK defaulted ``action`` to ``"buy"`` as a convenience;
+    that default has been removed to match the spec required-set (#172).
 
     See ``kalshi.resources.orders.OrdersResource.create`` for the
     user-facing method that builds this model internally.
@@ -185,7 +171,7 @@ class CreateOrderRequest(BaseModel):
 
     ticker: str
     side: str
-    action: str = "buy"
+    action: str
     count: FixedPointCount = Field(default=Decimal("1"), serialization_alias="count_fp")
     yes_price: DollarDecimal | None = Field(
         default=None,

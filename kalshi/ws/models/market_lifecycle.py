@@ -20,7 +20,7 @@ class MarketLifecyclePayload(BaseModel):
     """
 
     event_type: str  # created/activated/deactivated/close_date_updated/determined/settled/etc
-    market_ticker: str | None = None
+    market_ticker: str
     event_ticker: str | None = None
     # Conditional fields depending on event_type
     open_ts: int | None = None

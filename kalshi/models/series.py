@@ -23,14 +23,14 @@ class Series(BaseModel):
     frequency: str
     title: str
     category: str
-    tags: NullableList[str] = []
-    settlement_sources: NullableList[dict[str, Any]] = []
-    contract_url: str = ""
-    contract_terms_url: str = ""
+    tags: NullableList[str]
+    settlement_sources: NullableList[dict[str, Any]]
+    contract_url: str
+    contract_terms_url: str
     product_metadata: dict[str, Any] | None = None
-    fee_type: str = ""
-    fee_multiplier: float = 0.0
-    additional_prohibitions: NullableList[str] = []
+    fee_type: str
+    fee_multiplier: float
+    additional_prohibitions: NullableList[str]
     volume: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
@@ -47,7 +47,7 @@ class SeriesFeeChange(BaseModel):
     series_ticker: str
     fee_type: str
     fee_multiplier: float
-    scheduled_ts: datetime | None = None
+    scheduled_ts: datetime
 
     model_config = {"extra": "allow"}
 

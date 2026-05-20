@@ -15,13 +15,11 @@ class TickerPayload(BaseModel):
     """
 
     market_ticker: str
-    market_id: str | None = None
-    yes_bid: DollarDecimal | None = Field(
-        default=None,
+    market_id: str
+    yes_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
     )
-    yes_ask: DollarDecimal | None = Field(
-        default=None,
+    yes_ask: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_ask_dollars", "yes_ask"),
     )
     no_bid: DollarDecimal | None = Field(
@@ -32,36 +30,30 @@ class TickerPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_ask_dollars", "no_ask"),
     )
-    volume: str | None = Field(
-        default=None,
+    volume: str = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )  # _fp format
-    open_interest: str | None = Field(
-        default=None,
+    open_interest: str = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )  # _fp format
-    dollar_volume: str | None = None
-    dollar_open_interest: str | None = None
-    yes_bid_size: str | None = Field(
-        default=None,
+    dollar_volume: str
+    dollar_open_interest: str
+    yes_bid_size: str = Field(
         validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
     )  # _fp format
-    yes_ask_size: str | None = Field(
-        default=None,
+    yes_ask_size: str = Field(
         validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
     )  # _fp format
-    last_trade_size: str | None = Field(
-        default=None,
+    last_trade_size: str = Field(
         validation_alias=AliasChoices("last_trade_size_fp", "last_trade_size"),
     )  # _fp format
-    ts: int | None = None
+    ts: int
     # v0.14+ backfill (#162). Spec promotes ts_ms (Unix ms) as the primary
     # timestamp; ts (seconds) stays for compat. Do NOT auto-convert.
-    price: DollarDecimal | None = Field(
-        default=None,
+    price: DollarDecimal = Field(
         validation_alias=AliasChoices("price_dollars", "price"),
     )
-    ts_ms: int | None = None
+    ts_ms: int
     model_config = {"extra": "allow"}
 
 

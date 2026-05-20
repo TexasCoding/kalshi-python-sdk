@@ -31,6 +31,9 @@ from kalshi.resources.order_groups import (
     AsyncOrderGroupsResource,
     OrderGroupsResource,
 )
+from tests._model_fixtures import (
+    create_order_group_response_dict,
+)
 
 
 @pytest.fixture
@@ -49,7 +52,8 @@ def order_groups(test_auth: KalshiAuth, config: KalshiConfig) -> OrderGroupsReso
 
 @pytest.fixture
 def async_order_groups(
-    test_auth: KalshiAuth, config: KalshiConfig,
+    test_auth: KalshiAuth,
+    config: KalshiConfig,
 ) -> AsyncOrderGroupsResource:
     return AsyncOrderGroupsResource(AsyncTransport(test_auth, config))
 
@@ -103,7 +107,9 @@ class TestOrderGroupModels:
         assert resp.contracts_limit == Decimal("10")
 
     def test_create_order_group_response_parses(self) -> None:
-        resp = CreateOrderGroupResponse.model_validate({"order_group_id": "grp-new"})
+        resp = CreateOrderGroupResponse.model_validate(
+            create_order_group_response_dict(order_group_id="grp-new")
+        )
         assert resp.order_group_id == "grp-new"
 
 
@@ -147,11 +153,10 @@ _MINIMAL_OG = {"id": "grp-1", "contracts_limit_fp": "5", "is_auto_cancel_enabled
 class TestOrderGroupsList:
     @respx.mock
     def test_list_returns_typed_order_groups(
-        self, order_groups: OrderGroupsResource,
+        self,
+        order_groups: OrderGroupsResource,
     ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -167,28 +172,27 @@ class TestOrderGroupsList:
 
     @respx.mock
     def test_list_sends_subaccount_query(
-        self, order_groups: OrderGroupsResource,
+        self,
+        order_groups: OrderGroupsResource,
     ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
-        ).mock(return_value=httpx.Response(200, json={"order_groups": []}))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups").mock(
+            return_value=httpx.Response(200, json={"order_groups": []})
+        )
         order_groups.list(subaccount=3)
         assert route.calls[0].request.url.params["subaccount"] == "3"
 
     @respx.mock
     def test_list_empty_response(self, order_groups: OrderGroupsResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
-        ).mock(return_value=httpx.Response(200, json={"order_groups": []}))
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups").mock(
+            return_value=httpx.Response(200, json={"order_groups": []})
+        )
         assert order_groups.list() == []
 
 
 class TestOrderGroupsGet:
     @respx.mock
     def test_get_returns_full_response(self, order_groups: OrderGroupsResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -204,9 +208,7 @@ class TestOrderGroupsGet:
 
     @respx.mock
     def test_get_404_maps_to_not_found(self, order_groups: OrderGroupsResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/missing"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/missing").mock(
             return_value=httpx.Response(404, json={"message": "order group not found"})
         )
         with pytest.raises(KalshiNotFoundError):
@@ -219,7 +221,11 @@ class TestOrderGroupsCreate:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
-        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-new"}))
+        ).mock(
+            return_value=httpx.Response(
+                201, json=create_order_group_response_dict(order_group_id="grp-new")
+            )
+        )
 
         resp = order_groups.create(contracts_limit=5, subaccount=1)
 
@@ -230,12 +236,17 @@ class TestOrderGroupsCreate:
 
     @respx.mock
     def test_create_omits_subaccount_when_none(
-        self, order_groups: OrderGroupsResource,
+        self,
+        order_groups: OrderGroupsResource,
     ) -> None:
 
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
-        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-new"}))
+        ).mock(
+            return_value=httpx.Response(
+                201, json=create_order_group_response_dict(order_group_id="grp-new")
+            )
+        )
 
         order_groups.create(contracts_limit=5)
 
@@ -244,11 +255,12 @@ class TestOrderGroupsCreate:
 
     @respx.mock
     def test_create_400_maps_to_validation_error(
-        self, order_groups: OrderGroupsResource,
+        self,
+        order_groups: OrderGroupsResource,
     ) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
-        ).mock(return_value=httpx.Response(400, json={"message": "bad limit"}))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create").mock(
+            return_value=httpx.Response(400, json={"message": "bad limit"})
+        )
 
         with pytest.raises(KalshiValidationError):
             order_groups.create(contracts_limit=5)
@@ -295,23 +307,24 @@ class TestOrderGroupsMutations:
 
     @respx.mock
     def test_reset_404(self, order_groups: OrderGroupsResource) -> None:
-        respx.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/reset"
-        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        respx.put("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/reset").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             order_groups.reset("gone")
 
     @respx.mock
     def test_trigger_404(self, order_groups: OrderGroupsResource) -> None:
-        respx.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/trigger"
-        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        respx.put("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/trigger").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             order_groups.trigger("gone")
 
     @respx.mock
     def test_update_limit_sends_put_with_body(
-        self, order_groups: OrderGroupsResource,
+        self,
+        order_groups: OrderGroupsResource,
     ) -> None:
 
         route = respx.put(
@@ -325,9 +338,9 @@ class TestOrderGroupsMutations:
 
     @respx.mock
     def test_update_limit_404(self, order_groups: OrderGroupsResource) -> None:
-        respx.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/limit"
-        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        respx.put("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/gone/limit").mock(
+            return_value=httpx.Response(404, json={"message": "not found"})
+        )
         with pytest.raises(KalshiNotFoundError):
             order_groups.update_limit("gone", contracts_limit=5)
 
@@ -335,12 +348,11 @@ class TestOrderGroupsMutations:
 @pytest.mark.asyncio
 class TestAsyncOrderGroups:
     async def test_list(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
-        respx_mock.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups"
-        ).mock(
+        respx_mock.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups").mock(
             return_value=httpx.Response(200, json={"order_groups": [_MINIMAL_OG]})
         )
         result = await async_order_groups.list()
@@ -348,32 +360,35 @@ class TestAsyncOrderGroups:
         assert isinstance(result[0], OrderGroup)
 
     async def test_get(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
-        respx_mock.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"is_auto_cancel_enabled": True, "orders": []}
-            )
+        respx_mock.get("https://test.kalshi.com/trade-api/v2/portfolio/order_groups/grp-1").mock(
+            return_value=httpx.Response(200, json={"is_auto_cancel_enabled": True, "orders": []})
         )
         resp = await async_order_groups.get("grp-1")
         assert isinstance(resp, GetOrderGroupResponse)
 
     async def test_create(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
         route = respx_mock.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/order_groups/create"
-        ).mock(return_value=httpx.Response(201, json={"order_group_id": "grp-x"}))
+        ).mock(
+            return_value=httpx.Response(
+                201, json=create_order_group_response_dict(order_group_id="grp-x")
+            )
+        )
         resp = await async_order_groups.create(contracts_limit=3)
         assert resp.order_group_id == "grp-x"
         assert route.called
 
     async def test_delete(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
         route = respx_mock.delete(
@@ -383,7 +398,8 @@ class TestAsyncOrderGroups:
         assert route.called
 
     async def test_reset(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
         route = respx_mock.put(
@@ -394,7 +410,8 @@ class TestAsyncOrderGroups:
         assert route.calls[0].request.content == b"{}"
 
     async def test_trigger(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
         route = respx_mock.put(
@@ -405,7 +422,8 @@ class TestAsyncOrderGroups:
         assert route.calls[0].request.content == b"{}"
 
     async def test_update_limit(
-        self, async_order_groups: AsyncOrderGroupsResource,
+        self,
+        async_order_groups: AsyncOrderGroupsResource,
         respx_mock: respx.MockRouter,
     ) -> None:
 
@@ -427,13 +445,15 @@ class TestOrderGroupsAuthGuard:
             unauth_order_groups.get("grp-1")
 
     def test_create_requires_auth(
-        self, unauth_order_groups: OrderGroupsResource,
+        self,
+        unauth_order_groups: OrderGroupsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_order_groups.create(contracts_limit=1)
 
     def test_delete_requires_auth(
-        self, unauth_order_groups: OrderGroupsResource,
+        self,
+        unauth_order_groups: OrderGroupsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_order_groups.delete("grp-1")
@@ -443,13 +463,15 @@ class TestOrderGroupsAuthGuard:
             unauth_order_groups.reset("grp-1")
 
     def test_trigger_requires_auth(
-        self, unauth_order_groups: OrderGroupsResource,
+        self,
+        unauth_order_groups: OrderGroupsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_order_groups.trigger("grp-1")
 
     def test_update_limit_requires_auth(
-        self, unauth_order_groups: OrderGroupsResource,
+        self,
+        unauth_order_groups: OrderGroupsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_order_groups.update_limit("grp-1", contracts_limit=1)
@@ -457,11 +479,13 @@ class TestOrderGroupsAuthGuard:
 
 class TestClientWiring:
     def test_sync_client_exposes_order_groups(
-        self, client: KalshiClient,
+        self,
+        client: KalshiClient,
     ) -> None:
         assert isinstance(client.order_groups, OrderGroupsResource)
 
     def test_async_client_exposes_order_groups(
-        self, async_client: AsyncKalshiClient,
+        self,
+        async_client: AsyncKalshiClient,
     ) -> None:
         assert isinstance(async_client.order_groups, AsyncOrderGroupsResource)

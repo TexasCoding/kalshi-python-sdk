@@ -15,6 +15,7 @@ from kalshi.resources.incentive_programs import (
     AsyncIncentiveProgramsResource,
     IncentiveProgramsResource,
 )
+from tests._model_fixtures import incentive_program_dict
 
 
 @pytest.fixture
@@ -28,30 +29,32 @@ def config() -> KalshiConfig:
 
 @pytest.fixture
 def resource(
-    test_auth: KalshiAuth, config: KalshiConfig,
+    test_auth: KalshiAuth,
+    config: KalshiConfig,
 ) -> IncentiveProgramsResource:
     return IncentiveProgramsResource(SyncTransport(test_auth, config))
 
 
 @pytest.fixture
 def async_resource(
-    test_auth: KalshiAuth, config: KalshiConfig,
+    test_auth: KalshiAuth,
+    config: KalshiConfig,
 ) -> AsyncIncentiveProgramsResource:
     return AsyncIncentiveProgramsResource(AsyncTransport(test_auth, config))
 
 
-_SAMPLE_PROGRAM = {
-    "id": "prog-1",
-    "market_id": "mkt-abc",
-    "market_ticker": "TEST-MKT",
-    "incentive_type": "liquidity",
-    "start_date": "2026-04-01T00:00:00Z",
-    "end_date": "2026-04-30T23:59:59Z",
-    "period_reward": 1_000_000,  # centi-cents
-    "paid_out": False,
-    "discount_factor_bps": 25,
-    "target_size_fp": "100.5000",
-}
+_SAMPLE_PROGRAM = incentive_program_dict(
+    id="prog-1",
+    market_id="mkt-abc",
+    market_ticker="TEST-MKT",
+    incentive_type="liquidity",
+    start_date="2026-04-01T00:00:00Z",
+    end_date="2026-04-30T23:59:59Z",
+    period_reward=1_000_000,  # centi-cents
+    paid_out=False,
+    discount_factor_bps=25,
+    target_size_fp="100.5000",
+)
 
 
 class TestList:
@@ -85,7 +88,8 @@ class TestList:
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": [_SAMPLE_PROGRAM]},
+                200,
+                json={"incentive_programs": [_SAMPLE_PROGRAM]},
             )
         )
         page = resource.list()
@@ -98,7 +102,8 @@ class TestList:
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": []},
+                200,
+                json={"incentive_programs": []},
             )
         )
         resource.list(status="active", incentive_type="volume", limit=50)
@@ -111,14 +116,16 @@ class TestList:
 
     @respx.mock
     def test_null_target_size_fp(
-        self, resource: IncentiveProgramsResource,
+        self,
+        resource: IncentiveProgramsResource,
     ) -> None:
         prog = {**_SAMPLE_PROGRAM, "target_size_fp": None, "discount_factor_bps": None}
         respx.get(
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": [prog]},
+                200,
+                json={"incentive_programs": [prog]},
             )
         )
         page = resource.list()
@@ -129,7 +136,8 @@ class TestList:
 class TestListAll:
     @respx.mock
     def test_paginates_next_cursor(
-        self, resource: IncentiveProgramsResource,
+        self,
+        resource: IncentiveProgramsResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
@@ -165,13 +173,15 @@ class TestAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_list(
-        self, async_resource: AsyncIncentiveProgramsResource,
+        self,
+        async_resource: AsyncIncentiveProgramsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": [_SAMPLE_PROGRAM]},
+                200,
+                json={"incentive_programs": [_SAMPLE_PROGRAM]},
             )
         )
         page = await async_resource.list()
@@ -180,18 +190,22 @@ class TestAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_forwards_filters(
-        self, async_resource: AsyncIncentiveProgramsResource,
+        self,
+        async_resource: AsyncIncentiveProgramsResource,
     ) -> None:
         """Regression guard: SDK kwarg `incentive_type` must serialize to wire `type`."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": []},
+                200,
+                json={"incentive_programs": []},
             )
         )
         await async_resource.list(
-            status="active", incentive_type="volume", limit=50,
+            status="active",
+            incentive_type="volume",
+            limit=50,
         )
         assert route.called
         url = route.calls.last.request.url
@@ -202,13 +216,15 @@ class TestAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_list_all(
-        self, async_resource: AsyncIncentiveProgramsResource,
+        self,
+        async_resource: AsyncIncentiveProgramsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/incentive_programs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"incentive_programs": [_SAMPLE_PROGRAM]},
+                200,
+                json={"incentive_programs": [_SAMPLE_PROGRAM]},
             )
         )
         items = [item async for item in async_resource.list_all()]
@@ -217,7 +233,8 @@ class TestAsync:
     @respx.mock
     @pytest.mark.asyncio
     async def test_paginates_next_cursor(
-        self, async_resource: AsyncIncentiveProgramsResource,
+        self,
+        async_resource: AsyncIncentiveProgramsResource,
     ) -> None:
         """next_cursor (not cursor) drives async pagination for this endpoint."""
         route = respx.get(

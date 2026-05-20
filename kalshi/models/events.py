@@ -19,16 +19,16 @@ class Event(BaseModel):
     """A Kalshi event (container for one or more markets)."""
 
     event_ticker: str
-    series_ticker: str | None = None
-    title: str | None = None
-    sub_title: str | None = None
-    collateral_return_type: str | None = None
-    mutually_exclusive: bool | None = None
+    series_ticker: str
+    title: str
+    sub_title: str
+    collateral_return_type: str
+    mutually_exclusive: bool
     category: str | None = None
     strike_date: datetime | None = None
     strike_period: str | None = None
-    available_on_brokers: bool | None = None
-    product_metadata: dict[str, Any] | None = None
+    available_on_brokers: bool
+    product_metadata: dict[str, Any]
     last_updated_ts: datetime | None = None
     markets: NullableList[Market] = []
 
@@ -64,10 +64,10 @@ class SettlementSource(BaseModel):
 class EventMetadata(BaseModel):
     """Metadata for an event including images and settlement sources."""
 
-    image_url: str | None = None
+    image_url: str
     featured_image_url: str | None = None
-    market_details: list[MarketMetadata] | None = None
-    settlement_sources: list[SettlementSource] | None = None
+    market_details: list[MarketMetadata]
+    settlement_sources: list[SettlementSource]
 
     # v3.18.0 backfill (#160).
     competition: str | None = None

@@ -23,45 +23,37 @@ class UserOrdersPayload(BaseModel):
     """
 
     order_id: str
-    user_id: str | None = None
-    ticker: str | None = None
-    status: str | None = None  # resting/canceled/executed
-    side: str | None = None
-    is_yes: bool | None = None
-    yes_price: DollarDecimal | None = Field(
-        default=None,
+    user_id: str
+    ticker: str
+    status: str  # resting/canceled/executed
+    side: str
+    is_yes: bool
+    yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    fill_count: str | None = Field(
-        default=None,
+    fill_count: str = Field(
         validation_alias=AliasChoices("fill_count_fp", "fill_count"),
     )  # _fp format
-    remaining_count: str | None = Field(
-        default=None,
+    remaining_count: str = Field(
         validation_alias=AliasChoices("remaining_count_fp", "remaining_count"),
     )  # _fp format
-    initial_count: str | None = Field(
-        default=None,
+    initial_count: str = Field(
         validation_alias=AliasChoices("initial_count_fp", "initial_count"),
     )  # _fp format
-    taker_fill_cost: DollarDecimal | None = Field(
-        default=None,
+    taker_fill_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("taker_fill_cost_dollars", "taker_fill_cost"),
     )
-    maker_fill_cost: DollarDecimal | None = Field(
-        default=None,
+    maker_fill_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("maker_fill_cost_dollars", "maker_fill_cost"),
     )
-    taker_fees: DollarDecimal | None = Field(
-        default=None,
+    taker_fees: DollarDecimal = Field(
         validation_alias=AliasChoices("taker_fees_dollars", "taker_fees"),
     )
-    maker_fees: DollarDecimal | None = Field(
-        default=None,
+    maker_fees: DollarDecimal = Field(
         validation_alias=AliasChoices("maker_fees_dollars", "maker_fees"),
     )
-    client_order_id: str | None = None
-    created_time: str | None = None
+    client_order_id: str
+    created_time: str
     order_group_id: str | None = None
     last_update_time: str | None = None
     expiration_time: str | None = None
@@ -69,10 +61,10 @@ class UserOrdersPayload(BaseModel):
     # v0.14+ backfill (#162). outcome_side/book_side/self_trade_prevention_type
     # mirror Order from #159. *_ts_ms (Unix ms) supersede the *_time RFC3339
     # siblings — both stay; do NOT auto-convert.
-    outcome_side: SideLiteral | None = None
-    book_side: BookSideLiteral | None = None
+    outcome_side: SideLiteral
+    book_side: BookSideLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
-    created_ts_ms: int | None = None
+    created_ts_ms: int
     last_updated_ts_ms: int | None = None
     expiration_ts_ms: int | None = None
     model_config = {"extra": "allow"}

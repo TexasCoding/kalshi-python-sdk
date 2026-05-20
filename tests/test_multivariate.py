@@ -17,22 +17,23 @@ from kalshi.resources.multivariate import (
     AsyncMultivariateCollectionsResource,
     MultivariateCollectionsResource,
 )
+from tests._model_fixtures import multivariate_event_collection_dict
 
 BASE = "https://test.kalshi.com/trade-api/v2"
 
-COLLECTION_PAYLOAD = {
-    "collection_ticker": "MVC-1",
-    "series_ticker": "SER-1",
-    "title": "Test",
-    "description": "",
-    "open_date": "2026-01-01T00:00:00Z",
-    "close_date": "2026-12-31T00:00:00Z",
-    "associated_events": [],
-    "is_ordered": False,
-    "size_min": 2,
-    "size_max": 5,
-    "functional_description": "",
-}
+COLLECTION_PAYLOAD = multivariate_event_collection_dict(
+    collection_ticker="MVC-1",
+    series_ticker="SER-1",
+    title="Test",
+    description="",
+    open_date="2026-01-01T00:00:00Z",
+    close_date="2026-12-31T00:00:00Z",
+    associated_events=[],
+    is_ordered=False,
+    size_min=2,
+    size_max=5,
+    functional_description="",
+)
 
 
 @pytest.fixture
@@ -54,10 +55,13 @@ class TestMultivariateList:
     @respx.mock
     def test_list_returns_page(self, mv: MultivariateCollectionsResource) -> None:
         respx.get(f"{BASE}/multivariate_event_collections").mock(
-            return_value=httpx.Response(200, json={
-                "multivariate_contracts": [COLLECTION_PAYLOAD],
-                "cursor": "next-page",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "multivariate_contracts": [COLLECTION_PAYLOAD],
+                    "cursor": "next-page",
+                },
+            )
         )
         page = mv.list()
         assert len(page.items) == 1
@@ -79,16 +83,22 @@ class TestMultivariateList:
     def test_list_all_auto_paginates(self, mv: MultivariateCollectionsResource) -> None:
         respx.get(f"{BASE}/multivariate_event_collections").mock(
             side_effect=[
-                httpx.Response(200, json={
-                    "multivariate_contracts": [COLLECTION_PAYLOAD],
-                    "cursor": "page2",
-                }),
-                httpx.Response(200, json={
-                    "multivariate_contracts": [
-                        {**COLLECTION_PAYLOAD, "collection_ticker": "MVC-2"},
-                    ],
-                    "cursor": "",
-                }),
+                httpx.Response(
+                    200,
+                    json={
+                        "multivariate_contracts": [COLLECTION_PAYLOAD],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "multivariate_contracts": [
+                            {**COLLECTION_PAYLOAD, "collection_ticker": "MVC-2"},
+                        ],
+                        "cursor": "",
+                    },
+                ),
             ]
         )
         items = list(mv.list_all())
@@ -111,10 +121,13 @@ class TestMultivariateCreateMarket:
     @respx.mock
     def test_create_market(self, mv: MultivariateCollectionsResource) -> None:
         route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
-            return_value=httpx.Response(200, json={
-                "event_ticker": "EVT-1",
-                "market_ticker": "MKT-1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "event_ticker": "EVT-1",
+                    "market_ticker": "MKT-1",
+                },
+            )
         )
         pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
         result = mv.create_market("MVC-1", selected_markets=pairs)
@@ -130,10 +143,13 @@ class TestMultivariateLookupTickers:
     @respx.mock
     def test_lookup_tickers(self, mv: MultivariateCollectionsResource) -> None:
         respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={
-                "event_ticker": "EVT-1",
-                "market_ticker": "MKT-1",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "event_ticker": "EVT-1",
+                    "market_ticker": "MKT-1",
+                },
+            )
         )
         pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
         result = mv.lookup_tickers("MVC-1", selected_markets=pairs)
@@ -145,7 +161,8 @@ class TestMultivariateLookupTickers:
 
     @respx.mock
     def test_lookup_tickers_raises_on_204_spec_drift(
-        self, mv: MultivariateCollectionsResource,
+        self,
+        mv: MultivariateCollectionsResource,
     ) -> None:
         # Spec says this endpoint returns 200 with a body. If it ever
         # regresses to 204, we want a clear RuntimeError, not an opaque
@@ -161,14 +178,19 @@ class TestMultivariateLookupHistory:
     @respx.mock
     def test_lookup_history(self, mv: MultivariateCollectionsResource) -> None:
         respx.get(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={
-                "lookup_points": [{
-                    "event_ticker": "EVT-1",
-                    "market_ticker": "MKT-1",
-                    "selected_markets": [],
-                    "last_queried_ts": "2026-04-16T10:00:00Z",
-                }]
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "lookup_points": [
+                        {
+                            "event_ticker": "EVT-1",
+                            "market_ticker": "MKT-1",
+                            "selected_markets": [],
+                            "last_queried_ts": "2026-04-16T10:00:00Z",
+                        }
+                    ]
+                },
+            )
         )
         result = mv.lookup_history("MVC-1", lookback_seconds=60)
         assert len(result) == 1
@@ -178,7 +200,9 @@ class TestMultivariateLookupHistory:
 class TestAsyncMultivariateCollectionsResource:
     @pytest.fixture
     def async_mv(
-        self, test_auth: KalshiAuth, config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        config: KalshiConfig,
     ) -> AsyncMultivariateCollectionsResource:
         return AsyncMultivariateCollectionsResource(
             AsyncTransport(test_auth, config),
@@ -192,9 +216,13 @@ class TestAsyncMultivariateCollectionsResource:
     @pytest.mark.asyncio
     async def test_list(self, async_mv: AsyncMultivariateCollectionsResource) -> None:
         respx.get(f"{BASE}/multivariate_event_collections").mock(
-            return_value=httpx.Response(200, json={
-                "multivariate_contracts": [COLLECTION_PAYLOAD], "cursor": "",
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "multivariate_contracts": [COLLECTION_PAYLOAD],
+                    "cursor": "",
+                },
+            )
         )
         page = await async_mv.list()
         assert len(page.items) == 1
@@ -219,7 +247,8 @@ class TestAsyncMultivariateCollectionsResource:
 
     @pytest.mark.asyncio
     async def test_create_market_auth_guard(
-        self, unauth_async_mv: AsyncMultivariateCollectionsResource,
+        self,
+        unauth_async_mv: AsyncMultivariateCollectionsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.create_market("MVC-1", selected_markets=[])
@@ -235,7 +264,8 @@ class TestAsyncMultivariateCollectionsResource:
 
     @pytest.mark.asyncio
     async def test_lookup_tickers_auth_guard(
-        self, unauth_async_mv: AsyncMultivariateCollectionsResource,
+        self,
+        unauth_async_mv: AsyncMultivariateCollectionsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.lookup_tickers("MVC-1", selected_markets=[])
@@ -243,7 +273,8 @@ class TestAsyncMultivariateCollectionsResource:
     @respx.mock
     @pytest.mark.asyncio
     async def test_lookup_tickers_raises_on_204_spec_drift(
-        self, async_mv: AsyncMultivariateCollectionsResource,
+        self,
+        async_mv: AsyncMultivariateCollectionsResource,
     ) -> None:
         # Async sibling of the sync spec-drift guard. Issue #72.
         respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
@@ -267,9 +298,7 @@ class TestCreateMarketWireShape:
     internally and serializes via model_dump."""
 
     @respx.mock
-    def test_selected_markets_in_body(
-        self, mv: MultivariateCollectionsResource
-    ) -> None:
+    def test_selected_markets_in_body(self, mv: MultivariateCollectionsResource) -> None:
         import json
 
         route = respx.post(f"{BASE}/multivariate_event_collections/MVC-1").mock(
@@ -376,9 +405,7 @@ class TestLookupTickersWireShape:
     internally and serializes via model_dump."""
 
     @respx.mock
-    def test_only_selected_markets_in_body(
-        self, mv: MultivariateCollectionsResource
-    ) -> None:
+    def test_only_selected_markets_in_body(self, mv: MultivariateCollectionsResource) -> None:
         import json
 
         route = respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(

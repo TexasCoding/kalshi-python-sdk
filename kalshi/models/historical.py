@@ -30,25 +30,22 @@ class Trade(BaseModel):
     """A public trade on the exchange."""
 
     trade_id: str
-    ticker: str | None = None
+    ticker: str
     count: FixedPointCount | None = Field(
-        default=None,
         validation_alias=AliasChoices("count_fp", "count"),
     )
     yes_price: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
     no_price: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
-    taker_side: str | None = None
-    created_time: datetime | None = None
+    taker_side: str
+    created_time: datetime
 
     # v3.18.0 backfill (#160). Mirrors Order.outcome_side / book_side from #159
     # — canonical direction encoding superseding the deprecated `taker_side`.
-    taker_outcome_side: SideLiteral | None = None
-    taker_book_side: BookSideLiteral | None = None
+    taker_outcome_side: SideLiteral
+    taker_book_side: BookSideLiteral
 
     model_config = {"extra": "allow", "populate_by_name": True}

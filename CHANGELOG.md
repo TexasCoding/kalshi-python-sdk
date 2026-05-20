@@ -2,6 +2,67 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## Unreleased
+
+Required-but-optional drift closure (#172). Drops `None` defaults on 226
+spec-required Pydantic model fields across 34 response models (21 REST, 13
+WS). The SDK now matches the OpenAPI v3.18.0 / AsyncAPI v0.14 `required` set
+on the wire. Promotes `test_required_drift` and `test_ws_required_drift`
+from warning to hard CI failure, closing the regression class that allowed
+required-but-typed-Optional fields to drift unnoticed.
+
+### Breaking (response-parse side)
+
+- **226 fields are no longer `Optional[T] | None` in response models** —
+  see the full list per model in #172. Wire format is unchanged; the SDK
+  now refuses to parse responses that omit a spec-required field, where
+  previously the field defaulted to `None`. If the live server omits a
+  spec-required field, `pydantic.ValidationError` is raised on parse.
+- **`CreateOrderRequest.action` no longer defaults to `"buy"`** — callers
+  constructing the request model directly must pass `action` explicitly.
+  The `OrdersResource.create(action=None, ...)` kwarg path still defaults
+  to `"buy"` for back-compat; only the model-construction surface changed.
+- **Test fixtures constructing these models with partial dicts will
+  raise `ValidationError`.** A new helper module `tests/_model_fixtures`
+  provides complete spec-shaped builders (`market_dict`, `order_dict`,
+  `fill_dict`, etc.) that accept `**overrides` for fields tests care about.
+
+### Changed
+
+- `test_required_drift` (REST) and `test_ws_required_drift` (WS) promoted
+  from `warnings.warn` to `pytest.fail`. Future drift on these gates is
+  CI-blocking.
+- New `ExclusionKind` value `"server_omits_despite_required"` registered
+  in `tests/_contract_support.py` for fields the spec marks required but
+  the live server omits. Entries MUST cite a demo+prod observation.
+
+### Migration
+
+- Code that builds these models from server responses: no change. The
+  server-side wire shape is what it always was — the SDK type just stopped
+  lying about which fields are guaranteed.
+- Code that builds these models in tests / mocks / fixtures: pass all
+  spec-required fields, or use the `tests/_model_fixtures` builders. The
+  builders are test-only (live under `tests/`, never shipped in the
+  wheel) — production code does not import them.
+- Callers who relied on `Optional` narrowing (`if order.outcome_side is
+  not None: ...`) can drop the guard. `mypy --strict` will now flag the
+  redundant check.
+
+### Affected models
+
+21 REST (136 fields): `Market`, `Order`, `Fill`, `MultivariateEventCollection`,
+`Settlement`, `Trade`, `Event`, `Series`, `MarketPosition`, `EventPosition`,
+`EventMetadata`, `Milestone`, `SportFilterDetails`, `IncentiveProgram`,
+`ApiKey`, `SeriesFeeChange`, `MarketCandlesticks`, `ScopeList`,
+`GetOrderGroupResponse`, `CreateOrderGroupResponse`, `CreateOrderRequest`.
+
+13 WS payloads (90 fields): `UserOrdersPayload`, `FillPayload`,
+`TickerPayload`, `TradePayload`, `MarketPositionsPayload`,
+`QuoteExecutedPayload`, `QuoteCreatedPayload`, `QuoteAcceptedPayload`,
+`MultivariatePayload`, `RfqCreatedPayload`, `RfqDeletedPayload`,
+`MarketLifecyclePayload`, `OrderGroupPayload`.
+
 ## 2.2.0 — 2026-05-19
 
 Response-side spec drift hardening stack (#157). Backfills the remaining

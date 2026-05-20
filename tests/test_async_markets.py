@@ -13,6 +13,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError, KalshiNotFoundError
 from kalshi.resources.markets import AsyncMarketsResource
+from tests._model_fixtures import market_dict
 
 
 @pytest.fixture
@@ -25,35 +26,21 @@ def config() -> KalshiConfig:
 
 
 @pytest.fixture
-def markets(
-    test_auth: KalshiAuth, config: KalshiConfig
-) -> AsyncMarketsResource:
+def markets(test_auth: KalshiAuth, config: KalshiConfig) -> AsyncMarketsResource:
     return AsyncMarketsResource(AsyncTransport(test_auth, config))
 
 
 class TestAsyncMarketsList:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_page_of_markets(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
+    async def test_returns_page_of_markets(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "markets": [
-                        {
-                            "ticker": "MKT-A",
-                            "title": "Market A",
-                            "yes_bid_dollars": "0.4500",
-                        },
-                        {
-                            "ticker": "MKT-B",
-                            "title": "Market B",
-                            "yes_bid_dollars": "0.6000",
-                        },
+                        market_dict(ticker="MKT-A", title="Market A", yes_bid_dollars="0.4500"),
+                        market_dict(ticker="MKT-B", title="Market B", yes_bid_dollars="0.6000"),
                     ],
                     "cursor": "page2",
                 },
@@ -68,32 +55,22 @@ class TestAsyncMarketsList:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_with_status_filter(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"markets": [], "cursor": None}
-            )
+    async def test_with_status_filter(self, markets: AsyncMarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
         )
         await markets.list(status="open")
         assert route.calls[0].request.url.params["status"] == "open"
 
     @pytest.mark.asyncio
-    async def test_market_type_kwarg_removed(
-        self, markets: AsyncMarketsResource
-    ) -> None:
+    async def test_market_type_kwarg_removed(self, markets: AsyncMarketsResource) -> None:
         """Regression: v0.7.0 dropped phantom market_type kwarg (not in spec)."""
         with pytest.raises(TypeError, match="market_type"):
             await markets.list(market_type="binary")  # type: ignore[call-arg]
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_list_with_all_new_filters(
-        self, markets: AsyncMarketsResource
-    ) -> None:
+    async def test_list_with_all_new_filters(self, markets: AsyncMarketsResource) -> None:
         """v0.7.0 ADDs: tickers, mve_filter, 7 *_ts filters."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(200, json={"markets": [], "cursor": None})
@@ -158,15 +135,9 @@ class TestAsyncMarketsList:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_empty_result(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"markets": []}
-            )
+    async def test_empty_result(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
         )
         page = await markets.list()
         assert len(page) == 0
@@ -176,19 +147,15 @@ class TestAsyncMarketsList:
 class TestAsyncMarketsListAll:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_auto_paginates(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
+    async def test_auto_paginates(self, markets: AsyncMarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.Response(
                     200,
                     json={
                         "markets": [
-                            {"ticker": "A"},
-                            {"ticker": "B"},
+                            market_dict(ticker="A"),
+                            market_dict(ticker="B"),
                         ],
                         "cursor": "page2",
                     },
@@ -196,7 +163,7 @@ class TestAsyncMarketsListAll:
                 httpx.Response(
                     200,
                     json={
-                        "markets": [{"ticker": "C"}],
+                        "markets": [market_dict(ticker="C")],
                         "cursor": None,
                     },
                 ),
@@ -208,21 +175,24 @@ class TestAsyncMarketsListAll:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_list_all_with_all_new_filters(
-        self, markets: AsyncMarketsResource
-    ) -> None:
+    async def test_list_all_with_all_new_filters(self, markets: AsyncMarketsResource) -> None:
         """v0.7.0 ADDs on list_all match list (no cursor)."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
-            return_value=httpx.Response(200, json={"markets": [{"ticker": "A"}], "cursor": ""})
+            return_value=httpx.Response(
+                200, json={"markets": [market_dict(ticker="A")], "cursor": ""}
+            )
         )
-        _ = [m async for m in markets.list_all(
-            status="open",
-            tickers=["MKT-A", "MKT-B"],
-            mve_filter="some_filter",
-            min_created_ts=1000,
-            max_close_ts=4000,
-            limit=50,
-        )]
+        _ = [
+            m
+            async for m in markets.list_all(
+                status="open",
+                tickers=["MKT-A", "MKT-B"],
+                mve_filter="some_filter",
+                min_created_ts=1000,
+                max_close_ts=4000,
+                limit=50,
+            )
+        ]
         params = dict(route.calls[0].request.url.params)
         assert params["status"] == "open"
         assert params["tickers"] == "MKT-A,MKT-B"
@@ -235,20 +205,14 @@ class TestAsyncMarketsListAll:
 class TestAsyncMarketsGet:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_market(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT"
-        ).mock(
+    async def test_returns_market(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/TEST-MKT").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "market": {
-                        "ticker": "TEST-MKT",
-                        "title": "Test Market",
-                        "yes_ask_dollars": "0.7200",
-                    }
+                    "market": market_dict(
+                        ticker="TEST-MKT", title="Test Market", yes_ask_dollars="0.7200"
+                    ),
                 },
             )
         )
@@ -258,15 +222,9 @@ class TestAsyncMarketsGet:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_not_found(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets/FAKE"
-        ).mock(
-            return_value=httpx.Response(
-                404, json={"message": "market not found"}
-            )
+    async def test_not_found(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/FAKE").mock(
+            return_value=httpx.Response(404, json={"message": "market not found"})
         )
         with pytest.raises(KalshiNotFoundError):
             await markets.get("FAKE")
@@ -275,12 +233,8 @@ class TestAsyncMarketsGet:
 class TestAsyncMarketsOrderbook:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_orderbook(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook"
-        ).mock(
+    async def test_returns_orderbook(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -303,13 +257,9 @@ class TestAsyncMarketsOrderbook:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_orderbook_with_depth(
-        self, markets: AsyncMarketsResource
-    ) -> None:
+    async def test_orderbook_with_depth(self, markets: AsyncMarketsResource) -> None:
         """v0.7.0 ADD: depth kwarg reaches the wire."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook").mock(
             return_value=httpx.Response(
                 200, json={"orderbook_fp": {"yes_dollars": [], "no_dollars": []}}
             )
@@ -327,13 +277,8 @@ class TestAsyncMarketsOrderbook:
 class TestAsyncMarketsCandlesticks:
     @respx.mock
     @pytest.mark.asyncio
-    async def test_returns_nested_candlesticks(
-        self, markets: AsyncMarketsResource
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2"
-            "/series/SER/markets/MKT/candlesticks"
-        ).mock(
+    async def test_returns_nested_candlesticks(self, markets: AsyncMarketsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -399,9 +344,7 @@ class TestAsyncMarketsCandlesticks:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_candlesticks_sends_explicit_false(
-        self, markets: AsyncMarketsResource
-    ) -> None:
+    async def test_candlesticks_sends_explicit_false(self, markets: AsyncMarketsResource) -> None:
         """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
@@ -432,9 +375,7 @@ class TestAsyncMarketsCandlesticks:
             end_ts=1700100000,
             period_interval=60,
         )
-        assert "include_latest_before_start" not in dict(
-            route.calls[0].request.url.params
-        )
+        assert "include_latest_before_start" not in dict(route.calls[0].request.url.params)
 
 
 class TestAsyncMarketsBulkCandlesticksValidation:
@@ -442,37 +383,46 @@ class TestAsyncMarketsBulkCandlesticksValidation:
 
     @pytest.mark.asyncio
     async def test_rejects_over_100_list(
-        self, markets: AsyncMarketsResource,
+        self,
+        markets: AsyncMarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="at most 100"):
             await markets.bulk_candlesticks(
                 market_tickers=[f"MKT-{i}" for i in range(101)],
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     @pytest.mark.asyncio
     async def test_rejects_over_100_string(
-        self, markets: AsyncMarketsResource,
+        self,
+        markets: AsyncMarketsResource,
     ) -> None:
         """Regression: the split+filter counter must apply to the async path too."""
         joined = ",".join(f"MKT-{i}" for i in range(101))
         with pytest.raises(ValueError, match="at most 100"):
             await markets.bulk_candlesticks(
                 market_tickers=joined,
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_trailing_commas_do_not_inflate_count(
-        self, markets: AsyncMarketsResource,
+        self,
+        markets: AsyncMarketsResource,
     ) -> None:
-        """"A,B,," counts as 2 real tickers, not 4 — must not spuriously fail."""
+        """ "A,B,," counts as 2 real tickers, not 4 — must not spuriously fail."""
         respx.get(
             "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
         ).mock(return_value=httpx.Response(200, json={"markets": []}))
         # Does not raise even with trailing commas.
         await markets.bulk_candlesticks(
             market_tickers="A,B,,",
-            start_ts=1, end_ts=2, period_interval=60,
+            start_ts=1,
+            end_ts=2,
+            period_interval=60,
         )

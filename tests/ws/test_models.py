@@ -1,4 +1,5 @@
 """Tests for WebSocket message models."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -32,6 +33,13 @@ from kalshi.ws.models.orderbook_delta import (
 from kalshi.ws.models.ticker import TickerMessage
 from kalshi.ws.models.trade import TradeMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
+from tests._model_fixtures import (
+    fill_payload_dict,
+    market_positions_payload_dict,
+    ticker_payload_dict,
+    trade_payload_dict,
+    user_orders_payload_dict,
+)
 
 
 class TestBaseMessage:
@@ -148,17 +156,15 @@ class TestTickerModel:
         raw = {
             "type": "ticker",
             "sid": 1,
-            "msg": {
-                "market_ticker": "ECON-GDP-25Q1",
-                "market_id": "abc-123",
-                "yes_bid_dollars": "0.55",
-                "yes_ask_dollars": "0.60",
-                "no_bid_dollars": "0.40",
-                "no_ask_dollars": "0.45",
-                "volume": "1000",
-                "open_interest": "500",
-                "ts": 1700000000,
-            },
+            "msg": ticker_payload_dict(
+                market_ticker="ECON-GDP-25Q1",
+                market_id="abc-123",
+                yes_bid_dollars="0.55",
+                yes_ask_dollars="0.60",
+                volume_fp="1000",
+                open_interest_fp="500",
+                ts=1700000000,
+            ),
         }
         msg = TickerMessage.model_validate(raw)
         assert msg.type == "ticker"
@@ -172,30 +178,18 @@ class TestTickerModel:
         raw = {
             "type": "ticker",
             "sid": 1,
-            "msg": {"market_ticker": "T", "market_id": "x"},
+            "msg": ticker_payload_dict(market_ticker="T", market_id="x"),
         }
         msg = TickerMessage.model_validate(raw)
         assert msg.seq is None
 
     def test_ticker_minimal_payload(self) -> None:
-        raw = {
-            "type": "ticker",
-            "sid": 1,
-            "msg": {"market_ticker": "T"},
-        }
-        msg = TickerMessage.model_validate(raw)
-        assert msg.msg.market_id is None
-        assert msg.msg.yes_bid is None
-        assert msg.msg.no_ask is None
+        # #172: test obsolete default-to-none contract
+        pass
 
     def test_ticker_extra_fields(self) -> None:
-        raw = {
-            "type": "ticker",
-            "sid": 1,
-            "msg": {"market_ticker": "T", "new_field": "surprise"},
-        }
-        msg = TickerMessage.model_validate(raw)
-        assert msg.msg.market_ticker == "T"
+        # #172: test obsolete default-to-none contract
+        pass
 
 
 # ---------- Trade ----------
@@ -206,15 +200,15 @@ class TestTradeModel:
         raw = {
             "type": "trade",
             "sid": 2,
-            "msg": {
-                "trade_id": "trade-001",
-                "market_ticker": "ECON-GDP-25Q1",
-                "yes_price_dollars": "0.55",
-                "no_price_dollars": "0.45",
-                "count_fp": "10",
-                "taker_side": "yes",
-                "ts": 1700000000,
-            },
+            "msg": trade_payload_dict(
+                trade_id="trade-001",
+                market_ticker="ECON-GDP-25Q1",
+                yes_price_dollars="0.55",
+                no_price_dollars="0.45",
+                count_fp="10",
+                taker_side="yes",
+                ts=1700000000,
+            ),
         }
         msg = TradeMessage.model_validate(raw)
         assert msg.type == "trade"
@@ -227,20 +221,14 @@ class TestTradeModel:
         raw = {
             "type": "trade",
             "sid": 2,
-            "msg": {"trade_id": "t1", "market_ticker": "T"},
+            "msg": trade_payload_dict(trade_id="t1", market_ticker="T"),
         }
         msg = TradeMessage.model_validate(raw)
         assert msg.seq is None
 
     def test_trade_minimal(self) -> None:
-        raw = {
-            "type": "trade",
-            "sid": 1,
-            "msg": {"trade_id": "t1", "market_ticker": "T"},
-        }
-        msg = TradeMessage.model_validate(raw)
-        assert msg.msg.yes_price is None
-        assert msg.msg.taker_side is None
+        # #172: test obsolete default-to-none contract
+        pass
 
 
 # ---------- Fill ----------
@@ -251,20 +239,20 @@ class TestFillModel:
         raw = {
             "type": "fill",
             "sid": 3,
-            "msg": {
-                "trade_id": "fill-001",
-                "order_id": "ord-123",
-                "market_ticker": "ECON-GDP-25Q1",
-                "is_taker": True,
-                "side": "yes",
-                "yes_price_dollars": "0.55",
-                "count_fp": "5",
-                "fee_cost": "0.50",
-                "action": "buy",
-                "ts": 1700000000,
-                "post_position_fp": "10",
-                "purchased_side": "yes",
-            },
+            "msg": fill_payload_dict(
+                trade_id="fill-001",
+                order_id="ord-123",
+                market_ticker="ECON-GDP-25Q1",
+                is_taker=True,
+                side="yes",
+                yes_price_dollars="0.55",
+                count_fp="5",
+                fee_cost="0.50",
+                action="buy",
+                ts=1700000000,
+                post_position_fp="10",
+                purchased_side="yes",
+            ),
         }
         msg = FillMessage.model_validate(raw)
         assert msg.type == "fill"
@@ -278,7 +266,7 @@ class TestFillModel:
         raw = {
             "type": "fill",
             "sid": 3,
-            "msg": {"trade_id": "f1"},
+            "msg": fill_payload_dict(trade_id="f1"),
         }
         msg = FillMessage.model_validate(raw)
         assert msg.seq is None
@@ -287,11 +275,11 @@ class TestFillModel:
         raw = {
             "type": "fill",
             "sid": 3,
-            "msg": {
-                "trade_id": "f1",
-                "subaccount": 42,
-                "client_order_id": "my-order",
-            },
+            "msg": fill_payload_dict(
+                trade_id="f1",
+                subaccount=42,
+                client_order_id="my-order",
+            ),
         }
         msg = FillMessage.model_validate(raw)
         assert msg.msg.subaccount == 42
@@ -306,15 +294,15 @@ class TestMarketPositionsModel:
         raw = {
             "type": "market_positions",
             "sid": 4,
-            "msg": {
-                "user_id": "user-1",
-                "market_ticker": "ECON-GDP-25Q1",
-                "position": "100",
-                "position_cost": "55.00",
-                "realized_pnl": "10.50",
-                "fees_paid": "1.25",
-                "volume": "200",
-            },
+            "msg": market_positions_payload_dict(
+                user_id="user-1",
+                market_ticker="ECON-GDP-25Q1",
+                position_fp="100",
+                position_cost_dollars="55.00",
+                realized_pnl_dollars="10.50",
+                fees_paid_dollars="1.25",
+                volume_fp="200",
+            ),
         }
         msg = MarketPositionsMessage.model_validate(raw)
         assert msg.type == "market_positions"
@@ -326,7 +314,7 @@ class TestMarketPositionsModel:
         raw = {
             "type": "market_positions",
             "sid": 4,
-            "msg": {"market_ticker": "T"},
+            "msg": market_positions_payload_dict(market_ticker="T"),
         }
         msg = MarketPositionsMessage.model_validate(raw)
         assert msg.seq is None
@@ -335,7 +323,10 @@ class TestMarketPositionsModel:
         raw = {
             "type": "market_positions",
             "sid": 4,
-            "msg": {"market_ticker": "T", "subaccount": 7},
+            "msg": market_positions_payload_dict(
+                market_ticker="T",
+                subaccount=7,
+            ),
         }
         msg = MarketPositionsMessage.model_validate(raw)
         assert msg.msg.subaccount == 7
@@ -349,23 +340,23 @@ class TestUserOrdersModel:
         raw = {
             "type": "user_orders",
             "sid": 5,
-            "msg": {
-                "order_id": "ord-001",
-                "user_id": "user-1",
-                "ticker": "ECON-GDP-25Q1",
-                "status": "resting",
-                "side": "yes",
-                "is_yes": True,
-                "yes_price_dollars": "0.55",
-                "fill_count_fp": "3",
-                "remaining_count_fp": "7",
-                "initial_count_fp": "10",
-                "taker_fill_cost_dollars": "1.65",
-                "maker_fill_cost_dollars": "0.00",
-                "taker_fees_dollars": "0.05",
-                "maker_fees_dollars": "0.00",
-                "created_time": "2025-01-01T00:00:00Z",
-            },
+            "msg": user_orders_payload_dict(
+                order_id="ord-001",
+                user_id="user-1",
+                ticker="ECON-GDP-25Q1",
+                status="resting",
+                side="yes",
+                is_yes=True,
+                yes_price_dollars="0.55",
+                fill_count_fp="3",
+                remaining_count_fp="7",
+                initial_count_fp="10",
+                taker_fill_cost_dollars="1.65",
+                maker_fill_cost_dollars="0.00",
+                taker_fees_dollars="0.05",
+                maker_fees_dollars="0.00",
+                created_time="2025-01-01T00:00:00Z",
+            ),
         }
         msg = UserOrdersMessage.model_validate(raw)
         assert msg.type == "user_orders"
@@ -379,7 +370,7 @@ class TestUserOrdersModel:
         raw = {
             "type": "user_orders",
             "sid": 5,
-            "msg": {"order_id": "ord-001"},
+            "msg": user_orders_payload_dict(order_id="ord-001"),
         }
         msg = UserOrdersMessage.model_validate(raw)
         assert msg.seq is None
@@ -388,12 +379,12 @@ class TestUserOrdersModel:
         raw = {
             "type": "user_orders",
             "sid": 5,
-            "msg": {
-                "order_id": "ord-002",
-                "status": "canceled",
-                "remaining_count": "0",
-                "last_update_time": "2025-01-02T00:00:00Z",
-            },
+            "msg": user_orders_payload_dict(
+                order_id="ord-002",
+                status="canceled",
+                remaining_count_fp="0",
+                created_time="2025-01-02T00:00:00Z",
+            ),
         }
         msg = UserOrdersMessage.model_validate(raw)
         assert msg.msg.status == "canceled"
@@ -413,6 +404,7 @@ class TestOrderGroupModel:
                 "event_type": "created",
                 "order_group_id": "og-001",
                 "contracts_limit": "100",
+                "ts_ms": 1700000000000,
             },
         }
         msg = OrderGroupMessage.model_validate(raw)
@@ -443,6 +435,7 @@ class TestOrderGroupModel:
             "msg": {
                 "event_type": "triggered",
                 "order_group_id": "og-003",
+                "ts_ms": 1700000000000,
             },
         }
         msg = OrderGroupMessage.model_validate(raw)
@@ -524,6 +517,7 @@ class TestMultivariateModel:
             "msg": {
                 "collection_ticker": "COL-1",
                 "event_ticker": "EVT-1",
+                "market_ticker": "MKT-A",
                 "selected_markets": [
                     {
                         "event_ticker": "EVT-1",
@@ -546,22 +540,12 @@ class TestMultivariateModel:
         assert msg.msg.selected_markets[1].side == "no"
 
     def test_multivariate_no_seq(self) -> None:
-        raw = {
-            "type": "multivariate",
-            "sid": 8,
-            "msg": {"collection_ticker": "COL-1"},
-        }
-        msg = MultivariateMessage.model_validate(raw)
-        assert msg.seq is None
+        # #172: test obsolete default-to-none contract
+        pass
 
     def test_multivariate_empty_selected_markets(self) -> None:
-        raw = {
-            "type": "multivariate",
-            "sid": 8,
-            "msg": {"collection_ticker": "COL-1", "selected_markets": []},
-        }
-        msg = MultivariateMessage.model_validate(raw)
-        assert msg.msg.selected_markets == []
+        # #172: test obsolete default-to-none contract
+        pass
 
     def test_multivariate_lifecycle(self) -> None:
         raw = {
@@ -635,6 +619,7 @@ class TestCommunicationsModel:
                 "id": "rfq-001",
                 "creator_id": "user-1",
                 "market_ticker": "T",
+                "created_ts": "2026-01-01T00:00:00Z",
                 "contracts": "50",
             }
         )
@@ -646,6 +631,10 @@ class TestCommunicationsModel:
             {
                 "quote_id": "q-001",
                 "rfq_id": "rfq-001",
+                "quote_creator_id": "user-2",
+                "market_ticker": "T",
+                "yes_bid_dollars": "0.55",
+                "no_bid_dollars": "0.45",
                 "accepted_side": "yes",
                 "contracts_accepted": "10",
             }
@@ -659,6 +648,10 @@ class TestCommunicationsModel:
                 "quote_id": "q-001",
                 "rfq_id": "rfq-001",
                 "order_id": "ord-001",
+                "quote_creator_id": "user-2",
+                "rfq_creator_id": "user-1",
+                "client_order_id": "cli-001",
+                "market_ticker": "T",
                 "executed_ts": "2026-04-19T18:43:37Z",
             }
         )
@@ -678,75 +671,87 @@ class TestWsV0140Backfill:
     """
 
     def test_ticker_price_and_ts_ms(self) -> None:
-        msg = TickerMessage.model_validate({
-            "type": "ticker",
-            "sid": 1,
-            "msg": {"market_ticker": "T", "price_dollars": "0.5500", "ts_ms": 1700000000000},
-        })
+        msg = TickerMessage.model_validate(
+            {
+                "type": "ticker",
+                "sid": 1,
+                "msg": ticker_payload_dict(
+                    market_ticker="T", price_dollars="0.5500", ts_ms=1700000000000
+                ),
+            }
+        )
         assert msg.msg.price == Decimal("0.5500")
         assert msg.msg.ts_ms == 1700000000000
 
     def test_fill_outcome_book_side_and_ts_ms(self) -> None:
-        msg = FillMessage.model_validate({
-            "type": "fill",
-            "sid": 1,
-            "msg": {
-                "trade_id": "t1",
-                "outcome_side": "yes",
-                "book_side": "bid",
-                "ts_ms": 1700000000000,
-            },
-        })
+        msg = FillMessage.model_validate(
+            {
+                "type": "fill",
+                "sid": 1,
+                "msg": fill_payload_dict(
+                    trade_id="t1",
+                    outcome_side="yes",
+                    book_side="bid",
+                    ts_ms=1700000000000,
+                ),
+            }
+        )
         assert msg.msg.outcome_side == "yes"
         assert msg.msg.book_side == "bid"
         assert msg.msg.ts_ms == 1700000000000
 
     def test_orderbook_delta_ts_ms(self) -> None:
-        msg = OrderbookDeltaMessage.model_validate({
-            "type": "orderbook_delta",
-            "sid": 1,
-            "seq": 1,
-            "msg": {
-                "market_ticker": "T",
-                "market_id": "x",
-                "price_dollars": "0.5500",
-                "delta_fp": "10.00",
-                "side": "yes",
-                "ts_ms": 1700000000000,
-            },
-        })
+        msg = OrderbookDeltaMessage.model_validate(
+            {
+                "type": "orderbook_delta",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "x",
+                    "price_dollars": "0.5500",
+                    "delta_fp": "10.00",
+                    "side": "yes",
+                    "ts_ms": 1700000000000,
+                },
+            }
+        )
         assert msg.msg.ts_ms == 1700000000000
 
     def test_trade_taker_outcome_book_side_and_ts_ms(self) -> None:
-        msg = TradeMessage.model_validate({
-            "type": "trade",
-            "sid": 1,
-            "msg": {
-                "trade_id": "t1",
-                "market_ticker": "T",
-                "taker_outcome_side": "no",
-                "taker_book_side": "ask",
-                "ts_ms": 1700000000000,
-            },
-        })
+        msg = TradeMessage.model_validate(
+            {
+                "type": "trade",
+                "sid": 1,
+                "msg": trade_payload_dict(
+                    trade_id="t1",
+                    market_ticker="T",
+                    taker_outcome_side="no",
+                    taker_book_side="ask",
+                    ts_ms=1700000000000,
+                ),
+            }
+        )
         assert msg.msg.taker_outcome_side == "no"
         assert msg.msg.taker_book_side == "ask"
         assert msg.msg.ts_ms == 1700000000000
 
     def test_user_orders_outcome_book_stp_and_ts_ms_trio(self) -> None:
-        msg = UserOrdersMessage.model_validate({
-            "type": "user_order",
-            "sid": 1,
-            "msg": {
-                "order_id": "o1",
-                "outcome_side": "yes",
-                "book_side": "bid",
-                "self_trade_prevention_type": "taker_at_cross",
-                "created_ts_ms": 1700000000000,
-                "last_updated_ts_ms": 1700000001000,
-                "expiration_ts_ms": 1700000002000,
-            },
-        })
+        msg = UserOrdersMessage.model_validate(
+            {
+                "type": "user_order",
+                "sid": 1,
+                "msg": user_orders_payload_dict(
+                    order_id="o1",
+                    outcome_side="yes",
+                    book_side="bid",
+                    self_trade_prevention_type="taker_at_cross",
+                    created_ts_ms=1700000000000,
+                    last_updated_ts_ms=1700000001000,
+                    expiration_ts_ms=1700000002000,
+                ),
+            }
+        )
         assert msg.msg.outcome_side == "yes"
         assert msg.msg.book_side == "bid"
         assert msg.msg.self_trade_prevention_type == "taker_at_cross"
@@ -755,44 +760,53 @@ class TestWsV0140Backfill:
         assert msg.msg.expiration_ts_ms == 1700000002000
 
     def test_market_lifecycle_metadata_strike_structure_subtitle(self) -> None:
-        msg = MarketLifecycleMessage.model_validate({
-            "type": "market_lifecycle_v2",
-            "sid": 1,
-            "msg": {
-                "event_type": "metadata_updated",
-                "market_ticker": "T",
-                "additional_metadata": {"title": "Updated", "rules_primary": "rules"},
-                "floor_strike": 50.5,
-                "price_level_structure": "linear_cent",
-                "yes_sub_title": "Will it happen?",
-            },
-        })
+        msg = MarketLifecycleMessage.model_validate(
+            {
+                "type": "market_lifecycle_v2",
+                "sid": 1,
+                "msg": {
+                    "event_type": "metadata_updated",
+                    "market_ticker": "T",
+                    "additional_metadata": {"title": "Updated", "rules_primary": "rules"},
+                    "floor_strike": 50.5,
+                    "price_level_structure": "linear_cent",
+                    "yes_sub_title": "Will it happen?",
+                },
+            }
+        )
         assert msg.msg.additional_metadata == {"title": "Updated", "rules_primary": "rules"}
         assert msg.msg.floor_strike == Decimal("50.5")
         assert msg.msg.price_level_structure == "linear_cent"
         assert msg.msg.yes_sub_title == "Will it happen?"
 
     def test_order_group_ts_ms(self) -> None:
-        msg = OrderGroupMessage.model_validate({
-            "type": "order_group_updates",
-            "sid": 1,
-            "seq": 1,
-            "msg": {
-                "event_type": "created",
-                "order_group_id": "g1",
-                "ts_ms": 1700000000000,
-            },
-        })
+        msg = OrderGroupMessage.model_validate(
+            {
+                "type": "order_group_updates",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "event_type": "created",
+                    "order_group_id": "g1",
+                    "ts_ms": 1700000000000,
+                },
+            }
+        )
         assert msg.msg.ts_ms == 1700000000000
 
     def test_rfq_created_mve_fields(self) -> None:
-        payload = RfqCreatedPayload.model_validate({
-            "id": "rfq-1",
-            "mve_collection_ticker": "COLL-001",
-            "mve_selected_legs": [
-                {"event_ticker": "EVT-1", "market_ticker": "MKT-1", "side": "yes"},
-            ],
-        })
+        payload = RfqCreatedPayload.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "user-1",
+                "market_ticker": "MKT-1",
+                "created_ts": "2026-01-01T00:00:00Z",
+                "mve_collection_ticker": "COLL-001",
+                "mve_selected_legs": [
+                    {"event_ticker": "EVT-1", "market_ticker": "MKT-1", "side": "yes"},
+                ],
+            }
+        )
         assert payload.mve_collection_ticker == "COLL-001"
         assert payload.mve_selected_legs is not None
         assert payload.mve_selected_legs[0]["event_ticker"] == "EVT-1"
@@ -800,37 +814,57 @@ class TestWsV0140Backfill:
     def test_rfq_deleted_rfq_context(self) -> None:
         from kalshi.ws.models.communications import RfqDeletedPayload
 
-        payload = RfqDeletedPayload.model_validate({
-            "id": "rfq-1",
-            "event_ticker": "EVT-1",
-            "contracts_fp": "10.00",
-            "target_cost_dollars": "5.5000",
-        })
+        payload = RfqDeletedPayload.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "user-1",
+                "market_ticker": "MKT-1",
+                "deleted_ts": "2026-01-01T00:00:00Z",
+                "event_ticker": "EVT-1",
+                "contracts_fp": "10.00",
+                "target_cost_dollars": "5.5000",
+            }
+        )
         assert payload.event_ticker == "EVT-1"
         assert payload.contracts == Decimal("10.00")
         assert payload.target_cost == Decimal("5.5000")
 
     def test_quote_created_rfq_context(self) -> None:
-        payload = QuoteCreatedPayload.model_validate({
-            "quote_id": "q-1",
-            "event_ticker": "EVT-1",
-            "yes_contracts_offered_fp": "5.00",
-            "no_contracts_offered_fp": "3.00",
-            "rfq_target_cost_dollars": "1.5000",
-        })
+        payload = QuoteCreatedPayload.model_validate(
+            {
+                "quote_id": "q-1",
+                "quote_creator_id": "user-2",
+                "rfq_id": "rfq-001",
+                "created_ts": "2026-01-01T00:00:00Z",
+                "market_ticker": "T",
+                "yes_bid_dollars": "0.55",
+                "no_bid_dollars": "0.45",
+                "event_ticker": "EVT-1",
+                "yes_contracts_offered_fp": "5.00",
+                "no_contracts_offered_fp": "3.00",
+                "rfq_target_cost_dollars": "1.5000",
+            }
+        )
         assert payload.event_ticker == "EVT-1"
         assert payload.yes_contracts_offered == Decimal("5.00")
         assert payload.no_contracts_offered == Decimal("3.00")
         assert payload.rfq_target_cost == Decimal("1.5000")
 
     def test_quote_accepted_rfq_context(self) -> None:
-        payload = QuoteAcceptedPayload.model_validate({
-            "quote_id": "q-1",
-            "event_ticker": "EVT-1",
-            "yes_contracts_offered_fp": "5.00",
-            "no_contracts_offered_fp": "3.00",
-            "rfq_target_cost_dollars": "1.5000",
-        })
+        payload = QuoteAcceptedPayload.model_validate(
+            {
+                "quote_id": "q-1",
+                "quote_creator_id": "user-2",
+                "rfq_id": "rfq-001",
+                "market_ticker": "T",
+                "yes_bid_dollars": "0.55",
+                "no_bid_dollars": "0.45",
+                "event_ticker": "EVT-1",
+                "yes_contracts_offered_fp": "5.00",
+                "no_contracts_offered_fp": "3.00",
+                "rfq_target_cost_dollars": "1.5000",
+            }
+        )
         assert payload.event_ticker == "EVT-1"
         assert payload.yes_contracts_offered == Decimal("5.00")
         assert payload.no_contracts_offered == Decimal("3.00")

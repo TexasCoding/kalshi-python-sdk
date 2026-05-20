@@ -37,21 +37,21 @@ class MultivariateEventCollection(BaseModel):
     """A multivariate event collection (combo contract template)."""
 
     collection_ticker: str
-    series_ticker: str = ""
-    title: str = ""
-    description: str = ""
-    open_date: datetime | None = None
-    close_date: datetime | None = None
-    associated_events: NullableList[AssociatedEvent] = []
+    series_ticker: str
+    title: str
+    description: str
+    open_date: datetime
+    close_date: datetime
+    associated_events: NullableList[AssociatedEvent]
     # Deprecated fields — still returned by API
-    associated_event_tickers: NullableList[str] = []
-    is_single_market_per_event: bool = False
-    is_all_yes: bool = False
+    associated_event_tickers: NullableList[str]
+    is_single_market_per_event: bool
+    is_all_yes: bool
     # Active fields
-    is_ordered: bool = False
-    size_min: int = 0
-    size_max: int = 0
-    functional_description: str = ""
+    is_ordered: bool
+    size_min: int
+    size_max: int
+    functional_description: str
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

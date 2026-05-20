@@ -72,7 +72,8 @@ class TestContractSupportInfra:
         """
         cursor_keys = {k for k in EXCLUSIONS if k[1] == "cursor"}
         paginator_methods = {
-            e.sdk_method for e in METHOD_ENDPOINT_MAP
+            e.sdk_method
+            for e in METHOD_ENDPOINT_MAP
             if e.sdk_method.endswith("_all") or "list_all_" in e.sdk_method
         }
         covered = {k[0] for k in cursor_keys}
@@ -85,16 +86,15 @@ class TestContractSupportInfra:
             assert EXCLUSIONS[key].kind == "paginator_handled"
 
     def test_exclusions_bootstrap_has_create_order_request_entries(self) -> None:
-        create_keys = [
-            k for k in EXCLUSIONS
-            if k[0] == "kalshi.models.orders.CreateOrderRequest"
-        ]
+        create_keys = [k for k in EXCLUSIONS if k[0] == "kalshi.models.orders.CreateOrderRequest"]
         field_names = {k[1] for k in create_keys}
         assert {"yes_price", "no_price", "sell_position_floor"} <= field_names
 
     def test_method_endpoint_entry_has_request_body_schema(self) -> None:
         entry = MethodEndpointEntry(
-            sdk_method="x", http_method="GET", path_template="/y",
+            sdk_method="x",
+            http_method="GET",
+            path_template="/y",
         )
         assert entry.request_body_schema is None
 
@@ -200,7 +200,9 @@ class TestContractSupportInfra:
             },
         }
         result = _resolve_request_body_schema(
-            spec, "/portfolio/orders/batched", "DELETE",
+            spec,
+            "/portfolio/orders/batched",
+            "DELETE",
         )
         assert result is not None
         assert "orders" in result["properties"]
@@ -212,7 +214,8 @@ class TestContractSupportInfra:
         could silently vacuum up a None schema and skip drift checks.
         """
         entries = [
-            e for e in METHOD_ENDPOINT_MAP
+            e
+            for e in METHOD_ENDPOINT_MAP
             if e.http_method == "DELETE" and e.request_body_schema is not None
         ]
         assert entries, "Expected at least one DELETE entry with a body schema"
@@ -220,7 +223,9 @@ class TestContractSupportInfra:
         spec = _load_spec()
         for entry in entries:
             resolved = _resolve_request_body_schema(
-                spec, entry.path_template, entry.http_method,
+                spec,
+                entry.path_template,
+                entry.http_method,
             )
             assert resolved is not None, (
                 f"DELETE {entry.path_template} has request_body_schema "
@@ -597,11 +602,7 @@ def _ws_field_type_violations(
     # Rule 2: spec string with format=date-time (ISO timestamp) must be str
     # on the SDK. An int-typed SDK field rejects the wire string
     # "2026-04-19T18:43:37.662364Z".
-    if (
-        spec_type == "string"
-        and spec_format == "date-time"
-        and sdk_kind not in ("str",)
-    ):
+    if spec_type == "string" and spec_format == "date-time" and sdk_kind not in ("str",):
         problems.append(
             f"{sdk_name!r}: spec '{spec_name}' is string (date-time), "
             f"SDK typed as {sdk_kind}. Use str."
@@ -620,8 +621,7 @@ def _ws_field_type_violations(
             and "str" in expected
         ):
             problems.append(
-                f"{sdk_name!r}: spec '{spec_name}' is {expected}, "
-                f"SDK typed as {sdk_kind}."
+                f"{sdk_name!r}: spec '{spec_name}' is {expected}, SDK typed as {sdk_kind}."
             )
 
     return problems
@@ -653,8 +653,7 @@ class TestSpecDrift:
         additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
         if additive:
             pytest.fail(
-                f"Additive drift in {entry.sdk_model}:\n"
-                + "\n".join(f"  - {a}" for a in additive),
+                f"Additive drift in {entry.sdk_model}:\n" + "\n".join(f"  - {a}" for a in additive),
             )
 
     @pytest.mark.parametrize(
@@ -663,15 +662,20 @@ class TestSpecDrift:
         ids=[e.sdk_model.rsplit(".", 1)[1] for e in CONTRACT_MAP],
     )
     def test_required_drift(self, entry: ContractEntry) -> None:
-        """Warn about required mismatches (spec required, SDK optional)."""
+        """Fail when SDK fields are optional but spec marks them required.
+
+        Hard-fail since #172. Was warn-only while the SDK kept ~134 fields
+        Optional[T] | None against spec's required: true. The deviation is
+        either resolved (drop None default) or recorded in EXCLUSIONS with
+        kind='server_omits_despite_required' citing a demo+prod observation.
+        """
         spec_fields = _get_schema_fields(self.spec, entry.spec_schema)
         model_class = _get_sdk_model_class(entry.sdk_model)
         _, required_issues = _classify_drift(entry, self.spec, spec_fields, model_class)
         if required_issues:
-            warnings.warn(
+            pytest.fail(
                 f"Required drift in {entry.sdk_model}:\n"
-                + "\n".join(f"  - {r}" for r in required_issues),
-                stacklevel=1,
+                + "\n".join(f"  - {r}" for r in required_issues)
             )
 
     def test_schema_coverage(self) -> None:
@@ -766,7 +770,10 @@ class TestWsSpecDrift:
         ids=[e.sdk_model.rsplit(".", 1)[1] for e in WS_CONTRACT_MAP],
     )
     def test_ws_required_drift(self, entry: ContractEntry) -> None:
-        """Warn about required mismatches in WS models."""
+        """Fail when SDK WS fields are optional but spec marks them required.
+
+        Hard-fail since #172, matching the REST sibling.
+        """
         model_class = _get_sdk_model_class(entry.sdk_model)
         # Use WS-specific required extractor instead of REST _get_required_fields
         ws_required = _get_ws_required_fields(self.spec, entry.spec_schema)
@@ -785,10 +792,9 @@ class TestWsSpecDrift:
                         f"Spec requires '{req_field}' but SDK field '{sdk_name}' is optional"
                     )
         if required_issues:
-            warnings.warn(
+            pytest.fail(
                 f"WS required drift in {entry.sdk_model}:\n"
-                + "\n".join(f"  - {r}" for r in required_issues),
-                stacklevel=1,
+                + "\n".join(f"  - {r}" for r in required_issues)
             )
 
     def test_ws_schema_coverage(self) -> None:
@@ -848,10 +854,7 @@ class TestWsSpecDrift:
         # Filter out documented divergences (Branch-B style intentional exceptions).
         # Allowlist compares tuples directly, so the assertion output format can
         # change without silently breaking the filter.
-        unexpected = [
-            m for m in mismatches
-            if (m[0], m[3]) not in self._DEMO_DIVERGENCE_ALLOWLIST
-        ]
+        unexpected = [m for m in mismatches if (m[0], m[3]) not in self._DEMO_DIVERGENCE_ALLOWLIST]
 
         assert not unexpected, (
             "WS envelope type drift (not on documented divergence allowlist):\n"
@@ -892,13 +895,15 @@ class TestWsSpecDrift:
             field_info = model_class.model_fields[sdk_name]
             violations.extend(
                 _ws_field_type_violations(
-                    sdk_name, field_info.annotation, spec_name, spec_prop,
+                    sdk_name,
+                    field_info.annotation,
+                    spec_name,
+                    spec_prop,
                 )
             )
 
-        assert not violations, (
-            f"WS payload field type drift in {entry.sdk_model}:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert not violations, f"WS payload field type drift in {entry.sdk_model}:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_ws_contract_map_completeness(self) -> None:
@@ -954,8 +959,11 @@ def _signature_params(sdk_method_fqn: str) -> set[str]:
     func = getattr(cls, method)
     sig = inspect.signature(func)
     return {
-        name for name, param in sig.parameters.items()
-        if name != "self" and param.kind in (
+        name
+        for name, param in sig.parameters.items()
+        if name != "self"
+        and param.kind
+        in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
             inspect.Parameter.KEYWORD_ONLY,
         )
@@ -965,6 +973,7 @@ def _signature_params(sdk_method_fqn: str) -> set[str]:
 def _path_params_from_template(path_template: str) -> set[str]:
     """Extract ``{name}`` placeholders from a path template."""
     import re
+
     return set(re.findall(r"\{([^}]+)\}", path_template))
 
 
@@ -1007,7 +1016,10 @@ class TestRequestParamDrift:
         self._assert_params_match(entry, async_=True)
 
     def _assert_params_match(
-        self, entry: MethodEndpointEntry, *, async_: bool,
+        self,
+        entry: MethodEndpointEntry,
+        *,
+        async_: bool,
     ) -> None:
         sdk_fqn = entry.sdk_method
         if async_:
@@ -1018,18 +1030,15 @@ class TestRequestParamDrift:
             module_name = ".".join(parts[:-2])
             cls_name = parts[-2]
             module = importlib.import_module(module_name)
-            assert hasattr(module, cls_name), (
-                f"Missing async sibling {cls_name} in {module_name}"
-            )
+            assert hasattr(module, cls_name), f"Missing async sibling {cls_name} in {module_name}"
 
         sdk_params = _signature_params(sdk_fqn)
         spec_params_list = _resolve_path_params(
-            self.spec, entry.path_template, entry.http_method,
+            self.spec,
+            entry.path_template,
+            entry.http_method,
         )
-        spec_params = {
-            p["name"] for p in spec_params_list
-            if p.get("in") in ("query", "path")
-        }
+        spec_params = {p["name"] for p in spec_params_list if p.get("in") in ("query", "path")}
         # Spec path params like ``{order_id}`` should appear in the path
         # template placeholders too; union them in so the test catches
         # cases where a spec operation declares a path param that the
@@ -1043,28 +1052,16 @@ class TestRequestParamDrift:
 
         # ADD drift: spec has it, SDK missing
         missing = spec_params - sdk_params
-        missing_unallowed = {
-            p for p in missing
-            if (lookup_fqn, p) not in EXCLUSIONS
-        }
+        missing_unallowed = {p for p in missing if (lookup_fqn, p) not in EXCLUSIONS}
         # REMOVE drift: SDK has it, spec doesn't
         extra = sdk_params - spec_params
-        extra_unallowed = {
-            p for p in extra
-            if (lookup_fqn, p) not in EXCLUSIONS
-        }
+        extra_unallowed = {p for p in extra if (lookup_fqn, p) not in EXCLUSIONS}
 
         errors: list[str] = []
         if missing_unallowed:
-            errors.append(
-                f"[ADD drift] spec has params SDK missing: "
-                f"{sorted(missing_unallowed)}"
-            )
+            errors.append(f"[ADD drift] spec has params SDK missing: {sorted(missing_unallowed)}")
         if extra_unallowed:
-            errors.append(
-                f"[REMOVE drift] SDK has params spec doesn't: "
-                f"{sorted(extra_unallowed)}"
-            )
+            errors.append(f"[REMOVE drift] SDK has params spec doesn't: {sorted(extra_unallowed)}")
         if errors:
             pytest.fail(
                 f"{sdk_fqn} <-> {entry.http_method} {entry.path_template}\n"
@@ -1081,30 +1078,18 @@ class TestRequestParamDrift:
 # Registry: spec $ref → SDK request model FQN.
 # Update whenever a new POST/PUT/DELETE-with-body endpoint gets a request model.
 BODY_MODEL_MAP: dict[str, str] = {
-    "#/components/schemas/CreateOrderRequest": (
-        "kalshi.models.orders.CreateOrderRequest"
-    ),
-    "#/components/schemas/AmendOrderRequest": (
-        "kalshi.models.orders.AmendOrderRequest"
-    ),
-    "#/components/schemas/DecreaseOrderRequest": (
-        "kalshi.models.orders.DecreaseOrderRequest"
-    ),
+    "#/components/schemas/CreateOrderRequest": ("kalshi.models.orders.CreateOrderRequest"),
+    "#/components/schemas/AmendOrderRequest": ("kalshi.models.orders.AmendOrderRequest"),
+    "#/components/schemas/DecreaseOrderRequest": ("kalshi.models.orders.DecreaseOrderRequest"),
     "#/components/schemas/BatchCreateOrdersRequest": (
         "kalshi.models.orders.BatchCreateOrdersRequest"
     ),
     "#/components/schemas/BatchCancelOrdersRequest": (
         "kalshi.models.orders.BatchCancelOrdersRequest"
     ),
-    "#/components/schemas/CreateOrderV2Request": (
-        "kalshi.models.orders.CreateOrderV2Request"
-    ),
-    "#/components/schemas/AmendOrderV2Request": (
-        "kalshi.models.orders.AmendOrderV2Request"
-    ),
-    "#/components/schemas/DecreaseOrderV2Request": (
-        "kalshi.models.orders.DecreaseOrderV2Request"
-    ),
+    "#/components/schemas/CreateOrderV2Request": ("kalshi.models.orders.CreateOrderV2Request"),
+    "#/components/schemas/AmendOrderV2Request": ("kalshi.models.orders.AmendOrderV2Request"),
+    "#/components/schemas/DecreaseOrderV2Request": ("kalshi.models.orders.DecreaseOrderV2Request"),
     "#/components/schemas/BatchCreateOrdersV2Request": (
         "kalshi.models.orders.BatchCreateOrdersV2Request"
     ),
@@ -1112,12 +1097,10 @@ BODY_MODEL_MAP: dict[str, str] = {
         "kalshi.models.orders.BatchCancelOrdersV2Request"
     ),
     "#/components/schemas/CreateMarketInMultivariateEventCollectionRequest": (
-        "kalshi.models.multivariate."
-        "CreateMarketInMultivariateEventCollectionRequest"
+        "kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest"
     ),
     "#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest": (
-        "kalshi.models.multivariate."
-        "LookupTickersForMarketInMultivariateEventCollectionRequest"
+        "kalshi.models.multivariate.LookupTickersForMarketInMultivariateEventCollectionRequest"
     ),
     "#/components/schemas/CreateOrderGroupRequest": (
         "kalshi.models.order_groups.CreateOrderGroupRequest"
@@ -1125,27 +1108,17 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/UpdateOrderGroupLimitRequest": (
         "kalshi.models.order_groups.UpdateOrderGroupLimitRequest"
     ),
-    "#/components/schemas/CreateRFQRequest": (
-        "kalshi.models.communications.CreateRFQRequest"
-    ),
-    "#/components/schemas/CreateQuoteRequest": (
-        "kalshi.models.communications.CreateQuoteRequest"
-    ),
-    "#/components/schemas/AcceptQuoteRequest": (
-        "kalshi.models.communications.AcceptQuoteRequest"
-    ),
+    "#/components/schemas/CreateRFQRequest": ("kalshi.models.communications.CreateRFQRequest"),
+    "#/components/schemas/CreateQuoteRequest": ("kalshi.models.communications.CreateQuoteRequest"),
+    "#/components/schemas/AcceptQuoteRequest": ("kalshi.models.communications.AcceptQuoteRequest"),
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
     ),
     "#/components/schemas/UpdateSubaccountNettingRequest": (
         "kalshi.models.subaccounts.UpdateSubaccountNettingRequest"
     ),
-    "#/components/schemas/CreateApiKeyRequest": (
-        "kalshi.models.api_keys.CreateApiKeyRequest"
-    ),
-    "#/components/schemas/GenerateApiKeyRequest": (
-        "kalshi.models.api_keys.GenerateApiKeyRequest"
-    ),
+    "#/components/schemas/CreateApiKeyRequest": ("kalshi.models.api_keys.CreateApiKeyRequest"),
+    "#/components/schemas/GenerateApiKeyRequest": ("kalshi.models.api_keys.GenerateApiKeyRequest"),
 }
 
 
@@ -1249,14 +1222,10 @@ def _check_model_drift(
 
     # ADD drift: spec has property SDK model doesn't emit
     missing = spec_props - sdk_wire_names
-    missing_unallowed = {
-        p for p in missing if (model_fqn, p) not in EXCLUSIONS
-    }
+    missing_unallowed = {p for p in missing if (model_fqn, p) not in EXCLUSIONS}
     # REMOVE drift: SDK emits wire name spec doesn't have
     extra = sdk_wire_names - spec_props
-    extra_unallowed = {
-        p for p in extra if (model_fqn, p) not in EXCLUSIONS
-    }
+    extra_unallowed = {p for p in extra if (model_fqn, p) not in EXCLUSIONS}
 
     prefix = f"[nested {context} -> {model_fqn}] " if context else ""
     if missing_unallowed:
@@ -1271,10 +1240,7 @@ def _check_model_drift(
         )
 
 
-_BODY_ENTRIES = [
-    e for e in METHOD_ENDPOINT_MAP
-    if e.request_body_schema is not None
-]
+_BODY_ENTRIES = [e for e in METHOD_ENDPOINT_MAP if e.request_body_schema is not None]
 
 
 @pytest.mark.parametrize(
@@ -1301,7 +1267,8 @@ class TestRequestBodyDrift:
         self.spec = _load_spec()
 
     def test_body_properties_match_spec(
-        self, entry: MethodEndpointEntry,
+        self,
+        entry: MethodEndpointEntry,
     ) -> None:
         assert entry.request_body_schema is not None
         model_fqn = BODY_MODEL_MAP.get(entry.request_body_schema)
@@ -1312,11 +1279,12 @@ class TestRequestBodyDrift:
         model_cls = _get_model_class_from_fqn(model_fqn)
 
         schema = _resolve_request_body_schema(
-            self.spec, entry.path_template, entry.http_method,
+            self.spec,
+            entry.path_template,
+            entry.http_method,
         )
         assert schema is not None, (
-            f"Spec has no body schema for {entry.http_method} "
-            f"{entry.path_template}"
+            f"Spec has no body schema for {entry.http_method} {entry.path_template}"
         )
 
         errors: list[str] = []
@@ -1329,7 +1297,9 @@ class TestRequestBodyDrift:
 
         # Issue #52: also drift-check nested BaseModel fields (one level deep).
         for field_name, nested_cls, nested_schema in _iter_nested_body_models(
-            model_cls, schema, self.spec,
+            model_cls,
+            schema,
+            self.spec,
         ):
             nested_fqn = f"{nested_cls.__module__}.{nested_cls.__qualname__}"
             _check_model_drift(
@@ -1341,10 +1311,7 @@ class TestRequestBodyDrift:
             )
 
         if errors:
-            pytest.fail(
-                f"{model_fqn} <-> {entry.request_body_schema}\n"
-                + "\n".join(errors)
-            )
+            pytest.fail(f"{model_fqn} <-> {entry.request_body_schema}\n" + "\n".join(errors))
 
 
 def test_exclusion_map_is_current() -> None:
@@ -1382,7 +1349,9 @@ def test_exclusion_map_is_current() -> None:
                 for e in METHOD_ENDPOINT_MAP:
                     if e.request_body_schema == spec_ref:
                         body_schema = _resolve_request_body_schema(
-                            spec, e.path_template, e.http_method,
+                            spec,
+                            e.path_template,
+                            e.http_method,
                         )
                         break
                 if body_schema is None:
@@ -1464,7 +1433,10 @@ def test_exclusion_map_is_current() -> None:
             # kwarg legitimately exists in the signature. Distinguish by the
             # typed ``kind`` field (issue #51).
             sig_mismatch_kinds = {
-                "body_param", "wire_normalization", "kwarg_rename", "client_only",
+                "body_param",
+                "wire_normalization",
+                "kwarg_rename",
+                "client_only",
             }
             allowed_in_sig = excl.kind in sig_mismatch_kinds
             if name in sdk_params and not allowed_in_sig:

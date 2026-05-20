@@ -68,27 +68,22 @@ class MarketPosition(BaseModel):
 
     ticker: str
     total_traded: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("total_traded_dollars", "total_traded"),
     )
     position: FixedPointCount | None = Field(
-        default=None,
         validation_alias=AliasChoices("position_fp", "position"),
     )
     market_exposure: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("market_exposure_dollars", "market_exposure"),
     )
     realized_pnl: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )
-    resting_orders_count: int | None = None
+    resting_orders_count: int
     fees_paid: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )
-    last_updated_ts: datetime | None = None
+    last_updated_ts: datetime
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -98,23 +93,18 @@ class EventPosition(BaseModel):
 
     event_ticker: str
     total_cost: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("total_cost_dollars", "total_cost"),
     )
     total_cost_shares: FixedPointCount | None = Field(
-        default=None,
         validation_alias=AliasChoices("total_cost_shares_fp", "total_cost_shares"),
     )
     event_exposure: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("event_exposure_dollars", "event_exposure"),
     )
     realized_pnl: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )
     fees_paid: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )
 
@@ -177,28 +167,23 @@ class Settlement(BaseModel):
     """A settled market position."""
 
     ticker: str
-    event_ticker: str | None = None
-    market_result: str | None = None
+    event_ticker: str
+    market_result: str
     yes_count: FixedPointCount | None = Field(
-        default=None,
         validation_alias=AliasChoices("yes_count_fp", "yes_count"),
     )
     yes_total_cost: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("yes_total_cost_dollars", "yes_total_cost"),
     )
     no_count: FixedPointCount | None = Field(
-        default=None,
         validation_alias=AliasChoices("no_count_fp", "no_count"),
     )
     no_total_cost: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("no_total_cost_dollars", "no_total_cost"),
     )
-    revenue: int | None = None
-    settled_time: datetime | None = None
+    revenue: int
+    settled_time: datetime
     fee_cost: DollarDecimal | None = Field(
-        default=None,
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
 

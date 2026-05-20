@@ -11,6 +11,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.fcm import AsyncFcmResource, FcmResource
+from tests._model_fixtures import order_dict
 
 
 @pytest.fixture
@@ -29,7 +30,8 @@ def fcm(test_auth: KalshiAuth, config: KalshiConfig) -> FcmResource:
 
 @pytest.fixture
 def async_fcm(
-    test_auth: KalshiAuth, config: KalshiConfig,
+    test_auth: KalshiAuth,
+    config: KalshiConfig,
 ) -> AsyncFcmResource:
     return AsyncFcmResource(AsyncTransport(test_auth, config))
 
@@ -47,17 +49,17 @@ class TestOrders:
                 200,
                 json={
                     "orders": [
-                        {
-                            "order_id": "ord-1",
-                            "user_id": "user-1",
-                            "client_order_id": "client-1",
-                            "ticker": "TEST-MKT",
-                            "side": "yes",
-                            "action": "buy",
-                            "type": "limit",
-                            "status": "resting",
-                            "yes_price_dollars": "0.55",
-                        },
+                        order_dict(
+                            order_id="ord-1",
+                            user_id="user-1",
+                            client_order_id="client-1",
+                            ticker="TEST-MKT",
+                            side="yes",
+                            action="buy",
+                            type="limit",
+                            status="resting",
+                            yes_price_dollars="0.55",
+                        ),
                     ],
                     "cursor": "",
                 },
@@ -125,7 +127,8 @@ class TestPositions:
             "https://test.kalshi.com/trade-api/v2/fcm/positions",
         ).mock(
             return_value=httpx.Response(
-                200, json={"market_positions": [], "event_positions": []},
+                200,
+                json={"market_positions": [], "event_positions": []},
             )
         )
         fcm.positions(
@@ -163,7 +166,8 @@ class TestAsyncFcm:
     async def test_positions(self, async_fcm: AsyncFcmResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/fcm/positions").mock(
             return_value=httpx.Response(
-                200, json={"market_positions": [], "event_positions": []},
+                200,
+                json={"market_positions": [], "event_positions": []},
             )
         )
         result = await async_fcm.positions(subtrader_id="sub-1")

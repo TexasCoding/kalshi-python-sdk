@@ -21,6 +21,18 @@ from kalshi.models.order_groups import (
 from kalshi.models.orders import Fill, Order
 from kalshi.models.portfolio import Settlement
 from kalshi.types import to_decimal
+from tests._model_fixtures import (
+    create_order_group_response_dict,
+    event_dict,
+    event_metadata_dict,
+    fill_dict,
+    get_order_group_response_dict,
+    incentive_program_dict,
+    market_dict,
+    order_dict,
+    settlement_dict,
+    trade_dict,
+)
 
 
 class TestToDecimal:
@@ -52,25 +64,27 @@ class TestToDecimal:
 
 class TestDollarDecimalField:
     def test_market_parses_string_price(self) -> None:
-        m = Market(ticker="T", yes_ask="0.65")
+        m = Market.model_validate(market_dict(ticker="T", yes_ask_dollars="0.65"))
         assert m.yes_ask == Decimal("0.65")
         assert isinstance(m.yes_ask, Decimal)
 
     def test_market_parses_float_price(self) -> None:
-        m = Market(ticker="T", yes_bid=0.45)
+        m = Market.model_validate(market_dict(ticker="T", yes_bid_dollars=0.45))
         assert m.yes_bid == Decimal("0.45")
 
     def test_market_parses_int_price(self) -> None:
-        m = Market(ticker="T", last_price=1)
+        m = Market.model_validate(market_dict(ticker="T", last_price_dollars=1))
         assert m.last_price == Decimal("1")
 
     def test_market_model_dump_serializes(self) -> None:
-        m = Market(ticker="T", yes_ask="0.72")
+        m = Market.model_validate(market_dict(ticker="T", yes_ask_dollars="0.72"))
         data = m.model_dump()
         assert data["yes_ask"] == "0.72"
 
     def test_order_decimal_fields(self) -> None:
-        o = Order(order_id="x", yes_price="0.65", no_price="0.35")
+        o = Order.model_validate(
+            order_dict(order_id="x", yes_price_dollars="0.65", no_price_dollars="0.35")
+        )
         assert o.yes_price == Decimal("0.65")
         assert o.no_price == Decimal("0.35")
 
@@ -83,12 +97,12 @@ class TestMarketOccurrenceDatetime:
     """
 
     def test_parses_iso_string(self) -> None:
-        m = Market(ticker="T", occurrence_datetime="2026-01-15T10:30:00Z")
+        m = Market.model_validate(market_dict(occurrence_datetime="2026-01-15T10:30:00Z"))
         assert isinstance(m.occurrence_datetime, datetime)
         assert m.occurrence_datetime.year == 2026
 
     def test_absent_defaults_to_none(self) -> None:
-        m = Market(ticker="T")
+        m = Market.model_validate(market_dict())
         assert m.occurrence_datetime is None
 
 
@@ -102,14 +116,15 @@ class TestDollarsAliasFields:
     """
 
     def test_market_accepts_dollars_suffix(self) -> None:
-        m = Market.model_validate({
-            "ticker": "T",
-            "yes_bid_dollars": "0.4500",
-            "yes_ask_dollars": "0.5500",
-            "no_bid_dollars": "0.3000",
-            "no_ask_dollars": "0.7000",
-            "last_price_dollars": "0.5000",
-        })
+        m = Market.model_validate(
+            market_dict(
+                yes_bid_dollars="0.4500",
+                yes_ask_dollars="0.5500",
+                no_bid_dollars="0.3000",
+                no_ask_dollars="0.7000",
+                last_price_dollars="0.5000",
+            )
+        )
         assert m.yes_bid == Decimal("0.4500")
         assert m.yes_ask == Decimal("0.5500")
         assert m.no_bid == Decimal("0.3000")
@@ -117,19 +132,22 @@ class TestDollarsAliasFields:
         assert m.last_price == Decimal("0.5000")
 
     def test_market_accepts_bare_names(self) -> None:
-        m = Market(ticker="T", yes_bid="0.45")
+        data = market_dict(yes_bid="0.45")
+        data.pop("yes_bid_dollars")  # bare-name path requires absence of _dollars alias
+        m = Market.model_validate(data)
         assert m.yes_bid == Decimal("0.45")
 
     def test_order_accepts_dollars_suffix(self) -> None:
-        o = Order.model_validate({
-            "order_id": "x",
-            "yes_price_dollars": "0.6500",
-            "no_price_dollars": "0.3500",
-            "taker_fill_cost_dollars": "6.5000",
-            "maker_fill_cost_dollars": "0.0000",
-            "taker_fees_dollars": "0.0650",
-            "maker_fees_dollars": "0.0000",
-        })
+        o = Order.model_validate(
+            order_dict(
+                yes_price_dollars="0.6500",
+                no_price_dollars="0.3500",
+                taker_fill_cost_dollars="6.5000",
+                maker_fill_cost_dollars="0.0000",
+                taker_fees_dollars="0.0650",
+                maker_fees_dollars="0.0000",
+            )
+        )
         assert o.yes_price == Decimal("0.6500")
         assert o.no_price == Decimal("0.3500")
         assert o.taker_fill_cost == Decimal("6.5000")
@@ -144,12 +162,14 @@ class TestDollarsAliasFields:
         actually see the value (previous dead-field state always returned
         ``None``).
         """
-        o = Order.model_validate({"order_id": "x", "type": "limit"})
+        o = Order.model_validate(order_dict(type="limit"))
         assert o.order_type == "limit"
 
     def test_order_type_accepts_python_name(self) -> None:
         """Pydantic ``populate_by_name`` keeps the SDK kwarg name working."""
-        o = Order.model_validate({"order_id": "x", "order_type": "market"})
+        data = order_dict(order_type="market")
+        data.pop("type")  # exercises the populate_by_name branch
+        o = Order.model_validate(data)
         assert o.order_type == "market"
 
     def test_order_has_no_type_field(self) -> None:
@@ -158,31 +178,34 @@ class TestDollarsAliasFields:
         assert "order_type" in Order.model_fields
 
     def test_fill_accepts_dollars_suffix(self) -> None:
-        f = Fill.model_validate({
-            "trade_id": "t1",
-            "yes_price_dollars": "0.5000",
-            "no_price_dollars": "0.5000",
-        })
+        f = Fill.model_validate(
+            fill_dict(
+                yes_price_dollars="0.5000",
+                no_price_dollars="0.5000",
+            )
+        )
         assert f.yes_price == Decimal("0.5000")
         assert f.no_price == Decimal("0.5000")
 
     def test_candlestick_nested_structure(self) -> None:
         from kalshi.models.markets import Candlestick
 
-        c = Candlestick.model_validate({
-            "end_period_ts": 1700000000,
-            "yes_bid": {
-                "open_dollars": "0.4000",
-                "high_dollars": "0.5000",
-                "low_dollars": "0.3500",
-                "close_dollars": "0.4500",
-            },
-            "price": {
-                "open_dollars": "0.5000",
-                "close_dollars": "0.5500",
-            },
-            "volume_fp": "100.00",
-        })
+        c = Candlestick.model_validate(
+            {
+                "end_period_ts": 1700000000,
+                "yes_bid": {
+                    "open_dollars": "0.4000",
+                    "high_dollars": "0.5000",
+                    "low_dollars": "0.3500",
+                    "close_dollars": "0.4500",
+                },
+                "price": {
+                    "open_dollars": "0.5000",
+                    "close_dollars": "0.5500",
+                },
+                "volume_fp": "100.00",
+            }
+        )
         assert c.yes_bid is not None
         assert c.yes_bid.open == Decimal("0.4000")
         assert c.yes_bid.high == Decimal("0.5000")
@@ -197,6 +220,7 @@ class TestDollarsAliasFields:
         req = CreateOrderRequest(
             ticker="T",
             side="yes",
+            action="buy",
             yes_price=Decimal("0.65"),
         )
         data = req.model_dump(exclude_none=True, by_alias=True)
@@ -214,17 +238,19 @@ class TestMarketV3180Fields:
     """
 
     def test_parses_all_new_scalar_fields(self) -> None:
-        m = Market.model_validate({
-            "ticker": "T",
-            "early_close_condition": "if_settled_early",
-            "exchange_index": 7,
-            "fee_waiver_expiration_time": "2026-06-01T00:00:00Z",
-            "functional_strike": "x**2",
-            "is_provisional": True,
-            "mve_collection_ticker": "COLL-001",
-            "price_level_structure": "tick_5_cent",
-            "primary_participant_key": "team-a",
-        })
+        m = Market.model_validate(
+            market_dict(
+                ticker="T",
+                early_close_condition="if_settled_early",
+                exchange_index=7,
+                fee_waiver_expiration_time="2026-06-01T00:00:00Z",
+                functional_strike="x**2",
+                is_provisional=True,
+                mve_collection_ticker="COLL-001",
+                price_level_structure="tick_5_cent",
+                primary_participant_key="team-a",
+            )
+        )
         assert m.early_close_condition == "if_settled_early"
         assert m.exchange_index == 7
         assert m.fee_waiver_expiration_time is not None
@@ -237,16 +263,18 @@ class TestMarketV3180Fields:
         assert m.primary_participant_key == "team-a"
 
     def test_parses_object_and_array_fields(self) -> None:
-        m = Market.model_validate({
-            "ticker": "T",
-            "custom_strike": {"yes_threshold": 50, "no_threshold": 100},
-            "mve_selected_legs": [
-                {"event_ticker": "EVT-001", "market_ticker": "MKT-001", "side": "yes"},
-            ],
-            "price_ranges": [
-                {"start": "0.01", "end": "0.99", "step": "0.01"},
-            ],
-        })
+        m = Market.model_validate(
+            market_dict(
+                ticker="T",
+                custom_strike={"yes_threshold": 50, "no_threshold": 100},
+                mve_selected_legs=[
+                    {"event_ticker": "EVT-001", "market_ticker": "MKT-001", "side": "yes"},
+                ],
+                price_ranges=[
+                    {"start": "0.01", "end": "0.99", "step": "0.01"},
+                ],
+            )
+        )
         assert m.custom_strike == {"yes_threshold": 50, "no_threshold": 100}
         assert m.mve_selected_legs is not None
         assert m.mve_selected_legs[0]["event_ticker"] == "EVT-001"
@@ -254,7 +282,7 @@ class TestMarketV3180Fields:
         assert m.price_ranges[0]["step"] == "0.01"
 
     def test_all_new_fields_default_to_none(self) -> None:
-        m = Market(ticker="T")
+        m = Market.model_validate(market_dict(ticker="T"))
         for name in (
             "custom_strike",
             "early_close_condition",
@@ -264,8 +292,9 @@ class TestMarketV3180Fields:
             "is_provisional",
             "mve_collection_ticker",
             "mve_selected_legs",
-            "price_level_structure",
-            "price_ranges",
+            # NOTE: price_level_structure / price_ranges were optional in v3.18.0
+            # but #172 promoted them to required-on-the-wire. They no longer
+            # default to None; removed from this list.
             "primary_participant_key",
         ):
             assert getattr(m, name) is None, f"{name} should default to None"
@@ -281,24 +310,28 @@ class TestOrderV3180Fields:
     """
 
     def test_parses_outcome_and_book_side(self) -> None:
-        o = Order.model_validate({
-            "order_id": "x",
-            "outcome_side": "yes",
-            "book_side": "bid",
-        })
+        o = Order.model_validate(
+            order_dict(
+                order_id="x",
+                outcome_side="yes",
+                book_side="bid",
+            )
+        )
         assert o.outcome_side == "yes"
         assert o.book_side == "bid"
 
     def test_parses_remaining_new_fields(self) -> None:
-        o = Order.model_validate({
-            "order_id": "x",
-            "cancel_order_on_pause": True,
-            "exchange_index": 3,
-            "last_update_time": "2026-05-01T12:00:00Z",
-            "order_group_id": "group-42",
-            "self_trade_prevention_type": "taker_at_cross",
-            "subaccount_number": 5,
-        })
+        o = Order.model_validate(
+            order_dict(
+                order_id="x",
+                cancel_order_on_pause=True,
+                exchange_index=3,
+                last_update_time="2026-05-01T12:00:00Z",
+                order_group_id="group-42",
+                self_trade_prevention_type="taker_at_cross",
+                subaccount_number=5,
+            )
+        )
         assert o.cancel_order_on_pause is True
         assert o.exchange_index == 3
         assert o.last_update_time is not None
@@ -310,19 +343,21 @@ class TestOrderV3180Fields:
     def test_subaccount_number_is_distinct_from_subaccount(self) -> None:
         """``subaccount_number`` was added in v3.18.0 separately from the
         existing ``subaccount`` field. Both must coexist."""
-        o = Order.model_validate({
-            "order_id": "x",
-            "subaccount": 1,
-            "subaccount_number": 5,
-        })
+        o = Order.model_validate(
+            order_dict(
+                order_id="x",
+                subaccount=1,
+                subaccount_number=5,
+            )
+        )
         assert o.subaccount == 1
         assert o.subaccount_number == 5
 
     def test_all_new_fields_default_to_none(self) -> None:
-        o = Order(order_id="x")
+        o = Order.model_validate(order_dict(order_id="x"))
         for name in (
-            "outcome_side",
-            "book_side",
+            # NOTE: outcome_side / book_side were optional in v3.18.0 but
+            # #172 promoted them to required; they no longer default to None.
             "last_update_time",
             "self_trade_prevention_type",
             "order_group_id",
@@ -337,13 +372,15 @@ class TestFillV3180Fields:
     """v3.18.0 backfill (issue #159): 4 new optional fields on ``Fill``."""
 
     def test_parses_new_fields(self) -> None:
-        f = Fill.model_validate({
-            "trade_id": "t1",
-            "outcome_side": "no",
-            "book_side": "ask",
-            "subaccount_number": 2,
-            "ts": 1733047200000,
-        })
+        f = Fill.model_validate(
+            fill_dict(
+                trade_id="t1",
+                outcome_side="no",
+                book_side="ask",
+                subaccount_number=2,
+                ts=1733047200000,
+            )
+        )
         assert f.outcome_side == "no"
         assert f.book_side == "ask"
         assert f.subaccount_number == 2
@@ -353,14 +390,16 @@ class TestFillV3180Fields:
         """Spec declares ``ts: integer`` (Unix-ms timestamp). The SDK must NOT
         coerce it to ``datetime`` — it's the legacy companion to the typed
         ``created_time: datetime`` field, and callers depend on the raw int."""
-        f = Fill.model_validate({"trade_id": "t1", "ts": 1733047200000})
+        f = Fill.model_validate(fill_dict(trade_id="t1", ts=1733047200000))
         assert f.ts == 1733047200000
         assert isinstance(f.ts, int)
         assert not isinstance(f.ts, bool)  # bools are ints; guard against ambiguity
 
     def test_all_new_fields_default_to_none(self) -> None:
-        f = Fill(trade_id="t1")
-        for name in ("outcome_side", "book_side", "subaccount_number", "ts"):
+        f = Fill.model_validate(fill_dict(trade_id="t1"))
+        # NOTE: outcome_side / book_side were optional in v3.18.0 but
+        # #172 promoted them to required; they no longer default to None.
+        for name in ("subaccount_number", "ts"):
             assert getattr(f, name) is None, f"{name} should default to None"
 
 
@@ -368,19 +407,21 @@ class TestEventV3180Fields:
     """v3.18.0 backfill (issue #160): 3 new optional fields on ``Event``."""
 
     def test_parses_new_fields(self) -> None:
-        e = Event.model_validate({
-            "event_ticker": "EVT-001",
-            "fee_type_override": "quadratic",
-            "fee_multiplier_override": "1.25",
-            "exchange_index": 7,
-        })
+        e = Event.model_validate(
+            event_dict(
+                event_ticker="EVT-001",
+                fee_type_override="quadratic",
+                fee_multiplier_override="1.25",
+                exchange_index=7,
+            )
+        )
         assert e.fee_type_override == "quadratic"
         assert e.fee_multiplier_override == Decimal("1.25")
         assert isinstance(e.fee_multiplier_override, Decimal)
         assert e.exchange_index == 7
 
     def test_all_new_fields_default_to_none(self) -> None:
-        e = Event(event_ticker="EVT-001")
+        e = Event.model_validate(event_dict(event_ticker="EVT-001"))
         for name in ("fee_type_override", "fee_multiplier_override", "exchange_index"):
             assert getattr(e, name) is None, f"{name} should default to None"
 
@@ -389,15 +430,17 @@ class TestEventMetadataV3180Fields:
     """v3.18.0 backfill (issue #160): 2 new optional fields on ``EventMetadata``."""
 
     def test_parses_new_fields(self) -> None:
-        m = EventMetadata.model_validate({
-            "competition": "NBA Eastern Conference",
-            "competition_scope": "playoffs",
-        })
+        m = EventMetadata.model_validate(
+            event_metadata_dict(
+                competition="NBA Eastern Conference",
+                competition_scope="playoffs",
+            )
+        )
         assert m.competition == "NBA Eastern Conference"
         assert m.competition_scope == "playoffs"
 
     def test_all_new_fields_default_to_none(self) -> None:
-        m = EventMetadata()
+        m = EventMetadata.model_validate(event_metadata_dict())
         assert m.competition is None
         assert m.competition_scope is None
 
@@ -411,13 +454,13 @@ class TestSettlementV3180Fields:
     """
 
     def test_value_is_int_not_decimal(self) -> None:
-        s = Settlement.model_validate({"ticker": "T", "value": 100})
+        s = Settlement.model_validate(settlement_dict(ticker="T", value=100))
         assert s.value == 100
         assert isinstance(s.value, int)
         assert not isinstance(s.value, bool)  # bools are ints; guard
 
     def test_value_defaults_to_none(self) -> None:
-        s = Settlement(ticker="T")
+        s = Settlement.model_validate(settlement_dict(ticker="T"))
         assert s.value is None
 
 
@@ -429,75 +472,78 @@ class TestTradeV3180Fields:
     """
 
     def test_parses_new_fields(self) -> None:
-        t = Trade.model_validate({
-            "trade_id": "tr-001",
-            "taker_outcome_side": "yes",
-            "taker_book_side": "bid",
-        })
+        t = Trade.model_validate(
+            trade_dict(
+                trade_id="tr-001",
+                taker_outcome_side="yes",
+                taker_book_side="bid",
+            )
+        )
         assert t.taker_outcome_side == "yes"
         assert t.taker_book_side == "bid"
 
     def test_all_new_fields_default_to_none(self) -> None:
-        t = Trade(trade_id="tr-001")
-        assert t.taker_outcome_side is None
-        assert t.taker_book_side is None
+        # NOTE: taker_outcome_side / taker_book_side were optional in v3.18.0
+        # but #172 promoted them to required; this default-to-None contract
+        # no longer holds. The "parses_new_fields" sibling test covers the
+        # field round-trip.
+        pass
 
 
 class TestIncentiveProgramV3180Fields:
     """v3.18.0 backfill (issue #160): 1 new optional field on ``IncentiveProgram``."""
 
     def test_parses_new_field(self) -> None:
-        p = IncentiveProgram.model_validate({
-            "id": "ip-001",
-            "market_id": "mkt-001",
-            "market_ticker": "MKT-001",
-            "incentive_type": "volume",
-            "start_date": "2026-01-01T00:00:00Z",
-            "end_date": "2026-02-01T00:00:00Z",
-            "period_reward": 10000,
-            "paid_out": False,
-            "incentive_description": "Liquidity provision rewards",
-        })
+        p = IncentiveProgram.model_validate(
+            incentive_program_dict(
+                id="ip-001",
+                market_id="mkt-001",
+                market_ticker="MKT-001",
+                incentive_type="volume",
+                start_date="2026-01-01T00:00:00Z",
+                end_date="2026-02-01T00:00:00Z",
+                period_reward=10000,
+                paid_out=False,
+                incentive_description="Liquidity provision rewards",
+            )
+        )
         assert p.incentive_description == "Liquidity provision rewards"
 
     def test_incentive_description_defaults_to_none(self) -> None:
-        p = IncentiveProgram(
-            id="ip-001",
-            market_id="mkt-001",
-            market_ticker="MKT-001",
-            incentive_type="volume",
-            start_date=datetime(2026, 1, 1),
-            end_date=datetime(2026, 2, 1),
-            period_reward=10000,
-            paid_out=False,
-        )
-        assert p.incentive_description is None
+        # NOTE: incentive_description was optional in v3.18.0 but #172
+        # promoted it to required. Default-to-None contract no longer holds;
+        # round-trip is covered by test_parses_new_field above.
+        pass
 
 
 class TestRFQV3180Fields:
     """v3.18.0 backfill (issue #161): 1 new optional field on ``RFQ``."""
 
     def test_parses_creator_subaccount(self) -> None:
-        r = RFQ.model_validate({
-            "id": "rfq-1",
-            "creator_id": "user-1",
-            "market_ticker": "MKT",
-            "contracts_fp": "10.00",
-            "status": "open",
-            "created_ts": "2026-05-01T00:00:00Z",
-            "creator_subaccount": 3,
-        })
+        r = RFQ.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "user-1",
+                "market_ticker": "MKT",
+                "contracts_fp": "10.00",
+                "status": "open",
+                "created_ts": "2026-05-01T00:00:00Z",
+                "creator_subaccount": 3,
+            }
+        )
         assert r.creator_subaccount == 3
 
     def test_creator_subaccount_defaults_to_none(self) -> None:
-        r = RFQ.model_validate({
-            "id": "rfq-1",
-            "creator_id": "user-1",
-            "market_ticker": "MKT",
-            "contracts_fp": "10.00",
-            "status": "open",
-            "created_ts": "2026-05-01T00:00:00Z",
-        })
+        r = RFQ.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "user-1",
+                "market_ticker": "MKT",
+                "contracts_fp": "10.00",
+                "status": "open",
+                "created_ts": "2026-05-01T00:00:00Z",
+            }
+        )
         assert r.creator_subaccount is None
 
 
@@ -520,7 +566,8 @@ class TestQuoteV3180Fields:
 
     def test_parses_all_new_fields(self) -> None:
         q = Quote.model_validate(
-            self._MINIMAL | {
+            self._MINIMAL
+            | {
                 "creator_subaccount": 3,
                 "rfq_creator_subaccount": 5,
                 "post_only": True,
@@ -541,41 +588,52 @@ class TestOrderGroupV3180Fields:
     """v3.18.0 backfill (issue #161): exchange_index on OrderGroup + responses."""
 
     def test_order_group_parses_exchange_index(self) -> None:
-        g = OrderGroup.model_validate({
-            "id": "g-1",
-            "is_auto_cancel_enabled": True,
-            "exchange_index": 7,
-        })
+        g = OrderGroup.model_validate(
+            {
+                "id": "g-1",
+                "is_auto_cancel_enabled": True,
+                "exchange_index": 7,
+            }
+        )
         assert g.exchange_index == 7
 
     def test_order_group_exchange_index_defaults_to_none(self) -> None:
-        g = OrderGroup.model_validate({
-            "id": "g-1",
-            "is_auto_cancel_enabled": True,
-        })
+        g = OrderGroup.model_validate(
+            {
+                "id": "g-1",
+                "is_auto_cancel_enabled": True,
+            }
+        )
         assert g.exchange_index is None
 
     def test_get_order_group_response_parses_exchange_index(self) -> None:
-        r = GetOrderGroupResponse.model_validate({
-            "is_auto_cancel_enabled": True,
-            "orders": ["ord-1"],
-            "exchange_index": 7,
-        })
+        r = GetOrderGroupResponse.model_validate(
+            get_order_group_response_dict(
+                is_auto_cancel_enabled=True,
+                orders=["ord-1"],
+                exchange_index=7,
+            )
+        )
         assert r.exchange_index == 7
 
     def test_create_order_group_response_parses_subaccount_and_exchange_index(self) -> None:
         """Server echoes the routing context (subaccount + shard) on create."""
-        r = CreateOrderGroupResponse.model_validate({
-            "order_group_id": "g-1",
-            "subaccount": 4,
-            "exchange_index": 7,
-        })
+        r = CreateOrderGroupResponse.model_validate(
+            create_order_group_response_dict(
+                order_group_id="g-1",
+                subaccount=4,
+                exchange_index=7,
+            )
+        )
         assert r.subaccount == 4
         assert r.exchange_index == 7
 
     def test_create_order_group_response_defaults_to_none(self) -> None:
-        r = CreateOrderGroupResponse.model_validate({"order_group_id": "g-1"})
-        assert r.subaccount is None
+        r = CreateOrderGroupResponse.model_validate(
+            create_order_group_response_dict(order_group_id="g-1")
+        )
+        # NOTE: subaccount was optional in v3.18.0 but #172 promoted it to
+        # required. exchange_index stays optional.
         assert r.exchange_index is None
 
 
@@ -614,18 +672,18 @@ class TestAmendOrderResponse:
         from kalshi.models.orders import AmendOrderResponse
 
         data = {
-            "old_order": {
-                "order_id": "ord-old",
-                "ticker": "MKT-A",
-                "yes_price_dollars": "0.5000",
-                "count": 5,
-            },
-            "order": {
-                "order_id": "ord-new",
-                "ticker": "MKT-A",
-                "yes_price_dollars": "0.6500",
-                "count": 5,
-            },
+            "old_order": order_dict(
+                order_id="ord-old",
+                ticker="MKT-A",
+                yes_price_dollars="0.5000",
+                initial_count_fp=5,
+            ),
+            "order": order_dict(
+                order_id="ord-new",
+                ticker="MKT-A",
+                yes_price_dollars="0.6500",
+                initial_count_fp=5,
+            ),
         }
         result = AmendOrderResponse.model_validate(data)
         assert result.old_order.order_id == "ord-old"
@@ -654,7 +712,9 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             time_in_force="fill_or_kill",
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -664,8 +724,11 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
-            post_only=True, reduce_only=False,
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            post_only=True,
+            reduce_only=False,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body["post_only"] is True
@@ -675,7 +738,9 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             self_trade_prevention_type="maker",
             order_group_id="grp-123",
         )
@@ -687,8 +752,11 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
-            cancel_order_on_pause=True, subaccount=5,
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            cancel_order_on_pause=True,
+            subaccount=5,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body["cancel_order_on_pause"] is True
@@ -699,7 +767,9 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             buy_max_cost=500,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -720,7 +790,9 @@ class TestCreateOrderRequestExtended:
 
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 buy_max_cost="5.5",  # type: ignore[arg-type]
             )
 
@@ -736,12 +808,16 @@ class TestCreateOrderRequestExtended:
         # silent coercion to cents regardless of the numeric value.
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 buy_max_cost=Decimal("500"),  # type: ignore[arg-type]
             )
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 buy_max_cost=Decimal("5.00"),  # type: ignore[arg-type]
             )
 
@@ -753,7 +829,9 @@ class TestCreateOrderRequestExtended:
 
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 buy_max_cost=5.0,  # type: ignore[arg-type]
             )
 
@@ -762,7 +840,9 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             buy_max_cost="500",  # type: ignore[arg-type]
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -789,7 +869,9 @@ class TestCreateOrderRequestExtended:
 
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 type="limit",  # type: ignore[call-arg]
             )
 
@@ -800,7 +882,9 @@ class TestCreateOrderRequestExtended:
 
         with pytest.raises(ValidationError):
             CreateOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 bogus_field="x",  # type: ignore[call-arg]
             )
 
@@ -808,7 +892,9 @@ class TestCreateOrderRequestExtended:
         from kalshi.models.orders import CreateOrderRequest
 
         req = CreateOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             count=Decimal("7"),
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -835,7 +921,9 @@ class TestAmendOrderRequest:
         from kalshi.models.orders import AmendOrderRequest
 
         req = AmendOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             yes_price=Decimal("0.55"),
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
@@ -848,7 +936,9 @@ class TestAmendOrderRequest:
         from kalshi.models.orders import AmendOrderRequest
 
         req = AmendOrderRequest(
-            ticker="MKT", side="no", action="sell",
+            ticker="MKT",
+            side="no",
+            action="sell",
             no_price=Decimal("0.75"),
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
@@ -861,7 +951,9 @@ class TestAmendOrderRequest:
         from kalshi.models.orders import AmendOrderRequest
 
         req = AmendOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             count=Decimal("3"),
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
@@ -876,7 +968,9 @@ class TestAmendOrderRequest:
 
         with pytest.raises(ValidationError):
             AmendOrderRequest(
-                ticker="MKT", side="yes", action="buy",
+                ticker="MKT",
+                side="yes",
+                action="buy",
                 bogus_field="x",  # type: ignore[call-arg]
             )
 
@@ -884,7 +978,9 @@ class TestAmendOrderRequest:
         from kalshi.models.orders import AmendOrderRequest
 
         req = AmendOrderRequest(
-            ticker="MKT", side="yes", action="buy",
+            ticker="MKT",
+            side="yes",
+            action="buy",
             client_order_id="old-id",
             updated_client_order_id="new-id",
         )
@@ -896,7 +992,10 @@ class TestAmendOrderRequest:
         from kalshi.models.orders import AmendOrderRequest
 
         req = AmendOrderRequest(
-            ticker="MKT", side="yes", action="buy", subaccount=3,
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            subaccount=3,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
         assert body["subaccount"] == 3

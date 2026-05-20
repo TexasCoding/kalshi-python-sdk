@@ -39,6 +39,7 @@ ExclusionKind = Literal[
     "wire_normalization",
     "kwarg_rename",
     "client_only",
+    "server_omits_despite_required",
 ]
 
 
@@ -83,6 +84,11 @@ class Exclusion:
       - ``client_only``: SDK kwarg with no wire counterpart — purely a
         client-side knob (e.g., ``max_pages`` cap on ``*_all`` paginators).
         Legitimately present in the signature; not drift.
+      - ``server_omits_despite_required``: spec marks the field
+        ``required: true`` but the live server omits it in practice.
+        Added in #172 for response-side fields that would otherwise force
+        the SDK to raise ``ValidationError`` on real responses. Each entry
+        MUST cite a demo+prod observation in ``reason``.
     """
 
     reason: str
@@ -637,13 +643,9 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/series/{series_ticker}/events/{ticker}/candlesticks",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.series.SeriesResource.forecast_percentile_history"
-        ),
+        sdk_method=("kalshi.resources.series.SeriesResource.forecast_percentile_history"),
         http_method="GET",
-        path_template=(
-            "/series/{series_ticker}/events/{ticker}/forecast_percentile_history"
-        ),
+        path_template=("/series/{series_ticker}/events/{ticker}/forecast_percentile_history"),
     ),
     # ── fcm ─────────────────────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -701,49 +703,34 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     # ── multivariate ────────────────────────────────────────────────────────
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource.list"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.list"),
         http_method="GET",
         path_template="/multivariate_event_collections",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource.list_all"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.list_all"),
         http_method="GET",
         path_template="/multivariate_event_collections",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource.get"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.get"),
         http_method="GET",
         path_template="/multivariate_event_collections/{collection_ticker}",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource."
-            "create_market"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.create_market"),
         http_method="POST",
         path_template="/multivariate_event_collections/{collection_ticker}",
         request_body_schema="#/components/schemas/CreateMarketInMultivariateEventCollectionRequest",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource."
-            "lookup_tickers"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.lookup_tickers"),
         http_method="PUT",
         path_template="/multivariate_event_collections/{collection_ticker}/lookup",
         request_body_schema="#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.multivariate.MultivariateCollectionsResource."
-            "lookup_history"
-        ),
+        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.lookup_history"),
         http_method="GET",
         path_template="/multivariate_event_collections/{collection_ticker}/lookup",
     ),
@@ -781,8 +768,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     ("kalshi.models.orders.CreateOrderRequest", "no_price"): Exclusion(
         reason=(
-            "cent form redundant with no_price_dollars; caller passes dollars, "
-            "wire carries dollars"
+            "cent form redundant with no_price_dollars; caller passes dollars, wire carries dollars"
         ),
         kind="wire_normalization",
     ),
@@ -877,8 +863,7 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     ("kalshi.models.orders.AmendOrderRequest", "no_price"): Exclusion(
         reason=(
-            "cent form redundant with no_price_dollars; caller passes dollars, "
-            "wire carries dollars"
+            "cent form redundant with no_price_dollars; caller passes dollars, wire carries dollars"
         ),
         kind="wire_normalization",
     ),
@@ -1229,9 +1214,7 @@ def _resolve_ref(
             "check spec for circular $ref"
         )
     if not ref.startswith("#/"):
-        raise ValueError(
-            f"_resolve_ref only supports local refs starting with '#/', got {ref!r}"
-        )
+        raise ValueError(f"_resolve_ref only supports local refs starting with '#/', got {ref!r}")
     # JSON Pointer escape decoding: ~1 → /, ~0 → ~ (RFC 6901 §4).
     # Order matters: decode ~1 first, then ~0.
     # Use [2:] not lstrip("#/"): lstrip treats arg as a char set, so "#///foo"
@@ -1331,9 +1314,7 @@ def _resolve_request_body_schema(
     op_key = http_method.lower()
     path_entry = paths[path_template]
     if op_key not in path_entry:
-        raise KeyError(
-            f"operation {http_method!r} not defined on path {path_template!r}"
-        )
+        raise KeyError(f"operation {http_method!r} not defined on path {path_template!r}")
 
     op_entry = path_entry[op_key]
     request_body = op_entry.get("requestBody")

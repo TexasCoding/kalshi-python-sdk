@@ -15,6 +15,7 @@ from kalshi.errors import AuthRequiredError, KalshiError, KalshiNotFoundError
 from kalshi.models.historical import Trade
 from kalshi.models.markets import MarketCandlesticks, Orderbook
 from kalshi.resources.markets import MarketsResource
+from tests._model_fixtures import market_dict, trade_dict
 
 
 @pytest.fixture
@@ -39,8 +40,8 @@ class TestMarketsList:
                 200,
                 json={
                     "markets": [
-                        {"ticker": "MKT-A", "title": "Market A", "yes_bid_dollars": "0.4500"},
-                        {"ticker": "MKT-B", "title": "Market B", "yes_bid_dollars": "0.6000"},
+                        market_dict(ticker="MKT-A", title="Market A", yes_bid_dollars="0.4500"),
+                        market_dict(ticker="MKT-B", title="Market B", yes_bid_dollars="0.6000"),
                     ],
                     "cursor": "page2",
                 },
@@ -188,13 +189,13 @@ class TestMarketsListAll:
                 httpx.Response(
                     200,
                     json={
-                        "markets": [{"ticker": "A"}, {"ticker": "B"}],
+                        "markets": [market_dict(ticker="A"), market_dict(ticker="B")],
                         "cursor": "page2",
                     },
                 ),
                 httpx.Response(
                     200,
-                    json={"markets": [{"ticker": "C"}], "cursor": None},
+                    json={"markets": [market_dict(ticker="C")], "cursor": None},
                 ),
             ]
         )
@@ -212,7 +213,7 @@ class TestMarketsListAll:
             n = counter["n"]
             return httpx.Response(
                 200,
-                json={"markets": [{"ticker": f"M-{n}"}], "cursor": f"cur-{n}"},
+                json={"markets": [market_dict(ticker=f"M-{n}")], "cursor": f"cur-{n}"},
             )
 
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
@@ -234,7 +235,9 @@ class TestMarketsListAll:
     def test_list_all_with_all_new_filters(self, markets: MarketsResource) -> None:
         """v0.7.0 ADDs on list_all match list (no cursor)."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
-            return_value=httpx.Response(200, json={"markets": [{"ticker": "A"}], "cursor": ""})
+            return_value=httpx.Response(
+                200, json={"markets": [market_dict(ticker="A")], "cursor": ""}
+            )
         )
         list(
             markets.list_all(
@@ -262,11 +265,9 @@ class TestMarketsGet:
             return_value=httpx.Response(
                 200,
                 json={
-                    "market": {
-                        "ticker": "TEST-MKT",
-                        "title": "Test Market",
-                        "yes_ask_dollars": "0.7200",
-                    }
+                    "market": market_dict(
+                        ticker="TEST-MKT", title="Test Market", yes_ask_dollars="0.7200"
+                    ),
                 },
             )
         )
@@ -307,9 +308,7 @@ class TestMarketsOrderbook:
     @respx.mock
     def test_orderbook_with_depth(self, markets: MarketsResource) -> None:
         """v0.7.0 ADD: depth kwarg reaches the wire."""
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets/TEST-MKT/orderbook").mock(
             return_value=httpx.Response(
                 200, json={"orderbook_fp": {"yes_dollars": [], "no_dollars": []}}
             )
@@ -326,9 +325,7 @@ class TestMarketsOrderbook:
 class TestMarketsCandlesticks:
     @respx.mock
     def test_returns_nested_candlesticks(self, markets: MarketsResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -378,9 +375,7 @@ class TestMarketsCandlesticks:
 
     @respx.mock
     def test_empty_candlesticks(self, markets: MarketsResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks").mock(
             return_value=httpx.Response(200, json={"candlesticks": []})
         )
         candles = markets.candlesticks(
@@ -407,9 +402,7 @@ class TestMarketsCandlesticks:
         assert route.calls[0].request.url.params["include_latest_before_start"] == "true"
 
     @respx.mock
-    def test_candlesticks_sends_explicit_false(
-        self, markets: MarketsResource
-    ) -> None:
+    def test_candlesticks_sends_explicit_false(self, markets: MarketsResource) -> None:
         """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
@@ -425,9 +418,7 @@ class TestMarketsCandlesticks:
         assert route.calls[0].request.url.params["include_latest_before_start"] == "false"
 
     @respx.mock
-    def test_candlesticks_omits_include_latest_when_none(
-        self, markets: MarketsResource
-    ) -> None:
+    def test_candlesticks_omits_include_latest_when_none(self, markets: MarketsResource) -> None:
         """Tri-state bool: None drops the param entirely."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
@@ -439,9 +430,7 @@ class TestMarketsCandlesticks:
             end_ts=1700100000,
             period_interval=60,
         )
-        assert "include_latest_before_start" not in dict(
-            route.calls[0].request.url.params
-        )
+        assert "include_latest_before_start" not in dict(route.calls[0].request.url.params)
 
 
 class TestMarketsListTrades:
@@ -452,15 +441,15 @@ class TestMarketsListTrades:
                 200,
                 json={
                     "trades": [
-                        {
-                            "trade_id": "t-1",
-                            "ticker": "MKT-A",
-                            "count_fp": "50.00",
-                            "yes_price_dollars": "0.4500",
-                            "no_price_dollars": "0.5500",
-                            "taker_side": "yes",
-                            "created_time": "2026-04-18T12:00:00Z",
-                        },
+                        trade_dict(
+                            trade_id="t-1",
+                            ticker="MKT-A",
+                            count_fp="50.00",
+                            yes_price_dollars="0.4500",
+                            no_price_dollars="0.5500",
+                            taker_side="yes",
+                            created_time="2026-04-18T12:00:00Z",
+                        ),
                     ],
                     "cursor": "next",
                 },
@@ -475,15 +464,15 @@ class TestMarketsListTrades:
 
     @respx.mock
     def test_list_trades_all_paginates(self, markets: MarketsResource) -> None:
-        base_trade = {
-            "trade_id": "t-1",
-            "ticker": "MKT-A",
-            "count_fp": "1.00",
-            "yes_price_dollars": "0.50",
-            "no_price_dollars": "0.50",
-            "taker_side": "yes",
-            "created_time": "2026-04-18T12:00:00Z",
-        }
+        base_trade = trade_dict(
+            trade_id="t-1",
+            ticker="MKT-A",
+            count_fp="1.00",
+            yes_price_dollars="0.50",
+            no_price_dollars="0.50",
+            taker_side="yes",
+            created_time="2026-04-18T12:00:00Z",
+        )
         page1 = {"trades": [base_trade], "cursor": "p2"}
         page2 = {
             "trades": [{**base_trade, "trade_id": "t-2"}],
@@ -535,7 +524,8 @@ class TestMarketsBulkCandlesticks:
 
     @respx.mock
     def test_bulk_candlesticks_handles_null_candlesticks(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         """NullableList[Candlestick]: server-sent ``null`` coerces to ``[]``."""
         respx.get(
@@ -560,7 +550,8 @@ class TestMarketsBulkCandlesticks:
 
     @respx.mock
     def test_bulk_candlesticks_include_flag(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
@@ -577,7 +568,8 @@ class TestMarketsBulkCandlesticks:
 
     @respx.mock
     def test_bulk_candlesticks_include_flag_false(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         """Tri-state bool: explicit False must send 'false' on the wire."""
         route = respx.get(
@@ -595,7 +587,8 @@ class TestMarketsBulkCandlesticks:
 
     @respx.mock
     def test_bulk_candlesticks_omits_include_flag_when_none(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/markets/candlesticks",
@@ -612,51 +605,65 @@ class TestMarketsBulkCandlesticks:
 
 class TestMarketsBulkEmptyValidation:
     def test_bulk_candlesticks_rejects_empty_list(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="non-empty"):
             markets.bulk_candlesticks(
                 market_tickers=[],
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     def test_bulk_candlesticks_rejects_empty_string(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="non-empty"):
             markets.bulk_candlesticks(
                 market_tickers="",
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     def test_bulk_candlesticks_rejects_over_100_list(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="at most 100"):
             markets.bulk_candlesticks(
                 market_tickers=[f"MKT-{i}" for i in range(101)],
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     def test_bulk_candlesticks_rejects_over_100_string(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         """Pre-joined string input must hit the same upper-bound guard as list input."""
         joined = ",".join(f"MKT-{i}" for i in range(101))
         with pytest.raises(ValueError, match="at most 100"):
             markets.bulk_candlesticks(
                 market_tickers=joined,
-                start_ts=1, end_ts=2, period_interval=60,
+                start_ts=1,
+                end_ts=2,
+                period_interval=60,
             )
 
     def test_bulk_orderbooks_rejects_empty_list(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="non-empty"):
             markets.bulk_orderbooks(tickers=[])
 
     def test_bulk_orderbooks_rejects_over_100(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         with pytest.raises(ValueError, match="at most 100"):
             markets.bulk_orderbooks(tickers=[f"MKT-{i}" for i in range(101)])
@@ -708,7 +715,8 @@ class TestMarketsBulkOrderbooks:
 
     @respx.mock
     def test_bulk_orderbooks_handles_missing_sides(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/markets/orderbooks",
@@ -724,7 +732,8 @@ class TestMarketsBulkOrderbooks:
 
     @respx.mock
     def test_bulk_orderbooks_rejects_item_with_missing_ticker(
-        self, markets: MarketsResource,
+        self,
+        markets: MarketsResource,
     ) -> None:
         """Server omitting per-item ticker must raise, not silently return ``ticker=''``."""
         respx.get(
@@ -744,23 +753,28 @@ class TestOrderbookFromItem:
 
     def test_missing_ticker_raises_kalshi_error(self) -> None:
         from kalshi.resources.markets import _orderbook_from_item
+
         with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
             _orderbook_from_item({"orderbook_fp": {}})
 
     def test_empty_string_ticker_raises(self) -> None:
         from kalshi.resources.markets import _orderbook_from_item
+
         with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
             _orderbook_from_item({"ticker": "", "orderbook_fp": {}})
 
     def test_parses_new_shape(self) -> None:
         from kalshi.resources.markets import _orderbook_from_item
-        ob = _orderbook_from_item({
-            "ticker": "MKT-A",
-            "orderbook_fp": {
-                "yes_dollars": [["0.42", "100"]],
-                "no_dollars": [["0.58", "50"]],
-            },
-        })
+
+        ob = _orderbook_from_item(
+            {
+                "ticker": "MKT-A",
+                "orderbook_fp": {
+                    "yes_dollars": [["0.42", "100"]],
+                    "no_dollars": [["0.58", "50"]],
+                },
+            }
+        )
         assert ob.ticker == "MKT-A"
         assert ob.yes[0].price == Decimal("0.42")
         assert ob.no[0].price == Decimal("0.58")
@@ -769,20 +783,22 @@ class TestOrderbookFromItem:
 class TestMarketModel:
     def test_new_fields_from_api(self) -> None:
         """Market model accepts new v0.2 fields from the /markets endpoint."""
-        market = Market.model_validate({
-            "ticker": "TEST",
-            "market_type": "binary",
-            "yes_sub_title": "Yes",
-            "no_sub_title": "No",
-            "volume_fp": "1234.50",
-            "volume_24h_fp": "500.00",
-            "open_interest_fp": "10000.00",
-            "yes_bid_size_fp": "200.00",
-            "yes_ask_size_fp": "300.00",
-            "settlement_value_dollars": "1.0000",
-            "fractional_trading_enabled": True,
-            "settlement_timer_seconds": 3600,
-        })
+        market = Market.model_validate(
+            market_dict(
+                ticker="TEST",
+                market_type="binary",
+                yes_sub_title="Yes",
+                no_sub_title="No",
+                volume_fp="1234.50",
+                volume_24h_fp="500.00",
+                open_interest_fp="10000.00",
+                yes_bid_size_fp="200.00",
+                yes_ask_size_fp="300.00",
+                settlement_value_dollars="1.0000",
+                fractional_trading_enabled=True,
+                settlement_timer_seconds=3600,
+            )
+        )
         assert market.market_type == "binary"
         assert market.yes_sub_title == "Yes"
         assert market.volume == Decimal("1234.50")
@@ -795,11 +811,9 @@ class TestMarketModel:
 
     def test_backward_compat_short_names(self) -> None:
         """Market model still accepts short names for price fields."""
-        market = Market.model_validate({
-            "ticker": "TEST",
-            "yes_bid": "0.45",
-            "volume": "100",
-        })
+        market = Market.model_validate(
+            market_dict(ticker="TEST", yes_bid_dollars="0.45", volume_fp="100")
+        )
         assert market.yes_bid == Decimal("0.45")
         assert market.volume == Decimal("100")
 
