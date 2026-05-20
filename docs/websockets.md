@@ -281,6 +281,30 @@ On a successful reconnect:
 4. Active iterators keep yielding — they reference the durable client-side
    ids, not the server `sid`s.
 
+### Resubscribe-window frame stashing
+
+Between the moment `resubscribe_all` clears the `sid → client_id` map (to
+prevent stale-sid mis-routing on per-sub failures) and the moment the new
+sids land in the wait-for-subscribe-response handler, the server can already
+send data frames on the freshly-assigned sids. Without buffering, those
+frames have no destination yet and would be silently dropped. Under burst
+reconnects on high-volume channels (`ticker`, `trade`, `fill`), this could
+lose tens of messages per reconnect.
+
+`SubscriptionManager` stashes those frames in a per-sid bounded
+`collections.deque(maxlen=stash_maxlen)` for the duration of
+`resubscribe_all`. After resubscribe completes, `_handle_reconnect` drains
+the stash through the normal dispatch path so the seq tracker advances,
+orderbook state applies, and iterator consumers receive them in arrival
+order.
+
+`stash_maxlen` defaults to `1000` per sid. On overflow, oldest evicts (deque
+semantics) and a single WARNING per `(sid, replay-cycle)` is logged so the
+caller notices congestion. Worst-case memory is bounded at
+`stash_maxlen × len(active_subs) × avg_frame_size`. Frames whose sid never
+gets re-mapped (a per-sub failure during resubscribe) are dropped on drain
+with a debug log — there's no consumer to deliver them to.
+
 If `ws_max_retries` is exhausted, the receive loop pushes sentinels to all
 active queues (so `async for` terminates cleanly) and exits. The connection
 state ends at `CLOSED`.

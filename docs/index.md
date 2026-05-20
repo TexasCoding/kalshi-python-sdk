@@ -3,7 +3,7 @@
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API.
 
-- **Full REST coverage** — 85 endpoints across 19 resources (OpenAPI v3.18.0),
+- **Full REST coverage** — 98 operations across 19 resources (OpenAPI v3.18.0),
   every kwarg drift-tested against the spec.
 - **V2 event-market orders** — new `create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` family on `/portfolio/events/orders/*`. Legacy `/portfolio/orders`
@@ -11,10 +11,12 @@ markets API.
 - **Funding + cost introspection** — `portfolio.deposits()`,
   `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Full WebSocket coverage** — 13 channels with sequence-gap detection, automatic
-  reconnection, backpressure strategies, and an in-memory orderbook builder.
+  reconnection (with resubscribe-window frame stashing for high-volume channels),
+  backpressure strategies, and an in-memory orderbook builder. Async-only —
+  access via `AsyncKalshiClient.ws`.
 - **Sync and async parity** — `KalshiClient` and `AsyncKalshiClient` share one
   transport implementation; method names, kwargs, return types, and error behavior
-  are identical.
+  are identical. The one exception is WebSocket access, which is async-only.
 - **Typed end-to-end** — Pydantic v2 models, `Literal` types for enums,
   `mypy --strict` clean. Request bodies use `extra="forbid"` so phantom kwargs fail
   fast.

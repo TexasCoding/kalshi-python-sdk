@@ -176,7 +176,7 @@ request model. See [V2 orders docs](https://texascoding.github.io/kalshi-python-
 ```python
 import asyncio
 from kalshi import KalshiAuth, KalshiConfig
-from kalshi.ws.client import KalshiWebSocket
+from kalshi.ws import KalshiWebSocket
 
 async def main() -> None:
     auth = KalshiAuth.from_key_path("your-key-id", "~/.kalshi/private_key.pem")
@@ -191,10 +191,12 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (13): `ticker`, `trade`, `orderbook_delta`, `fill`,
-`market_positions`, `user_orders`, `order_group_updates`,
-`market_lifecycle_v2`, `multivariate`, `multivariate_market_lifecycle`,
-`communications`, `control_frames`, `root`.
+Available channels (13): 11 have dedicated `subscribe_*` methods — `ticker`,
+`trade`, `orderbook_delta`, `fill`, `market_positions`, `user_orders`,
+`order_group_updates`, `market_lifecycle_v2`, `multivariate`,
+`multivariate_market_lifecycle`, `communications`. The remaining two
+(`control_frames`, `root`) are reachable through the generic
+`subscribe(channel, ...)` escape hatch.
 
 ## Error handling
 
