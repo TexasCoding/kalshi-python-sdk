@@ -55,10 +55,7 @@ See `CHANGELOG.md` for full release history.
 
 ## Open trackers
 
-None. The previous entries here (#45, #53, #106) are all closed:
-`#45` (json={} workaround) resolved, `#53` (nested $ref drift) marked
-not-applicable against the current spec, `#106` was a PR (not an issue) whose
-remaining sub-items all shipped in the post-v2.2.0 batch above.
+None.
 
 ## Next milestone
 
