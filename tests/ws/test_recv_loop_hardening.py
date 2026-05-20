@@ -8,8 +8,10 @@ sleeps, so they're deterministic.
 from __future__ import annotations
 
 import asyncio
+import collections
 import json
 import logging
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -448,3 +450,141 @@ class TestRecvLoopExceptionPolicy:
             assert recv_task is not None
             assert recv_task.done()
             assert isinstance(recv_task.exception(), AttributeError)
+
+
+# ---------------------------------------------------------------------------
+# #176 — resubscribe-window stash: data frames sent before subscribe ack
+# are stashed by sid and replayed after the new sid mapping lands
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestResubscribeStashIntegration:
+    async def test_stash_drain_replays_through_dispatch(
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#176: a frame stashed by sid during resubscribe must replay
+        through `_process_frame` → dispatch so the iterator receives it
+        and the seq tracker treats it as the natural first frame on the
+        new sid (no spurious gap on the next live frame).
+
+        Directly exercises `_drain_resubscribe_stash` rather than racing
+        a real server: race timing is hardware-dependent and the value
+        is the post-drain dispatch path, not the race detector itself.
+        Other tests in this file already exercise the close→reconnect→
+        resubscribe pipeline.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            assert session._sub_mgr is not None
+            sub = next(iter(session._sub_mgr.active_subscriptions.values()))
+            sid = sub.server_sid
+            assert sid is not None
+
+            # Inject a stashed frame for the live sid, then drain.
+            stashed_frame = json.dumps({
+                "type": "ticker",
+                "sid": sid,
+                "seq": 1,
+                "msg": ticker_payload_dict(
+                    market_ticker="T1",
+                    market_id="m1",
+                    yes_bid_dollars="0.4500",
+                ),
+            })
+            session._sub_mgr._stash[sid] = collections.deque([stashed_frame])
+
+            await session._drain_resubscribe_stash()
+
+            # The replayed frame reached the iterator queue.
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert msg.msg.market_ticker == "T1"
+            assert msg.msg.yes_bid == Decimal("0.4500")
+            # Stash is empty after drain.
+            assert session._sub_mgr._stash == {}
+
+    async def test_stash_drain_advances_seq_tracker_on_sequenced_channels(
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#176 + #139: a stashed orderbook_delta frame must advance the
+        seq tracker via the normal `_process_frame → seq_tracker.track`
+        path, so the next live frame on the same sid (seq+1) doesn't
+        trip a spurious gap.
+
+        Without the drain going through `_process_frame`, the seq tracker
+        would never see the stashed seq, and the first live frame after
+        resubscribe would look like a gap from seq 0 → seq 2.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_orderbook_delta(tickers=["T1"])
+            assert session._sub_mgr is not None
+            sub = next(iter(session._sub_mgr.active_subscriptions.values()))
+            sid = sub.server_sid
+            assert sid is not None
+
+            # Inject a stashed snapshot (seq=1) for the live sid.
+            stashed_frame = json.dumps({
+                "type": "orderbook_snapshot",
+                "sid": sid,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T1",
+                    "market_id": "m1",
+                    "yes": [["0.50", "100"]],
+                    "no": [],
+                },
+            })
+            session._sub_mgr._stash[sid] = collections.deque([stashed_frame])
+
+            await session._drain_resubscribe_stash()
+
+            # Replay drained the frame to the iterator…
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert msg.msg.market_ticker == "T1"
+            # …and advanced the seq tracker watermark, so seq=2 on the
+            # next live frame won't look like a gap from 0 -> 2.
+            assert session._seq_tracker is not None
+            assert session._seq_tracker.peek(sid) == 1
+
+    async def test_resubscribe_stash_skips_unmapped_sids(
+        self,
+        fake_ws,
+        test_auth,  # type: ignore[no-untyped-def]
+        caplog,
+    ) -> None:
+        """If a sub fails during resubscribe (no new sid mapped), any
+        frames stashed under a sid that the server did emit but that's
+        no longer in `_sid_to_client` get dropped with a debug log
+        rather than crashing the drain or routing to nowhere."""
+        import logging
+
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ticker(tickers=["T1"])
+            assert session._sub_mgr is not None
+
+            # Pre-populate the stash with a frame for an unknown sid as
+            # if resubscribe had captured it but the sub failed.
+            session._sub_mgr._stash[999] = collections.deque(
+                ['{"type": "ticker", "sid": 999, "seq": 1, "msg": {}}']
+            )
+
+            with caplog.at_level(logging.DEBUG, logger="kalshi.ws"):
+                await session._drain_resubscribe_stash()
+
+            # Stash is cleared.
+            assert session._sub_mgr._stash == {}
+            # Drop was logged.
+            assert any(
+                "Dropping 1 stashed frames for unmapped sid 999" in r.message
+                for r in caplog.records
+            )

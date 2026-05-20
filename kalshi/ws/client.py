@@ -322,6 +322,13 @@ class KalshiWebSocket:
                     if self._orderbook_mgr:
                         self._orderbook_mgr.clear()
                     await self._sub_mgr.resubscribe_all()
+                    # #176: replay frames that the server sent on
+                    # newly-assigned sids before the corresponding
+                    # subscribe ack landed. SubscriptionManager stashed
+                    # them keyed by sid during _wait_for_response; drain
+                    # through _process_frame so seq tracking + orderbook
+                    # state stay consistent with the natural arrival path.
+                    await self._drain_resubscribe_stash()
                     # #88: use the public transition; no reach-through to
                     # ConnectionManager's name-mangled _set_state.
                     await self._connection.mark_streaming()
@@ -331,6 +338,44 @@ class KalshiWebSocket:
                 )
                 await self._broadcast_sentinels()
                 self._running = False
+
+    async def _drain_resubscribe_stash(self) -> None:
+        """Replay frames captured during ``resubscribe_all`` through dispatch.
+
+        #176: ``SubscriptionManager._wait_for_response`` captures non-matching
+        data frames into a per-sid stash while a resubscribe is in flight,
+        because between ``_sid_to_client.clear()`` and the new sid mapping
+        the dispatcher has no route for those frames. After all subscribes
+        complete, this method drains the stash via ``_process_frame`` so
+        seq tracking and orderbook state stay consistent with the natural
+        arrival path.
+
+        Frames whose sid did not get re-mapped (subscription failed during
+        ``resubscribe_all``) are dropped with a debug log — there's no
+        consumer to deliver them to.
+        """
+        if self._sub_mgr is None:
+            return
+        stash = self._sub_mgr.take_stash()
+        for sid, raw_frames in stash.items():
+            if self._sub_mgr.get_subscription_by_sid(sid) is None:
+                logger.debug(
+                    "Dropping %d stashed frames for unmapped sid %d "
+                    "after resubscribe (subscription likely failed)",
+                    len(raw_frames), sid,
+                )
+                continue
+            for raw in raw_frames:
+                try:
+                    await self._process_frame(raw)
+                except Exception:
+                    # Per-frame failure during replay: log and continue.
+                    # The recv-loop's own error-handling is bypassed here
+                    # because we're in the orchestration path, not the loop.
+                    logger.warning(
+                        "Failed to replay stashed frame for sid %d",
+                        sid, exc_info=True,
+                    )
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
         """Handle a sequence gap by logging and triggering resync.

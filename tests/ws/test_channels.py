@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from kalshi.config import KalshiConfig
@@ -332,3 +334,74 @@ class TestMsgIdAutoIncrement:
         await sub_mgr.subscribe("fill")
         ids = [c["id"] for c in fake_ws.received_commands]
         assert ids == [1, 2]
+
+
+# ---------------------------------------------------------------------------
+# SubscriptionManager — resubscribe-window stash (#176)
+# ---------------------------------------------------------------------------
+
+
+class TestResubscribeStash:
+    def test_maybe_stash_collects_by_sid(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """Frames carrying a sid land in the per-sid deque in arrival order."""
+        sub_mgr._maybe_stash('{"sid": 1, "seq": 1}', {"sid": 1, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 2, "seq": 1}', {"sid": 2, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 1, "seq": 2}', {"sid": 1, "seq": 2})
+        assert set(sub_mgr._stash.keys()) == {1, 2}
+        assert list(sub_mgr._stash[1]) == [
+            '{"sid": 1, "seq": 1}',
+            '{"sid": 1, "seq": 2}',
+        ]
+        assert list(sub_mgr._stash[2]) == ['{"sid": 2, "seq": 1}']
+
+    def test_maybe_stash_drops_frame_without_sid(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """Control envelopes without a sid have nowhere to replay to — drop."""
+        sub_mgr._maybe_stash('{"type": "ok"}', {"type": "ok"})
+        assert sub_mgr._stash == {}
+
+    def test_maybe_stash_maxlen_evicts_oldest(
+        self, connected_mgr, caplog  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Per-sid deque is bounded; on overflow, oldest evicts and a WARNING fires."""
+        import logging
+        mgr = SubscriptionManager(connected_mgr, stash_maxlen=3)
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            for i in range(5):
+                mgr._maybe_stash(f'{{"sid": 7, "seq": {i}}}', {"sid": 7, "seq": i})
+        bucket = mgr._stash[7]
+        # maxlen=3 → only the last 3 survive (oldest 0,1 evicted)
+        assert len(bucket) == 3
+        assert [json.loads(r)["seq"] for r in bucket] == [2, 3, 4]
+        # WARNING fired (once per fill event, not per frame)
+        assert any(
+            "is full (3 frames)" in rec.message
+            for rec in caplog.records
+            if rec.levelno == logging.WARNING
+        )
+
+    def test_take_stash_returns_and_clears(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """take_stash atomically returns the current stash and resets to empty."""
+        sub_mgr._maybe_stash('{"sid": 9, "seq": 1}', {"sid": 9, "seq": 1})
+        sub_mgr._maybe_stash('{"sid": 9, "seq": 2}', {"sid": 9, "seq": 2})
+        taken = sub_mgr.take_stash()
+        assert list(taken[9]) == [
+            '{"sid": 9, "seq": 1}',
+            '{"sid": 9, "seq": 2}',
+        ]
+        assert sub_mgr._stash == {}
+        # Second take is empty
+        assert sub_mgr.take_stash() == {}
+
+    def test_stashing_flag_off_by_default(
+        self, sub_mgr: SubscriptionManager
+    ) -> None:
+        """_wait_for_response only stashes when explicitly toggled by
+        resubscribe_all (or future opt-in callers). Default is off so
+        normal subscribe paths don't accumulate stale state."""
+        assert sub_mgr._stashing is False

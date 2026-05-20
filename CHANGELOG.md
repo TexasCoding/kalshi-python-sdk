@@ -4,6 +4,38 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### WS resubscribe-window frame stashing (#176)
+
+Fixes silent message loss during reconnect bursts on high-volume channels.
+Previously, between ``SubscriptionManager._sid_to_client.clear()`` and the
+new sid mapping landing in ``_wait_for_response``, any data frame the
+server sent on the freshly-assigned sid was non-matching from the wait's
+perspective and **discarded** with a debug log. Under market-burst
+reconnects on ``ticker`` / ``trade`` / ``fill``, the SDK could drop tens
+of messages per reconnect.
+
+``SubscriptionManager`` now stashes those non-matching data frames in a
+per-sid bounded deque (``stash_maxlen=1000`` per sid by default) for the
+duration of ``resubscribe_all``. After resubscribe completes,
+``KalshiWebSocket._handle_reconnect`` drains the stash through
+``_process_frame`` so the frames flow through the normal dispatch path
+— seq tracker advances, orderbook manager applies, iterator consumers
+receive them in arrival order.
+
+The drain coordinates with #139's seq-gap tracking: replayed frames
+go through ``seq_tracker.track`` exactly once, so the first live frame
+after resubscribe sees the right watermark and doesn't trip a spurious
+gap on what would otherwise look like a seq 0 → N jump.
+
+Stash bound: per-sid deque uses ``collections.deque(maxlen=stash_maxlen)``.
+On overflow, oldest evicts (deque semantics) and a single WARNING per
+fill event is logged so callers notice congestion. Memory is bounded at
+``stash_maxlen * len(active_subs) * avg_frame_size`` worst-case.
+
+Frames whose sid did not get re-mapped during ``resubscribe_all`` (a
+per-sub failure that #77's F-P-01 isolates) are dropped on drain with a
+debug log — there's no consumer to deliver them to.
+
 ### WS `run_forever(stop_event=...)` cooperative shutdown (#177)
 
 `KalshiWebSocket.run_forever()` now accepts an optional
