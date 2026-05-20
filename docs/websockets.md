@@ -128,6 +128,30 @@ async with ws.connect() as session:
 has landed in the session — a callback alone doesn't tell the server to
 send frames, and the previous silent-no-op behavior was a foot-gun (#175).
 
+### Cooperative shutdown
+
+Pass an ``asyncio.Event`` to ``run_forever(stop_event=...)`` to terminate
+the recv loop without raising ``CancelledError``. The canonical pattern
+wires the event to ``SIGINT`` so Ctrl+C drains in-flight dispatches,
+closes the WebSocket cleanly, and returns:
+
+```python
+import asyncio
+import signal
+
+stop = asyncio.Event()
+asyncio.get_running_loop().add_signal_handler(signal.SIGINT, stop.set)
+
+async with ws.connect() as session:
+    await session.subscribe_ticker(tickers=["EXAMPLE-25-T"])
+    await session.run_forever(stop_event=stop)
+```
+
+When the event fires, ``run_forever()`` clears ``_running``, closes the
+connection, and awaits the recv loop's natural exit. No ``CancelledError``
+leaks out (#177). Without ``stop_event``, external cancellation still
+propagates as before.
+
 `on()` works both before and after `connect()`; callbacks registered before
 the socket opens are buffered and applied when the session starts.
 
