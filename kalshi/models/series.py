@@ -59,9 +59,9 @@ class EventCandlesticks(BaseModel):
     return a nested structure: one candlestick list per market in the event.
     """
 
-    market_tickers: NullableList[str] = []
-    market_candlesticks: NullableList[list[Candlestick]] = []
-    adjusted_end_ts: int = 0
+    market_tickers: NullableList[str]
+    market_candlesticks: NullableList[list[Candlestick]]
+    adjusted_end_ts: int
 
     model_config = {"extra": "allow"}
 
@@ -83,6 +83,6 @@ class ForecastPercentilesPoint(BaseModel):
     event_ticker: str
     end_period_ts: int
     period_interval: int
-    percentile_points: NullableList[PercentilePoint] = []
+    percentile_points: NullableList[PercentilePoint]
 
     model_config = {"extra": "allow"}

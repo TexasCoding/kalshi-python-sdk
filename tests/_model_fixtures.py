@@ -583,3 +583,41 @@ def series_fee_change_dict(**overrides: Any) -> dict[str, Any]:
     }
     base.update(overrides)
     return base
+
+
+def bid_ask_distribution_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped BidAskDistribution dict (Candlestick.yes_bid / .yes_ask)."""
+    base: dict[str, Any] = {
+        "open_dollars": "0.5000",
+        "high_dollars": "0.5100",
+        "low_dollars": "0.4900",
+        "close_dollars": "0.5000",
+    }
+    base.update(overrides)
+    return base
+
+
+def price_distribution_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped PriceDistribution dict (Candlestick.price).
+
+    All fields are optional per spec — the OHLC window may contain no
+    trades — so the default base is intentionally ``{}``. Pass overrides
+    when the test exercises specific fields.
+    """
+    base: dict[str, Any] = {}
+    base.update(overrides)
+    return base
+
+
+def candlestick_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped Candlestick dict (#171)."""
+    base: dict[str, Any] = {
+        "end_period_ts": 1700000000,
+        "yes_bid": bid_ask_distribution_dict(),
+        "yes_ask": bid_ask_distribution_dict(),
+        "price": price_distribution_dict(),
+        "volume_fp": "0.00",
+        "open_interest_fp": "0.00",
+    }
+    base.update(overrides)
+    return base

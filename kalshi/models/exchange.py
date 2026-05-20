@@ -33,13 +33,13 @@ class WeeklySchedule(BaseModel):
 
     start_time: datetime
     end_time: datetime
-    monday: NullableList[DailySchedule] = []
-    tuesday: NullableList[DailySchedule] = []
-    wednesday: NullableList[DailySchedule] = []
-    thursday: NullableList[DailySchedule] = []
-    friday: NullableList[DailySchedule] = []
-    saturday: NullableList[DailySchedule] = []
-    sunday: NullableList[DailySchedule] = []
+    monday: NullableList[DailySchedule]
+    tuesday: NullableList[DailySchedule]
+    wednesday: NullableList[DailySchedule]
+    thursday: NullableList[DailySchedule]
+    friday: NullableList[DailySchedule]
+    saturday: NullableList[DailySchedule]
+    sunday: NullableList[DailySchedule]
 
     model_config = {"extra": "allow"}
 
@@ -56,8 +56,8 @@ class MaintenanceWindow(BaseModel):
 class Schedule(BaseModel):
     """Exchange operating schedule."""
 
-    standard_hours: NullableList[WeeklySchedule] = []
-    maintenance_windows: NullableList[MaintenanceWindow] = []
+    standard_hours: NullableList[WeeklySchedule]
+    maintenance_windows: NullableList[MaintenanceWindow]
 
     model_config = {"extra": "allow"}
 

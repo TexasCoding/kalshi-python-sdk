@@ -4,6 +4,44 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### Contract-map completeness (#171)
+
+Maps the remaining 42 REST sub-models, V2 orders family, and internal
+containers into `CONTRACT_MAP` (49 entries → 91). Promotes
+`test_contract_map_completeness` from `warnings.warn` to `pytest.fail` so
+the next unmapped model fails CI loudly.
+
+`_get_schema_fields` / `_get_required_fields` gain a dotted-path syntax
+(`Parent.field.items`) so inline-object schemas the spec doesn't name at the
+top level (`Batch*OrdersV2*` per-entry shapes) can still flow through the
+drift pipeline.
+
+Newly-surfaced drift caught by mapping these models:
+
+- `BidAskDistribution` (OHLC): all four price fields tightened to required.
+- `PriceDistribution`: gains 4 v3.18.0 spec fields (`mean_dollars`,
+  `previous_dollars`, `min_dollars`, `max_dollars`), all optional per spec.
+- `Candlestick`: 6 fields tightened to required.
+- `MarketMetadata`: `image_url` + `color_code` tightened.
+- `Schedule` / `WeeklySchedule`: tightened.
+- `PositionsResponse`, `EventCandlesticks`, `ForecastPercentilesPoint`:
+  tightened.
+- `AssociatedEvent` (multivariate): `is_yes_only` + `active_quoters` tightened.
+- `LookupPoint` (multivariate): `selected_markets` + `last_queried_ts` tightened.
+
+`OrderbookLevel` is mapped to spec's `PriceLevelDollarsCountFp`, a positional
+2-tuple `["<dollars_string>", "<fp_count_string>"]`. The SDK wraps it as a
+named `{price, quantity}` object — no field-by-field comparison possible.
+`_get_schema_fields` returns `{}` for the array-typed spec schema, so drift
+checks skip it cleanly.
+
+Fixture builders for `Candlestick`, `BidAskDistribution`, `PriceDistribution`
+added to `tests/_model_fixtures.py` (3 new). Test fixtures parsing
+`Candlestick` / `EventCandlesticks` / `MarketCandlesticks` now use those
+builders.
+
+### Required-but-optional drift closure (#172)
+
 Required-but-optional drift closure (#172). Drops `None` defaults on 226
 spec-required Pydantic model fields across 34 response models (21 REST, 13
 WS). The SDK now matches the OpenAPI v3.18.0 / AsyncAPI v0.14 `required` set

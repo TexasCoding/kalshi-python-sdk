@@ -15,7 +15,7 @@ from kalshi.errors import AuthRequiredError, KalshiError, KalshiNotFoundError
 from kalshi.models.historical import Trade
 from kalshi.models.markets import MarketCandlesticks, Orderbook
 from kalshi.resources.markets import MarketsResource
-from tests._model_fixtures import market_dict, trade_dict
+from tests._model_fixtures import candlestick_dict, market_dict, trade_dict
 
 
 @pytest.fixture
@@ -363,12 +363,9 @@ class TestMarketsCandlesticks:
         assert len(candles) == 1
         c = candles[0]
         assert c.end_period_ts == 1700000000
-        assert c.yes_bid is not None
         assert c.yes_bid.open == Decimal("0.4000")
         assert c.yes_bid.close == Decimal("0.4500")
-        assert c.yes_ask is not None
         assert c.yes_ask.high == Decimal("0.6000")
-        assert c.price is not None
         assert c.price.open == Decimal("0.5000")
         assert c.volume == Decimal("1234.50")
         assert c.open_interest == Decimal("5000.00")
@@ -501,7 +498,7 @@ class TestMarketsBulkCandlesticks:
                         {
                             "market_ticker": "MKT-A",
                             "candlesticks": [
-                                {"end_period_ts": 1, "volume_fp": "0"},
+                                candlestick_dict(end_period_ts=1, volume_fp="0"),
                             ],
                         },
                         {"market_ticker": "MKT-B", "candlesticks": []},

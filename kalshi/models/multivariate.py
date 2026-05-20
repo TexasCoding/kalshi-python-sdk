@@ -25,10 +25,10 @@ class AssociatedEvent(BaseModel):
     """An event associated with a multivariate collection."""
 
     ticker: str
-    is_yes_only: bool = False
+    is_yes_only: bool
     size_max: int | None = None
     size_min: int | None = None
-    active_quoters: NullableList[str] = []
+    active_quoters: NullableList[str]
 
     model_config = {"extra": "allow"}
 
@@ -142,7 +142,7 @@ class LookupPoint(BaseModel):
 
     event_ticker: str
     market_ticker: str
-    selected_markets: NullableList[TickerPair] = []
-    last_queried_ts: datetime | None = None
+    selected_markets: NullableList[TickerPair]
+    last_queried_ts: datetime
 
     model_config = {"extra": "allow"}

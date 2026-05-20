@@ -164,20 +164,16 @@ class Orderbook(BaseModel):
 class BidAskDistribution(BaseModel):
     """OHLC data for bid/ask prices within a candlestick period."""
 
-    open: DollarDecimal | None = Field(
-        default=None,
+    open: DollarDecimal = Field(
         validation_alias=AliasChoices("open_dollars", "open"),
     )
-    high: DollarDecimal | None = Field(
-        default=None,
+    high: DollarDecimal = Field(
         validation_alias=AliasChoices("high_dollars", "high"),
     )
-    low: DollarDecimal | None = Field(
-        default=None,
+    low: DollarDecimal = Field(
         validation_alias=AliasChoices("low_dollars", "low"),
     )
-    close: DollarDecimal | None = Field(
-        default=None,
+    close: DollarDecimal = Field(
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
@@ -206,6 +202,24 @@ class PriceDistribution(BaseModel):
         default=None,
         validation_alias=AliasChoices("close_dollars", "close"),
     )
+    # v3.18.0 spec additions (#171). All four nullable per spec since the
+    # candlestick window may contain no trades.
+    mean: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("mean_dollars", "mean"),
+    )
+    previous: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("previous_dollars", "previous"),
+    )
+    min: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("min_dollars", "min"),
+    )
+    max: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("max_dollars", "max"),
+    )
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -217,16 +231,14 @@ class Candlestick(BaseModel):
     plus volume and open interest as FixedPointCount strings.
     """
 
-    end_period_ts: int | None = None
-    yes_bid: BidAskDistribution | None = None
-    yes_ask: BidAskDistribution | None = None
-    price: PriceDistribution | None = None
-    volume: FixedPointCount | None = Field(
-        default=None,
+    end_period_ts: int
+    yes_bid: BidAskDistribution
+    yes_ask: BidAskDistribution
+    price: PriceDistribution
+    volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
-    open_interest: FixedPointCount | None = Field(
-        default=None,
+    open_interest: FixedPointCount = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )
 

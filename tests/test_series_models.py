@@ -11,6 +11,7 @@ from kalshi.models.series import (
     Series,
     SeriesFeeChange,
 )
+from tests._model_fixtures import candlestick_dict
 
 
 class TestSeriesModel:
@@ -188,8 +189,11 @@ class TestEventCandlesticksModel:
         ec = EventCandlesticks.model_validate({
             "market_tickers": ["MKT-A", "MKT-B"],
             "market_candlesticks": [
-                [{"end_period_ts": 1000, "volume_fp": "50.00"}],
-                [{"end_period_ts": 1000, "volume_fp": "30.00"}, {"end_period_ts": 2000}],
+                [candlestick_dict(end_period_ts=1000, volume_fp="50.00")],
+                [
+                    candlestick_dict(end_period_ts=1000, volume_fp="30.00"),
+                    candlestick_dict(end_period_ts=2000),
+                ],
             ],
             "adjusted_end_ts": 3000,
         })

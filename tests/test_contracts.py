@@ -16,7 +16,6 @@ from __future__ import annotations
 import importlib
 import inspect
 import typing
-import warnings
 from decimal import Decimal
 from pathlib import Path
 from types import UnionType
@@ -261,12 +260,53 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     return node  # type: ignore[return-value]
 
 
-def _get_schema_fields(spec: dict[str, Any], schema_name: str) -> dict[str, dict[str, Any]]:
-    """Extract field names and their properties from a spec schema."""
+def _resolve_schema(spec: dict[str, Any], schema_name: str) -> dict[str, Any]:
+    """Resolve a schema by name, supporting dotted-path syntax for inline schemas.
+
+    Plain ``"Foo"`` looks up ``components.schemas.Foo``.
+    Dotted ``"Foo.bar.items"`` walks ``components.schemas.Foo.properties.bar.items``
+    where each segment after the first navigates ``properties[segment]`` unless the
+    segment is the literal ``"items"`` (in which case it descends into the array
+    items schema). Used to address inline object schemas that the spec doesn't
+    name at the top level — e.g., the per-entry shapes inside ``Batch*Orders*``
+    response wrappers.
+    """
     schemas = spec.get("components", {}).get("schemas", {})
-    schema = schemas.get(schema_name)
-    if schema is None:
-        pytest.fail(f"Schema '{schema_name}' not found in OpenAPI spec")
+    head, *rest = schema_name.split(".")
+    node = schemas.get(head)
+    if node is None:
+        pytest.fail(f"Schema '{head}' not found in OpenAPI spec")
+    for segment in rest:
+        if "$ref" in node:
+            node = _resolve_ref(spec, node["$ref"])
+        if segment == "items":
+            if "items" not in node:
+                pytest.fail(
+                    f"Schema path '{schema_name}' failed at segment {segment!r}: "
+                    f"parent has no 'items'"
+                )
+            node = node["items"]
+        else:
+            properties = node.get("properties", {})
+            if segment not in properties:
+                pytest.fail(
+                    f"Schema path '{schema_name}' failed at segment {segment!r}: "
+                    f"not in parent properties"
+                )
+            node = properties[segment]
+    if "$ref" in node:
+        node = _resolve_ref(spec, node["$ref"])
+    return node
+
+
+def _get_schema_fields(spec: dict[str, Any], schema_name: str) -> dict[str, dict[str, Any]]:
+    """Extract field names and their properties from a spec schema.
+
+    Returns ``{}`` for schemas whose top-level type is not ``object`` (e.g., the
+    positional ``PriceLevelDollarsCountFp`` 2-tuple), since they have no
+    field-by-field shape to compare.
+    """
+    schema = _resolve_schema(spec, schema_name)
 
     # Handle allOf composition (merge all sub-schemas)
     if "allOf" in schema:
@@ -292,9 +332,12 @@ def _get_schema_fields(spec: dict[str, Any], schema_name: str) -> dict[str, dict
 
 
 def _get_required_fields(spec: dict[str, Any], schema_name: str) -> set[str]:
-    """Extract required field names from a spec schema, merging from allOf/oneOf/anyOf."""
-    schemas = spec.get("components", {}).get("schemas", {})
-    schema = schemas.get(schema_name, {})
+    """Extract required field names from a spec schema, merging from allOf/oneOf/anyOf.
+
+    Supports the same dotted-path syntax as :func:`_get_schema_fields`. Returns
+    an empty set for non-object schemas.
+    """
+    schema = _resolve_schema(spec, schema_name)
 
     required: set[str] = set(schema.get("required", []))
 
@@ -679,16 +722,20 @@ class TestSpecDrift:
             )
 
     def test_schema_coverage(self) -> None:
-        """Every mapped schema must exist in the spec."""
-        schemas = self.spec.get("components", {}).get("schemas", {})
+        """Every mapped schema must resolve (supports dotted-path syntax)."""
         for entry in CONTRACT_MAP:
-            assert entry.spec_schema in schemas, (
-                f"Contract map references '{entry.spec_schema}' "
-                f"but it doesn't exist in the OpenAPI spec"
-            )
+            # _resolve_schema fails the test internally if the path doesn't resolve.
+            _resolve_schema(self.spec, entry.spec_schema)
 
     def test_contract_map_completeness(self) -> None:
-        """Warn if SDK models exist without contract map entries."""
+        """Fail if any SDK model under ``kalshi.models.*`` lacks a ``CONTRACT_MAP`` entry.
+
+        Hard-fail since #171. Was warn-only while ~42 sub-models / V2 family /
+        internal containers were unmapped. Now every Pydantic class in the
+        listed modules MUST have a ``ContractEntry`` (use the dotted-path
+        ``Parent.field.items`` syntax for inline schemas; see notes in
+        ``kalshi/_contract_map.py``).
+        """
         mapped_models = {e.sdk_model for e in CONTRACT_MAP}
         unmapped: list[str] = []
 
@@ -714,16 +761,9 @@ class TestSpecDrift:
                         unmapped.append(fqn)
 
         if unmapped:
-            # REST completeness stays as warn-only pending sub-model + V2 model
-            # mapping work (~42 entries: nested model classes like Candlestick /
-            # OrderbookLevel, V2 request/response families, internal containers
-            # like PositionsResponse). Out of scope for #163; the WS completeness
-            # check IS hard-fail since ErrorPayload registration cleared it.
-            # Track follow-up in a separate issue if mapping these is desired.
-            warnings.warn(
+            pytest.fail(
                 "SDK models without contract map entries:\n"
-                + "\n".join(f"  - {m}" for m in unmapped),
-                stacklevel=1,
+                + "\n".join(f"  - {m}" for m in unmapped)
             )
 
 
@@ -997,10 +1037,9 @@ class TestRequestParamDrift:
     drives both sync and async tests. Asserts the async class exists; a missing
     sibling is a bug we want to see immediately.
 
-    Hard-fails via ``pytest.fail`` (NOT ``warnings.warn``). Request-side drift
-    is a user-facing capability gap. See the docstring of
-    ``tests/_contract_support.py`` for the rationale on the asymmetry vs
-    ``TestSpecDrift`` (response-side, which warns rather than fails).
+    Hard-fails via ``pytest.fail``. See the docstring of
+    ``tests/_contract_support.py`` for the broader rationale; as of #172/#171
+    every contract gate in this file is now hard-fail.
     """
 
     spec: dict[str, Any]
