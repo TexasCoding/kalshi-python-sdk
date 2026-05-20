@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -428,6 +429,34 @@ class TestRunForever:
             await asyncio.wait_for(session.run_forever(stop_event=stop), timeout=2.0)
             assert session._connection is not None
             assert session._connection.state == ConnectionState.CLOSED
+
+    async def test_run_forever_with_stop_event_broadcasts_sentinels(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#177 review fix: cooperative shutdown must broadcast queue
+        sentinels so iterator consumers exit `async for` cleanly. Without
+        this an iterator outside an `async with` block would hang on the
+        empty queue after the connection closed."""
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            stop = asyncio.Event()
+            run_task = asyncio.create_task(session.run_forever(stop_event=stop))
+            await asyncio.sleep(0.05)
+            stop.set()
+            await asyncio.wait_for(run_task, timeout=2.0)
+
+            # The iterator must terminate without further input. Pre-fix it
+            # would block on the empty queue waiting for a sentinel that
+            # only _stop() (on __aexit__) was sending.
+            collected: list[Any] = []
+            async def drain() -> None:
+                async for msg in stream:
+                    collected.append(msg)
+            await asyncio.wait_for(drain(), timeout=2.0)
 
 
 # ---------------------------------------------------------------------------

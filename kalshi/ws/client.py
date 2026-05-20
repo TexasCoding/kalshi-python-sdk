@@ -548,6 +548,15 @@ class KalshiWebSocket:
             default) the method blocks on ``_recv_task`` directly and
             external cancellation still propagates as before.
 
+            External cancellation of ``run_forever()`` itself (e.g.,
+            ``task.cancel()`` on the awaiting task) while ``stop_event``
+            is provided still propagates — the cancellation cleans up the
+            internal ``stop_waiter`` task but does NOT trigger the
+            cooperative shutdown branch. ``_recv_task`` keeps running
+            until the session's ``__aexit__`` calls ``_stop()`` for the
+            full teardown. Use the event for graceful exit; rely on
+            ``__aexit__`` for hard cancellation.
+
         :raises KalshiSubscriptionError: ``run_forever()`` was called
             before any ``subscribe_*`` request landed (formerly a silent
             no-op return — fixed in #175).
@@ -581,10 +590,25 @@ class KalshiWebSocket:
                 # Cooperative shutdown requested. Clearing _running first
                 # means the recv loop's ConnectionClosed branch hits the
                 # `if not self._running: break` path instead of reconnecting.
+                #
+                # Nested try/finally so a close() exception still drains
+                # the recv task AND broadcasts queue sentinels — otherwise
+                # iterators hang on consumers' `async for` even though the
+                # connection is gone. _stop() does the same sentinel
+                # broadcast on __aexit__; duplicated here so cooperative
+                # shutdown is complete even for callers who use
+                # run_forever() outside an `async with` block.
                 self._running = False
-                if self._connection is not None:
-                    await self._connection.close()
-                await self._recv_task
+                try:
+                    if self._connection is not None:
+                        await self._connection.close()
+                finally:
+                    try:
+                        await self._recv_task
+                    finally:
+                        if self._sub_mgr is not None:
+                            for sub in self._sub_mgr.active_subscriptions.values():
+                                await sub.queue.put_sentinel()
             # If recv_task finished first (server-side close, etc.) just
             # surface any exception it raised — same semantics as the
             # no-stop-event branch above.
