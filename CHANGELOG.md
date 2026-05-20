@@ -2,10 +2,14 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## Unreleased
+## 2.2.0 — 2026-05-19
 
 Response-side spec drift hardening stack (#157). Backfills the remaining
-v3.18.0 / v0.14 fields and promotes additive drift to a hard CI failure.
+v3.18.0 OpenAPI / v0.14 AsyncAPI fields across REST and WebSocket response
+models (65 new optional fields across 16 models), promotes additive
+drift from warning to hard CI failure, and lands a high-signal bugfix
+for the subaccount-number request constraint that was rejecting valid
+server-assigned values.
 
 ### Added
 

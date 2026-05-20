@@ -134,7 +134,7 @@ All work — bugs, enhancements, polish, spec drift — is tracked in **GitHub I
 on `TexasCoding/kalshi-python-sdk`. Use the `gh` CLI or the GitHub UI; do not add
 markdown trackers (TODOS/BACKLOG) back to the repo.
 
-- Active milestone: post-v2.0 (after the audit-driven hardening wave that shipped v2.0.0)
+- Active milestone: post-v2.2 (after the response-side spec drift hardening stack that shipped v2.2.0)
 - Labels in use: `bug`, `enhancement`, `documentation`, `polish`, `breaking`, `spec-drift`, `testing`, `infra`, `ws`, `cli`
 - `ROADMAP.md` — short pointer to the active milestone
 - `CHANGELOG.md` — release-facing history; updated per release
