@@ -55,11 +55,27 @@ See `CHANGELOG.md` for full release history.
 
 ## Open trackers
 
-None.
+- **`#224` — 2026-05-21 multi-reviewer SDK audit umbrella** (34 issues across
+  security, HTTP transport, WebSocket, models, resources, performance,
+  testing, and docs). Tier 1 (critical/high) is release-blocking-class;
+  tiers 2–3 are next-minor / opportunistic.
 
 ## Next milestone
 
-Not scoped. Open candidates from the v2.0/v2.1 audit backlog:
+Drive `#224` to closure. Suggested release plan documented inside the
+umbrella issue:
+
+- **v2.3.1 patch:** `#189` (orderbook resync), `#190` (DataFrame Decimal),
+  `#191` (Decimal scientific notation). Three user-money-impact fixes,
+  small and non-breaking.
+- **v2.4.0 minor:** bulk of tier 1 (#192, #193, #195–#200) + non-breaking
+  tier-2 items (#201–#219).
+- **v3.0.0 major:** `#194` (V1 batch endpoints typed responses, breaking)
+  + any opportunistic tier-2 breaking shapes.
+- Polish bundles (`#220`–`#223`) fold into whichever release naturally
+  co-locates their fixes.
+
+Pre-audit candidates still standing:
 
 - **Required-but-Optional drift policy decision** (~204 entries on
   `test_required_drift` / `test_ws_required_drift`). Currently warn-only;
