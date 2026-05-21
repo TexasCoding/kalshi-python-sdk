@@ -55,9 +55,7 @@ class TestToDataframe:
         assert isinstance(df, pd.DataFrame)
         assert df.empty
 
-    def test_missing_pandas_raises_importerror(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_pandas_raises_importerror(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Ensure no cached pandas module satisfies the import.
         monkeypatch.delitem(sys.modules, "pandas", raising=False)
         real_import = builtins.__import__
@@ -105,9 +103,7 @@ class TestToPolars:
         assert isinstance(df, pl.DataFrame)
         assert df.is_empty()
 
-    def test_missing_polars_raises_importerror(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_polars_raises_importerror(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delitem(sys.modules, "polars", raising=False)
         real_import = builtins.__import__
 
@@ -287,9 +283,7 @@ class TestPageDataframeDollarDecimal:
 
     def test_page_to_dataframe_decimal_sum_is_decimal_not_concatenated_strings(self) -> None:
         pytest.importorskip("pandas")
-        page: Page[_DollarRow] = Page(
-            items=_dollar_items("0.5600", "0.5600"), cursor=None
-        )
+        page: Page[_DollarRow] = Page(items=_dollar_items("0.5600", "0.5600"), cursor=None)
 
         df = page.to_dataframe()
         total = df["price"].sum()
@@ -311,9 +305,7 @@ class TestPageToPolarsDollarDecimal:
 
     def test_page_to_polars_decimal_sum_is_decimal(self) -> None:
         pytest.importorskip("polars")
-        page: Page[_DollarRow] = Page(
-            items=_dollar_items("0.5600", "0.5600"), cursor=None
-        )
+        page: Page[_DollarRow] = Page(items=_dollar_items("0.5600", "0.5600"), cursor=None)
 
         df = page.to_polars()
         total = df["price"].sum()
@@ -321,3 +313,64 @@ class TestPageToPolarsDollarDecimal:
         # polars Decimal.sum() returns a Python Decimal — never a string concat.
         assert isinstance(total, Decimal)
         assert total == Decimal("1.1200")
+
+
+# ---------------------------------------------------------------------------
+# Issue #264: column-oriented build must preserve the Decimal contract at
+# scale and across both backends. Pins behavior for a 100-row page (the
+# size at which per-row model_dump was measurably slower).
+# ---------------------------------------------------------------------------
+
+
+class TestPageToDataframeColumnOriented:
+    def test_hundred_row_decimal_column_holds_decimal_instances(self) -> None:
+        pd = pytest.importorskip("pandas")
+        items = _dollar_items(*[f"0.{i:04d}" for i in range(100)])
+        page: Page[_DollarRow] = Page(items=items, cursor=None)
+
+        df = page.to_dataframe()
+
+        assert df.shape == (100, 1)
+        assert df["price"].dtype == object
+        values = df["price"].tolist()
+        assert all(isinstance(v, Decimal) for v in values)
+        assert not any(isinstance(v, float) for v in values)
+        assert values[0] == Decimal("0.0000")
+        assert values[-1] == Decimal("0.0099")
+        # sentinel: pandas attribute survives
+        assert isinstance(df, pd.DataFrame)
+
+    def test_empty_page_returns_empty_dataframe(self) -> None:
+        pd = pytest.importorskip("pandas")
+        page: Page[_DollarRow] = Page(items=[], cursor=None)
+
+        df = page.to_dataframe()
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.empty
+        assert df.shape == (0, 0)
+
+
+class TestPageToPolarsColumnOriented:
+    def test_hundred_row_decimal_column_holds_decimal_instances(self) -> None:
+        pl = pytest.importorskip("polars")
+        items = _dollar_items(*[f"0.{i:04d}" for i in range(100)])
+        page: Page[_DollarRow] = Page(items=items, cursor=None)
+
+        df = page.to_polars()
+
+        assert df.shape == (100, 1)
+        assert isinstance(df["price"].dtype, pl.Decimal)
+        values = df["price"].to_list()
+        assert all(isinstance(v, Decimal) for v in values)
+        assert values[0] == Decimal("0.0000")
+        assert values[-1] == Decimal("0.0099")
+
+    def test_empty_page_returns_empty_polars_dataframe(self) -> None:
+        pl = pytest.importorskip("polars")
+        page: Page[_DollarRow] = Page(items=[], cursor=None)
+
+        df = page.to_polars()
+
+        assert isinstance(df, pl.DataFrame)
+        assert df.shape == (0, 0)
