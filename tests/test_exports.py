@@ -39,19 +39,19 @@ def test_from_kalshi_import_star_exposes_all_models() -> None:
         assert namespace[name] is getattr(kalshi, name)
 
 
-def test_KalshiConflictError_importable_from_kalshi() -> None:
+def test_kalshi_conflict_error_importable_from_kalshi() -> None:
     from kalshi import KalshiConflictError, KalshiError
 
     assert issubclass(KalshiConflictError, KalshiError)
 
 
-def test_KalshiTimeoutError_importable_from_kalshi() -> None:
+def test_kalshi_timeout_error_importable_from_kalshi() -> None:
     from kalshi import KalshiError, KalshiTimeoutError
 
     assert issubclass(KalshiTimeoutError, KalshiError)
 
 
-def test_KalshiPoolExhaustedError_importable_from_kalshi() -> None:
+def test_kalshi_pool_exhausted_error_importable_from_kalshi() -> None:
     from kalshi import KalshiError, KalshiPoolExhaustedError
 
     assert issubclass(KalshiPoolExhaustedError, KalshiError)

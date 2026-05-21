@@ -716,7 +716,7 @@ class TestAuthRequiredError:
 
 
 class TestKalshiSequenceGapError:
-    def test_default_kwargs_are_None(self) -> None:
+    def test_default_kwargs_are_none(self) -> None:
         from kalshi.errors import KalshiSequenceGapError
 
         err = KalshiSequenceGapError("gap")
