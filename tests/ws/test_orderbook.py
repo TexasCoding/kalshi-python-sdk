@@ -362,3 +362,74 @@ class TestOrderbookManagerInplace:
         assert book.ticker == "T"
         assert len(book.yes) == 1
         assert len(book.no) == 1
+
+class TestSnapshotIdentityAdoption:
+    """Regression for #296: ``_apply_snapshot_inplace`` must adopt the
+    validator-built ``dict[Decimal, Decimal]`` by identity (no rebuild).
+
+    The CHANGELOG v2.5.0 #263 claim is "snapshot apply collapses to a single
+    dict walk"; if a future refactor reintroduces a ``dict(...)`` copy, this
+    test fails immediately rather than silently regressing recv-loop perf.
+    """
+
+    def test_snapshot_adopts_validated_dicts_by_identity(self) -> None:
+        mgr = OrderbookManager()
+        # Build with Decimal-keyed dicts directly so the validator's
+        # identity fast-path engages (see ``_levels_to_dict``).
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        no_in: dict[Decimal, Decimal] = {Decimal("0.45"): Decimal("150.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": no_in,
+                },
+            }
+        )
+        # NOTE: Pydantic may re-bind the validator output to a fresh model
+        # field — we don't control that and shouldn't assert it. What this
+        # test pins down is the SDK-side contract: whatever dict Pydantic
+        # hands us through ``msg.msg.yes`` / ``.no``, ``_apply_snapshot_inplace``
+        # adopts by identity without an extra ``dict(...)`` copy (#296).
+        mgr._apply_snapshot_inplace(msg)
+        state = mgr._books["T"]
+        assert state.yes is msg.msg.yes
+        assert state.no is msg.msg.no
+
+    def test_delta_mutates_in_place_and_invalidates_cache(self) -> None:
+        mgr = OrderbookManager()
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": {},
+                },
+            }
+        )
+        mgr._apply_snapshot_inplace(msg)
+        state = mgr._books["T"]
+        adopted_yes = state.yes
+        # Materialize once to populate the #244 cache.
+        cached = state.to_orderbook()
+        assert state._cached is cached
+
+        applied = mgr._apply_delta_inplace(
+            make_delta(price="0.50", delta="25", side="yes")
+        )
+        assert applied is True
+        # In-place mutation: the dict instance is unchanged, the value moved.
+        assert state.yes is adopted_yes
+        assert state.yes[Decimal("0.50")] == Decimal("125.00")
+        # The cache was invalidated so the next read re-materializes.
+        assert state._cached is None

@@ -125,8 +125,12 @@ class OrderbookManager:
         """
         ticker = msg.msg.market_ticker
         sid_val = sid if sid is not None else msg.sid
-        yes_levels = dict(msg.msg.yes)
-        no_levels = dict(msg.msg.no)
+        # #263/#296: the validator returns these dicts already typed as
+        # ``dict[Decimal, Decimal]``; adopt them by identity. The model is
+        # discarded immediately after this call so there are no external
+        # references that would observe later in-place delta mutations.
+        yes_levels = msg.msg.yes
+        no_levels = msg.msg.no
 
         # If a prior book existed under a different sid (e.g. server moved
         # the ticker between subs), unindex it from the old sid first so
