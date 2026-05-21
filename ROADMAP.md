@@ -4,16 +4,16 @@
 
 See `CHANGELOG.md` for full release history.
 
-- **Unreleased (post-v2.2.0)** — WS reliability + auth polish batch:
-  WS resubscribe-window frame stashing (`#176`), `run_forever(stop_event=...)`
-  cooperative shutdown (`#177`), `run_forever()` raises on missing subscription
-  instead of silently returning (`#175`), `MessageQueue` `maxlen` defense-in-depth
-  (`#173`), `_to_decimal_*` consolidation into `_coerce_decimal` (`#174`),
-  async RSA-PSS sign offload via dedicated `ThreadPoolExecutor` (`#178`),
-  first two `server_omits_despite_required` exclusions for
-  `Event.product_metadata` and `EventMetadata.market_details` (`#183`). All
-  closed the open items previously tracked under #106's "Wave 5 polish backlog"
-  umbrella; nothing remains.
+- **v2.4.0 (2026-05-21)** — multi-reviewer SDK audit closure (#224, 33
+  issues across 7 surfaces). Critical fixes: WS orderbook resync on
+  sequence gap (#189), DataFrame Decimal preservation (#190), positional
+  Decimal serialization (#191). One breaking change folded in:
+  `orders.batch_create`/`batch_cancel` now return typed responses (#194).
+  Tier 2 + polish bundles all landed across waves W2 + W3.
+
+- **Unreleased (post-v2.2.0)** — WS reliability + auth polish batch.
+  Shipped under v2.3.0 below.
+
 
 - **v2.2.0 (2026-05-19)** — response-side spec drift hardening (`#157`).
   65 new optional fields backfilled across 16 REST + WS response models
@@ -55,27 +55,11 @@ See `CHANGELOG.md` for full release history.
 
 ## Open trackers
 
-- **`#224` — 2026-05-21 multi-reviewer SDK audit umbrella** (34 issues across
-  security, HTTP transport, WebSocket, models, resources, performance,
-  testing, and docs). Tier 1 (critical/high) is release-blocking-class;
-  tiers 2–3 are next-minor / opportunistic.
+None.
 
 ## Next milestone
 
-Drive `#224` to closure. Suggested release plan documented inside the
-umbrella issue:
-
-- **v2.3.1 patch:** `#189` (orderbook resync), `#190` (DataFrame Decimal),
-  `#191` (Decimal scientific notation). Three user-money-impact fixes,
-  small and non-breaking.
-- **v2.4.0 minor:** bulk of tier 1 (#192, #193, #195–#200) + non-breaking
-  tier-2 items (#201–#219).
-- **v3.0.0 major:** `#194` (V1 batch endpoints typed responses, breaking)
-  + any opportunistic tier-2 breaking shapes.
-- Polish bundles (`#220`–`#223`) fold into whichever release naturally
-  co-locates their fixes.
-
-Pre-audit candidates still standing:
+Not scoped. Pre-audit candidates still standing:
 
 - **Required-but-Optional drift policy decision** (~204 entries on
   `test_required_drift` / `test_ws_required_drift`). Currently warn-only;

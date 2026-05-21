@@ -2,6 +2,157 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.4.0 — 2026-05-21
+
+Comprehensive multi-reviewer audit (`#224`) — 33 issues across security, HTTP
+transport, WebSocket reliability, models/types, resources, performance,
+testing, and documentation. Identified by an 8-agent parallel review; executed
+across 4 sequential waves of disjoint git worktrees. The most impactful items
+by category:
+
+### Critical (silent data loss / silent money corruption fixes)
+
+- **WS orderbook resync after sequence gap** (`#189`). Before: a single dropped
+  frame cleared the local book and never asked the server for a fresh
+  snapshot — the consumer kept receiving deltas against a permanently-empty
+  book. After: `_handle_seq_gap` drives a real unsubscribe+resubscribe with
+  per-sid ticker tracking so all-markets subscriptions are also covered.
+- **`Page.to_dataframe` / `Page.to_polars` Decimal preservation** (`#190`).
+  Before: `DollarDecimal` / `FixedPointCount` serializers ran for
+  `mode='python'` too, so DataFrame columns held `str` and `df['price'].sum()`
+  returned concatenated strings instead of a numeric sum. After: serializers
+  use `when_used='json'`; live `Decimal` flows through pandas/polars.
+
+### High-impact correctness (HTTP + WS + Decimal + V1 orders)
+
+- **DollarDecimal serialization is positional** (`#191`). `_decimal_to_str`
+  uses `f'{v:f}'` so values like `Decimal('1E+10')` never reach the wire as
+  scientific notation that Kalshi would reject.
+- **Retry policy widened** (`#192`). `RETRYABLE_STATUS_CODES` now includes
+  408, 425, and the Cloudflare 5xx range (520–524). POST/DELETE still never
+  retry, preserving idempotency.
+- **Total wall-clock retry budget** (`#193`). New `KalshiConfig.total_timeout`
+  caps cumulative time spent inside a single request including retries.
+  `None` (default) preserves the legacy unbounded behavior.
+- **V1 batch order endpoints surface typed per-leg responses** (`#194`,
+  **BREAKING**). `orders.batch_create` now returns
+  `BatchCreateOrdersResponse` (was `list[Order]` that crashed on any failed
+  leg). `orders.batch_cancel` now returns `BatchCancelOrdersResponse` (was
+  `None`) exposing per-order `reduced_by_fp`. Migration: upgrade reads from
+  `response[i]` to `response.orders[i].order` (and check `.error`).
+- **WS generic `subscribe()` rejects unknown param keys** (`#195`). Was
+  silently dropping typos like `params={'tickerz': [...]}` and subscribing
+  the consumer to a much broader stream than intended.
+- **WS server-side seq reset detection** (`#196`). `SequenceTracker.track`
+  now distinguishes `seq == last` (drop) from `seq < last` (reset → gap
+  recovery); was silently dispatching the reset window with no signal.
+- **WS fast-fail on permanent close codes** (`#197`). `ConnectionClosed` with
+  codes 1002/3/7-10 or 4xxx now raises `KalshiConnectionError` immediately
+  instead of burning the 10-retry budget on doomed reconnect attempts.
+- **WS payload type alignment with REST** (`#198`). `*_fp` count/size/volume
+  fields on every WS payload model now type as `FixedPointCount`; RFC3339
+  timestamps type as `datetime`. Eliminates silent str+int TypeErrors when
+  consumer code mixes REST and WS data.
+- **`order_group_updates` sequence gap recovery** (`#205`). Same resubscribe
+  helper as orderbook gaps; was missed events with no signal.
+- **WS unsubscribe drops orderbook state** (`#206`). Long-running
+  subscribe/unsubscribe cycles no longer leak `_BookState` entries.
+- **ERROR backpressure strategy raises through iterator** (`#207`). Consumer
+  `async for` now raises `KalshiBackpressureError` instead of terminating
+  silently (indistinguishable from a clean close).
+
+### Performance
+
+- **WS recv loop stops rebuilding+discarding orderbook snapshots** (`#199`).
+  New `_apply_*_inplace` variants on `OrderbookManager` skip the O(n log n)
+  sort + ~2N OrderbookLevel allocations on the per-frame hot path.
+- **Pluggable JSON loader/dumper** (`#209`). `KalshiConfig.ws_json_loads` /
+  `ws_json_dumps` allow opt-in to `orjson` / `ujson` for high-rate
+  streaming (default: stdlib `json`).
+- **WS reconnect uses AWS Full Jitter** (`#221` polish). Matches the REST
+  policy; eliminates the thundering-herd window at the capped-delay end.
+- **Batch order bodies serialized once** (`#223` polish). Resource layer
+  routes batch_create/batch_cancel through new `_post_json` / `_delete_with_body_json`
+  bytes helpers that use `model_dump_json` + `httpx content=`, skipping one
+  full dict-walk per call.
+- **`_list_all` cursor-loop guard is O(1)** (`#223` polish). Switched from
+  unbounded `set[str]` to single `last_cursor` (only catches realistic
+  server-replay shape).
+
+### Security & robustness
+
+- **Response-body buffering bounded** (`#203`). `_map_error` caps via
+  `Content-Length` (16KB) and truncates the exception message to 1024
+  chars. Prevents memory + log-volume blowup on hostile error payloads.
+- **`base_url` validated to include `/trade-api/v2`** (`#202`). Misconfigs
+  fail at construction instead of producing silent 401s from a corrupted
+  signing path.
+- **Passphrase-protected PEMs supported** (`#217`). `KalshiAuth.from_pem` /
+  `from_key_path` / `from_env` accept `password=` (str/bytes/callable);
+  `KALSHI_PRIVATE_KEY_PASSPHRASE` env var. Users no longer need to write
+  plaintext keys to disk.
+- **URL-encoded path segments** (`#211`). `_seg()` helper applied across
+  every resource — user-supplied IDs with `/`, `?`, `..` etc. are encoded
+  or rejected at the SDK boundary.
+- **RecordingTransport scrubs response headers** (`#220` polish).
+  Set-Cookie, Authorization, and `X-Kalshi-*-(id|key|account|user)` headers
+  filtered by default (user-overridable).
+
+### Typed-exception expansion
+
+- New `KalshiConflictError` (409), `KalshiTimeoutError`, `KalshiPoolExhaustedError`
+  (`#201`, `#204`). 422 routes to `KalshiValidationError`. `httpx.PoolTimeout`
+  raises `KalshiPoolExhaustedError` and IS safe to retry on POST/DELETE
+  (request never reached the wire) — `httpx.TimeoutException` raises
+  `KalshiTimeoutError` and preserves the existing POST/DELETE never-retry
+  policy (server may have committed).
+- `KalshiSequenceGapError` + `KalshiSubscriptionError` carry structured
+  `channel` / `sid` / `last_seq` / `next_seq` / `op` context (`#213`).
+- `AuthRequiredError` default message mentions both
+  `KALSHI_PRIVATE_KEY_PATH` and `KALSHI_PRIVATE_KEY` (`#215`).
+
+### Configuration knobs (additive, all opt-in)
+
+- `total_timeout` (`#193`)
+- `ws_ping_interval`, `ws_close_timeout` (`#208`)
+- `ws_json_loads`, `ws_json_dumps` (`#209`)
+- `http2` install extra (`#220` polish; `pip install kalshi-sdk[http2]`)
+- Per-request `extra_headers` plumbed through transport (`#220` polish)
+
+### Documentation
+
+- `docs/migration.md` now has continuous coverage v1 → v2.3 (was missing
+  v2.1→v2.2 and v2.2→v2.3 sections; `#200`) plus a v2.3→v2.4 section
+  documenting #194's breaking shape and the new typed exceptions.
+- README + `docs/websockets.md` agree on channel count + use real SDK
+  method names (`#218`).
+- New `docs/websockets.md` Performance section: queue sizing, overflow
+  strategy, orjson example, recv-loop threading (`#222` polish).
+- `docs/configuration.md`, `docs/environment-variables.md`, cancel/delete
+  docstrings, and stale audit/predecessor refs cleaned up (`#222` polish).
+- `pydantic.AwareDatetime` adopted on REST response model datetime fields;
+  new datetime-semantics note in `docs/concepts.md` (`#221` polish).
+
+### Testing
+
+- WS hardening: 27+ new tests across orderbook resync, seq reset, close
+  codes, backpressure signal, unsubscribe cleanup (`#231`).
+- Phantom-kwarg behavioral coverage parametrized across all 23 Request
+  models (`#219`).
+- Three new bench harnesses: `scripts/bench_ws_recv.py`,
+  `scripts/bench_orderbook_delta.py`, `scripts/bench_request_hot_path.py`
+  (`#223`).
+- Integration `conftest.py` env-bridging moved from import-time mutation
+  to a session-scoped fixture for clean test isolation (`#223`).
+
+### Breaking changes summary
+
+Only one user-visible breaking change: `orders.batch_create` and
+`orders.batch_cancel` return typed response models instead of `list[Order]`
+and `None` respectively (`#194`). The V2 family (`batch_create_v2` /
+`batch_cancel_v2`) was already shaped this way; the V1 fix brings parity.
+Migration in `docs/migration.md` v2.3→v2.4 section.
+
 ## 2.3.0 — 2026-05-20
 
 WS reliability + auth polish batch on top of v2.2.0's spec-required tightening.
