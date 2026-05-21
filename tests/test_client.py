@@ -71,9 +71,7 @@ class TestErrorMapping:
         assert isinstance(err, KalshiNotFoundError)
 
     def test_429_rate_limit(self) -> None:
-        resp = httpx.Response(
-            429, json={"message": "rate limited"}, headers={"Retry-After": "2.5"}
-        )
+        resp = httpx.Response(429, json={"message": "rate limited"}, headers={"Retry-After": "2.5"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after == 2.5
@@ -114,36 +112,28 @@ class TestErrorMapping:
 
     def test_429_retry_after_negative_falls_back(self) -> None:
         """Negative Retry-After is rejected so backoff isn't bypassed."""
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": "-1"}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "-1"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after is None
 
     def test_429_retry_after_nan_falls_back(self) -> None:
         """NaN Retry-After is rejected so time.sleep never raises ValueError."""
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": "nan"}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "nan"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after is None
 
     def test_429_retry_after_infinity_falls_back(self) -> None:
         """Infinity Retry-After is rejected (would survive min() cap math)."""
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": "inf"}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "inf"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after is None
 
     def test_429_retry_after_zero_is_kept(self) -> None:
         """Zero is a valid 'retry immediately' value; only <0 is rejected."""
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": "0"}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "0"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after == 0.0
@@ -156,9 +146,7 @@ class TestErrorMapping:
 
         future = datetime.now(tz=UTC) + timedelta(days=5)
         http_date = _eu.format_datetime(future, usegmt=True)
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": http_date}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": http_date})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         # ~5 days ≈ 432000s; allow generous slack for the parse round-trip.
@@ -178,9 +166,7 @@ class TestErrorMapping:
 
     def test_429_retry_after_garbage_falls_back(self) -> None:
         """Neither delta-seconds nor a parseable HTTP-date — None, computed backoff."""
-        resp = httpx.Response(
-            429, json={"message": "slow"}, headers={"Retry-After": "not a date"}
-        )
+        resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "not a date"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after is None
@@ -324,9 +310,7 @@ class TestSyncTransportRetry:
         resp = transport.request("GET", "/markets")
         assert resp.status_code == 200
         # config fixture: retry_max_delay=0.1 — must clamp to that, NOT 9999.
-        assert sleeps == [0.1], (
-            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
-        )
+        assert sleeps == [0.1], f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
 
     @respx.mock
     def test_retry_after_http_date_parsed_and_capped(
@@ -408,9 +392,9 @@ class TestSyncTransportRetry:
     @respx.mock
     def test_post_not_retried_on_timeout(self, transport: SyncTransport) -> None:
         """POST timeout raises immediately; no retry (duplicate-order risk)."""
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.TimeoutException("read timed out"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.TimeoutException("read timed out")
+        )
         with pytest.raises(KalshiError, match="timed out"):
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
@@ -439,12 +423,12 @@ class TestErrorMessageDoesNotLeakUrl:
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
         # Use a sensitive-looking query param: if it shows up in the
         # KalshiError __str__, the leak is real.
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.TimeoutException(
-            "Request timed out for https://test.kalshi.com/trade-api/v2/"
-            "portfolio/orders?secret=SUPER_SECRET_TOKEN"
-        ))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.TimeoutException(
+                "Request timed out for https://test.kalshi.com/trade-api/v2/"
+                "portfolio/orders?secret=SUPER_SECRET_TOKEN"
+            )
+        )
         with pytest.raises(KalshiError) as exc_info:
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         msg = str(exc_info.value)
@@ -459,12 +443,11 @@ class TestErrorMessageDoesNotLeakUrl:
         self,
         transport: SyncTransport,
     ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(side_effect=httpx.HTTPError(
-            "boom for https://test.kalshi.com/trade-api/v2/markets?"
-            "auth_token=LEAKY"
-        ))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=httpx.HTTPError(
+                "boom for https://test.kalshi.com/trade-api/v2/markets?auth_token=LEAKY"
+            )
+        )
         with pytest.raises(KalshiError) as exc_info:
             transport.request("GET", "/markets")
         msg = str(exc_info.value)
@@ -496,6 +479,21 @@ class TestKalshiClientConstructor:
         client = KalshiClient(key_id="test-key", private_key=pem_string)
         assert client._auth.key_id == "test-key"
         client.close()
+
+    def test_both_private_key_and_path_rejected(self, pem_string: str) -> None:
+        """#249: passing both ``private_key_path=`` and ``private_key=`` is
+        ambiguous (which key actually signs?). The old elif chain silently
+        preferred the path; a key-rotation mishap could leave production
+        signing with a stale credential. Now: explicit ValueError."""
+        with pytest.raises(
+            ValueError,
+            match=r"Provide either private_key_path or private_key, not both",
+        ):
+            KalshiClient(
+                key_id="test-key",
+                private_key_path="/tmp/nonexistent.pem",
+                private_key=pem_string,
+            )
 
     def test_no_auth_constructs_unauthenticated(self) -> None:
         client = KalshiClient()
@@ -709,9 +707,7 @@ class TestKalshiClientFromEnv:
             client.close()
         os.unlink(f.name)
 
-    def test_from_env_demo_flag(
-        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
-    ) -> None:
+    def test_from_env_demo_flag(self, monkeypatch: pytest.MonkeyPatch, pem_string: str) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
         monkeypatch.setenv("KALSHI_DEMO", "true")
@@ -814,9 +810,7 @@ class TestKalshiSubscriptionError:
     def test_carries_channel_op(self) -> None:
         from kalshi.errors import KalshiSubscriptionError
 
-        err = KalshiSubscriptionError(
-            "sub failed", channel="ticker", op="subscribe"
-        )
+        err = KalshiSubscriptionError("sub failed", channel="ticker", op="subscribe")
         assert err.channel == "ticker"
         assert err.op == "subscribe"
 
@@ -830,6 +824,7 @@ class TestUnauthenticatedResourceGuards:
         )
         transport = SyncTransport(None, config)
         from kalshi.resources.orders import OrdersResource
+
         resource = OrdersResource(transport)
         with pytest.raises(AuthRequiredError):
             resource.create(ticker="TEST", side="yes")
@@ -842,6 +837,7 @@ class TestUnauthenticatedResourceGuards:
         )
         transport = SyncTransport(None, config)
         from kalshi.resources.orders import OrdersResource
+
         resource = OrdersResource(transport)
         with pytest.raises(AuthRequiredError):
             resource.list()
@@ -854,6 +850,7 @@ class TestUnauthenticatedResourceGuards:
         )
         transport = SyncTransport(None, config)
         from kalshi.resources.portfolio import PortfolioResource
+
         resource = PortfolioResource(transport)
         with pytest.raises(AuthRequiredError):
             resource.balance()
@@ -866,7 +863,12 @@ class TestUnauthenticatedResourceGuards:
         client = KalshiClient(config=config, demo=True)
         with pytest.raises(AuthRequiredError):
             client.series.forecast_percentile_history(
-                "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
+                "SER",
+                "EVT",
+                percentiles=[5000],
+                start_ts=0,
+                end_ts=1,
+                period_interval=60,
             )
         client.close()
 
@@ -903,6 +905,7 @@ class TestUnauthenticatedResourceGuards:
         )
         transport = SyncTransport(None, config)
         from kalshi.resources.markets import MarketsResource
+
         resource = MarketsResource(transport)
         # Should succeed without raising AuthRequiredError
         page = resource.list()
@@ -939,10 +942,13 @@ class TestKalshiClientUnauthenticated:
     @respx.mock
     def test_public_endpoint_works(self) -> None:
         respx.get("https://demo-api.kalshi.co/trade-api/v2/exchange/status").mock(
-            return_value=httpx.Response(200, json={
-                "exchange_active": True,
-                "trading_active": True,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exchange_active": True,
+                    "trading_active": True,
+                },
+            )
         )
         client = KalshiClient(demo=True)
         status = client.exchange.status()
@@ -969,13 +975,12 @@ class TestKalshiClientFromEnvUnauthenticated:
         assert client._auth is None
         client.close()
 
+
 class TestWidenedRetrySet:
     """#192: Cloudflare 5xx (520-524) + 408 are retryable on safe methods only."""
 
     @respx.mock
-    def test_retry_includes_cloudflare_5xx_521_on_get(
-        self, transport: SyncTransport
-    ) -> None:
+    def test_retry_includes_cloudflare_5xx_521_on_get(self, transport: SyncTransport) -> None:
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.Response(521, text="Web Server Is Down"),
@@ -988,9 +993,9 @@ class TestWidenedRetrySet:
 
     @respx.mock
     def test_post_521_not_retried(self, transport: SyncTransport) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(521, text="down"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(521, text="down")
+        )
         with pytest.raises(KalshiServerError):
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
@@ -1071,9 +1076,7 @@ class TestPoolTimeout:
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             side_effect=[
                 httpx.PoolTimeout("pool full"),
                 httpx.Response(200, json={"order_id": "abc"}),
@@ -1088,9 +1091,9 @@ class TestPoolTimeout:
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.PoolTimeout("pool full"))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.PoolTimeout("pool full")
+        )
         with pytest.raises(KalshiPoolExhaustedError, match="pool exhausted"):
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
 
@@ -1102,9 +1105,9 @@ class TestTypedTimeoutException:
     def test_read_timeout_on_post_raises_KalshiTimeoutError_no_retry(  # noqa: N802
         self, transport: SyncTransport
     ) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.ReadTimeout("read timed out"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.ReadTimeout("read timed out")
+        )
         with pytest.raises(KalshiTimeoutError, match="timed out"):
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
@@ -1131,9 +1134,7 @@ class TestTotalTimeoutBudget:
         )
         transport = SyncTransport(test_auth, cfg)
         sleeps: list[float] = []
-        monkeypatch.setattr(
-            "kalshi._base_client.time.sleep", lambda d: sleeps.append(d)
-        )
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
         # Fake monotonic: start at 0, jump past the 0.05s budget on every
         # subsequent poll so the very first retry's budget check trips.
         clock = {"t": 0.0}
@@ -1143,9 +1144,7 @@ class TestTotalTimeoutBudget:
             clock["t"] += 1.0
             return t
 
-        monkeypatch.setattr(
-            "kalshi._base_client.time.monotonic", fake_monotonic
-        )
+        monkeypatch.setattr("kalshi._base_client.time.monotonic", fake_monotonic)
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(502, text="bad gateway")
         )
@@ -1183,9 +1182,7 @@ class TestTotalTimeoutBudget:
 class TestCloseOwnership:
     """#210: close() must not shut down a caller-owned KalshiAuth."""
 
-    def test_close_does_not_shut_externally_provided_auth(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    def test_close_does_not_shut_externally_provided_auth(self, test_auth: KalshiAuth) -> None:
         # Two clients share the same auth; closing one must not break the other.
         client_a = KalshiClient(auth=test_auth)
         client_b = KalshiClient(auth=test_auth)
@@ -1206,9 +1203,7 @@ class TestCloseOwnership:
         # Idempotent: close() is safe to call twice without raising.
         client.close()
 
-    def test_from_env_owns_auth(
-        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
-    ) -> None:
+    def test_from_env_owns_auth(self, monkeypatch: pytest.MonkeyPatch, pem_string: str) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
@@ -1218,9 +1213,7 @@ class TestCloseOwnership:
         assert client._auth_owned is True
         client.close()
 
-    def test_from_env_no_credentials_owns_nothing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_from_env_no_credentials_owns_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
@@ -1240,9 +1233,7 @@ class TestExtraHeadersPerRequest:
     """
 
     @respx.mock
-    def test_extra_headers_per_request_overrides_config(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    def test_extra_headers_per_request_overrides_config(self, test_auth: KalshiAuth) -> None:
         config = KalshiConfig(
             base_url="https://test.kalshi.com/trade-api/v2",
             timeout=5.0,
@@ -1255,9 +1246,7 @@ class TestExtraHeadersPerRequest:
             captured.append(request)
             return httpx.Response(200, json={})
 
-        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
-            side_effect=handler
-        )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(side_effect=handler)
         resp = transport.request(
             "GET",
             "/markets",
@@ -1354,9 +1343,7 @@ class TestTransportNetworkRetry:
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             side_effect=[
                 httpx.ConnectError("connection refused"),
                 httpx.Response(200, json={"order_id": "abc"}),
@@ -1373,9 +1360,9 @@ class TestTransportNetworkRetry:
         # ReadError on POST may indicate the server accepted a partial commit;
         # surface immediately so the caller can reconcile via client_order_id.
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.ReadError("socket read failed"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.ReadError("socket read failed")
+        )
         with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1

@@ -49,9 +49,7 @@ class TestAsyncTransportRetry:
     @respx.mock
     @pytest.mark.asyncio
     async def test_get_retries_on_502(self, transport: AsyncTransport) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.Response(502, text="Bad Gateway"),
                 httpx.Response(200, json={"markets": []}),
@@ -64,9 +62,7 @@ class TestAsyncTransportRetry:
     @respx.mock
     @pytest.mark.asyncio
     async def test_get_retries_on_429(self, transport: AsyncTransport) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.Response(429, json={"message": "rate limited"}),
                 httpx.Response(200, json={"markets": []}),
@@ -120,59 +116,54 @@ class TestAsyncTransportRetry:
     @respx.mock
     @pytest.mark.asyncio
     async def test_post_not_retried_on_500(
-        self, transport: AsyncTransport,
+        self,
+        transport: AsyncTransport,
     ) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/orders",
         ).mock(return_value=httpx.Response(500, json={"message": "internal"}))
         with pytest.raises(KalshiServerError):
             await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"},
+                "POST",
+                "/portfolio/orders",
+                json={"ticker": "T"},
             )
         assert route.call_count == 1
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_post_not_retried(self, transport: AsyncTransport) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(502, text="Bad Gateway"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(502, text="Bad Gateway")
+        )
         with pytest.raises(KalshiServerError):
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "TEST"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "TEST"})
         assert route.call_count == 1
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_delete_not_retried(self, transport: AsyncTransport) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/abc"
-        ).mock(return_value=httpx.Response(503, text="Unavailable"))
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/abc").mock(
+            return_value=httpx.Response(503, text="Unavailable")
+        )
         with pytest.raises(KalshiServerError):
             await transport.request("DELETE", "/portfolio/orders/abc")
         assert route.call_count == 1
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_max_retries_exhausted(
-        self, transport: AsyncTransport
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(return_value=httpx.Response(502, text="Bad Gateway"))
+    async def test_max_retries_exhausted(self, transport: AsyncTransport) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(502, text="Bad Gateway")
+        )
         with pytest.raises(KalshiServerError):
             await transport.request("GET", "/markets")
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_400_not_retried(self, transport: AsyncTransport) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
-            return_value=httpx.Response(
-                400, json={"message": "bad request"}
-            )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(400, json={"message": "bad request"})
         )
         with pytest.raises(KalshiValidationError):
             await transport.request("GET", "/markets")
@@ -181,12 +172,8 @@ class TestAsyncTransportRetry:
     @respx.mock
     @pytest.mark.asyncio
     async def test_401_not_retried(self, transport: AsyncTransport) -> None:
-        route = respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
-            return_value=httpx.Response(
-                401, json={"message": "unauthorized"}
-            )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(401, json={"message": "unauthorized"})
         )
         with pytest.raises(KalshiAuthError):
             await transport.request("GET", "/markets")
@@ -194,15 +181,9 @@ class TestAsyncTransportRetry:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_successful_request(
-        self, transport: AsyncTransport
-    ) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/markets"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"markets": [{"ticker": "TEST"}]}
-            )
+    async def test_successful_request(self, transport: AsyncTransport) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [{"ticker": "TEST"}]})
         )
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
@@ -228,9 +209,7 @@ class TestAsyncTransportRetry:
         )
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
-        assert sleeps == [0.1], (
-            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
-        )
+        assert sleeps == [0.1], f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps!r}"
 
     @respx.mock
     @pytest.mark.asyncio
@@ -259,9 +238,7 @@ class TestAsyncTransportRetry:
         assert route.call_count == 2
         assert len(sleeps) == 1
         # Date is far in the future; delta is huge, capped at retry_max_delay=0.1.
-        assert sleeps[0] == 0.1, (
-            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps[0]!r}"
-        )
+        assert sleeps[0] == 0.1, f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps[0]!r}"
 
     @respx.mock
     @pytest.mark.asyncio
@@ -291,25 +268,19 @@ class TestAsyncTransportRetry:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_post_not_retried_on_timeout(
-        self, transport: AsyncTransport
-    ) -> None:
+    async def test_post_not_retried_on_timeout(self, transport: AsyncTransport) -> None:
         """Async POST timeout raises immediately; no retry."""
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.TimeoutException("read timed out"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.TimeoutException("read timed out")
+        )
         with pytest.raises(KalshiError, match="timed out"):
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
 
 
 class TestAsyncTransportContextManager:
     @pytest.mark.asyncio
-    async def test_close(
-        self, test_auth: KalshiAuth, config: KalshiConfig
-    ) -> None:
+    async def test_close(self, test_auth: KalshiAuth, config: KalshiConfig) -> None:
         transport = AsyncTransport(test_auth, config)
         await transport.close()  # should not raise
 
@@ -355,22 +326,31 @@ class TestAsyncKalshiClientConstructor:
         assert client._auth is test_auth
 
     def test_key_id_and_pem(self, pem_string: str) -> None:
-        client = AsyncKalshiClient(
-            key_id="test-key", private_key=pem_string
-        )
+        client = AsyncKalshiClient(key_id="test-key", private_key=pem_string)
         assert client._auth.key_id == "test-key"
 
     def test_key_id_and_path(self, pem_bytes: bytes) -> None:
-        with tempfile.NamedTemporaryFile(
-            suffix=".pem", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
             f.write(pem_bytes)
             f.flush()
-            client = AsyncKalshiClient(
-                key_id="test-key", private_key_path=f.name
-            )
+            client = AsyncKalshiClient(key_id="test-key", private_key_path=f.name)
             assert client._auth.key_id == "test-key"
         os.unlink(f.name)
+
+    def test_both_private_key_and_path_rejected(self, pem_string: str) -> None:
+        """#249: passing both ``private_key_path=`` and ``private_key=`` is
+        ambiguous (which key actually signs?). The old elif chain silently
+        preferred the path; a key-rotation mishap could leave production
+        signing with a stale credential. Now: explicit ValueError."""
+        with pytest.raises(
+            ValueError,
+            match=r"Provide either private_key_path or private_key, not both",
+        ):
+            AsyncKalshiClient(
+                key_id="test-key",
+                private_key_path="/tmp/nonexistent.pem",
+                private_key=pem_string,
+            )
 
     def test_no_auth_constructs_unauthenticated(self) -> None:
         client = AsyncKalshiClient()
@@ -398,9 +378,7 @@ class TestAsyncKalshiClientConstructor:
         assert client._config.base_url == PRODUCTION_BASE_URL
 
     @pytest.mark.asyncio
-    async def test_async_context_manager(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    async def test_async_context_manager(self, test_auth: KalshiAuth) -> None:
         async with AsyncKalshiClient(auth=test_auth) as client:
             assert client.markets is not None
             assert client.orders is not None
@@ -429,9 +407,7 @@ class TestAsyncKalshiClientFromEnv:
         assert client._auth.key_id == "env-key"
         assert client._config.base_url == PRODUCTION_BASE_URL
 
-    def test_from_env_demo_flag(
-        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
-    ) -> None:
+    def test_from_env_demo_flag(self, monkeypatch: pytest.MonkeyPatch, pem_string: str) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
         monkeypatch.setenv("KALSHI_DEMO", "true")
@@ -483,6 +459,7 @@ class TestAsyncUnauthenticatedResourceGuards:
         )
         transport = AsyncTransport(None, config)
         from kalshi.resources.orders import AsyncOrdersResource
+
         resource = AsyncOrdersResource(transport)
         with pytest.raises(AuthRequiredError):
             await resource.create(ticker="TEST", side="yes")
@@ -496,6 +473,7 @@ class TestAsyncUnauthenticatedResourceGuards:
         )
         transport = AsyncTransport(None, config)
         from kalshi.resources.portfolio import AsyncPortfolioResource
+
         resource = AsyncPortfolioResource(transport)
         with pytest.raises(AuthRequiredError):
             await resource.balance()
@@ -529,6 +507,7 @@ class TestAsyncKalshiClientUnauthenticated:
         with pytest.raises(AuthRequiredError):
             _ = client.ws
 
+
 class TestAsyncWidenedRetrySet:
     """#192: async mirror of widened retryable status set."""
 
@@ -550,9 +529,9 @@ class TestAsyncWidenedRetrySet:
     @respx.mock
     @pytest.mark.asyncio
     async def test_post_521_not_retried(self, transport: AsyncTransport) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(521, text="down"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(521, text="down")
+        )
         with pytest.raises(KalshiServerError):
             await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
@@ -590,15 +569,11 @@ class TestAsyncStatusToTypedException:
     async def test_409_maps_to_KalshiConflictError(  # noqa: N802
         self, transport: AsyncTransport
     ) -> None:
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(409, json={"message": "duplicate"})
         )
         with pytest.raises(KalshiConflictError):
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
 
 
 class TestAsyncPoolTimeout:
@@ -613,17 +588,13 @@ class TestAsyncPoolTimeout:
             pass
 
         monkeypatch.setattr("asyncio.sleep", fake_sleep)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             side_effect=[
                 httpx.PoolTimeout("pool full"),
                 httpx.Response(200, json={"order_id": "abc"}),
             ]
         )
-        resp = await transport.request(
-            "POST", "/portfolio/orders", json={"ticker": "T"}
-        )
+        resp = await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert resp.status_code == 200
         assert route.call_count == 2
 
@@ -636,13 +607,11 @@ class TestAsyncPoolTimeout:
             pass
 
         monkeypatch.setattr("asyncio.sleep", fake_sleep)
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.PoolTimeout("pool full"))
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.PoolTimeout("pool full")
+        )
         with pytest.raises(KalshiPoolExhaustedError, match="pool exhausted"):
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
 
 
 class TestAsyncTypedTimeoutException:
@@ -653,13 +622,11 @@ class TestAsyncTypedTimeoutException:
     async def test_read_timeout_on_post_raises_KalshiTimeoutError_no_retry(  # noqa: N802
         self, transport: AsyncTransport
     ) -> None:
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.ReadTimeout("read timed out"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.ReadTimeout("read timed out")
+        )
         with pytest.raises(KalshiTimeoutError, match="timed out"):
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
 
 
@@ -693,9 +660,7 @@ class TestAsyncTotalTimeoutBudget:
             clock["t"] += 1.0
             return t
 
-        monkeypatch.setattr(
-            "kalshi._base_client.time.monotonic", fake_monotonic
-        )
+        monkeypatch.setattr("kalshi._base_client.time.monotonic", fake_monotonic)
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(502, text="bad gateway")
         )
@@ -750,9 +715,7 @@ class TestAsyncCloseOwnership:
         await client_b.close()
 
     @pytest.mark.asyncio
-    async def test_close_shuts_locally_constructed_auth(
-        self, pem_string: str
-    ) -> None:
+    async def test_close_shuts_locally_constructed_auth(self, pem_string: str) -> None:
         client = AsyncKalshiClient(key_id="test-key", private_key=pem_string)
         assert client._auth_owned is True
         await client.close()
@@ -821,17 +784,13 @@ class TestAsyncTransportNetworkRetry:
             pass
 
         monkeypatch.setattr("asyncio.sleep", fake_sleep)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             side_effect=[
                 httpx.ConnectError("connection refused"),
                 httpx.Response(200, json={"order_id": "abc"}),
             ]
         )
-        resp = await transport.request(
-            "POST", "/portfolio/orders", json={"ticker": "T"}
-        )
+        resp = await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert resp.status_code == 200
         assert route.call_count == 2
 
@@ -844,12 +803,10 @@ class TestAsyncTransportNetworkRetry:
             pass
 
         monkeypatch.setattr("asyncio.sleep", fake_sleep)
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
-        ).mock(side_effect=httpx.ReadError("socket read failed"))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            side_effect=httpx.ReadError("socket read failed")
+        )
         with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
-            await transport.request(
-                "POST", "/portfolio/orders", json={"ticker": "T"}
-            )
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
         assert isinstance(exc_info.value.__cause__, httpx.ReadError)

@@ -2,12 +2,28 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+
+# Tests assume a clean KALSHI_* environment. The user's shell may have these
+# exported (real credentials, base URL overrides, etc.); strip them at import
+# time so tests stay hermetic regardless of where they're run.
+for _v in (
+    "KALSHI_KEY_ID",
+    "KALSHI_PRIVATE_KEY",
+    "KALSHI_PRIVATE_KEY_PATH",
+    "KALSHI_PRIVATE_KEY_PASSPHRASE",
+    "KALSHI_API_BASE_URL",
+    "KALSHI_WS_BASE_URL",
+    "KALSHI_DEMO",
+):
+    os.environ.pop(_v, None)
 
 
 @pytest.fixture

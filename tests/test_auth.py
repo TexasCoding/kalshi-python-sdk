@@ -8,7 +8,6 @@ import os
 import tempfile
 
 import pytest
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
@@ -69,7 +68,8 @@ class TestSignRequest:
         # The signature should verify against the STRIPPED path (no query params)
         expected_msg = b"1000GET/trade-api/v2/markets"
         rsa_private_key.public_key().verify(
-            sig, expected_msg,
+            sig,
+            expected_msg,
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.DIGEST_LENGTH),
             hashes.SHA256(),
         )
@@ -82,7 +82,8 @@ class TestSignRequest:
         sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
         expected_msg = b"1000GET/trade-api/v2/markets"
         rsa_private_key.public_key().verify(
-            sig, expected_msg,
+            sig,
+            expected_msg,
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.DIGEST_LENGTH),
             hashes.SHA256(),
         )
@@ -95,7 +96,8 @@ class TestSignRequest:
         sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
         expected_msg = b"1000GET/trade-api/v2/markets"
         rsa_private_key.public_key().verify(
-            sig, expected_msg,
+            sig,
+            expected_msg,
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.DIGEST_LENGTH),
             hashes.SHA256(),
         )
@@ -117,7 +119,8 @@ class TestSignRequest:
         # Signature is against the raw (encoded) path
         expected_msg = b"1000GET/trade-api/v2/events/TICKER%2DNAME"
         rsa_private_key.public_key().verify(
-            sig, expected_msg,
+            sig,
+            expected_msg,
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.DIGEST_LENGTH),
             hashes.SHA256(),
         )
@@ -126,12 +129,8 @@ class TestSignRequest:
         """Encoded and decoded paths produce different signatures.
         %2D is the encoding of '-', but the signing payload preserves the
         encoding rather than decoding it."""
-        h1 = test_auth.sign_request(
-            "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
-        )
-        h2 = test_auth.sign_request(
-            "GET", "/trade-api/v2/events/TICKER-NAME", timestamp_ms=1000
-        )
+        h1 = test_auth.sign_request("GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000)
+        h2 = test_auth.sign_request("GET", "/trade-api/v2/events/TICKER-NAME", timestamp_ms=1000)
         assert h1["KALSHI-ACCESS-SIGNATURE"] != h2["KALSHI-ACCESS-SIGNATURE"]
 
     @pytest.mark.parametrize(
@@ -205,12 +204,8 @@ class TestSignRequest:
             salt_length=padding.PSS.DIGEST_LENGTH,
         )
 
-        h1 = test_auth.sign_request(
-            "GET", "/trade-api/v2/events/TICKER%2dNAME", timestamp_ms=1000
-        )
-        h2 = test_auth.sign_request(
-            "GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000
-        )
+        h1 = test_auth.sign_request("GET", "/trade-api/v2/events/TICKER%2dNAME", timestamp_ms=1000)
+        h2 = test_auth.sign_request("GET", "/trade-api/v2/events/TICKER%2DNAME", timestamp_ms=1000)
 
         # Both signatures must verify against the same canonical message
         sig1 = base64.b64decode(h1["KALSHI-ACCESS-SIGNATURE"])
@@ -248,11 +243,15 @@ class TestSignRequestAsync:
         )
         pub.verify(
             base64.b64decode(sync_headers["KALSHI-ACCESS-SIGNATURE"]),
-            canonical, pss, hashes.SHA256(),
+            canonical,
+            pss,
+            hashes.SHA256(),
         )
         pub.verify(
             base64.b64decode(async_headers["KALSHI-ACCESS-SIGNATURE"]),
-            canonical, pss, hashes.SHA256(),
+            canonical,
+            pss,
+            hashes.SHA256(),
         )
 
     @pytest.mark.asyncio
@@ -278,7 +277,8 @@ class TestSignRequestAsync:
 
     @pytest.mark.asyncio
     async def test_closed_auth_raises_on_sign_request_async(
-        self, test_auth: KalshiAuth,
+        self,
+        test_auth: KalshiAuth,
     ) -> None:
         """P4.6: ``close()`` is terminal — a subsequent ``sign_request_async``
         raises ``RuntimeError`` instead of silently respawning the
@@ -291,7 +291,8 @@ class TestSignRequestAsync:
 
     @pytest.mark.asyncio
     async def test_close_is_terminal_no_silent_respawn(
-        self, test_auth: KalshiAuth,
+        self,
+        test_auth: KalshiAuth,
     ) -> None:
         """P4.6: after ``close()``, the executor stays None — the lazy-init
         in ``_get_sign_executor`` never reinstates it. Pre-fix it would
@@ -306,9 +307,7 @@ class TestSignRequestAsync:
         assert test_auth._sign_executor is None  # no silent respawn
 
     @pytest.mark.asyncio
-    async def test_concurrent_signs_do_not_stall_event_loop(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    async def test_concurrent_signs_do_not_stall_event_loop(self, test_auth: KalshiAuth) -> None:
         """Microbench (#178). Run a real ``asyncio.sleep(0.01)`` ticker
         concurrently with a batch of signs and confirm the ticker's
         observed gaps stay tight.
@@ -338,9 +337,7 @@ class TestSignRequestAsync:
         async def signs() -> None:
             # 200 signs covers a realistic batch_create burst.
             for _ in range(200):
-                await test_auth.sign_request_async(
-                    "GET", "/trade-api/v2/markets", timestamp_ms=1
-                )
+                await test_auth.sign_request_async("GET", "/trade-api/v2/markets", timestamp_ms=1)
 
         await asyncio.gather(ticker(), signs())
         test_auth.close()
@@ -348,6 +345,7 @@ class TestSignRequestAsync:
         # Slack: schedule jitter + threadpool dispatch can each cost a few ms.
         # Pre-offload inline RSA-PSS would push the max gap well past this.
         assert max(gaps) < 0.030, f"max ticker gap {max(gaps) * 1000:.1f}ms exceeds 30ms budget"
+
 
 class TestFromKeyPath:
     def test_loads_valid_pem_file(self, pem_bytes: bytes) -> None:
@@ -383,12 +381,8 @@ class TestFromKeyPath:
                 KalshiAuth.from_key_path("my-key", f.name)
         os.unlink(f.name)
 
-    @pytest.mark.skipif(
-        os.geteuid() == 0, reason="root bypasses file permission checks"
-    )
-    def test_permission_denied_wraps_with_helpful_message(
-        self, pem_bytes: bytes
-    ) -> None:
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses file permission checks")
+    def test_permission_denied_wraps_with_helpful_message(self, pem_bytes: bytes) -> None:
         """A key file the user can't read raises KalshiAuthError, not PermissionError."""
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
             f.write(pem_bytes)
@@ -464,17 +458,14 @@ class TestFromEnv:
         with pytest.raises(KalshiAuthError, match="KALSHI_PRIVATE_KEY"):
             KalshiAuth.from_env()
 
-    def test_from_pem_env_var(
-        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
-    ) -> None:
+    def test_from_pem_env_var(self, monkeypatch: pytest.MonkeyPatch, pem_string: str) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         auth = KalshiAuth.from_env()
         assert auth.key_id == "env-key"
 
-    def test_from_path_env_var(
-        self, monkeypatch: pytest.MonkeyPatch, pem_bytes: bytes
-    ) -> None:
+    def test_from_path_env_var(self, monkeypatch: pytest.MonkeyPatch, pem_bytes: bytes) -> None:
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
             f.write(pem_bytes)
             f.flush()
@@ -485,44 +476,25 @@ class TestFromEnv:
             assert auth.key_id == "path-key"
         os.unlink(f.name)
 
-    def test_from_env_pem_takes_precedence_over_path(
-        self, monkeypatch: pytest.MonkeyPatch,
+    def test_from_env_rejects_both_pem_and_path_set(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
     ) -> None:
-        """P4.4: when BOTH ``KALSHI_PRIVATE_KEY`` (inline PEM) and
-        ``KALSHI_PRIVATE_KEY_PATH`` (file) are set, ``from_env`` must
-        load the inline PEM. Pins the existing precedence so a future
-        refactor that flips the order doesn't silently swap which key
-        signs production requests."""
-        key_a = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        key_b = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem_a = key_a.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).decode()
-        pem_b = key_b.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        """#249: ``from_env`` must raise when both ``KALSHI_PRIVATE_KEY`` and
+        ``KALSHI_PRIVATE_KEY_PATH`` are populated. Silent precedence (PEM wins)
+        hid key-rotation mishaps; the message must name both env vars so the
+        misconfiguration is obvious from a single 401/403 incident."""
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
-            f.write(pem_b)
+            f.write(pem_string.encode())
             f.flush()
             try:
-                monkeypatch.setenv("KALSHI_KEY_ID", "precedence-key")
-                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_a)
+                monkeypatch.setenv("KALSHI_KEY_ID", "conflict-key")
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
                 monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", f.name)
-                auth = KalshiAuth.from_env()
-                headers = auth.sign_request("GET", "/x", timestamp_ms=1)
-                sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
-                pss = padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.DIGEST_LENGTH,
-                )
-                # Verifies with A; FAILS to verify with B (proves A signed).
-                key_a.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
-                with pytest.raises(InvalidSignature):
-                                    key_b.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+                with pytest.raises(
+                    KalshiAuthError,
+                    match=r"KALSHI_PRIVATE_KEY.*KALSHI_PRIVATE_KEY_PATH",
+                ):
+                    KalshiAuth.from_env()
             finally:
                 os.unlink(f.name)
 
@@ -538,60 +510,38 @@ class TestTryFromEnv:
         assert auth is not None
         assert auth.key_id == "test-key"
 
-    def test_returns_none_when_key_id_missing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_none_when_key_id_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         auth = KalshiAuth.try_from_env()
         assert auth is None
 
-    def test_returns_none_when_key_id_set_but_no_key(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_none_when_key_id_set_but_no_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "test-key")
         monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         auth = KalshiAuth.try_from_env()
         assert auth is None
 
-    def test_try_from_env_pem_takes_precedence_over_path(
-        self, monkeypatch: pytest.MonkeyPatch,
+    def test_try_from_env_rejects_both_pem_and_path_set(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
     ) -> None:
-        """P4.4: mirror of
-        ``TestFromEnv.test_from_env_pem_takes_precedence_over_path``
-        for ``try_from_env``. Same precedence contract."""
-        key_a = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        key_b = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        pem_a = key_a.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).decode()
-        pem_b = key_b.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        """#249: mirror of the ``from_env`` regression — ``try_from_env`` must
+        raise (not return ``None``, not silently pick PEM) when both env vars
+        are populated to non-empty values."""
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
-            f.write(pem_b)
+            f.write(pem_string.encode())
             f.flush()
             try:
-                monkeypatch.setenv("KALSHI_KEY_ID", "precedence-key")
-                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_a)
+                monkeypatch.setenv("KALSHI_KEY_ID", "conflict-key")
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
                 monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", f.name)
-                auth = KalshiAuth.try_from_env()
-                assert auth is not None
-                headers = auth.sign_request("GET", "/x", timestamp_ms=1)
-                sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
-                pss = padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.DIGEST_LENGTH,
-                )
-                key_a.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
-                with pytest.raises(InvalidSignature):
-                                    key_b.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+                with pytest.raises(
+                    KalshiAuthError,
+                    match=r"KALSHI_PRIVATE_KEY.*KALSHI_PRIVATE_KEY_PATH",
+                ):
+                    KalshiAuth.try_from_env()
             finally:
                 os.unlink(f.name)
 
@@ -609,9 +559,7 @@ class TestPassphraseSupport:
             encryption_algorithm=serialization.BestAvailableEncryption(passphrase),
         )
 
-    def test_from_pem_with_passphrase_succeeds(
-        self, rsa_private_key: rsa.RSAPrivateKey
-    ) -> None:
+    def test_from_pem_with_passphrase_succeeds(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
         encrypted = self._encrypted_pem(rsa_private_key, b"correct-horse")
         auth = KalshiAuth.from_pem("key", encrypted, password="correct-horse")
         assert auth.key_id == "key"
@@ -743,9 +691,7 @@ class TestTrailingSlashCanonicalization:
         with respx.mock:
             # Match the canonicalized (no-trailing-slash) URL — if the transport
             # forwarded "/markets/" to httpx, respx would 404 this request.
-            respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
-                side_effect=handler
-            )
+            respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(side_effect=handler)
             resp = transport.request("GET", "/markets/")
         assert resp.status_code == 200
         sent = captured[0]

@@ -65,6 +65,11 @@ class AsyncKalshiClient:
         # Reject empty strings that look like misconfigured credentials
         if key_id is not None and not key_id.strip():
             raise ValueError("key_id must not be empty. Omit it for unauthenticated access.")
+        # #249: refuse ambiguous credential bundle — caller must pick exactly one
+        # private-key source so a key-rotation mishap can't leave the SDK
+        # silently signing with the wrong key.
+        if private_key_path is not None and private_key is not None:
+            raise ValueError("Provide either private_key_path or private_key, not both.")
         # #210: only shut down auth on close() when WE built it. If the
         # caller passed in their own KalshiAuth, they keep ownership.
         self._auth_owned: bool = auth is None
@@ -166,6 +171,7 @@ class AsyncKalshiClient:
                 "Provide key_id + private_key_path, or use AsyncKalshiClient.from_env()."
             )
         from kalshi.ws.client import KalshiWebSocket as _KalshiWebSocket
+
         return _KalshiWebSocket(auth=self._auth, config=self._config)
 
     @classmethod
