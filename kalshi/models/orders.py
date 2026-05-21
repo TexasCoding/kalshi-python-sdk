@@ -160,9 +160,11 @@ class CreateOrderRequest(BaseModel):
     it. Callers passing ``type="market"`` (or similar) now get a
     ``ValidationError`` at construction time.
 
-    ``ticker``, ``side``, and ``action`` are all required by the spec.
-    Pre-v2.3.0 the SDK defaulted ``action`` to ``"buy"`` as a convenience;
-    that default has been removed to match the spec required-set (#172).
+    ``ticker``, ``side``, ``action``, and ``count`` are all required by the
+    spec. Pre-v2.3.0 the SDK defaulted ``action`` to ``"buy"`` (#172); the
+    follow-up (#242) also removed the silent ``count=1`` default — both are
+    money-risk drivers, since a missing arg would otherwise translate into
+    a real 1-contract BUY rather than a clear error.
 
     See ``kalshi.resources.orders.OrdersResource.create`` for the
     user-facing method that builds this model internally.
@@ -171,7 +173,7 @@ class CreateOrderRequest(BaseModel):
     ticker: str
     side: str
     action: str
-    count: FixedPointCount = Field(default=Decimal("1"), serialization_alias="count_fp")
+    count: FixedPointCount = Field(serialization_alias="count_fp")
     yes_price: DollarDecimal | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",
@@ -196,16 +198,26 @@ class CreateOrderRequest(BaseModel):
 
     @field_validator("buy_max_cost", mode="before")
     @classmethod
-    def _reject_decimal_and_float_buy_max_cost(cls, v: object) -> object:
-        """Reject Decimal and float inputs on buy_max_cost.
+    def _reject_decimal_float_and_bool_buy_max_cost(cls, v: object) -> object:
+        """Reject Decimal, float, and bool inputs on buy_max_cost.
 
         Spec says integer cents. Accepting Decimal would silently coerce
         callers who pass Decimal('5.00') (expecting $5.00 under the old
         DollarDecimal semantics) into 5 cents — data corruption with no
-        error. Reject at the boundary.
+        error. Bool is an ``int`` subclass, so ``True`` would otherwise
+        slip through as 1 (= 1 cent cap), the same class of bug #225
+        closed for ``DollarDecimal`` / ``FixedPointCount``. Reject at
+        the boundary (#243).
 
         int and int-shaped strings are fine (Pydantic coerces normally).
         """
+        if isinstance(v, bool):
+            raise ValueError(
+                "buy_max_cost must be int (cents), not bool — "
+                "bool is an int subclass, so True would otherwise slip "
+                "through as 1 (= 1 cent cap). Pass cents directly "
+                "(e.g., 500 for $5.00)."
+            )
         if isinstance(v, Decimal):
             raise ValueError(
                 "buy_max_cost must be int (cents), not Decimal. "

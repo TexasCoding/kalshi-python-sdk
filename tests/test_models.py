@@ -221,6 +221,7 @@ class TestDollarsAliasFields:
             ticker="T",
             side="yes",
             action="buy",
+            count=1,
             yes_price=Decimal("0.65"),
         )
         data = req.model_dump(mode="json", exclude_none=True, by_alias=True)
@@ -741,6 +742,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             time_in_force="fill_or_kill",
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -753,6 +755,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             post_only=True,
             reduce_only=False,
         )
@@ -767,6 +770,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             self_trade_prevention_type="maker",
             order_group_id="grp-123",
         )
@@ -781,6 +785,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             cancel_order_on_pause=True,
             subaccount=5,
         )
@@ -796,6 +801,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             buy_max_cost=500,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -819,6 +825,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost="5.5",  # type: ignore[arg-type]
             )
 
@@ -837,6 +844,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=Decimal("500"),  # type: ignore[arg-type]
             )
         with pytest.raises(ValidationError):
@@ -844,6 +852,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=Decimal("5.00"),  # type: ignore[arg-type]
             )
 
@@ -858,8 +867,52 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=5.0,  # type: ignore[arg-type]
             )
+
+    def test_buy_max_cost_rejects_bool(self) -> None:
+        """#243: bool inputs must raise — bool is an ``int`` subclass, so
+        ``True`` would otherwise slip through as ``1`` (= 1 cent cap), a
+        silent money-risk failure matching the #225 class of bug for
+        ``DollarDecimal`` / ``FixedPointCount``. A caller who passes a flag
+        (``risk_check_passed``, ``dry_run``) where cents were expected must
+        get a clear error, not a $0.01-capped order."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError, match=r"bool"):
+            CreateOrderRequest(
+                ticker="MKT",
+                side="yes",
+                action="buy",
+                count=1,
+                buy_max_cost=True,  # type: ignore[arg-type]
+            )
+        with pytest.raises(ValidationError, match=r"bool"):
+            CreateOrderRequest(
+                ticker="MKT",
+                side="yes",
+                action="buy",
+                count=1,
+                buy_max_cost=False,  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_accepts_plain_int(self) -> None:
+        """#243: regression — plain int (cents) still works."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            count=1,
+            buy_max_cost=500,
+        )
+        assert req.buy_max_cost == 500
+        assert isinstance(req.buy_max_cost, int)
+        assert not isinstance(req.buy_max_cost, bool)
 
     def test_buy_max_cost_accepts_int_string(self) -> None:
         """Int-shaped strings are coerced normally (e.g., loading from env/config)."""
@@ -869,6 +922,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             buy_max_cost="500",  # type: ignore[arg-type]
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -877,7 +931,7 @@ class TestCreateOrderRequestExtended:
     def test_omits_none_fields_from_wire(self) -> None:
         from kalshi.models.orders import CreateOrderRequest
 
-        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy")
+        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy", count=1)
         body = req.model_dump(exclude_none=True, by_alias=True)
         # Core fields present
         assert body["ticker"] == "MKT"
@@ -898,6 +952,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 type="limit",  # type: ignore[call-arg]
             )
 
@@ -911,6 +966,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 bogus_field="x",  # type: ignore[call-arg]
             )
 
@@ -1092,8 +1148,8 @@ class TestBatchCreateOrdersRequest:
         )
 
         orders = [
-            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy"),
-            CreateOrderRequest(ticker="MKT-B", side="no", action="sell"),
+            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy", count=1),
+            CreateOrderRequest(ticker="MKT-B", side="no", action="sell", count=1),
         ]
         req = BatchCreateOrdersRequest(orders=orders)
         body = req.model_dump(exclude_none=True, by_alias=True)

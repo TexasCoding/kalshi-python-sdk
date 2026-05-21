@@ -179,7 +179,7 @@ class TestCreateOrderRequestOverload:
 
         with pytest.raises(TypeError, match=r"Pass either `request=\.\.\.` or"):
             orders.create(
-                request=CreateOrderRequest(ticker="MKT", side="yes", action="buy"),
+                request=CreateOrderRequest(ticker="MKT", side="yes", action="buy", count=1),
                 ticker="OTHER",
             )
 
@@ -197,8 +197,8 @@ class TestBatchCreateRequestOverload:
         )
 
         inner = [
-            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy"),
-            CreateOrderRequest(ticker="MKT-B", side="no", action="buy"),
+            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy", count=1),
+            CreateOrderRequest(ticker="MKT-B", side="no", action="buy", count=1),
         ]
         orders.batch_create(inner)
         kwarg_body = json.loads(route.calls[0].request.content)
@@ -217,7 +217,7 @@ class TestBatchCreateRequestOverload:
             return_value=httpx.Response(200, json={"orders": []})
         )
 
-        inner = [CreateOrderRequest(ticker="MKT-A", side="yes", action="buy")]
+        inner = [CreateOrderRequest(ticker="MKT-A", side="yes", action="buy", count=1)]
         with pytest.raises(TypeError, match=r"Pass either `request=\.\.\.` or"):
             orders.batch_create(
                 inner,
@@ -267,7 +267,10 @@ class TestMissingRequiredKwargsRaisesTypeError:
         orders: OrdersResource,
     ) -> None:
         # create() requires `ticker` and `side`. Passing only one raises.
-        with pytest.raises(TypeError, match=r"create\(\) requires `ticker` and `side`"):
+        with pytest.raises(
+            TypeError,
+            match=r"create\(\) requires `ticker`, `side`, `count`, and `action`",
+        ):
             orders.create(ticker="MKT")
 
     def test_list_required_kwarg_missing(

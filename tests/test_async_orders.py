@@ -81,7 +81,7 @@ class TestCreateOrderWireShapeAsync:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        await client.orders.create(ticker="MKT", side="yes", yes_price=0.5)
+        await client.orders.create(ticker="MKT", side="yes", action="buy", count=1, yes_price=0.5)
 
         body = json.loads(route.calls[0].request.content)
         assert "type" not in body
@@ -97,7 +97,7 @@ class TestCreateOrderWireShapeAsync:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        await client.orders.create(ticker="MKT", side="yes", yes_price=0.5, count=3)
+        await client.orders.create(ticker="MKT", side="yes", action="buy", yes_price=0.5, count=3)
 
         body = json.loads(route.calls[0].request.content)
         assert "count_fp" in body
@@ -118,6 +118,8 @@ class TestCreateOrderWireShapeAsync:
         await client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             time_in_force="fill_or_kill",
         )
@@ -139,6 +141,8 @@ class TestCreateOrderWireShapeAsync:
         await client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             post_only=True,
             reduce_only=False,
@@ -163,6 +167,8 @@ class TestCreateOrderWireShapeAsync:
         await client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             buy_max_cost=500,
         )
@@ -185,6 +191,8 @@ class TestCreateOrderWireShapeAsync:
         await client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             subaccount=2,
             order_group_id="grp-x",
@@ -208,6 +216,79 @@ class TestCreateOrderWireShapeAsync:
                 type="market",  # type: ignore[call-arg]
             )
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_missing_count_and_action_raises_before_http(
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: async kwarg-form create() with missing ``count`` / ``action``
+        must raise ``TypeError`` BEFORE any HTTP request is dispatched."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        with pytest.raises(TypeError, match=r"count.*action"):
+            await client.orders.create(ticker="X", side="yes")
+        with pytest.raises(TypeError, match=r"count.*action"):
+            await client.orders.create(ticker="X", side="yes", action="buy")
+        with pytest.raises(TypeError, match=r"count.*action"):
+            await client.orders.create(ticker="X", side="yes", count=10)
+
+        assert route.call_count == 0
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_explicit_count_action_kwargs_still_work(
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: regression — explicit ``count`` + ``action`` kwargs still build
+        and dispatch normally."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        await client.orders.create(
+            ticker="X", side="yes", count=10, action="buy", yes_price="0.5",
+        )
+
+        assert route.call_count == 1
+        body = json.loads(route.calls[0].request.content)
+        assert body["count_fp"] == "10"
+        assert body["action"] == "buy"
+        assert body["yes_price_dollars"] == "0.5"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_request_overload_unaffected_by_242(
+        self,
+        client: AsyncKalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: ``request=CreateOrderRequest(...)`` path unaffected by the
+        kwarg-overload guard."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        await client.orders.create(
+            request=CreateOrderRequest(
+                ticker="X",
+                side="yes",
+                count=Decimal("10"),
+                action="buy",
+                yes_price=Decimal("0.5"),
+            )
+        )
+
+        assert route.call_count == 1
+        body = json.loads(route.calls[0].request.content)
+        assert body["count_fp"] == "10"
+        assert body["action"] == "buy"
+
 
 class TestAsyncOrdersCreate:
     @respx.mock
@@ -228,7 +309,9 @@ class TestAsyncOrdersCreate:
                 },
             )
         )
-        order = await orders.create(ticker="TEST-MKT", side="yes", count=10, yes_price=0.65)
+        order = await orders.create(
+            ticker="TEST-MKT", side="yes", action="buy", count=10, yes_price=0.65
+        )
         assert order.order_id == "ord-123"
         assert order.yes_price == Decimal("0.6500")
         assert order.count == 10
@@ -244,7 +327,7 @@ class TestAsyncOrdersCreate:
                 },
             )
         )
-        order = await orders.create(ticker="TEST-MKT", side="yes")
+        order = await orders.create(ticker="TEST-MKT", side="yes", action="buy", count=1)
         assert order.order_id == "ord-456"
 
     @respx.mock
@@ -256,7 +339,7 @@ class TestAsyncOrdersCreate:
                 json={"order": order_dict(order_id="ord-789", ticker="T")},
             )
         )
-        await orders.create(ticker="T", side="yes", yes_price=0.65)
+        await orders.create(ticker="T", side="yes", action="buy", count=1, yes_price=0.65)
 
         body = json.loads(route.calls[0].request.content)
         assert body["yes_price_dollars"] == "0.65"
@@ -269,7 +352,7 @@ class TestAsyncOrdersCreate:
             return_value=httpx.Response(400, json={"message": "invalid ticker"})
         )
         with pytest.raises(KalshiValidationError):
-            await orders.create(ticker="INVALID", side="yes")
+            await orders.create(ticker="INVALID", side="yes", action="buy", count=1)
 
 
 class TestAsyncOrdersGet:
@@ -484,8 +567,8 @@ class TestAsyncOrdersBatch:
             )
         )
         reqs = [
-            CreateOrderRequest(ticker="A", side="yes", action="buy"),
-            CreateOrderRequest(ticker="B", side="no", action="buy"),
+            CreateOrderRequest(ticker="A", side="yes", action="buy", count=1),
+            CreateOrderRequest(ticker="B", side="no", action="buy", count=1),
         ]
         from kalshi.models.orders import BatchCreateOrdersResponse
 
@@ -527,7 +610,7 @@ class TestAsyncOrdersBatch:
             )
         )
         result = await orders.batch_create(
-            [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+            [CreateOrderRequest(ticker="A", side="yes", action="buy", count=1)]
         )
         assert result.orders[0].order is not None
         assert result.orders[1].order is None
@@ -1187,8 +1270,8 @@ class TestBatchCreateWireShapeAsync:
 
         await orders.batch_create(
             [
-                CreateOrderRequest(ticker="A", side="yes", action="buy"),
-                CreateOrderRequest(ticker="B", side="no", action="buy"),
+                CreateOrderRequest(ticker="A", side="yes", action="buy", count=1),
+                CreateOrderRequest(ticker="B", side="no", action="buy", count=1),
             ]
         )
 
