@@ -35,7 +35,7 @@ class RfqCreatedPayload(BaseModel):
     # event_ticker/market_ticker/side/yes_settlement_value_dollars.
     mve_collection_ticker: str | None = None
     mve_selected_legs: list[dict[str, object]] | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class RfqDeletedPayload(BaseModel):
@@ -60,7 +60,7 @@ class RfqDeletedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
     )
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class QuoteCreatedPayload(BaseModel):
@@ -93,7 +93,7 @@ class QuoteCreatedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class QuoteAcceptedPayload(BaseModel):
@@ -130,7 +130,7 @@ class QuoteAcceptedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class QuoteExecutedPayload(BaseModel):
@@ -144,7 +144,7 @@ class QuoteExecutedPayload(BaseModel):
     client_order_id: str
     market_ticker: str
     executed_ts: datetime
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class CommunicationsMessage(BaseModel):
@@ -158,4 +158,4 @@ class CommunicationsMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: dict[str, object]
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

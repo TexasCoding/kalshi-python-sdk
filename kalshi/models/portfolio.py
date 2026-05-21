@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
@@ -83,7 +82,7 @@ class MarketPosition(BaseModel):
     fees_paid: DollarDecimal | None = Field(
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )
-    last_updated_ts: datetime
+    last_updated_ts: AwareDatetime
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -182,7 +181,7 @@ class Settlement(BaseModel):
         validation_alias=AliasChoices("no_total_cost_dollars", "no_total_cost"),
     )
     revenue: int
-    settled_time: datetime
+    settled_time: AwareDatetime
     fee_cost: DollarDecimal | None = Field(
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )

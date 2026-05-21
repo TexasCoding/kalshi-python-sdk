@@ -27,7 +27,7 @@ class OrderbookSnapshotPayload(BaseModel):
         default=[],
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class OrderbookDeltaPayload(BaseModel):
@@ -53,7 +53,7 @@ class OrderbookDeltaPayload(BaseModel):
     ts: str | None = None
     # v0.14+ backfill (#162). ts_ms (Unix ms) supersedes ts (RFC3339).
     ts_ms: int | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class OrderbookSnapshotMessage(BaseModel):
@@ -62,7 +62,7 @@ class OrderbookSnapshotMessage(BaseModel):
     sid: int
     seq: int
     msg: OrderbookSnapshotPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class OrderbookDeltaMessage(BaseModel):
@@ -71,4 +71,4 @@ class OrderbookDeltaMessage(BaseModel):
     sid: int
     seq: int
     msg: OrderbookDeltaPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

@@ -80,6 +80,20 @@ client.order_groups.create(contracts_limit=100, exchange_index=0)
 client.order_groups.delete("og_abc", exchange_index=0)
 ```
 
+!!! info "Delete is not server-idempotent"
+    `delete(order_group_id)` propagates a 404 as `KalshiNotFoundError`
+    when the order group is already torn down or never existed. The SDK
+    does **not** swallow it — the caller owns safe-retry idempotency:
+
+    ```python
+    from kalshi.errors import KalshiNotFoundError
+
+    try:
+        client.order_groups.delete(group_id)
+    except KalshiNotFoundError:
+        pass  # already deleted — idempotent
+    ```
+
 ## Reference
 
 ::: kalshi.resources.order_groups.OrderGroupsResource

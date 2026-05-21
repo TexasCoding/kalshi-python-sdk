@@ -117,6 +117,21 @@ client.communications.create_quote(
 )
 ```
 
+!!! info "Delete is not server-idempotent"
+    `delete_rfq(rfq_id)` and `delete_quote(quote_id)` propagate a 404 as
+    `KalshiNotFoundError` when the RFQ or quote is already canceled,
+    expired, or never existed. The SDK does **not** swallow it — the caller
+    owns safe-retry idempotency:
+
+    ```python
+    from kalshi.errors import KalshiNotFoundError
+
+    try:
+        client.communications.delete_rfq(rfq_id)
+    except KalshiNotFoundError:
+        pass  # already canceled — idempotent
+    ```
+
 ## RFQ statuses
 
 `open`, `accepted`, `confirmed`, `canceled`. Status filtering accepts these

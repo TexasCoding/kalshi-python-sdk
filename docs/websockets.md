@@ -359,6 +359,106 @@ Public channels (ticker, trade, orderbook_delta, market_lifecycle,
 multivariate, multivariate_lifecycle) work without auth — pass
 `auth=None` if you don't need private channels.
 
+## Performance
+
+The WebSocket client is built for sustained automated-trading workloads, but
+throughput is bounded by a few knobs you control. This section is the practical
+tuning guide.
+
+### Typical message rates per channel
+
+Observed at-the-money on active election / sports markets. Treat as orders of
+magnitude, not SLAs — Kalshi's wire rates vary with volatility, time-of-day,
+and how busy the underlying market is.
+
+| Channel | Typical msg/s (active market) | Burst peak |
+|---|---|---|
+| `ticker` | 1–10 | 100s during pricing events |
+| `trade` | 0.1–5 | 100s on bulk fills |
+| `orderbook_delta` | 10–200 | low thousands during market open / news |
+| `fill` / `user_orders` | 0.1–10 (your own activity) | bounded by your order rate |
+| `market_lifecycle` / `multivariate_lifecycle` | < 1 | bursts on bulk settlement |
+| `market_positions` | < 1 (one update per position change) | bounded by your activity |
+| `order_group_updates` | < 1 per group | bounded by group size |
+| `communications` | < 1 (RFQ/Quote lifecycle) | bursts during quote storms |
+
+### Queue sizing rule of thumb
+
+Each per-channel iterator is fed by a bounded `MessageQueue` of size `maxsize`.
+The safe default is:
+
+```
+maxsize >= 2 * peak_burst_per_second
+```
+
+That gives a 500ms cushion before backpressure triggers — long enough to absorb
+typical GIL stalls / GC pauses, short enough that a slow consumer surfaces
+quickly. For `orderbook_delta` on hot markets, prefer `maxsize=10_000` and an
+ERROR overflow strategy so a stuck consumer halts the loop rather than
+silently corrupting book state.
+
+### Overflow strategy choice
+
+| Strategy | Use for | Why |
+|---|---|---|
+| `DROP_OLDEST` | Read-only / latest-wins feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate*` | Newest snapshot is always correct; an evicted old tick is recoverable from the next one. |
+| `ERROR` | Stateful, sequenced feeds: `orderbook_delta`, `order_group_updates`, `user_orders` | A dropped delta corrupts derived state. Surface the backpressure to the consumer rather than continuing on a corrupted book. |
+
+`ERROR` is fatal — the recv loop broadcasts sentinels and exits when it fires
+(see [Backpressure](#backpressure)). Wire `on_error=` / `on_state_change=` to
+observe.
+
+### `orderbook_delta` cost vs orderbook depth
+
+`orderbook_delta` carries the highest CPU cost of any channel: every frame
+triggers Pydantic validation, dispatch routing, sequence-tracker update, and
+(if you use the `orderbook()` helper) a fresh `Orderbook` snapshot allocation.
+If you only need top-of-book, use `ticker` instead — it's an order of magnitude
+cheaper per message.
+
+If you do need the full book, hold the `Orderbook` references your consumer
+received rather than re-fetching depth on demand; the SDK already maintains the
+book incrementally per-ticker.
+
+### Pluggable JSON loader
+
+The default loader is `json.loads`. For high-volume channels (`ticker`,
+`orderbook_delta`), swap in [`orjson`](https://github.com/ijl/orjson) — typically
+2–3x faster on the parse path:
+
+```python
+import orjson
+from kalshi import KalshiConfig
+
+config = KalshiConfig(
+    ws_json_loads=orjson.loads,
+    ws_json_dumps=orjson.dumps,
+)
+```
+
+`orjson.dumps` returns `bytes`; the SDK passes that straight to the underlying
+`websockets` client, which accepts both `bytes` and `str` payloads. Set either
+loader independently; `None` (the default) falls back to the stdlib `json`
+module.
+
+### Single-threaded recv loop
+
+Dispatch runs on a single asyncio task. Any blocking work in `on_error=`,
+`on_state_change=`, or `@ws.on(channel)` callbacks blocks every other channel
+for the duration. The rules:
+
+- Keep callbacks `async`-only and non-blocking. Push work to a background task
+  / queue if you need to do anything that takes more than ~1ms.
+- Don't do synchronous I/O (network, disk, `print()` to a slow tty) in a
+  callback.
+- Use the iterator API for heavy consumers — each iterator runs on its own
+  task, so a slow consumer only stalls its own queue (until `maxsize` fills,
+  which then triggers your overflow strategy).
+
+A slow `on_error` handler is the most common foot-gun: it runs inline on the
+recv loop, so a 500ms blocking log call multiplies the effective error
+recovery time.
+
 ## Reference
 
 ::: kalshi.ws.client.KalshiWebSocket

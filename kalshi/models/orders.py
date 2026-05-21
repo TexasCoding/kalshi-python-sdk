@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_validator, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -85,8 +84,8 @@ class Order(BaseModel):
     maker_fees: DollarDecimal = Field(
         validation_alias=AliasChoices("maker_fees_dollars", "maker_fees"),
     )
-    created_time: datetime | None = None
-    expiration_time: datetime | None = None
+    created_time: AwareDatetime | None = None
+    expiration_time: AwareDatetime | None = None
     client_order_id: str
     subaccount: int | None = None
 
@@ -95,7 +94,7 @@ class Order(BaseModel):
     # for back-compat. subaccount_number is distinct from subaccount.
     outcome_side: SideLiteral
     book_side: BookSideLiteral
-    last_update_time: datetime | None = None
+    last_update_time: AwareDatetime | None = None
     self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
     order_group_id: str | None = None
     cancel_order_on_pause: bool | None = None
@@ -132,7 +131,7 @@ class Fill(BaseModel):
     fee_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("fee_cost_dollars", "fee_cost"),
     )
-    created_time: datetime | None = None
+    created_time: AwareDatetime | None = None
 
     # v3.18.0 backfill (#159). ts is Unix-ms int per spec — distinct from
     # the typed created_time: datetime; do NOT coerce.

@@ -43,7 +43,7 @@ class MarketLifecyclePayload(BaseModel):
     floor_strike: Decimal | None = None
     price_level_structure: str | None = None
     yes_sub_title: str | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MarketLifecycleMessage(BaseModel):
@@ -53,4 +53,4 @@ class MarketLifecycleMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketLifecyclePayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

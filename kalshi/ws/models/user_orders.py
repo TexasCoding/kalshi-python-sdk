@@ -69,7 +69,7 @@ class UserOrdersPayload(BaseModel):
     created_ts_ms: int
     last_updated_ts_ms: int | None = None
     expiration_ts_ms: int | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class UserOrdersMessage(BaseModel):
@@ -79,4 +79,4 @@ class UserOrdersMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: UserOrdersPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

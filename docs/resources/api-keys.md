@@ -82,6 +82,20 @@ new_pem = new.private_key.get_secret_value()
 client.api_keys.delete("old-key-id")
 ```
 
+!!! info "Delete is not server-idempotent"
+    `delete(api_key)` propagates a 404 as `KalshiNotFoundError` when the
+    key has already been revoked or never existed. The SDK does **not**
+    swallow it — the caller owns safe-retry idempotency:
+
+    ```python
+    from kalshi.errors import KalshiNotFoundError
+
+    try:
+        client.api_keys.delete(key_id)
+    except KalshiNotFoundError:
+        pass  # already revoked — idempotent
+    ```
+
 ## Reference
 
 ::: kalshi.resources.api_keys.ApiKeysResource

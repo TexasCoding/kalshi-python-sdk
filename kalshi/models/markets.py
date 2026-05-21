@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
@@ -96,15 +95,15 @@ class Market(BaseModel):
     )
 
     # Timestamps
-    created_time: datetime
-    updated_time: datetime
-    open_time: datetime
-    close_time: datetime
-    latest_expiration_time: datetime
-    expected_expiration_time: datetime | None = None
-    expiration_time: datetime | None = None
-    settlement_ts: datetime | None = None
-    occurrence_datetime: datetime | None = None
+    created_time: AwareDatetime
+    updated_time: AwareDatetime
+    open_time: AwareDatetime
+    close_time: AwareDatetime
+    latest_expiration_time: AwareDatetime
+    expected_expiration_time: AwareDatetime | None = None
+    expiration_time: AwareDatetime | None = None
+    settlement_ts: AwareDatetime | None = None
+    occurrence_datetime: AwareDatetime | None = None
 
     # Metadata
     settlement_timer_seconds: int
@@ -126,7 +125,7 @@ class Market(BaseModel):
     custom_strike: dict[str, Any] | None = None
     early_close_condition: str | None = None
     exchange_index: int | None = None
-    fee_waiver_expiration_time: datetime | None = None
+    fee_waiver_expiration_time: AwareDatetime | None = None
     functional_strike: str | None = None
     is_provisional: bool | None = None
     mve_collection_ticker: str | None = None
@@ -244,7 +243,7 @@ class Candlestick(BaseModel):
 
     # Legacy flat fields for backward compat with older API responses
     ticker: str | None = None
-    period_start: datetime | None = None
+    period_start: AwareDatetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

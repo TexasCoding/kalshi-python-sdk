@@ -142,6 +142,22 @@ client.orders.batch_cancel([
     field is no longer emitted. If you talk to the API directly elsewhere,
     keep that in mind.
 
+!!! info "Cancel is not server-idempotent"
+    `cancel(order_id)` (and `cancel_v2(...)`, `batch_cancel(...)`) propagate
+    a 404 as `KalshiNotFoundError` when the order is already canceled, fully
+    filled, or never existed. The SDK does **not** automatically swallow
+    that — the caller owns safe-retry idempotency. Treat 404 as "already
+    canceled" only if you can rule out a typo'd `order_id`:
+
+    ```python
+    from kalshi.errors import KalshiNotFoundError
+
+    try:
+        client.orders.cancel(order_id)
+    except KalshiNotFoundError:
+        pass  # already canceled — idempotent
+    ```
+
 ## Amend
 
 ```python

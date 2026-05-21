@@ -25,18 +25,18 @@ from kalshi.ws.models.communications import (
 )
 from kalshi.ws.models.fill import FillMessage, FillPayload
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
-from kalshi.ws.models.market_positions import MarketPositionsMessage
+from kalshi.ws.models.market_positions import MarketPositionsMessage, MarketPositionsPayload
 from kalshi.ws.models.multivariate import (
     MultivariateLifecycleMessage,
     MultivariateMessage,
 )
-from kalshi.ws.models.order_group import OrderGroupMessage
+from kalshi.ws.models.order_group import OrderGroupMessage, OrderGroupPayload
 from kalshi.ws.models.orderbook_delta import (
     OrderbookDeltaMessage,
     OrderbookSnapshotMessage,
 )
-from kalshi.ws.models.ticker import TickerMessage
-from kalshi.ws.models.trade import TradeMessage
+from kalshi.ws.models.ticker import TickerMessage, TickerPayload
+from kalshi.ws.models.trade import TradeMessage, TradePayload
 from kalshi.ws.models.user_orders import UserOrdersMessage, UserOrdersPayload
 from tests._model_fixtures import (
     fill_payload_dict,
@@ -1189,3 +1189,144 @@ class TestOrderbookDeltaPayloadSideLiteral:
                     "side": "yes ",
                 }
             )
+# ---------- P2#3: populate_by_name across every WS payload model ----------
+
+_SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
+    (
+        TickerPayload,
+        {
+            "market_ticker": "MKT-A",
+            "market_id": "mid-1",
+            "yes_bid": Decimal("0.50"),
+            "yes_ask": Decimal("0.51"),
+            "volume": Decimal("100.00"),
+            "open_interest": Decimal("200.00"),
+            "dollar_volume": "50.00",
+            "dollar_open_interest": "100.00",
+            "yes_bid_size": Decimal("10.00"),
+            "yes_ask_size": Decimal("10.00"),
+            "last_trade_size": Decimal("1.00"),
+            "ts": 1_700_000_000,
+            "price": Decimal("0.5050"),
+            "ts_ms": 1_700_000_000_000,
+        },
+    ),
+    (
+        FillPayload,
+        {
+            "trade_id": "t1",
+            "order_id": "o1",
+            "market_ticker": "MKT-A",
+            "is_taker": True,
+            "side": "yes",
+            "yes_price": Decimal("0.50"),
+            "count": Decimal("1.00"),
+            "fee_cost": Decimal("0.01"),
+            "action": "buy",
+            "ts": 1_700_000_000,
+            "post_position": Decimal("1.00"),
+            "purchased_side": "yes",
+            "outcome_side": "yes",
+            "book_side": "bid",
+            "ts_ms": 1_700_000_000_000,
+        },
+    ),
+    (
+        TradePayload,
+        {
+            "trade_id": "t1",
+            "market_ticker": "MKT-A",
+            "yes_price": Decimal("0.50"),
+            "no_price": Decimal("0.50"),
+            "count": Decimal("1.00"),
+            "taker_side": "yes",
+            "ts": 1_700_000_000,
+            "taker_outcome_side": "yes",
+            "taker_book_side": "bid",
+            "ts_ms": 1_700_000_000_000,
+        },
+    ),
+    (
+        UserOrdersPayload,
+        {
+            "order_id": "o1",
+            "user_id": "u1",
+            "ticker": "MKT-A",
+            "status": "resting",
+            "side": "yes",
+            "is_yes": True,
+            "yes_price": Decimal("0.50"),
+            "fill_count": Decimal("0.00"),
+            "remaining_count": Decimal("10.00"),
+            "initial_count": Decimal("10.00"),
+            "taker_fill_cost": Decimal("0.00"),
+            "maker_fill_cost": Decimal("0.00"),
+            "taker_fees": Decimal("0.00"),
+            "maker_fees": Decimal("0.00"),
+            "client_order_id": "cid-1",
+            "created_time": datetime(2026, 1, 1, tzinfo=UTC),
+            "outcome_side": "yes",
+            "book_side": "bid",
+            "created_ts_ms": 1_700_000_000_000,
+        },
+    ),
+    (
+        MarketPositionsPayload,
+        {
+            "user_id": "u1",
+            "market_ticker": "MKT-A",
+            "position": Decimal("1.00"),
+            "position_cost": Decimal("0.50"),
+            "realized_pnl": Decimal("0.00"),
+            "fees_paid": Decimal("0.00"),
+            "position_fee_cost": Decimal("0.00"),
+            "volume": Decimal("1.00"),
+        },
+    ),
+    (
+        OrderGroupPayload,
+        {
+            "event_type": "created",
+            "order_group_id": "og-1",
+            "contracts_limit": "10.00",
+            "ts_ms": 1_700_000_000_000,
+        },
+    ),
+    (
+        RfqCreatedPayload,
+        {
+            "id": "rfq-1",
+            "creator_id": "u1",
+            "market_ticker": "MKT-A",
+            "created_ts": datetime(2026, 1, 1, tzinfo=UTC),
+            "contracts": Decimal("100.00"),
+            "target_cost": Decimal("50.00"),
+        },
+    ),
+    (
+        QuoteCreatedPayload,
+        {
+            "quote_id": "q-1",
+            "rfq_id": "rfq-1",
+            "quote_creator_id": "u2",
+            "market_ticker": "MKT-A",
+            "yes_bid": Decimal("0.50"),
+            "no_bid": Decimal("0.50"),
+            "created_ts": datetime(2026, 1, 1, tzinfo=UTC),
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("payload_cls", "kwargs"),
+    _SDK_NAME_PAYLOADS,
+    ids=lambda v: v.__name__ if isinstance(v, type) else "kwargs",
+)
+def test_ws_payload_constructable_with_sdk_field_names(
+    payload_cls: type, kwargs: dict[str, object]
+) -> None:
+    """Every WS payload model accepts SDK (short) field names — populate_by_name=True."""
+    payload = payload_cls(**kwargs)
+    for key, value in kwargs.items():
+        assert getattr(payload, key) == value, key

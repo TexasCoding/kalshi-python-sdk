@@ -43,10 +43,9 @@ import os
 from kalshi import KalshiClient, KalshiConfig
 
 config = (
-    KalshiConfig.demo() if os.getenv("KALSHI_DEMO", "").lower() == "true"
-    else KalshiConfig.production()
+    KalshiConfig.demo(timeout=10.0, max_retries=5) if os.getenv("KALSHI_DEMO", "").lower() == "true"
+    else KalshiConfig.production(timeout=10.0, max_retries=5)
 )
-config = dataclasses.replace(config, timeout=10.0, max_retries=5)
 with KalshiClient.from_env(config=config) as client:
     ...
 ```

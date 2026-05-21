@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.models.markets import Candlestick
 from kalshi.types import FixedPointCount, NullableList
@@ -35,7 +34,7 @@ class Series(BaseModel):
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
-    last_updated_ts: datetime | None = None
+    last_updated_ts: AwareDatetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -47,7 +46,7 @@ class SeriesFeeChange(BaseModel):
     series_ticker: str
     fee_type: str
     fee_multiplier: float
-    scheduled_ts: datetime
+    scheduled_ts: AwareDatetime
 
     model_config = {"extra": "allow"}
 

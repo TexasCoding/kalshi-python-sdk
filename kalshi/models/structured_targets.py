@@ -11,10 +11,9 @@ than a ``horse_race_entry``). Consumers are expected to branch on ``type``.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import NullableList
 
@@ -37,7 +36,7 @@ class StructuredTarget(BaseModel):
     details: dict[str, Any] = {}
     source_id: str | None = None
     source_ids: dict[str, str] | None = None
-    last_updated_ts: datetime | None = None
+    last_updated_ts: AwareDatetime | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

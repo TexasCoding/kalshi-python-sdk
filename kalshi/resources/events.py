@@ -152,7 +152,7 @@ class EventsResource(SyncResource):
         self,
         event_ticker: str,
         *,
-        with_nested_markets: bool = False,
+        with_nested_markets: bool | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
@@ -255,7 +255,7 @@ class AsyncEventsResource(AsyncResource):
         self,
         event_ticker: str,
         *,
-        with_nested_markets: bool = False,
+        with_nested_markets: bool | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),

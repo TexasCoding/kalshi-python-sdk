@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from kalshi.models.markets import Market
 from kalshi.types import NullableList
@@ -25,14 +24,14 @@ class Event(BaseModel):
     collateral_return_type: str
     mutually_exclusive: bool
     category: str | None = None
-    strike_date: datetime | None = None
+    strike_date: AwareDatetime | None = None
     strike_period: str | None = None
     available_on_brokers: bool
     # Spec marks `product_metadata` required, but the live demo server omits
     # it on most events (observed run #26141405845, 2026-05-20). Recorded in
     # tests/_contract_support.py EXCLUSIONS as `server_omits_despite_required`.
     product_metadata: dict[str, Any] | None = None
-    last_updated_ts: datetime | None = None
+    last_updated_ts: AwareDatetime | None = None
     markets: NullableList[Market] = []
 
     # v3.18.0 backfill (#160). fee_multiplier_override is `type: number,
