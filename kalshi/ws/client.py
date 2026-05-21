@@ -55,6 +55,14 @@ _PERMANENT_CLOSE_CODES: frozenset[int] = frozenset(
     {1002, 1003, 1007, 1008, 1009, 1010}
 ) | frozenset(range(4000, 5000))
 
+# #245: cooperative-pause polling interval. Bounds the latency between a
+# subscribe-driven pause request and the recv loop parking itself on a
+# quiet channel. On a busy channel pause is granted between frames at
+# zero added latency. 50ms is well under any subscribe ack timeout
+# (5s default) and ~5x the typical Kalshi market-burst inter-frame
+# spacing, so polling adds negligible CPU on idle.
+_RECV_POLL_S: float = 0.05
+
 
 class KalshiWebSocket:
     """WebSocket client for real-time Kalshi market data.
@@ -90,6 +98,18 @@ class KalshiWebSocket:
         self._running = False
         self._subscribe_lock = asyncio.Lock()
         self._pending_callbacks: list[tuple[str, Callable[..., Awaitable[None]]]] = []
+        # #245: cooperative pause replaces the per-frame
+        # ``asyncio.create_task + asyncio.shield`` that previously made
+        # ``_process_frame`` uninterruptible. The recv loop now polls
+        # ``connection.recv()`` with a short timeout so it can observe
+        # ``_pause_pending`` between frames without an external cancel.
+        # On a busy channel pause is granted in microseconds (between
+        # frames); on a quiet channel it costs at most ``_RECV_POLL_S``
+        # of latency. No Task / no shield Future / no contextvars copy
+        # per frame.
+        self._pause_pending = False
+        self._pause_granted = asyncio.Event()
+        self._resume_signal = asyncio.Event()
         # #209: pluggable JSON loader (None -> stdlib json.loads). Resolved
         # once here so the recv hot path doesn't keep dereferencing config.
         self._json_loads: Callable[[bytes | str], Any] = (
@@ -129,10 +149,22 @@ class KalshiWebSocket:
     async def _stop(self) -> None:
         """Stop the receive loop and close the connection."""
         self._running = False
+        # #245: wake the recv loop if it's parked on `_resume_signal`
+        # (a pause request that never reached resume). Setting the
+        # signal lets it observe ``_running=False`` and exit cleanly.
+        self._resume_signal.set()
         if self._recv_task and not self._recv_task.done():
-            self._recv_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._recv_task
+            # Closing the connection unblocks any in-flight ``recv()``
+            # via ConnectionClosed; the loop then sees ``_running=False``
+            # and exits at the top of its while. The poll-interval
+            # bounds the latency at ``_RECV_POLL_S`` even if close
+            # races the wait.
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await asyncio.wait_for(self._recv_task, timeout=2.0)
+            if not self._recv_task.done():
+                self._recv_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await self._recv_task
 
         await self._broadcast_sentinels()
 
@@ -156,23 +188,42 @@ class KalshiWebSocket:
                 await sub.queue.put_sentinel()
 
     def _ensure_recv_loop(self) -> None:
-        """Start the recv_loop background task if not already running."""
+        """Start the recv_loop background task or resume a parked one.
+
+        #245: ``_pause_recv_loop`` cooperatively parks the loop on
+        ``_resume_signal``; this method resumes it by setting the signal.
+        Falls back to creating a fresh task when no loop is running
+        (initial subscribe, or post-stop restart).
+        """
+        if self._pause_pending:
+            self._pause_pending = False
+            self._pause_granted.clear()
+            self._resume_signal.set()
+            return
         if self._recv_task is None or self._recv_task.done():
             self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def _pause_recv_loop(self) -> None:
-        """Cancel the recv_loop so subscribe can safely call recv.
+        """Cooperatively park the recv_loop so subscribe can call recv.
 
-        F-P-04: cancellation only fires while the loop is awaiting
-        ``connection.recv()``. The recv-then-process critical section is
-        shielded from cancellation so any frame already off the socket is
-        fully dispatched before the loop exits.
+        #245: replaces the previous cancel-based pause (which required
+        a per-frame ``asyncio.shield`` to keep the in-flight frame from
+        being dropped). The recv loop polls ``connection.recv()`` with
+        a ``_RECV_POLL_S`` timeout and checks ``_pause_pending`` between
+        polls. On a busy channel pause is granted in microseconds; on a
+        quiet channel the latency is bounded by ``_RECV_POLL_S``.
+
+        F-P-04 invariant preserved: a frame in flight when pause is
+        requested finishes dispatching before pause is granted, because
+        the recv loop only sets ``_pause_granted`` at a safe point
+        between frames (no shield required).
         """
-        if self._recv_task and not self._recv_task.done():
-            self._recv_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._recv_task
-            self._recv_task = None
+        if self._recv_task is None or self._recv_task.done():
+            return
+        self._pause_granted.clear()
+        self._resume_signal.clear()
+        self._pause_pending = True
+        await self._pause_granted.wait()
 
     async def _recv_loop(self) -> None:
         """Background task: read frames, dispatch, handle reconnect."""
@@ -180,11 +231,29 @@ class KalshiWebSocket:
         assert self._dispatcher is not None
 
         while self._running:
+            # #245: cooperative pause checkpoint. Set at a safe point
+            # between frames so the F-P-04 invariant (no in-flight frame
+            # dropped) holds without any shielding.
+            if self._pause_pending:
+                self._pause_granted.set()
+                await self._resume_signal.wait()
+                self._resume_signal.clear()
+                if not self._running:
+                    break
+                continue
+
             try:
-                raw = await self._connection.recv()
+                # Poll with a short timeout so ``_pause_pending`` and
+                # ``_running`` get re-checked on quiet channels. On a
+                # busy channel the timeout is cancelled before firing,
+                # so polling adds no overhead in the hot path.
+                raw = await asyncio.wait_for(
+                    self._connection.recv(), timeout=_RECV_POLL_S,
+                )
+            except asyncio.TimeoutError:
+                continue
             except asyncio.CancelledError:
-                # F-P-04: cancellation while awaiting recv = no frame read,
-                # no data lost. Safe to exit.
+                # External cancel (``_stop`` fallback). Exit cleanly.
                 break
             except ConnectionClosed as e:
                 # #197: classify the close code. The server returns codes
@@ -216,57 +285,37 @@ class KalshiWebSocket:
                     break
                 continue
 
-            # F-P-04: shield the recv->dispatch critical section. Once a
-            # frame has been read off the socket, we MUST dispatch it before
-            # honoring cancellation, otherwise the frame is silently dropped
-            # (seq trackers miss the gap, ticker frames vanish, etc.).
-            #
-            # IMPORTANT: hold the inner task in a local. `asyncio.shield(coro)`
-            # creates a detached background task and returns control on outer
-            # cancel — without the explicit `await inner`, dispatch keeps
-            # running after `break` and races a subsequent subscribe.
-            inner = asyncio.create_task(self._process_frame(raw))
+            # #245: inline dispatch. No Task / no shield / no contextvars
+            # copy per frame. F-P-04 protection comes from the cooperative
+            # pause: ``_pause_recv_loop`` blocks until the recv loop
+            # reaches the safe checkpoint above, so a pause request can
+            # never cancel us in the middle of ``_process_frame``.
             try:
-                await asyncio.shield(inner)
+                await self._process_frame(raw)
             except asyncio.CancelledError:
-                # Block until the shielded dispatch actually finishes, then
-                # honor cancellation. Loop exit now strictly post-dispatch.
-                # KalshiBackpressureError / KalshiSubscriptionError must
-                # still broadcast sentinels even when we're being cancelled —
-                # the consumer-visible invariant (no hanging iterators) holds
-                # unconditionally. Parse errors are best-effort logged.
-                try:
-                    await inner
-                except (KalshiBackpressureError, KalshiSubscriptionError):
-                    await self._broadcast_sentinels()
-                except Exception:
-                    logger.debug(
-                        "Shielded dispatch raised during cancel cleanup",
-                        exc_info=True,
-                    )
+                # Only ``_stop``'s fallback cancel can reach here. Exit
+                # cleanly; sentinels are broadcast by the caller.
                 break
             except (KalshiBackpressureError, KalshiSubscriptionError):
-                # #83: these signal real consumer-visible problems. Propagate
-                # via sentinel-broadcast so iterators see the failure and the
-                # loop exits cleanly rather than spinning on the same error.
-                logger.error(
-                    "Fatal WS error in recv loop", exc_info=True,
-                )
+                # #83: consumer-visible problem. Broadcast sentinels so
+                # iterators see the failure and the loop exits cleanly
+                # rather than spinning on the same error.
+                logger.error("Fatal WS error in recv loop", exc_info=True)
                 await self._broadcast_sentinels()
                 break
             except (json.JSONDecodeError, ValidationError, KeyError):
-                # #83: genuinely-non-fatal per-message errors. Log with
-                # traceback so users can debug, then continue.
-                logger.warning(
-                    "Skipping malformed WS frame", exc_info=True,
-                )
+                # #83: genuinely-non-fatal per-message errors. #241: when
+                # the failing frame was on a sequenced channel, the seq
+                # watermark was already rolled back inside
+                # ``_process_frame``'s own except, so a next-seq gap will
+                # still trigger a real resync.
+                logger.warning("Skipping malformed WS frame", exc_info=True)
                 continue
             except Exception:
                 # #83 escape hatch: anything else (AttributeError from a
                 # user-supplied callback, TypeError, programming bug, ...)
                 # MUST broadcast sentinels before propagating — otherwise
-                # consumers hang on their queues with no signal. Re-raise
-                # after broadcast so the task failure is still visible.
+                # consumers hang on their queues with no signal.
                 logger.error(
                     "Unexpected error in recv loop; broadcasting sentinels",
                     exc_info=True,
