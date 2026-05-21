@@ -97,6 +97,30 @@ class TestErrorMapping:
         err = _map_error(resp)
         assert isinstance(err, KalshiServerError)
 
+    def test_408_request_timeout_maps_to_timeout(self) -> None:
+        # #251: 408 carries "may have committed" semantic — route to
+        # KalshiTimeoutError, not generic KalshiError.
+        resp = httpx.Response(408, json={"message": "request timeout"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiTimeoutError)
+        assert err.status_code == 408
+
+    def test_504_gateway_timeout_maps_to_timeout(self) -> None:
+        # #251: 504 carries same semantic as transport timeout — must route to
+        # KalshiTimeoutError, not KalshiServerError.
+        resp = httpx.Response(504, json={"message": "gateway timeout"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiTimeoutError)
+        assert err.status_code == 504
+
+    def test_500_still_server_error(self) -> None:
+        # #251: regression — 500/502/503 must continue to route to KalshiServerError.
+        for status in (500, 502, 503):
+            resp = httpx.Response(status, json={"message": "boom"})
+            err = _map_error(resp)
+            assert isinstance(err, KalshiServerError), f"status={status}"
+            assert not isinstance(err, KalshiTimeoutError), f"status={status}"
+
     def test_validation_error_with_details(self) -> None:
         resp = httpx.Response(
             400, json={"message": "validation failed", "details": {"ticker": "required"}}
@@ -987,7 +1011,6 @@ class TestKalshiClientFromEnvUnauthenticated:
         assert client._config.max_retries == 11
         client.close()
 
-
 class TestWidenedRetrySet:
     """#192: Cloudflare 5xx (520-524) + 408 are retryable on safe methods only."""
 
@@ -1062,6 +1085,36 @@ class TestErrorBodyBuffering:
         err = _map_error(resp)
         assert "suppressed" in str(err)
         assert "50000" in str(err)
+        # #252: typed exception class preserved even when body is suppressed.
+        assert isinstance(err, KalshiServerError)
+
+    def test_oversized_body_429_preserves_rate_limit_with_retry_after(self) -> None:
+        # #252: a hostile 429 with verbose body must still surface as
+        # KalshiRateLimitError and the Retry-After header (read separately
+        # from the body) must still populate.
+        resp = httpx.Response(
+            429,
+            headers={"content-length": "50000", "Retry-After": "2.5"},
+            text="x",
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after == 2.5
+        assert "suppressed" in str(err)
+
+    def test_oversized_body_401_preserves_auth_error(self) -> None:
+        # #252
+        resp = httpx.Response(401, headers={"content-length": "20000"}, text="x")
+        err = _map_error(resp)
+        assert isinstance(err, KalshiAuthError)
+        assert "suppressed" in str(err)
+
+    def test_oversized_body_409_preserves_conflict_error(self) -> None:
+        # #252
+        resp = httpx.Response(409, headers={"content-length": "20000"}, text="x")
+        err = _map_error(resp)
+        assert isinstance(err, KalshiConflictError)
+        assert "suppressed" in str(err)
 
     def test_error_message_truncated_to_1024_chars(self) -> None:
         long_msg = "A" * 5000

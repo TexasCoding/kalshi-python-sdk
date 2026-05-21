@@ -49,26 +49,30 @@ def _map_error(response: httpx.Response) -> KalshiError:
     status = response.status_code
 
     # #203: cap body buffering. If the server advertises an oversized body,
-    # short-circuit before httpx materialises it into memory.
+    # short-circuit before httpx materialises it into memory. We still fall
+    # through to status dispatch so the typed exception class is preserved
+    # (#252) — only the message changes.
     content_length = response.headers.get("content-length")
+    suppressed: bool = False
     if content_length:
         try:
             if int(content_length) > MAX_ERROR_BODY_BYTES:
-                return KalshiError(
-                    message=f"HTTP {status} (body {content_length} bytes, suppressed)",
-                    status_code=status,
-                )
+                suppressed = True
         except ValueError:
             pass  # malformed Content-Length — fall through to normal parse
 
-    try:
-        body = response.json()
-    except Exception:
+    body: dict[str, Any]
+    if suppressed:
         body = {}
-
-    raw_message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
-    # Truncate to bound log-line and exception-message size.
-    message = str(raw_message)[:MAX_ERROR_MESSAGE_CHARS]
+        message = f"HTTP {status} (body {content_length} bytes, suppressed)"
+    else:
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+        raw_message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
+        # Truncate to bound log-line and exception-message size.
+        message = str(raw_message)[:MAX_ERROR_MESSAGE_CHARS]
 
     if status in (400, 422):
         details = body.get("details") or body.get("errors")
@@ -116,6 +120,12 @@ def _map_error(response: httpx.Response) -> KalshiError:
         return KalshiRateLimitError(
             message=message, status_code=status, retry_after=retry_after_val
         )
+    # #251: 408 Request Timeout and 504 Gateway Timeout carry the same
+    # "may have committed" semantic as a transport-level timeout. Route them
+    # to KalshiTimeoutError so callers can branch on it (e.g., reconcile via
+    # client_order_id before retrying an order create).
+    if status in (408, 504):
+        return KalshiTimeoutError(message=message, status_code=status)
     if status >= 500:
         return KalshiServerError(message=message, status_code=status)
 
@@ -203,20 +213,20 @@ class SyncTransport:
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
-        config_extra = self._config.extra_headers or {}
-        per_call_extra = extra_headers or {}
-        body_headers = headers or {}
+        # #262: header layers config_extra/per_call_extra/body_headers are
+        # loop-invariant; only auth_headers changes per attempt (fresh
+        # timestamp). Merge the invariant base once outside the loop.
+        # Order matters: config defaults < per-request overrides
+        #               < body-helper headers < signed auth.
+        base_headers: dict[str, str] = {
+            **(self._config.extra_headers or {}),
+            **(extra_headers or {}),
+            **(headers or {}),
+        }
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
-            # Order matters: config defaults < per-request overrides
-            #               < body-helper headers < signed auth.
-            merged_headers = {
-                **config_extra,
-                **per_call_extra,
-                **body_headers,
-                **auth_headers,
-            }
+            merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -403,21 +413,22 @@ class AsyncTransport:
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
-        config_extra = self._config.extra_headers or {}
-        per_call_extra = extra_headers or {}
-        body_headers = headers or {}
+        # #262: see SyncTransport.request — hoist invariant header layers
+        # out of the retry loop; only auth_headers changes per attempt.
+        # Order matters: config defaults < per-request overrides
+        #               < body-helper headers < signed auth.
+        base_headers: dict[str, str] = {
+            **(self._config.extra_headers or {}),
+            **(extra_headers or {}),
+            **(headers or {}),
+        }
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
                 auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
             else:
                 auth_headers = {}
-            merged_headers = {
-                **config_extra,
-                **per_call_extra,
-                **body_headers,
-                **auth_headers,
-            }
+            merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
