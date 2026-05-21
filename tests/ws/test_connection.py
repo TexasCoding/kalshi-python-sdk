@@ -471,3 +471,132 @@ class TestFakeKalshiWSBroadcast:
         assert len(fake_ws.received_commands) == 1
         assert fake_ws.received_commands[0]["cmd"] == "subscribe"
         await mgr.close()
+
+
+# ---------------------------------------------------------------------------
+# #208 — ws_ping_interval / ws_close_timeout pluming, #209 ws_json_dumps,
+# #221 P2.1 Full Jitter
+# ---------------------------------------------------------------------------
+
+
+class TestPingCloseTimeoutPlumbing:
+    async def test_ws_ping_interval_from_config_passed_through(
+        self, fake_ws: FakeKalshiWS, test_auth: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#208: ws_ping_interval forwarded into websockets.connect()."""
+        captured: dict[str, object] = {}
+        from kalshi.ws import connection as conn_mod
+
+        real_connect = conn_mod.connect
+
+        async def spy(*args: object, **kwargs: object) -> object:
+            captured.update(kwargs)
+            return await real_connect(*args, **kwargs)  # type: ignore[misc]
+
+        monkeypatch.setattr(conn_mod, "connect", spy)
+
+        config = KalshiConfig(
+            ws_base_url=fake_ws.url, timeout=5.0, ws_ping_interval=42.5
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        await mgr.connect()
+        try:
+            assert captured["ping_interval"] == 42.5
+        finally:
+            await mgr.close()
+
+    async def test_ws_close_timeout_from_config_passed_through(
+        self, fake_ws: FakeKalshiWS, test_auth: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#208: ws_close_timeout forwarded into websockets.connect()."""
+        captured: dict[str, object] = {}
+        from kalshi.ws import connection as conn_mod
+
+        real_connect = conn_mod.connect
+
+        async def spy(*args: object, **kwargs: object) -> object:
+            captured.update(kwargs)
+            return await real_connect(*args, **kwargs)  # type: ignore[misc]
+
+        monkeypatch.setattr(conn_mod, "connect", spy)
+
+        config = KalshiConfig(
+            ws_base_url=fake_ws.url, timeout=5.0, ws_close_timeout=2.25
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        await mgr.connect()
+        try:
+            assert captured["close_timeout"] == 2.25
+        finally:
+            await mgr.close()
+
+
+class TestCustomJsonDumps:
+    async def test_custom_json_dumps_called_for_subscribe_commands(
+        self, fake_ws: FakeKalshiWS, test_auth: object
+    ) -> None:
+        """#209: ws_json_dumps used for outbound frame serialization."""
+        calls: list[object] = []
+
+        def my_dumps(obj: object) -> str:
+            calls.append(obj)
+            return json.dumps(obj)
+
+        config = KalshiConfig(
+            ws_base_url=fake_ws.url, timeout=5.0, ws_json_dumps=my_dumps
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        await mgr.connect()
+        try:
+            await mgr.send({"id": 1, "cmd": "subscribe", "params": {}})
+            assert any(
+                isinstance(c, dict) and c.get("cmd") == "subscribe" for c in calls
+            )
+        finally:
+            await mgr.close()
+
+
+class TestReconnectFullJitter:
+    async def test_reconnect_uses_full_jitter(
+        self, test_auth: object, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#221 P2.1: reconnect delay sampled via random.uniform(0, min(cap, base*2**n))
+        — matching the REST transport's Full Jitter formula. Old formula was
+        base*2**n + uniform(0, 0.5) capped at retry_max_delay.
+        """
+        from kalshi.ws import connection as conn_mod
+
+        upper_bounds: list[float] = []
+
+        def fake_uniform(lo: float, hi: float) -> float:
+            upper_bounds.append(hi)
+            assert lo == 0
+            return 0.0  # zero delay so the test doesn't sleep
+
+        async def fake_sleep(_: float) -> None:
+            return None
+
+        async def failing_connect(*_a: object, **_kw: object) -> object:
+            raise RuntimeError("simulated connect failure")
+
+        monkeypatch.setattr(conn_mod.random, "uniform", fake_uniform)
+        monkeypatch.setattr(conn_mod.asyncio, "sleep", fake_sleep)
+        monkeypatch.setattr(conn_mod, "connect", failing_connect)
+
+        config = KalshiConfig(
+            ws_base_url="ws://127.0.0.1:1",
+            timeout=1.0,
+            ws_max_retries=4,
+            retry_base_delay=0.5,
+            retry_max_delay=8.0,
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        with pytest.raises(KalshiConnectionError):
+            await mgr.reconnect()
+
+        # Expected upper bounds per Full Jitter formula across 4 attempts:
+        #   attempt 0: min(8.0, 0.5*1)  = 0.5
+        #   attempt 1: min(8.0, 0.5*2)  = 1.0
+        #   attempt 2: min(8.0, 0.5*4)  = 2.0
+        #   attempt 3: min(8.0, 0.5*8)  = 4.0
+        assert upper_bounds == [0.5, 1.0, 2.0, 4.0]

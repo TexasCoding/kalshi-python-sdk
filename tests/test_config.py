@@ -228,3 +228,36 @@ class TestTotalTimeoutField:
     def test_total_timeout_can_be_set(self) -> None:
         config = KalshiConfig(total_timeout=30.0)
         assert config.total_timeout == 30.0
+
+
+class TestWsExtraConfigFields:
+    """#208 + #209: ws_ping_interval / ws_close_timeout / ws_json_loads /
+    ws_json_dumps fields exist on KalshiConfig with sane defaults.
+    """
+
+    def test_ws_ping_interval_default_20(self) -> None:
+        assert KalshiConfig().ws_ping_interval == 20.0
+
+    def test_ws_close_timeout_default_5(self) -> None:
+        assert KalshiConfig().ws_close_timeout == 5.0
+
+    def test_ws_json_loads_default_None(self) -> None:  # noqa: N802
+        assert KalshiConfig().ws_json_loads is None
+
+    def test_ws_json_dumps_default_None(self) -> None:  # noqa: N802
+        assert KalshiConfig().ws_json_dumps is None
+
+    def test_ws_ping_interval_settable(self) -> None:
+        cfg = KalshiConfig(ws_ping_interval=45.0)
+        assert cfg.ws_ping_interval == 45.0
+
+    def test_ws_close_timeout_settable(self) -> None:
+        cfg = KalshiConfig(ws_close_timeout=1.5)
+        assert cfg.ws_close_timeout == 1.5
+
+    def test_ws_json_loads_callable_stored(self) -> None:
+        import json
+
+        cfg = KalshiConfig(ws_json_loads=json.loads, ws_json_dumps=json.dumps)
+        assert cfg.ws_json_loads is json.loads
+        assert cfg.ws_json_dumps is json.dumps

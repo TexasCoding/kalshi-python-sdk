@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -44,6 +46,14 @@ class KalshiConfig:
             Requires the ``h2`` package (install ``httpx[http2]`` or ``h2``).
         limits: Custom ``httpx.Limits`` for connection pool tuning. ``None``
             uses httpx defaults.
+        ws_ping_interval: Interval (s) between WS keepalive pings. Default 20.
+        ws_close_timeout: Time (s) to wait for graceful WS close handshake.
+            Default 5.
+        ws_json_loads: Optional callable used to parse WS frames. ``None``
+            falls back to :func:`json.loads`. Set to e.g. ``orjson.loads``
+            for ~2-3x faster recv-loop parsing on high-volume streams.
+        ws_json_dumps: Optional callable used to serialize outbound WS
+            commands. ``None`` falls back to :func:`json.dumps`.
     """
 
     base_url: str = PRODUCTION_BASE_URL  # trailing slash is stripped automatically
@@ -57,6 +67,10 @@ class KalshiConfig:
     ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
     http2: bool = False
     limits: httpx.Limits | None = None
+    ws_ping_interval: float = 20.0
+    ws_close_timeout: float = 5.0
+    ws_json_loads: Callable[[bytes | str], Any] | None = None
+    ws_json_dumps: Callable[[Any], bytes | str] | None = None
 
     def __post_init__(self) -> None:
         # Strip trailing slash to prevent double-slash in auth signing paths

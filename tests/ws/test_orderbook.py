@@ -268,3 +268,99 @@ class TestOrderbookManager:
         # Decimal("0.00") + Decimal("1.00") == Decimal("1.00"), not Decimal("1")
         assert book.yes[0].quantity == Decimal("1.00")
         assert book.yes[0].price == Decimal("0.0100")
+
+
+class TestOrderbookManagerInplace:
+    """#199: in-place variants used by the recv loop to avoid the
+    O(n log n) sort + 2N OrderbookLevel allocation that the public
+    ``apply_*`` wrappers perform.
+    """
+
+    def test_apply_snapshot_inplace_returns_none_and_mutates(self) -> None:
+        mgr = OrderbookManager()
+        snap = make_snapshot(
+            yes=[["0.50", "100.00"], ["0.55", "200.00"]],
+            no=[["0.45", "50.00"]],
+        )
+        result = mgr._apply_snapshot_inplace(snap)
+        assert result is None
+        # State should be mutated; ``get`` materializes on demand.
+        book = mgr.get("T")
+        assert book is not None
+        assert len(book.yes) == 2
+        assert len(book.no) == 1
+
+    def test_apply_snapshot_inplace_records_sid(self) -> None:
+        mgr = OrderbookManager()
+        snap = make_snapshot(yes=[["0.50", "100.00"]])
+        mgr._apply_snapshot_inplace(snap, sid=snap.sid)
+        assert mgr.tickers_for_sid(snap.sid) == {"T"}
+
+    def test_apply_delta_inplace_returns_true_on_known_ticker(self) -> None:
+        mgr = OrderbookManager()
+        mgr._apply_snapshot_inplace(make_snapshot(yes=[["0.50", "10.00"]]))
+        ok = mgr._apply_delta_inplace(
+            make_delta(price="0.50", delta="5.00", side="yes")
+        )
+        assert ok is True
+        book = mgr.get("T")
+        assert book is not None
+        assert book.yes[0].quantity == Decimal("15.00")
+
+    def test_apply_delta_inplace_returns_false_for_unknown_ticker(self) -> None:
+        mgr = OrderbookManager()
+        ok = mgr._apply_delta_inplace(
+            make_delta(ticker="OTHER", price="0.50", delta="5.00")
+        )
+        assert ok is False
+
+    def test_apply_delta_inplace_does_not_call_to_orderbook(
+        self, monkeypatch: object,
+    ) -> None:
+        """Hot-path invariant: the in-place variant MUST NOT materialize
+        an Orderbook. Spy on ``_BookState.to_orderbook`` and assert zero
+        calls during a snapshot+delta cycle through the in-place API.
+        """
+        from kalshi.ws import orderbook as ob_mod
+
+        calls: list[str] = []
+        orig = ob_mod._BookState.to_orderbook
+
+        def spy(self):  # type: ignore[no-untyped-def]
+            calls.append(self.ticker)
+            return orig(self)
+
+        monkeypatch.setattr(ob_mod._BookState, "to_orderbook", spy)  # type: ignore[attr-defined]
+
+        mgr = OrderbookManager()
+        mgr._apply_snapshot_inplace(make_snapshot(yes=[["0.50", "10.00"]]))
+        for _ in range(5):
+            mgr._apply_delta_inplace(
+                make_delta(price="0.50", delta="1.00", side="yes")
+            )
+        assert calls == []
+
+    def test_public_apply_delta_still_returns_orderbook(self) -> None:
+        """Back-compat: direct callers of the public ``apply_delta`` still
+        get a fully materialized Orderbook.
+        """
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(make_snapshot(yes=[["0.50", "10.00"]]))
+        book = mgr.apply_delta(make_delta(price="0.50", delta="1.00", side="yes"))
+        assert book is not None
+        assert book.yes[0].quantity == Decimal("11.00")
+
+    def test_public_apply_delta_returns_none_for_unknown_ticker(self) -> None:
+        mgr = OrderbookManager()
+        result = mgr.apply_delta(make_delta(ticker="UNK"))
+        assert result is None
+
+    def test_public_apply_snapshot_returns_orderbook(self) -> None:
+        mgr = OrderbookManager()
+        book = mgr.apply_snapshot(
+            make_snapshot(yes=[["0.10", "5.00"]], no=[["0.90", "5.00"]])
+        )
+        assert book is not None
+        assert book.ticker == "T"
+        assert len(book.yes) == 1
+        assert len(book.no) == 1

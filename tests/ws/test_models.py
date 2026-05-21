@@ -1129,3 +1129,63 @@ class TestWsPayloadDatetimeCoercion:
 def test_rest_ws_field_type_symmetry(rest_field: object, ws_field: object) -> None:
     """REST and WS payloads MUST agree on the annotation for shared logical fields (#198)."""
     assert rest_field == ws_field
+
+
+class TestOrderbookDeltaPayloadSideLiteral:
+    """#221 P2.2: OrderbookDeltaPayload.side typed as Literal['yes','no']."""
+
+    def test_orderbook_delta_payload_side_accepts_yes(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        payload = OrderbookDeltaPayload.model_validate(
+            {
+                "market_ticker": "T",
+                "market_id": "id",
+                "price": "0.50",
+                "delta": "10.00",
+                "side": "yes",
+            }
+        )
+        assert payload.side == "yes"
+
+    def test_orderbook_delta_payload_side_accepts_no(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        payload = OrderbookDeltaPayload.model_validate(
+            {
+                "market_ticker": "T",
+                "market_id": "id",
+                "price": "0.50",
+                "delta": "10.00",
+                "side": "no",
+            }
+        )
+        assert payload.side == "no"
+
+    def test_orderbook_delta_payload_side_rejects_invalid_string(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        with pytest.raises(ValidationError):
+            OrderbookDeltaPayload.model_validate(
+                {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "price": "0.50",
+                    "delta": "10.00",
+                    "side": "maybe",
+                }
+            )
+
+    def test_orderbook_delta_payload_side_rejects_trailing_whitespace(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        with pytest.raises(ValidationError):
+            OrderbookDeltaPayload.model_validate(
+                {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "price": "0.50",
+                    "delta": "10.00",
+                    "side": "yes ",
+                }
+            )

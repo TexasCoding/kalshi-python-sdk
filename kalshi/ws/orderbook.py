@@ -90,10 +90,14 @@ class OrderbookManager:
         # number of tickers owned by the sid, not O(n) over every book.
         self._sid_tickers: dict[int, set[str]] = {}
 
-    def apply_snapshot(
+    def _apply_snapshot_inplace(
         self, msg: OrderbookSnapshotMessage, sid: int | None = None
-    ) -> Orderbook:
-        """Initialize (or reset) a book from a full snapshot.
+    ) -> None:
+        """In-place state mutation for a snapshot. No materialization.
+
+        Recv-loop hot path entry point (#199). The public
+        :meth:`apply_snapshot` wraps this with a ``to_orderbook()`` call
+        for direct callers that still want a fully built ``Orderbook``.
 
         ``sid`` records which subscription produced this snapshot so the
         ticker can be torn down later via :meth:`remove_by_sid` — required
@@ -131,23 +135,19 @@ class OrderbookManager:
             len(no_levels),
             sid_val,
         )
-        return state.to_orderbook()
 
-    def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:
-        """Apply an incremental delta to an existing book.
+    def _apply_delta_inplace(self, msg: OrderbookDeltaMessage) -> bool:
+        """In-place state mutation for a delta. No materialization.
 
-        O(1) on the update itself (price-indexed dict lookup); the returned
-        Orderbook is materialized at O(n log n) only because consumers expect
-        a sorted level list.
-
-        Returns the updated Orderbook, or None if no book exists for this ticker
-        (delta arrived before snapshot -- should not happen in normal flow).
+        Returns True if the mutation was applied, False if no book exists
+        for the ticker yet (delta arrived before snapshot — caller may
+        choose to skip materializing in that case).
         """
         ticker = msg.msg.market_ticker
         state = self._books.get(ticker)
         if state is None:
             logger.warning("Delta for unknown ticker %s (no snapshot yet)", ticker)
-            return None
+            return False
 
         price = msg.msg.price  # Decimal via DollarDecimal
         delta = msg.msg.delta  # Decimal via FixedPointCount
@@ -165,7 +165,34 @@ class OrderbookManager:
         elif delta > 0:
             levels[price] = delta
 
+        return True
+
+    def apply_snapshot(
+        self, msg: OrderbookSnapshotMessage, sid: int | None = None
+    ) -> Orderbook:
+        """Initialize (or reset) a book from a full snapshot.
+
+        Public wrapper that mutates in place then materializes the
+        resulting :class:`Orderbook`. The recv loop bypasses this and
+        calls :meth:`_apply_snapshot_inplace` directly to avoid the
+        unused O(n log n) materialization (#199).
+        """
+        self._apply_snapshot_inplace(msg, sid=sid)
+        ticker = msg.msg.market_ticker
+        state = self._books[ticker]
         return state.to_orderbook()
+
+    def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:
+        """Apply an incremental delta to an existing book.
+
+        Public wrapper. Returns the materialized Orderbook on success or
+        None if no book exists for the ticker. The recv loop bypasses this
+        and calls :meth:`_apply_delta_inplace` directly (#199).
+        """
+        if not self._apply_delta_inplace(msg):
+            return None
+        state = self._books.get(msg.msg.market_ticker)
+        return state.to_orderbook() if state else None
 
     def get(self, ticker: str) -> Orderbook | None:
         """Get current book state (non-blocking).

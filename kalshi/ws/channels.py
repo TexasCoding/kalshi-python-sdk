@@ -6,6 +6,7 @@ import asyncio
 import collections
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from websockets.exceptions import ConnectionClosed
@@ -116,8 +117,14 @@ class SubscriptionManager:
         connection: ConnectionManager,
         *,
         stash_maxlen: int = 1000,
+        json_loads: Callable[[bytes | str], Any] | None = None,
     ) -> None:
         self._connection = connection
+        # #209: pluggable JSON loader for subscribe-ack frames. ``None``
+        # falls back to stdlib ``json.loads``.
+        self._json_loads: Callable[[bytes | str], Any] = (
+            json_loads if json_loads is not None else json.loads
+        )
         self._subscriptions: dict[int, Subscription] = {}  # client_id -> Subscription
         self._sid_to_client: dict[int, int] = {}  # server_sid -> client_id
         self._next_client_id = 1
@@ -195,7 +202,7 @@ class SubscriptionManager:
                 raise KalshiConnectionError(
                     f"Connection closed while awaiting response to command {msg_id}"
                 ) from e
-            data: dict[str, Any] = json.loads(raw)
+            data: dict[str, Any] = self._json_loads(raw)
             if data.get("id") == msg_id:
                 return data
             # Non-matching frame. During resubscribe, stash it by sid for

@@ -139,3 +139,26 @@ class TestMessageQueue:
             await q.put(i)
         # Hard ceiling: maxsize + 1 (the +1 covers the put_sentinel append).
         assert len(q._buffer) <= q._maxsize + 1
+
+
+@pytest.mark.asyncio
+class TestPutSentinelIdempotence:
+    """#221 P2.5: put_sentinel is a no-op when the queue is already closed.
+
+    Previously the second call appended a second sentinel to the deque, and
+    when the buffer was at ``maxsize`` real items + 1 sentinel the deque's
+    ``maxlen=maxsize+1`` would evict the leftmost real item to make room.
+    """
+
+    async def test_put_sentinel_called_twice_is_idempotent(self) -> None:
+        q: MessageQueue[int] = MessageQueue(maxsize=3)
+        await q.put(1)
+        await q.put(2)
+        await q.put(3)
+        await q.put_sentinel()
+        before_len = len(q._buffer)
+        await q.put_sentinel()  # MUST be a no-op
+        assert len(q._buffer) == before_len
+        # And the leftmost real item is still there.
+        items = [item async for item in q]
+        assert items == [1, 2, 3]
