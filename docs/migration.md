@@ -1,5 +1,154 @@
 # Migration
 
+## v2.2 → v2.3
+
+v2.3 is additive on the REST surface and **soft-breaking on the WebSocket
+surface** in one place: `KalshiWebSocket.run_forever()` no longer returns
+silently when nothing has been subscribed. Everything else is opt-in.
+
+### `run_forever()` requires an active subscription
+
+Per closed #175 / #185, `KalshiWebSocket.run_forever()` now raises
+`KalshiSubscriptionError` at the call site when no `subscribe_*` call has
+landed on the session. The previous silent no-op masked a common mistake —
+registering an `@ws.on(channel)` callback without subscribing, then
+wondering why no frames arrived (the server only sends frames for channels
+the client explicitly subscribed to).
+
+```python
+# v2.2 — silently returned, recv loop never ran
+async with ws.connect() as session:
+    await session.run_forever()
+
+# v2.3 — wrap a subscribe_* call before run_forever()
+async with ws.connect() as session:
+    await session.subscribe_ticker(tickers=["EXAMPLE-25-T"])
+    await session.run_forever()
+```
+
+No production usage of the silent shape is known; the foot-gun was the
+bug.
+
+### Cooperative shutdown via `run_forever(stop_event=...)`
+
+Per closed #177 / #186, `run_forever()` now accepts an optional
+`stop_event: asyncio.Event | None = None`. When set, the recv loop
+closes the connection and exits cleanly without raising `CancelledError`
+— typically wired to `SIGINT` so Ctrl+C drains in-flight dispatches:
+
+```python
+import asyncio
+import signal
+
+stop = asyncio.Event()
+asyncio.get_running_loop().add_signal_handler(signal.SIGINT, stop.set)
+
+async with ws.connect() as session:
+    await session.subscribe_ticker(tickers=["EXAMPLE-25-T"])
+    await session.run_forever(stop_event=stop)
+```
+
+Omitting `stop_event` preserves v2.2 behavior — external cancellation
+still propagates.
+
+### WS resubscribe-window frame stashing
+
+Per #176, the reconnect path used to silently drop data frames that
+arrived between the moment `SubscriptionManager` cleared its
+`sid → client_id` map and the moment the new sids landed in the
+subscribe-response handler. Under burst reconnects on high-volume
+channels (`ticker`, `trade`, `fill`), this lost tens of messages per
+reconnect.
+
+`SubscriptionManager` now stashes those frames in a per-sid bounded
+`collections.deque(maxlen=stash_maxlen)` (default 1000 per sid). After
+`resubscribe_all` completes, the stash is drained through the normal
+dispatch path so seq trackers advance, orderbook state applies, and
+iterator consumers receive the frames in arrival order. No API change —
+behavior change only.
+
+### Async RSA-PSS sign offload — `KalshiAuth.close()` for standalone users
+
+Per #178, `KalshiAuth.sign_request_async()` now routes the RSA-PSS sign
+through a dedicated `ThreadPoolExecutor(max_workers=2)` lazy-initialised
+on first use, so signs don't queue behind `getaddrinfo` / file I/O / other
+`to_thread()` work during WS reconnect storms.
+
+If you use `KalshiAuth` **through** `KalshiClient` / `AsyncKalshiClient`,
+`client.close()` already tears the executor down for you and no migration
+is required. If you instantiate `KalshiAuth` **standalone** (e.g. signing
+requests through a custom transport), call `auth.close()` to release the
+executor:
+
+```python
+from kalshi import KalshiAuth
+
+auth = KalshiAuth.from_key_path("your-key-id", "~/.kalshi/private_key.pem")
+try:
+    headers = await auth.sign_request_async("GET", "/trade-api/v2/markets")
+    ...
+finally:
+    auth.close()
+```
+
+---
+
+## v2.1 → v2.2
+
+v2.2 is **soft-breaking at the response-parse boundary only** (per
+#157 / #172). The wire format is unchanged. The behavior change: server
+omission of a previously-optional spec-required field now raises
+`pydantic.ValidationError` at parse time, instead of silently producing
+`field=None` and pushing the surprise to a downstream `NoneType`
+attribute access.
+
+### What changed
+
+226 fields across REST models, WS payloads, and helper classes flipped
+from `Optional[X] = None` to required, matching what the OpenAPI /
+AsyncAPI specs already declared.
+
+Affected response model categories include `Market`, `Order`, `Fill`,
+`Event`, `EventMetadata`, `Settlement`, `Trade`, `IncentiveProgram`,
+`RFQ`, `Quote`, `OrderGroup` plus its three group-response shapes, and
+11 WebSocket payloads — including the new `*_ts_ms` millisecond
+timestamps and the `outcome_side` / `book_side` direction encoding the
+server already emits. See `CHANGELOG.md` for the full per-model
+breakdown.
+
+### Recovery
+
+If you parse live responses and previously branched on `field is None`
+for an optional you read from the SDK, you may now hit
+`pydantic.ValidationError` at the parse site when the server omits the
+field on a malformed event. Wrap the call site:
+
+```python
+from pydantic import ValidationError
+
+try:
+    market = client.markets.get(ticker)
+except ValidationError as exc:
+    logger.warning("skipping malformed market %s: %s", ticker, exc)
+    continue
+```
+
+The vast majority of fields were already populated in practice — only
+models with legitimate live-server omission gaps need the try/except.
+Two known cases (`Event.product_metadata`, `EventMetadata.market_details`)
+ship in v2.3 with `server_omits_despite_required` exclusions baked in
+and need no caller action.
+
+### `extra="allow"` everywhere
+
+All WS envelope and helper classes (and the five REST helpers from the
+v2.0 sweep — `Page`, `Orderbook`, `OrderbookLevel`, `BidAskDistribution`,
+`PriceDistribution`) now uniformly use `model_config = ConfigDict(extra="allow")`.
+Additive server fields no longer raise; they land on
+`__pydantic_extra__` and round-trip through `model_dump()`.
+
+---
+
 ## v2.0 → v2.1
 
 v2.1 syncs the SDK to OpenAPI spec v3.18.0. It's **additive at the resource
@@ -402,9 +551,11 @@ async for market in async_client.markets.list_all(status="open"):
     ...
 ```
 
-`list_all()` walks cursors until the server returns no more pages, with a
-1000-page safety cap and a cursor-repeat detector that raises `KalshiError`
-if the server hands back a duplicate cursor.
+`list_all()` is unbounded by default — it walks cursors until the server
+returns no more pages. Pass `max_pages=N` for an explicit cap; passing
+`max_pages=0` raises `ValueError`. The cursor-repeat detector still raises
+`KalshiError` if the server hands back a duplicate cursor. See
+[Pagination](pagination.md) for the canonical contract.
 
 ## Still missing?
 
