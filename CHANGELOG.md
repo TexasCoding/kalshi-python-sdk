@@ -2,7 +2,26 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## Unreleased
+## 2.3.0 — 2026-05-20
+
+WS reliability + auth polish batch on top of v2.2.0's spec-required tightening.
+The big-ticket items: per-sid bounded stash that closes a silent message-loss
+window during reconnect bursts (`#176`), cooperative shutdown via
+`run_forever(stop_event=...)` (`#177`), async RSA-PSS sign offload onto a
+dedicated 2-worker executor so signs don't queue behind `getaddrinfo` during
+reconnect storms (`#178`), and a `run_forever()` foot-gun fix that now raises
+`KalshiSubscriptionError` instead of silently returning when no subscription
+has landed (`#175`). Plus 226 spec-required fields tightened to non-optional
+with hard-fail drift gates (`#172` via `#180`), all 49→91 REST contract-map
+entries (`#171` via `#181`), the first two `server_omits_despite_required`
+exclusions for fields the live demo omits (`#183`), `MessageQueue` `maxlen`
+defense-in-depth (`#173`), `_to_decimal_*` consolidation (`#174`), and a
+pre-release docs audit sweep across the full mkdocs site (`#179`).
+
+Soft-breaking at the response-parse boundary only (per `#172`): server
+omission of a previously-optional spec-required field now raises
+`pydantic.ValidationError` instead of silently producing `field=None`.
+Wire format unchanged.
 
 ### Pre-release docs audit (#179)
 
