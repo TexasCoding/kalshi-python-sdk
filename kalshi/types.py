@@ -21,6 +21,11 @@ def _coerce_decimal(value: Any) -> Decimal:
     """
     if isinstance(value, Decimal):
         return value
+    if isinstance(value, bool):
+        raise TypeError(
+            "Cannot convert bool to Decimal — bool is an int subclass, "
+            "so this is almost always a typo (did you mean count=1?)."
+        )
     if isinstance(value, (int, float)):
         return Decimal(str(value))
     if isinstance(value, str):
@@ -30,13 +35,13 @@ def _coerce_decimal(value: Any) -> Decimal:
 
 def _decimal_to_str(value: Decimal) -> str:
     """Serialize Decimal back to string for API requests."""
-    return str(value)
+    return f"{value:f}"
 
 
 DollarDecimal = Annotated[
     Decimal,
     BeforeValidator(_coerce_decimal),
-    PlainSerializer(_decimal_to_str, return_type=str),
+    PlainSerializer(_decimal_to_str, return_type=str, when_used="json"),
 ]
 """A Decimal field that handles bidirectional conversion for Kalshi dollar values.
 
@@ -52,7 +57,7 @@ DollarDecimal = Annotated[
 FixedPointCount = Annotated[
     Decimal,
     BeforeValidator(_coerce_decimal),
-    PlainSerializer(_decimal_to_str, return_type=str),
+    PlainSerializer(_decimal_to_str, return_type=str, when_used="json"),
 ]
 """A Decimal field that handles bidirectional conversion for Kalshi count/volume values.
 
@@ -67,6 +72,11 @@ def to_decimal(value: int | float | str | Decimal) -> Decimal:
     Always goes through str() to avoid float representation errors.
     e.g., to_decimal(0.65) returns Decimal("0.65"), not Decimal(0.65).
     """
+    if isinstance(value, bool):
+        raise TypeError(
+            "Cannot convert bool to Decimal — bool is an int subclass, "
+            "so this is almost always a typo (did you mean count=1?)."
+        )
     if isinstance(value, Decimal):
         return value
     return Decimal(str(value))
