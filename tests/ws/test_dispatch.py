@@ -478,6 +478,107 @@ class TestMessageDispatcher:
         with pytest.raises(ValidationError):
             await dispatcher.dispatch(json.loads(raw))
 
+    async def test_orphan_subscribed_sends_unsubscribe(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """#268: A `subscribed` ack with no client_id mapping is the cancel-
+        mid-subscribe race. The dispatcher must release the server-side sid
+        by emitting an `unsubscribe` so the leak doesn't persist for the
+        lifetime of the connection.
+        """
+        sent: list[dict[str, object]] = []
+
+        class _FakeConnection:
+            async def send(self, msg: dict[str, object]) -> None:
+                sent.append(msg)
+
+        mgr = FakeSubManager()
+        mgr._connection = _FakeConnection()  # type: ignore[attr-defined]
+        mgr._next_msg_id = 42  # type: ignore[attr-defined]
+
+        def _get_msg_id() -> int:
+            mid = mgr._next_msg_id  # type: ignore[attr-defined]
+            mgr._next_msg_id += 1  # type: ignore[attr-defined]
+            return mid
+
+        mgr._get_msg_id = _get_msg_id  # type: ignore[attr-defined]
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+
+        raw = json.dumps({"type": "subscribed", "id": 1, "msg": {"sid": 777}})
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            await dispatcher.dispatch(json.loads(raw))
+
+        assert sent == [
+            {"id": 42, "cmd": "unsubscribe", "params": {"sids": [777]}}
+        ]
+        assert any(
+            "Orphan subscribed ack for sid=777" in rec.message
+            for rec in caplog.records
+        )
+
+    async def test_orphan_subscribed_with_known_sid_is_noop(self) -> None:
+        """When `subscribed` arrives for a sid already in _sid_to_client,
+        the orphan handler must NOT send a spurious unsubscribe (#268).
+        """
+        sent: list[dict[str, object]] = []
+
+        class _FakeConnection:
+            async def send(self, msg: dict[str, object]) -> None:
+                sent.append(msg)
+
+        mgr = FakeSubManager()
+        mgr.add(123, "ticker")
+        mgr._connection = _FakeConnection()  # type: ignore[attr-defined]
+        mgr._get_msg_id = lambda: 1  # type: ignore[attr-defined]
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+
+        raw = json.dumps({"type": "subscribed", "id": 1, "msg": {"sid": 123}})
+        await dispatcher.dispatch(json.loads(raw))
+        assert sent == []
+
+    async def test_orphan_subscribed_top_level_sid(self) -> None:
+        """`subscribed` envelope can also carry sid at the top level (#268)."""
+        sent: list[dict[str, object]] = []
+
+        class _FakeConnection:
+            async def send(self, msg: dict[str, object]) -> None:
+                sent.append(msg)
+
+        mgr = FakeSubManager()
+        mgr._connection = _FakeConnection()  # type: ignore[attr-defined]
+        mgr._get_msg_id = lambda: 99  # type: ignore[attr-defined]
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+
+        raw = json.dumps({"type": "subscribed", "id": 1, "sid": 555})
+        await dispatcher.dispatch(json.loads(raw))
+        assert sent == [
+            {"id": 99, "cmd": "unsubscribe", "params": {"sids": [555]}}
+        ]
+
+    async def test_orphan_subscribed_send_failure_swallowed(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Send failure during orphan-unsubscribe is best-effort: log only,
+        do not propagate (the socket is likely already gone) (#268).
+        """
+
+        class _BrokenConnection:
+            async def send(self, msg: dict[str, object]) -> None:
+                raise ConnectionError("socket closed")
+
+        mgr = FakeSubManager()
+        mgr._connection = _BrokenConnection()  # type: ignore[attr-defined]
+        mgr._get_msg_id = lambda: 1  # type: ignore[attr-defined]
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+
+        raw = json.dumps({"type": "subscribed", "id": 1, "msg": {"sid": 888}})
+        with caplog.at_level(logging.WARNING, logger="kalshi.ws"):
+            await dispatcher.dispatch(json.loads(raw))  # must not raise
+        assert any(
+            "Failed to send orphan-unsubscribe for sid=888" in rec.message
+            for rec in caplog.records
+        )
+
 
 @pytest.mark.asyncio
 async def test_dispatch_routes_user_order_singular() -> None:

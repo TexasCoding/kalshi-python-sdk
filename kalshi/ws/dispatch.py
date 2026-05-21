@@ -131,6 +131,59 @@ class MessageDispatcher:
                 sub.channel, sid, client_id,
             )
 
+    async def _handle_orphan_subscribed(self, data: dict[str, Any]) -> None:
+        """Release a server-side sid whose subscribe ack has no client mapping.
+
+        Normal subscribes consume the ``subscribed`` ack inside
+        ``SubscriptionManager._wait_for_response`` and install the
+        ``sid -> client_id`` mapping before the dispatcher ever sees it.
+        If the awaiting task is cancelled between send and ack (#268),
+        the lock is released but the server still completes the
+        subscribe; the ack lands here with a sid that has no mapping.
+        Without intervention the server holds an active sid the client
+        can never address again — subsequent data frames log "Message
+        for unknown sid" and the sub counts against the server quota
+        until the WS closes.
+
+        Best-effort: log a WARNING and send an ``unsubscribe`` for the
+        orphan sid. Any send failure is swallowed (the connection is
+        likely already gone, in which case the server reaps the sid on
+        socket close anyway).
+        """
+        sid = data.get("sid")
+        if sid is None:
+            msg_body = data.get("msg")
+            if isinstance(msg_body, dict):
+                sid = msg_body.get("sid")
+        if not isinstance(sid, int):
+            logger.debug(
+                "Orphan-subscribed handler: no int sid in envelope: %s", data,
+            )
+            return
+        if sid in self._sub_mgr._sid_to_client:
+            # A normal subscribe completed and installed the mapping
+            # before this handler ran — nothing to do.
+            return
+        logger.warning(
+            "Orphan subscribed ack for sid=%d (no client mapping); "
+            "sending unsubscribe to release server-side state.",
+            sid,
+        )
+        try:
+            msg_id = self._sub_mgr._get_msg_id()
+            cmd = {
+                "id": msg_id,
+                "cmd": "unsubscribe",
+                "params": {"sids": [sid]},
+            }
+            await self._sub_mgr._connection.send(cmd)
+        except Exception:
+            logger.warning(
+                "Failed to send orphan-unsubscribe for sid=%d",
+                sid,
+                exc_info=True,
+            )
+
     async def _surface_channel_error(
         self, msg_type: str, data: dict[str, Any]
     ) -> None:
@@ -200,6 +253,8 @@ class MessageDispatcher:
                 await self._on_error(error)
             elif msg_type == "unsubscribed":
                 await self._handle_server_unsubscribe(data)
+            elif msg_type == "subscribed":
+                await self._handle_orphan_subscribed(data)
             return
 
         # Channel-level error semantics on a non-"error" envelope (#82):
