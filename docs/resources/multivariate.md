@@ -16,7 +16,7 @@ Public listing, auth-required minting. Attribute name on the client:
 | `get(collection_ticker)` | `GET /multivariate_event_collections/{ticker}` | no |
 | `create_market(collection_ticker, *, selected_markets, with_market_payload=False)` | `POST /multivariate_event_collections/{ticker}` | yes |
 | `lookup_tickers(collection_ticker, *, selected_markets)` | `PUT /multivariate_event_collections/{ticker}/lookup` | no |
-| `lookup_history(collection_ticker, *, lookback_seconds)` | `GET /multivariate_event_collections/{ticker}/lookup_history` | no |
+| `lookup_history(collection_ticker, *, lookback_seconds)` | `GET /multivariate_event_collections/{ticker}/lookup` (with `lookback_seconds` query param) | no |
 
 ## List collections
 
@@ -73,12 +73,12 @@ if resp.market is not None:
 ## Recent lookup history
 
 ```python
-hist = client.multivariate_collections.lookup_history(
+history = client.multivariate_collections.lookup_history(
     "KXWEATHER-SPORTS-COMBO",
     lookback_seconds=3600,
 )
-for entry in hist.lookups:
-    print(entry.market_ticker, entry.created_ts)
+for point in history:
+    print(point.last_queried_ts, point.market_ticker, point.event_ticker)
 ```
 
 ## Reference

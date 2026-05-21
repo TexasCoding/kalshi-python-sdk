@@ -4,6 +4,17 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **Unreleased (post-v2.2.0)** — WS reliability + auth polish batch:
+  WS resubscribe-window frame stashing (`#176`), `run_forever(stop_event=...)`
+  cooperative shutdown (`#177`), `run_forever()` raises on missing subscription
+  instead of silently returning (`#175`), `MessageQueue` `maxlen` defense-in-depth
+  (`#173`), `_to_decimal_*` consolidation into `_coerce_decimal` (`#174`),
+  async RSA-PSS sign offload via dedicated `ThreadPoolExecutor` (`#178`),
+  first two `server_omits_despite_required` exclusions for
+  `Event.product_metadata` and `EventMetadata.market_details` (`#183`). All
+  closed the open items previously tracked under #106's "Wave 5 polish backlog"
+  umbrella; nothing remains.
+
 - **v2.2.0 (2026-05-19)** — response-side spec drift hardening (`#157`).
   65 new optional fields backfilled across 16 REST + WS response models
   for OpenAPI v3.18.0 / AsyncAPI v0.14 (`Market`, `Order`, `Fill`,
@@ -44,38 +55,21 @@ See `CHANGELOG.md` for full release history.
 
 ## Open trackers
 
-- [#106](https://github.com/TexasCoding/kalshi-python-sdk/issues/106) —
-  Wave 5 polish backlog umbrella. 5 items landed via #141; remaining
-  sub-items (e.g. `MessageQueue.maxlen` defense-in-depth, RSA-sign via
-  executor, `run_forever` foot-gun) are opportunistic.
-- [#45](https://github.com/TexasCoding/kalshi-python-sdk/issues/45) —
-  verify `json={}` workaround under prod credentials. Blocked on
-  prod-key access.
-- [#53](https://github.com/TexasCoding/kalshi-python-sdk/issues/53) —
-  resolve nested `$ref` pointers in body-schema drift check. Spec
-  currently has no nested refs; implement when one lands.
+None.
 
 ## Next milestone
 
-Not scoped. Carry-overs from v2.1 and v2.0 audit backlog:
+Not scoped. Open candidates from the v2.0/v2.1 audit backlog:
 
-- **`MessageQueue._buffer = collections.deque(maxlen=maxsize+1)`** for
-  defense-in-depth (#106 F-P-15 / F-R-02).
-- **`_to_decimal_dollars` / `_to_decimal_fp` consolidation** (#106
-  F-N-09 + the follow-up noted in #140).
-- **WS UX foot-guns**: auto-start recv loop when no `subscribe_*` was
-  called, resubscribe-time data-frame stashing (#106 F-P-16 / F-R-13).
-- **Map remaining REST sub-models / V2 family / internal containers**
-  (~42 entries) into `CONTRACT_MAP` and promote
-  `test_contract_map_completeness` (REST) to hard-fail. WS side already
-  hard-fails as of v2.2.0; the REST side stays warn-only until the
-  mapping work lands.
 - **Required-but-Optional drift policy decision** (~204 entries on
   `test_required_drift` / `test_ws_required_drift`). Currently warn-only;
-  promote to fail behind either an allowlist or a tightening pass that
-  drops `None` defaults on fields the server reliably sends.
+  promote to fail behind either an allowlist or a tightening pass that drops
+  `None` defaults on fields the server reliably sends.
+- **Continued nightly-integration `server_omits_despite_required` triage.**
+  `#183` was the first batch; the next nightly run against demo will catch
+  the next set as they surface.
 
-Pick from `gh issue list` and the deferred items in `#106` opportunistically.
+Pick from `gh issue list` opportunistically.
 
 ## Execution conventions (carried from v2.0)
 

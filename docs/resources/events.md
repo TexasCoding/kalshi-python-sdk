@@ -60,6 +60,21 @@ print(md.tags, md.category)
 
 `EventMetadata` carries tags, categories, and other non-trading attributes.
 
+!!! note "Server omissions on optional-shaped fields"
+    Two `EventMetadata`-adjacent fields are typed as nullable to absorb live
+    server behavior:
+
+    - `Event.product_metadata` is typed `dict[str, Any] | None`. The OpenAPI
+      spec marks it `required`, but the live demo server omits the key on
+      most events. Defaults to `None`.
+    - `EventMetadata.market_details: list[MarketMetadata]` — when the live
+      server sends JSON `null`, the SDK coerces it to `[]` so callers
+      always see a list. The spec contract (key present) is still
+      enforced.
+
+    Both are tracked under `server_omits_despite_required` in the SDK's
+    EXCLUSIONS map.
+
 ## Reference
 
 ::: kalshi.resources.events.EventsResource

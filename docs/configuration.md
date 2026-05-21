@@ -141,6 +141,31 @@ with KalshiClient(auth=auth) as client:
 `auth=` and the credential kwargs (`key_id` / `private_key_path` /
 `private_key`) are mutually exclusive — supply one or the other.
 
+## Lifecycle
+
+`KalshiClient` (and `AsyncKalshiClient`) is a context manager; the `with`
+block tears down the underlying `httpx` client and a small dedicated
+`ThreadPoolExecutor` used for offloading RSA-PSS signing on the async path
+(see [Authentication](authentication.md#async-rsa-pss-sign-offload)). If
+you keep a client as a long-lived attribute, call `client.close()`
+explicitly when shutting down to release both pools deterministically.
+
+```python
+client = KalshiClient.from_env()
+try:
+    ...
+finally:
+    client.close()
+```
+
+`AsyncKalshiClient` follows the same shape — prefer `async with` so the
+async `close()` chains the executor teardown on exit:
+
+```python
+async with AsyncKalshiClient.from_env() as client:
+    ...
+```
+
 ## Reference
 
 ::: kalshi.config.KalshiConfig

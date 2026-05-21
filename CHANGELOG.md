@@ -4,6 +4,40 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+### Pre-release docs audit (#179)
+
+Release-prep sweep across all doc surfaces — README, mkdocs site, ROADMAP,
+per-resource pages, and public-API docstrings. Findings compiled from a
+six-way parallel audit of disjoint file partitions, then triaged:
+
+- **`ROADMAP.md`** — "Open trackers" section dropped; `#45`, `#53` are
+  closed and `#106` was a PR (not an issue) whose remaining sub-items all
+  shipped in this batch. "Next milestone" carry-overs that landed
+  (`MessageQueue` `maxlen`, `_coerce_decimal`, WS UX foot-guns,
+  CONTRACT_MAP completeness via `#181`) removed. Closes `#179`.
+- **`docs/resources/multivariate.md`** — fixed wrong endpoint path on
+  `lookup_history` (was `/lookup_history`, actual is `/lookup` with a
+  `lookback_seconds` query param) and a broken example that called
+  `hist.lookups` on a list return.
+- **`docs/index.md`** — REST coverage updated from "85 endpoints" to "98
+  operations" against current spec; sync/async parity claim explicitly
+  notes WebSocket is async-only.
+- **`docs/websockets.md`** — new "Resubscribe-window frame stashing"
+  subsection documenting the `#176` mechanism, `stash_maxlen` bound, and
+  overflow logging.
+- **`docs/authentication.md`** — new "Async RSA-PSS sign offload"
+  subsection documenting `KalshiAuth.sign_request_async()` (`#178`) plus
+  the dedicated `ThreadPoolExecutor` lifecycle.
+- **`docs/configuration.md`** — new "Lifecycle" section documenting
+  `client.close()` semantics and cross-linking the sign-executor teardown.
+- **`docs/resources/events.md`** — note documenting `Event.product_metadata`
+  and `EventMetadata.market_details` server-omission handling from `#183`.
+- **`README.md`** — WS quickstart uses the package-level import
+  (`from kalshi.ws import KalshiWebSocket`) instead of the deeper
+  `kalshi.ws.client`; channel list clarifies that 11 of the 13 channels
+  have dedicated `subscribe_*` methods and the remaining two ride the
+  generic `subscribe()` escape hatch.
+
 ### WS resubscribe-window frame stashing (#176)
 
 Fixes silent message loss during reconnect bursts on high-volume channels.

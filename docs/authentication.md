@@ -198,4 +198,28 @@ headers = auth.sign_request("GET", "/trade-api/v2/exchange/status")
 #            "KALSHI-ACCESS-TIMESTAMP": ...}
 ```
 
+### Async RSA-PSS sign offload
+
+`KalshiAuth.sign_request_async(method, path, timestamp_ms=None)` is the
+coroutine version of `sign_request()`. It offloads the RSA-PSS signing
+(typically 1–10 ms on a 2048-bit key) onto a **dedicated**
+`ThreadPoolExecutor(max_workers=2)` lazy-initialised on first use, so signs
+don't queue behind `loop.getaddrinfo` / file I/O / other `to_thread()` work
+on a busy event loop:
+
+```python
+headers = await auth.sign_request_async("GET", "/trade-api/v2/exchange/status")
+```
+
+The async REST transport (`AsyncTransport.request`) and async WebSocket
+connect (`ConnectionManager._build_auth_headers`) both use this path
+automatically — relevant during reconnect storms where cold DNS resolution
+(5–50 ms) would otherwise dominate the sign cost. The sync `sign_request`
+API is unchanged for sync-transport callers.
+
+`KalshiAuth.close()` shuts the executor down; `KalshiClient.close()` and
+`AsyncKalshiClient.close()` chain into it, so you only need to call it
+directly if you construct `KalshiAuth` standalone (e.g. for the WebSocket
+with no REST client alongside).
+
 See the [API reference](reference.md) for the full surface.
