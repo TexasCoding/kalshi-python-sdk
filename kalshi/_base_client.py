@@ -19,41 +19,67 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
     KalshiAuthError,
+    KalshiConflictError,
     KalshiError,
     KalshiNotFoundError,
+    KalshiPoolExhaustedError,
     KalshiRateLimitError,
     KalshiServerError,
+    KalshiTimeoutError,
     KalshiValidationError,
 )
 
 logger = logging.getLogger("kalshi")
 
-RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
 # DELETE excluded: cancel/batch_cancel are not safely idempotent
 RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# _map_error body-size guards: refuse to parse and never let one error
+# message dominate a log line / Sentry payload.
+MAX_ERROR_BODY_BYTES = 16 * 1024
+MAX_ERROR_MESSAGE_CHARS = 1024
 
 
 def _map_error(response: httpx.Response) -> KalshiError:
     """Map an HTTP error response to the appropriate SDK exception."""
     status = response.status_code
+
+    # #203: cap body buffering. If the server advertises an oversized body,
+    # short-circuit before httpx materialises it into memory.
+    content_length = response.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_ERROR_BODY_BYTES:
+                return KalshiError(
+                    message=f"HTTP {status} (body {content_length} bytes, suppressed)",
+                    status_code=status,
+                )
+        except ValueError:
+            pass  # malformed Content-Length — fall through to normal parse
+
     try:
         body = response.json()
     except Exception:
         body = {}
 
-    message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
+    raw_message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
+    # Truncate to bound log-line and exception-message size.
+    message = str(raw_message)[:MAX_ERROR_MESSAGE_CHARS]
 
-    if status == 400:
+    if status in (400, 422):
         details = body.get("details") or body.get("errors")
         return KalshiValidationError(
-            message=str(message),
+            message=message,
             status_code=status,
             details=details if isinstance(details, dict) else None,
         )
     if status in (401, 403):
-        return KalshiAuthError(message=str(message), status_code=status)
+        return KalshiAuthError(message=message, status_code=status)
     if status == 404:
-        return KalshiNotFoundError(message=str(message), status_code=status)
+        return KalshiNotFoundError(message=message, status_code=status)
+    if status == 409:
+        return KalshiConflictError(message=message, status_code=status)
     if status == 429:
         retry_after = response.headers.get("Retry-After")
         retry_after_val: float | None = None
@@ -66,12 +92,12 @@ def _map_error(response: httpx.Response) -> KalshiError:
             except ValueError:
                 retry_after_val = None  # HTTP-date format, fall back to computed backoff
         return KalshiRateLimitError(
-            message=str(message), status_code=status, retry_after=retry_after_val
+            message=message, status_code=status, retry_after=retry_after_val
         )
     if status >= 500:
-        return KalshiServerError(message=str(message), status_code=status)
+        return KalshiServerError(message=message, status_code=status)
 
-    return KalshiError(message=str(message), status_code=status)
+    return KalshiError(message=message, status_code=status)
 
 
 def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
@@ -85,6 +111,13 @@ def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
     """
     capped = min(config.retry_base_delay * (2**attempt), config.retry_max_delay)
     return float(random.uniform(0, capped))
+
+
+def _would_exceed_budget(start: float, delay: float, total_timeout: float | None) -> bool:
+    """#193: True iff sleeping ``delay`` now would push past ``total_timeout``."""
+    if total_timeout is None:
+        return False
+    return (time.monotonic() - start) + delay > total_timeout
 
 
 class SyncTransport:
@@ -129,6 +162,9 @@ class SyncTransport:
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
+        # #193: wall-clock budget across the whole request including retries.
+        start = time.monotonic()
+        total_timeout = self._config.total_timeout
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
@@ -149,14 +185,38 @@ class SyncTransport:
                     json=json,
                     headers=auth_headers,
                 )
+            except httpx.PoolTimeout as e:
+                # #204: pool exhaustion never reached the wire — safe to retry
+                # even for POST/DELETE.
+                last_error = KalshiPoolExhaustedError(
+                    f"Connection pool exhausted on {method.upper()} {path}. "
+                    f"Raise KalshiConfig.limits.max_connections."
+                )
+                if attempt < self._config.max_retries:
+                    delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from None
+                    logger.warning(
+                        "Pool exhausted on %s %s, retrying in %.1fs",
+                        method,
+                        path,
+                        delay,
+                    )
+                    time.sleep(delay)
+                    continue
+                raise last_error from e
             except httpx.TimeoutException as e:
                 # F-O-09: don't interpolate httpx exception strings — they
                 # include the full URL with query string and can leak
                 # token-like values into uncaught-exception sinks. The
                 # underlying exception is preserved via `__cause__`.
-                last_error = KalshiError(f"Request timed out: {method.upper()} {path}")
+                last_error = KalshiTimeoutError(
+                    f"Request timed out: {method.upper()} {path}"
+                )
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from None
                     logger.warning("Timeout on %s %s, retrying in %.1fs", method, path, delay)
                     time.sleep(delay)
                     continue
@@ -191,6 +251,9 @@ class SyncTransport:
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
+
+            if _would_exceed_budget(start, delay, total_timeout):
+                raise error from None
 
             logger.warning(
                 "%s %s returned %d, retrying in %.1fs (attempt %d/%d)",
@@ -256,6 +319,9 @@ class AsyncTransport:
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
+        # #193: wall-clock budget across the whole request including retries.
+        start = time.monotonic()
+        total_timeout = self._config.total_timeout
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
@@ -279,11 +345,35 @@ class AsyncTransport:
                     json=json,
                     headers=auth_headers,
                 )
+            except httpx.PoolTimeout as e:
+                # #204: pool exhaustion never reached the wire — safe to retry
+                # even for POST/DELETE.
+                last_error = KalshiPoolExhaustedError(
+                    f"Connection pool exhausted on {method.upper()} {path}. "
+                    f"Raise KalshiConfig.limits.max_connections."
+                )
+                if attempt < self._config.max_retries:
+                    delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from None
+                    logger.warning(
+                        "Pool exhausted on %s %s, retrying in %.1fs",
+                        method,
+                        path,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise last_error from e
             except httpx.TimeoutException as e:
                 # F-O-09: see sync transport above.
-                last_error = KalshiError(f"Request timed out: {method.upper()} {path}")
+                last_error = KalshiTimeoutError(
+                    f"Request timed out: {method.upper()} {path}"
+                )
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from None
                     logger.warning("Timeout on %s %s, retrying in %.1fs", method, path, delay)
                     await asyncio.sleep(delay)
                     continue
@@ -318,6 +408,9 @@ class AsyncTransport:
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
+
+            if _would_exceed_budget(start, delay, total_timeout):
+                raise error from None
 
             logger.warning(
                 "%s %s returned %d, retrying in %.1fs (attempt %d/%d)",

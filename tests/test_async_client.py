@@ -19,8 +19,11 @@ from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
     KalshiAuthError,
+    KalshiConflictError,
     KalshiError,
+    KalshiPoolExhaustedError,
     KalshiServerError,
+    KalshiTimeoutError,
     KalshiValidationError,
 )
 
@@ -384,7 +387,7 @@ class TestAsyncKalshiClientConstructor:
         assert client._config.base_url == DEMO_BASE_URL
 
     def test_base_url_override(self, test_auth: KalshiAuth) -> None:
-        custom = "https://custom.api.com/v2"
+        custom = "https://custom.api.com/trade-api/v2"
         client = AsyncKalshiClient(auth=test_auth, base_url=custom)
         assert client._config.base_url == custom
 
@@ -437,7 +440,7 @@ class TestAsyncKalshiClientFromEnv:
     def test_from_env_base_url_override(
         self, monkeypatch: pytest.MonkeyPatch, pem_string: str
     ) -> None:
-        custom = "https://custom.api.com/v2"
+        custom = "https://custom.api.com/trade-api/v2"
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
         monkeypatch.delenv("KALSHI_DEMO", raising=False)
@@ -523,3 +526,245 @@ class TestAsyncKalshiClientUnauthenticated:
         client = AsyncKalshiClient(demo=True)
         with pytest.raises(AuthRequiredError):
             _ = client.ws
+
+class TestAsyncWidenedRetrySet:
+    """#192: async mirror of widened retryable status set."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_retry_includes_cloudflare_5xx_521_on_get(
+        self, transport: AsyncTransport
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(521, text="Web Server Is Down"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_521_not_retried(self, transport: AsyncTransport) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(521, text="down"))
+        with pytest.raises(KalshiServerError):
+            await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_408_retried_on_get(self, transport: AsyncTransport) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(408, json={"message": "request timeout"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+
+class TestAsyncStatusToTypedException:
+    """#201: async hits _map_error too."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_422_maps_to_KalshiValidationError(  # noqa: N802
+        self, transport: AsyncTransport
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(422, json={"message": "unprocessable"})
+        )
+        with pytest.raises(KalshiValidationError):
+            await transport.request("GET", "/markets")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_409_maps_to_KalshiConflictError(  # noqa: N802
+        self, transport: AsyncTransport
+    ) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            return_value=httpx.Response(409, json={"message": "duplicate"})
+        )
+        with pytest.raises(KalshiConflictError):
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"}
+            )
+
+
+class TestAsyncPoolTimeout:
+    """#204: async pool exhaustion → KalshiPoolExhaustedError, always retried."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_pool_timeout_retried_on_post(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            side_effect=[
+                httpx.PoolTimeout("pool full"),
+                httpx.Response(200, json={"order_id": "abc"}),
+            ]
+        )
+        resp = await transport.request(
+            "POST", "/portfolio/orders", json={"ticker": "T"}
+        )
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_pool_timeout_raises_KalshiPoolExhaustedError(  # noqa: N802
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.PoolTimeout("pool full"))
+        with pytest.raises(KalshiPoolExhaustedError, match="pool exhausted"):
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"}
+            )
+
+
+class TestAsyncTypedTimeoutException:
+    """#204: async POST read-timeout → KalshiTimeoutError, no retry."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_read_timeout_on_post_raises_KalshiTimeoutError_no_retry(  # noqa: N802
+        self, transport: AsyncTransport
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.ReadTimeout("read timed out"))
+        with pytest.raises(KalshiTimeoutError, match="timed out"):
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"}
+            )
+        assert route.call_count == 1
+
+
+class TestAsyncTotalTimeoutBudget:
+    """#193: async wall-clock budget."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_total_timeout_short_circuits_retries(
+        self, test_auth: KalshiAuth, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cfg = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=5,
+            retry_base_delay=0.01,
+            retry_max_delay=0.1,
+            total_timeout=0.05,
+        )
+        transport = AsyncTransport(test_auth, cfg)
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        clock = {"t": 0.0}
+
+        def fake_monotonic() -> float:
+            t = clock["t"]
+            clock["t"] += 1.0
+            return t
+
+        monkeypatch.setattr(
+            "kalshi._base_client.time.monotonic", fake_monotonic
+        )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(502, text="bad gateway")
+        )
+        with pytest.raises(KalshiServerError):
+            await transport.request("GET", "/markets")
+        assert route.call_count == 1
+        assert sleeps == []
+        await transport.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_total_timeout_None_preserves_legacy_behavior(  # noqa: N802
+        self, test_auth: KalshiAuth, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cfg = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=2,
+            retry_base_delay=0.001,
+            retry_max_delay=0.01,
+            total_timeout=None,
+        )
+        transport = AsyncTransport(test_auth, cfg)
+
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(502, text="bad gateway")
+        )
+        with pytest.raises(KalshiServerError):
+            await transport.request("GET", "/markets")
+        assert route.call_count == 3
+        await transport.close()
+
+
+class TestAsyncCloseOwnership:
+    """#210: async close() must not shut down a caller-owned KalshiAuth."""
+
+    @pytest.mark.asyncio
+    async def test_close_does_not_shut_externally_provided_auth(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        client_a = AsyncKalshiClient(auth=test_auth)
+        client_b = AsyncKalshiClient(auth=test_auth)
+        assert client_a._auth_owned is False
+        assert client_b._auth_owned is False
+        await client_a.close()
+        headers = test_auth.sign_request("GET", "/trade-api/v2/markets")
+        assert "KALSHI-ACCESS-KEY" in headers
+        await client_b.close()
+
+    @pytest.mark.asyncio
+    async def test_close_shuts_locally_constructed_auth(
+        self, pem_string: str
+    ) -> None:
+        client = AsyncKalshiClient(key_id="test-key", private_key=pem_string)
+        assert client._auth_owned is True
+        await client.close()
+        await client.close()  # idempotent
+
+    @pytest.mark.asyncio
+    async def test_from_env_owns_auth(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env()
+        assert client._auth_owned is True
+        await client.close()

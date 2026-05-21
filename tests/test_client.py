@@ -19,10 +19,13 @@ from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
     KalshiAuthError,
+    KalshiConflictError,
     KalshiError,
     KalshiNotFoundError,
+    KalshiPoolExhaustedError,
     KalshiRateLimitError,
     KalshiServerError,
+    KalshiTimeoutError,
     KalshiValidationError,
 )
 
@@ -457,13 +460,13 @@ class TestKalshiClientConstructor:
         client.close()
 
     def test_base_url_override(self, test_auth: KalshiAuth) -> None:
-        custom = "https://custom.api.com/v2"
+        custom = "https://custom.api.com/trade-api/v2"
         client = KalshiClient(auth=test_auth, base_url=custom)
         assert client._config.base_url == custom
         client.close()
 
     def test_base_url_takes_precedence_over_demo(self, test_auth: KalshiAuth) -> None:
-        custom = "https://custom.api.com/v2"
+        custom = "https://custom.api.com/trade-api/v2"
         client = KalshiClient(auth=test_auth, base_url=custom, demo=True)
         assert client._config.base_url == custom
         client.close()
@@ -661,7 +664,7 @@ class TestKalshiClientFromEnv:
     def test_from_env_base_url_override(
         self, monkeypatch: pytest.MonkeyPatch, pem_string: str
     ) -> None:
-        custom = "https://custom.api.com/v2"
+        custom = "https://custom.api.com/trade-api/v2"
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
         monkeypatch.delenv("KALSHI_DEMO", raising=False)
@@ -905,4 +908,267 @@ class TestKalshiClientFromEnvUnauthenticated:
         monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
         client = KalshiClient.from_env()
         assert client._auth is None
+        client.close()
+
+class TestWidenedRetrySet:
+    """#192: Cloudflare 5xx (520-524) + 408 are retryable on safe methods only."""
+
+    @respx.mock
+    def test_retry_includes_cloudflare_5xx_521_on_get(
+        self, transport: SyncTransport
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(521, text="Web Server Is Down"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_post_521_not_retried(self, transport: SyncTransport) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(521, text="down"))
+        with pytest.raises(KalshiServerError):
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+
+    @respx.mock
+    def test_408_retried_on_get(self, transport: SyncTransport) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(408, json={"message": "request timeout"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+
+class TestStatusToTypedException:
+    """#201: 422 → KalshiValidationError, 409 → KalshiConflictError, 410 → KalshiError."""
+
+    def test_422_maps_to_KalshiValidationError(self) -> None:  # noqa: N802
+        resp = httpx.Response(422, json={"message": "unprocessable"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiValidationError)
+        assert err.status_code == 422
+
+    def test_409_maps_to_KalshiConflictError(self) -> None:  # noqa: N802
+        resp = httpx.Response(409, json={"message": "duplicate client_order_id"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiConflictError)
+        assert err.status_code == 409
+
+    def test_410_falls_back_to_KalshiError(self) -> None:  # noqa: N802
+        # 410 unmapped — see follow-up. Pin current behavior so a future
+        # change is intentional.
+        resp = httpx.Response(410, json={"message": "gone"})
+        err = _map_error(resp)
+        assert type(err) is KalshiError
+        assert err.status_code == 410
+
+
+class TestErrorBodyBuffering:
+    """#203: bound memory + log-line size for hostile error responses."""
+
+    def test_oversized_error_body_truncated_by_content_length_header(self) -> None:
+        # respx builds a Response with explicit content-length header.
+        resp = httpx.Response(
+            500,
+            headers={"content-length": "50000"},
+            text="x",
+        )
+        err = _map_error(resp)
+        assert "suppressed" in str(err)
+        assert "50000" in str(err)
+
+    def test_error_message_truncated_to_1024_chars(self) -> None:
+        long_msg = "A" * 5000
+        resp = httpx.Response(400, json={"message": long_msg})
+        err = _map_error(resp)
+        assert len(str(err)) <= 1024
+
+    def test_malformed_content_length_falls_through(self) -> None:
+        # Malformed Content-Length should not crash; we parse the body normally.
+        resp = httpx.Response(
+            400,
+            headers={"content-length": "not-a-number"},
+            json={"message": "bad"},
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiValidationError)
+
+
+class TestPoolTimeout:
+    """#204: pool exhaustion is always retryable; surfaces as KalshiPoolExhaustedError."""
+
+    @respx.mock
+    def test_pool_timeout_retried_on_post(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            side_effect=[
+                httpx.PoolTimeout("pool full"),
+                httpx.Response(200, json={"order_id": "abc"}),
+            ]
+        )
+        resp = transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_pool_timeout_raises_KalshiPoolExhaustedError(  # noqa: N802
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.PoolTimeout("pool full"))
+        with pytest.raises(KalshiPoolExhaustedError, match="pool exhausted"):
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+
+
+class TestTypedTimeoutException:
+    """#204: read/connect timeouts surface as KalshiTimeoutError, not bare KalshiError."""
+
+    @respx.mock
+    def test_read_timeout_on_post_raises_KalshiTimeoutError_no_retry(  # noqa: N802
+        self, transport: SyncTransport
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.ReadTimeout("read timed out"))
+        with pytest.raises(KalshiTimeoutError, match="timed out"):
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+
+
+class TestTotalTimeoutBudget:
+    """#193: wall-clock budget cuts the retry loop short before sleeping past it."""
+
+    @respx.mock
+    def test_total_timeout_short_circuits_retries(
+        self,
+        test_auth: KalshiAuth,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # 2-attempt window: monkeypatch monotonic so after the first sleep
+        # we appear to have blown the budget — third attempt MUST NOT fire.
+        cfg = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=5,
+            retry_base_delay=0.01,
+            retry_max_delay=0.1,
+            total_timeout=0.05,
+        )
+        transport = SyncTransport(test_auth, cfg)
+        sleeps: list[float] = []
+        monkeypatch.setattr(
+            "kalshi._base_client.time.sleep", lambda d: sleeps.append(d)
+        )
+        # Fake monotonic: start at 0, jump past the 0.05s budget on every
+        # subsequent poll so the very first retry's budget check trips.
+        clock = {"t": 0.0}
+
+        def fake_monotonic() -> float:
+            t = clock["t"]
+            clock["t"] += 1.0
+            return t
+
+        monkeypatch.setattr(
+            "kalshi._base_client.time.monotonic", fake_monotonic
+        )
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(502, text="bad gateway")
+        )
+        with pytest.raises(KalshiServerError):
+            transport.request("GET", "/markets")
+        # Only the first attempt ran; the budget check refused to sleep into it.
+        assert route.call_count == 1
+        assert sleeps == []
+        transport.close()
+
+    @respx.mock
+    def test_total_timeout_None_preserves_legacy_behavior(  # noqa: N802
+        self, test_auth: KalshiAuth, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cfg = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=2,
+            retry_base_delay=0.001,
+            retry_max_delay=0.01,
+            total_timeout=None,
+        )
+        transport = SyncTransport(test_auth, cfg)
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(502, text="bad gateway")
+        )
+        with pytest.raises(KalshiServerError):
+            transport.request("GET", "/markets")
+        # max_retries=2 → 1 initial + 2 retries = 3 attempts.
+        assert route.call_count == 3
+        transport.close()
+
+
+class TestCloseOwnership:
+    """#210: close() must not shut down a caller-owned KalshiAuth."""
+
+    def test_close_does_not_shut_externally_provided_auth(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # Two clients share the same auth; closing one must not break the other.
+        client_a = KalshiClient(auth=test_auth)
+        client_b = KalshiClient(auth=test_auth)
+        assert client_a._auth_owned is False
+        assert client_b._auth_owned is False
+        client_a.close()
+        # The auth still works — signing a request after close on client_a.
+        headers = test_auth.sign_request("GET", "/trade-api/v2/markets")
+        assert "KALSHI-ACCESS-KEY" in headers
+        client_b.close()
+
+    def test_close_shuts_locally_constructed_auth(self, pem_string: str) -> None:
+        client = KalshiClient(key_id="test-key", private_key=pem_string)
+        assert client._auth_owned is True
+        auth = client._auth
+        assert auth is not None
+        client.close()
+        # Idempotent: close() is safe to call twice without raising.
+        client.close()
+
+    def test_from_env_owns_auth(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth_owned is True
+        client.close()
+
+    def test_from_env_no_credentials_owns_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env()
+        assert client._auth is None
+        # No auth → ownership flag is moot but should be False (nothing to own).
+        assert client._auth_owned is False
         client.close()
