@@ -6,6 +6,7 @@ and dispatch to whichever transport the client was constructed with.
 
 from __future__ import annotations
 
+import asyncio
 import email.utils
 import logging
 import math
@@ -93,9 +94,17 @@ def _map_error(response: httpx.Response) -> KalshiError:
         if retry_after:
             try:
                 retry_after_val = float(retry_after)
-                # Reject non-finite/negative: NaN crashes time.sleep, negative busy-loops.
-                if retry_after_val < 0 or not math.isfinite(retry_after_val):
+                # Reject non-finite (NaN/inf) which would survive the
+                # transport caller's min() cap. Negative deltas — a server
+                # signalling "retry now" or a clock-skewed proxy emitting a
+                # past timestamp — clamp to 0.0 so both Retry-After forms
+                # behave the same (#267): a negative delta-seconds value and
+                # a past HTTP-date below now both produce ``retry_after=0.0``
+                # rather than diverging into None vs 0.0.
+                if not math.isfinite(retry_after_val):
                     retry_after_val = None
+                elif retry_after_val < 0:
+                    retry_after_val = 0.0
             except ValueError:
                 # RFC 7231 §7.1.3: Retry-After may also be an HTTP-date.
                 try:
@@ -399,8 +408,6 @@ class AsyncTransport:
 
         See :meth:`SyncTransport.request` for ``extra_headers`` semantics.
         """
-        import asyncio
-
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
 

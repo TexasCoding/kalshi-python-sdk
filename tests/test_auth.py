@@ -327,6 +327,54 @@ class TestSignRequestAsync:
         assert test_auth._sign_executor is None  # no silent respawn
 
     @pytest.mark.asyncio
+    async def test_close_during_locked_init_does_not_spawn_executor(
+        self,
+        test_auth: KalshiAuth,
+    ) -> None:
+        """#267 item 1: simulate close() racing with the locked branch of
+        ``_get_sign_executor``. Pre-fix, thread A saw ``_closed=False`` outside
+        the lock, ``close()`` then ran to completion, and thread A still
+        entered the locked init and spun up a fresh ``ThreadPoolExecutor`` on
+        a closed auth — leaking the pool past the documented lifecycle bound.
+        Post-fix the recheck under the lock raises before construction.
+        """
+        # Force the fast path to fall through (no cached executor), then
+        # interpose ``close()`` between the fast-path check and the locked
+        # construction by wrapping the lock's ``__enter__``.
+        assert test_auth._sign_executor is None
+        original_lock = test_auth._sign_executor_lock
+
+        class _RacyLock:
+            def __init__(self, inner: object, auth: KalshiAuth) -> None:
+                self._inner = inner
+                self._auth = auth
+                self._fired = False
+
+            def __enter__(self) -> object:
+                # Race: close() runs after the lock-free check observed
+                # _closed=False but before we hold the lock. Restore the
+                # real lock first so close()'s own ``with`` uses it (and
+                # so we only fire the race once).
+                if not self._fired:
+                    self._fired = True
+                    self._auth._sign_executor_lock = self._inner  # type: ignore[assignment]
+                    self._auth.close()
+                return self._inner.__enter__()  # type: ignore[attr-defined]
+
+            def __exit__(self, *exc: object) -> None:
+                self._inner.__exit__(*exc)  # type: ignore[attr-defined]
+
+        test_auth._sign_executor_lock = _RacyLock(original_lock, test_auth)  # type: ignore[assignment]
+        try:
+            with pytest.raises(RuntimeError, match=r"KalshiAuth has been closed"):
+                test_auth._get_sign_executor()
+        finally:
+            test_auth._sign_executor_lock = original_lock
+        assert test_auth._sign_executor is None, (
+            "raced close() must not leave a fresh ThreadPoolExecutor dangling"
+        )
+
+    @pytest.mark.asyncio
     async def test_concurrent_signs_do_not_stall_event_loop(self, test_auth: KalshiAuth) -> None:
         """Microbench (#178). Run a real ``asyncio.sleep(0.01)`` ticker
         concurrently with a batch of signs and confirm the ticker's
