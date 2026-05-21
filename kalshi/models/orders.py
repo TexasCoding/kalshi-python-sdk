@@ -347,6 +347,74 @@ class BatchCancelOrdersRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class BatchCreateOrdersResponseEntry(BaseModel):
+    """Single entry in :class:`BatchCreateOrdersResponse`.
+
+    Spec ``components.schemas.BatchCreateOrdersIndividualResponse``: all
+    three fields are nullable. A failed leg comes back as
+    ``{"client_order_id": "x", "order": null, "error": {...}}``; a
+    successful leg as ``{"client_order_id": "x", "order": {...}, "error": null}``.
+    Pairing returned orders with the originating request requires
+    ``client_order_id``; surfacing per-leg failures requires ``error``.
+    """
+
+    order: Order | None = None
+    error: dict[str, object] | None = None
+    client_order_id: str | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class BatchCreateOrdersResponse(BaseModel):
+    """Response from ``POST /portfolio/orders/batched``.
+
+    Spec ``components.schemas.BatchCreateOrdersResponse``. v3.0.0
+    BREAKING: previously the SDK returned ``list[Order]`` and crashed
+    with ``ValidationError`` on the first failed leg
+    (``Order.model_validate(None)``). Now returns the typed envelope so
+    callers can inspect per-leg ``order``/``error``/``client_order_id``.
+    """
+
+    orders: list[BatchCreateOrdersResponseEntry]
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class BatchCancelOrdersResponseEntry(BaseModel):
+    """Single entry in :class:`BatchCancelOrdersResponse`.
+
+    Spec ``components.schemas.BatchCancelOrdersIndividualResponse``:
+    ``order_id`` and ``reduced_by_fp`` are required; ``order`` and
+    ``error`` are nullable. ``reduced_by_fp`` is load-bearing for risk
+    reconciliation — it is the count of contracts that actually canceled
+    (``0`` when ``error`` is set, the canceled count otherwise).
+    """
+
+    order_id: str
+    reduced_by_fp: FixedPointCount = Field(
+        validation_alias=AliasChoices("reduced_by_fp", "reduced_by"),
+    )
+    order: Order | None = None
+    error: dict[str, object] | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class BatchCancelOrdersResponse(BaseModel):
+    """Response from ``DELETE /portfolio/orders/batched``.
+
+    Spec ``components.schemas.BatchCancelOrdersResponse``. v3.0.0
+    BREAKING: previously the SDK declared ``-> None`` and discarded the
+    response body. Per-leg ``reduced_by_fp`` and any per-leg errors are
+    now surfaced.
+    """
+
+    orders: list[BatchCancelOrdersResponseEntry]
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+
 class AmendOrderResponse(BaseModel):
     """Response from amending an order — contains both pre and post-amendment orders."""
 

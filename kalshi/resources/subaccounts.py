@@ -20,6 +20,7 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -145,6 +146,7 @@ class SubaccountsResource(SyncResource):
         self, *, cursor: str | None = None, limit: int | None = None,
     ) -> Page[SubaccountTransfer]:
         self._require_auth()
+        _validate_limit(limit, hi=1000)
         params = _params(cursor=cursor, limit=limit)
         return self._list(
             "/portfolio/subaccounts/transfers",
@@ -161,6 +163,7 @@ class SubaccountsResource(SyncResource):
     ) -> Iterator[SubaccountTransfer]:
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=1000)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/subaccounts/transfers",
@@ -248,6 +251,7 @@ class AsyncSubaccountsResource(AsyncResource):
         self, *, cursor: str | None = None, limit: int | None = None,
     ) -> Page[SubaccountTransfer]:
         self._require_auth()
+        _validate_limit(limit, hi=1000)
         params = _params(cursor=cursor, limit=limit)
         return await self._list(
             "/portfolio/subaccounts/transfers",
@@ -266,6 +270,7 @@ class AsyncSubaccountsResource(AsyncResource):
         # run at call time, not when the returned AsyncIterator is awaited.
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=1000)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/subaccounts/transfers",

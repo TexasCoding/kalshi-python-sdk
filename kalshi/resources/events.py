@@ -12,6 +12,8 @@ from kalshi.resources._base import (
     SyncResource,
     _bool_param,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -29,6 +31,7 @@ def _list_events_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=200)
     return _params(
         status=status,
         series_ticker=series_ticker,
@@ -49,6 +52,7 @@ def _list_multivariate_events_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=200)
     return _params(
         series_ticker=series_ticker,
         collection_ticker=collection_ticker,
@@ -153,11 +157,11 @@ class EventsResource(SyncResource):
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
         )
-        data = self._get(f"/events/{event_ticker}", params=params)
+        data = self._get(f"/events/{_seg(event_ticker, name='event_ticker')}", params=params)
         return Event.model_validate(data.get("event", data))
 
     def metadata(self, event_ticker: str) -> EventMetadata:
-        data = self._get(f"/events/{event_ticker}/metadata")
+        data = self._get(f"/events/{_seg(event_ticker, name='event_ticker')}/metadata")
         return EventMetadata.model_validate(data)
 
 
@@ -256,9 +260,9 @@ class AsyncEventsResource(AsyncResource):
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
         )
-        data = await self._get(f"/events/{event_ticker}", params=params)
+        data = await self._get(f"/events/{_seg(event_ticker, name='event_ticker')}", params=params)
         return Event.model_validate(data.get("event", data))
 
     async def metadata(self, event_ticker: str) -> EventMetadata:
-        data = await self._get(f"/events/{event_ticker}/metadata")
+        data = await self._get(f"/events/{_seg(event_ticker, name='event_ticker')}/metadata")
         return EventMetadata.model_validate(data)

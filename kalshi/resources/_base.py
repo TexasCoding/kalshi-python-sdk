@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
@@ -12,6 +13,47 @@ from kalshi.errors import AuthRequiredError, KalshiError
 from kalshi.models.common import Page
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _seg(value: str, *, name: str = "path segment") -> str:
+    """URL-encode a single path segment; reject empty/whitespace and ``.``/``..``.
+
+    Caller-supplied identifiers (tickers, order ids, etc.) get interpolated
+    into request paths with f-strings. Without encoding, a value like
+    ``"foo/../admin"`` would be normalized by intermediate proxies into a
+    request signed for the intended endpoint but routed to a different one.
+    ``urllib.parse.quote(..., safe="")`` percent-encodes ``/`` and every
+    other reserved character. ``.``/``..`` are rejected outright because
+    they survive URL encoding but still trigger path normalization.
+    """
+    if not value or not value.strip():
+        raise ValueError(f"{name} must be non-empty")
+    if value in (".", ".."):
+        raise ValueError(f"{name} cannot be '.' or '..'")
+    return urllib.parse.quote(value, safe="")
+
+
+def _validate_limit(
+    value: int | None,
+    *,
+    hi: int,
+    lo: int = 1,
+    name: str = "limit",
+) -> int | None:
+    """Reject ``limit`` outside the spec-declared ``[lo, hi]`` window.
+
+    Returns the value unchanged on success. Kalshi enforces these bounds
+    server-side; failing client-side avoids a wasted round trip and a
+    less-actionable 400.
+    """
+    if value is None:
+        return None
+    if not (lo <= value <= hi):
+        raise ValueError(
+            f"{name} must be in [{lo}, {hi}], got {value}."
+        )
+    return value
+
 
 
 def _params(**kwargs: Any) -> dict[str, Any]:

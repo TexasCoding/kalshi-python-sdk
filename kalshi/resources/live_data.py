@@ -15,7 +15,7 @@ from kalshi.models.live_data import (
     GetLiveDatasResponse,
     LiveData,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params, _seg
 
 _MAX_BATCH = 100
 
@@ -33,7 +33,7 @@ class LiveDataResource(SyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get(
-            f"/live_data/milestone/{milestone_id}",
+            f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}",
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data
@@ -58,7 +58,7 @@ class LiveDataResource(SyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = self._get(
-            f"/live_data/{milestone_type}/milestone/{milestone_id}",
+            f"/live_data/{_seg(milestone_type, name='milestone_type')}/milestone/{_seg(milestone_id, name='milestone_id')}",  # noqa: E501
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data
@@ -92,7 +92,7 @@ class LiveDataResource(SyncResource):
 
     def game_stats(self, milestone_id: str) -> GetGameStatsResponse:
         """Play-by-play stats. Returns ``pbp=None`` for unsupported sports."""
-        data = self._get(f"/live_data/milestone/{milestone_id}/game_stats")
+        data = self._get(f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats")  # noqa: E501
         return GetGameStatsResponse.model_validate(data)
 
 
@@ -109,7 +109,7 @@ class AsyncLiveDataResource(AsyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get(
-            f"/live_data/milestone/{milestone_id}",
+            f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}",
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data
@@ -134,7 +134,7 @@ class AsyncLiveDataResource(AsyncResource):
             include_player_stats=_bool_param(include_player_stats),
         )
         data = await self._get(
-            f"/live_data/{milestone_type}/milestone/{milestone_id}",
+            f"/live_data/{_seg(milestone_type, name='milestone_type')}/milestone/{_seg(milestone_id, name='milestone_id')}",  # noqa: E501
             params=params,
         )
         return GetLiveDataResponse.model_validate(data).live_data
@@ -168,5 +168,5 @@ class AsyncLiveDataResource(AsyncResource):
 
     async def game_stats(self, milestone_id: str) -> GetGameStatsResponse:
         """Play-by-play stats. Returns ``pbp=None`` for unsupported sports."""
-        data = await self._get(f"/live_data/milestone/{milestone_id}/game_stats")
+        data = await self._get(f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats")  # noqa: E501
         return GetGameStatsResponse.model_validate(data)

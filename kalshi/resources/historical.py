@@ -19,6 +19,8 @@ from kalshi.resources._base import (
     SyncResource,
     _join_tickers,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -34,6 +36,7 @@ def _historical_markets_params(
     series_ticker: str | None,
     mve_filter: MveHistoricalFilterLiteral | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
         limit=limit,
         cursor=cursor,
@@ -61,6 +64,7 @@ def _historical_fills_or_orders_params(
     ticker: str | None,
     max_ts: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
 
 
@@ -72,6 +76,7 @@ def _historical_trades_params(
     min_ts: int | None,
     max_ts: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
         limit=limit, cursor=cursor, ticker=ticker, min_ts=min_ts, max_ts=max_ts,
     )
@@ -123,7 +128,7 @@ class HistoricalResource(SyncResource):
         )
 
     def market(self, ticker: str) -> Market:
-        data = self._get(f"/historical/markets/{ticker}")
+        data = self._get(f"/historical/markets/{_seg(ticker, name='ticker')}")
         raw = data.get("market", data)
         return Market.model_validate(raw)
 
@@ -140,7 +145,7 @@ class HistoricalResource(SyncResource):
             period_interval=period_interval,
         )
         data = self._get(
-            f"/historical/markets/{ticker}/candlesticks",
+            f"/historical/markets/{_seg(ticker, name='ticker')}/candlesticks",
             params=params,
         )
         raw = data.get("candlesticks", [])
@@ -290,7 +295,7 @@ class AsyncHistoricalResource(AsyncResource):
         )
 
     async def market(self, ticker: str) -> Market:
-        data = await self._get(f"/historical/markets/{ticker}")
+        data = await self._get(f"/historical/markets/{_seg(ticker, name='ticker')}")
         raw = data.get("market", data)
         return Market.model_validate(raw)
 
@@ -307,7 +312,7 @@ class AsyncHistoricalResource(AsyncResource):
             period_interval=period_interval,
         )
         data = await self._get(
-            f"/historical/markets/{ticker}/candlesticks",
+            f"/historical/markets/{_seg(ticker, name='ticker')}/candlesticks",
             params=params,
         )
         raw = data.get("candlesticks", [])

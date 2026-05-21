@@ -24,6 +24,8 @@ from kalshi.resources._base import (
     _bool_param,
     _join_tickers,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -53,6 +55,7 @@ def _list_markets_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
         status=status,
         series_ticker=series_ticker,
@@ -94,6 +97,7 @@ def _list_trades_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
         ticker=ticker,
         min_ts=min_ts,
@@ -284,14 +288,14 @@ class MarketsResource(SyncResource):
         )
 
     def get(self, ticker: str) -> Market:
-        data = self._get(f"/markets/{ticker}")
+        data = self._get(f"/markets/{_seg(ticker, name='ticker')}")
         market = data.get("market", data)
         return Market.model_validate(market)
 
     def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
         self._require_auth()
         params = _params(depth=depth)
-        data = self._get(f"/markets/{ticker}/orderbook", params=params)
+        data = self._get(f"/markets/{_seg(ticker, name='ticker')}/orderbook", params=params)
         return _parse_orderbook(data, ticker)
 
     def candlesticks(
@@ -310,7 +314,7 @@ class MarketsResource(SyncResource):
             include_latest_before_start=include_latest_before_start,
         )
         data = self._get(
-            f"/series/{series_ticker}/markets/{ticker}/candlesticks",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/markets/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
         )
         raw = data.get("candlesticks", [])
@@ -460,14 +464,14 @@ class AsyncMarketsResource(AsyncResource):
         )
 
     async def get(self, ticker: str) -> Market:
-        data = await self._get(f"/markets/{ticker}")
+        data = await self._get(f"/markets/{_seg(ticker, name='ticker')}")
         market = data.get("market", data)
         return Market.model_validate(market)
 
     async def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
         self._require_auth()
         params = _params(depth=depth)
-        data = await self._get(f"/markets/{ticker}/orderbook", params=params)
+        data = await self._get(f"/markets/{_seg(ticker, name='ticker')}/orderbook", params=params)
         return _parse_orderbook(data, ticker)
 
     async def candlesticks(
@@ -486,7 +490,7 @@ class AsyncMarketsResource(AsyncResource):
             include_latest_before_start=include_latest_before_start,
         )
         data = await self._get(
-            f"/series/{series_ticker}/markets/{ticker}/candlesticks",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/markets/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
         )
         raw = data.get("candlesticks", [])

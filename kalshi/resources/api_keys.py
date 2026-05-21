@@ -16,6 +16,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _check_request_exclusive,
+    _seg,
 )
 
 # Shared request-body builders (issue #46).
@@ -120,7 +121,7 @@ class ApiKeysResource(SyncResource):
 
     def delete(self, api_key: str) -> None:
         self._require_auth()
-        self._delete(f"/api_keys/{api_key}")
+        self._delete(f"/api_keys/{_seg(api_key, name='api_key')}")
 
 
 class AsyncApiKeysResource(AsyncResource):
@@ -181,4 +182,4 @@ class AsyncApiKeysResource(AsyncResource):
 
     async def delete(self, api_key: str) -> None:
         self._require_auth()
-        await self._delete(f"/api_keys/{api_key}")
+        await self._delete(f"/api_keys/{_seg(api_key, name='api_key')}")

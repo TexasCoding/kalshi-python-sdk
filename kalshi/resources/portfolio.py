@@ -18,6 +18,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _params,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -33,6 +34,7 @@ def _positions_params(
     event_ticker: str | None,
     subaccount: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         limit=limit,
         cursor=cursor,
@@ -53,6 +55,7 @@ def _settlements_params(
     max_ts: int | None,
     subaccount: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         limit=limit,
         cursor=cursor,
@@ -150,6 +153,7 @@ class PortfolioResource(SyncResource):
         cursor: str | None = None,
     ) -> Page[Deposit]:
         self._require_auth()
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return self._list(
             "/portfolio/deposits", Deposit, "deposits", params=params,
@@ -163,6 +167,7 @@ class PortfolioResource(SyncResource):
     ) -> Iterator[Deposit]:
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/deposits", Deposit, "deposits",
@@ -176,6 +181,7 @@ class PortfolioResource(SyncResource):
         cursor: str | None = None,
     ) -> Page[Withdrawal]:
         self._require_auth()
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return self._list(
             "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
@@ -189,6 +195,7 @@ class PortfolioResource(SyncResource):
     ) -> Iterator[Withdrawal]:
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/withdrawals", Withdrawal, "withdrawals",
@@ -280,6 +287,7 @@ class AsyncPortfolioResource(AsyncResource):
         cursor: str | None = None,
     ) -> Page[Deposit]:
         self._require_auth()
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return await self._list(
             "/portfolio/deposits", Deposit, "deposits", params=params,
@@ -294,6 +302,7 @@ class AsyncPortfolioResource(AsyncResource):
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/deposits", Deposit, "deposits",
@@ -307,6 +316,7 @@ class AsyncPortfolioResource(AsyncResource):
         cursor: str | None = None,
     ) -> Page[Withdrawal]:
         self._require_auth()
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return await self._list(
             "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
@@ -321,6 +331,7 @@ class AsyncPortfolioResource(AsyncResource):
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
             "/portfolio/withdrawals", Withdrawal, "withdrawals",

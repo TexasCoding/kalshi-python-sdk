@@ -19,6 +19,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _params,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -39,6 +40,7 @@ class IncentiveProgramsResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
+        _validate_limit(limit, hi=10000)
         params = _params(
             status=status,
             type=incentive_type,
@@ -64,6 +66,7 @@ class IncentiveProgramsResource(SyncResource):
         max_pages: int | None = None,
     ) -> Iterator[IncentiveProgram]:
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=10000)
         params = _params(
             status=status,
             type=incentive_type,
@@ -92,6 +95,7 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
     ) -> Page[IncentiveProgram]:
+        _validate_limit(limit, hi=10000)
         params = _params(
             status=status,
             type=incentive_type,
@@ -118,6 +122,7 @@ class AsyncIncentiveProgramsResource(AsyncResource):
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=10000)
         params = _params(
             status=status,
             type=incentive_type,

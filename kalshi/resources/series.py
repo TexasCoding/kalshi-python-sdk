@@ -11,7 +11,7 @@ from kalshi.models.series import (
     Series,
     SeriesFeeChange,
 )
-from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params
+from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params, _seg
 
 # Shared param builders (issue #46).
 
@@ -100,7 +100,7 @@ class SeriesResource(SyncResource):
         params = _params(
             include_volume=_bool_param(include_volume),
         )
-        data = self._get(f"/series/{series_ticker}", params=params)
+        data = self._get(f"/series/{_seg(series_ticker, name='series_ticker')}", params=params)
         return Series.model_validate(data.get("series", data))
 
     def fee_changes(
@@ -130,7 +130,7 @@ class SeriesResource(SyncResource):
             period_interval=period_interval,
         )
         data = self._get(
-            f"/series/{series_ticker}/events/{ticker}/candlesticks",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
         )
         return EventCandlesticks.model_validate(data)
@@ -152,7 +152,7 @@ class SeriesResource(SyncResource):
             period_interval=period_interval,
         )
         data = self._get(
-            f"/series/{series_ticker}/events/{ticker}/forecast_percentile_history",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/forecast_percentile_history",  # noqa: E501
             params=params,
         )
         raw = data.get("forecast_history", [])
@@ -190,7 +190,7 @@ class AsyncSeriesResource(AsyncResource):
         params = _params(
             include_volume=_bool_param(include_volume),
         )
-        data = await self._get(f"/series/{series_ticker}", params=params)
+        data = await self._get(f"/series/{_seg(series_ticker, name='series_ticker')}", params=params)  # noqa: E501
         return Series.model_validate(data.get("series", data))
 
     async def fee_changes(
@@ -220,7 +220,7 @@ class AsyncSeriesResource(AsyncResource):
             period_interval=period_interval,
         )
         data = await self._get(
-            f"/series/{series_ticker}/events/{ticker}/candlesticks",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
         )
         return EventCandlesticks.model_validate(data)
@@ -242,7 +242,7 @@ class AsyncSeriesResource(AsyncResource):
             period_interval=period_interval,
         )
         data = await self._get(
-            f"/series/{series_ticker}/events/{ticker}/forecast_percentile_history",
+            f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/forecast_percentile_history",  # noqa: E501
             params=params,
         )
         raw = data.get("forecast_history", [])

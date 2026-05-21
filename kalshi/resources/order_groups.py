@@ -17,6 +17,7 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _seg,
 )
 
 # Shared body builders (issue #46).
@@ -77,7 +78,7 @@ class OrderGroupsResource(SyncResource):
     ) -> GetOrderGroupResponse:
         self._require_auth()
         params = _params(subaccount=subaccount)
-        data = self._get(f"/portfolio/order_groups/{order_group_id}", params=params)
+        data = self._get(f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}", params=params)  # noqa: E501
         return GetOrderGroupResponse.model_validate(data)
 
     @overload
@@ -118,14 +119,14 @@ class OrderGroupsResource(SyncResource):
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
+        self._delete(f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}", params=params)  # noqa: E501
 
     def reset(self, order_group_id: str, *, subaccount: int | None = None) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
         self._put(
-            f"/portfolio/order_groups/{order_group_id}/reset", params=params, json={},
+            f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/reset", params=params, json={},  # noqa: E501
         )
 
     def trigger(self, order_group_id: str, *, subaccount: int | None = None) -> None:
@@ -133,7 +134,7 @@ class OrderGroupsResource(SyncResource):
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
         self._put(
-            f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
+            f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/trigger", params=params, json={},  # noqa: E501
         )
 
     @overload
@@ -156,7 +157,7 @@ class OrderGroupsResource(SyncResource):
         body = _build_update_limit_body(
             request, contracts_limit=contracts_limit,
         )
-        self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)
+        self._put(f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/limit", json=body)  # noqa: E501
 
 
 class AsyncOrderGroupsResource(AsyncResource):
@@ -175,7 +176,7 @@ class AsyncOrderGroupsResource(AsyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         data = await self._get(
-            f"/portfolio/order_groups/{order_group_id}", params=params,
+            f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}", params=params,
         )
         return GetOrderGroupResponse.model_validate(data)
 
@@ -216,7 +217,7 @@ class AsyncOrderGroupsResource(AsyncResource):
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        await self._delete(f"/portfolio/order_groups/{order_group_id}", params=params)
+        await self._delete(f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}", params=params)  # noqa: E501
 
     async def reset(
         self, order_group_id: str, *, subaccount: int | None = None,
@@ -225,7 +226,7 @@ class AsyncOrderGroupsResource(AsyncResource):
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
         await self._put(
-            f"/portfolio/order_groups/{order_group_id}/reset", params=params, json={},
+            f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/reset", params=params, json={},  # noqa: E501
         )
 
     async def trigger(
@@ -235,7 +236,7 @@ class AsyncOrderGroupsResource(AsyncResource):
         params = _params(subaccount=subaccount)
         # json={} forces Content-Type: application/json — demo rejects the PUT without it.
         await self._put(
-            f"/portfolio/order_groups/{order_group_id}/trigger", params=params, json={},
+            f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/trigger", params=params, json={},  # noqa: E501
         )
 
     @overload
@@ -257,4 +258,4 @@ class AsyncOrderGroupsResource(AsyncResource):
         body = _build_update_limit_body(
             request, contracts_limit=contracts_limit,
         )
-        await self._put(f"/portfolio/order_groups/{order_group_id}/limit", json=body)
+        await self._put(f"/portfolio/order_groups/{_seg(order_group_id, name='order_group_id')}/limit", json=body)  # noqa: E501

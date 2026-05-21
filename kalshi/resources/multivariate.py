@@ -22,6 +22,8 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -36,6 +38,7 @@ def _list_collections_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=200)
     return _params(
         status=status,
         associated_event_ticker=associated_event_ticker,
@@ -150,7 +153,7 @@ class MultivariateCollectionsResource(SyncResource):
         )
 
     def get(self, collection_ticker: str) -> MultivariateEventCollection:
-        data = self._get(f"/multivariate_event_collections/{collection_ticker}")
+        data = self._get(f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}")  # noqa: E501
         return MultivariateEventCollection.model_validate(
             data.get("multivariate_contract", data)
         )
@@ -185,7 +188,7 @@ class MultivariateCollectionsResource(SyncResource):
             with_market_payload=with_market_payload,
         )
         data = self._post(
-            f"/multivariate_event_collections/{collection_ticker}",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
             json=body,
         )
         return CreateMarketResponse.model_validate(data)
@@ -218,7 +221,7 @@ class MultivariateCollectionsResource(SyncResource):
             request, selected_markets=selected_markets,
         )
         data = self._put(
-            f"/multivariate_event_collections/{collection_ticker}/lookup",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             json=body,
         )
         return _parse_lookup_tickers_response(data)
@@ -231,7 +234,7 @@ class MultivariateCollectionsResource(SyncResource):
     ) -> builtins.list[LookupPoint]:
         params = _params(lookback_seconds=lookback_seconds)
         data = self._get(
-            f"/multivariate_event_collections/{collection_ticker}/lookup",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,
         )
         raw = data.get("lookup_points", [])
@@ -288,7 +291,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         )
 
     async def get(self, collection_ticker: str) -> MultivariateEventCollection:
-        data = await self._get(f"/multivariate_event_collections/{collection_ticker}")
+        data = await self._get(f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}")  # noqa: E501
         return MultivariateEventCollection.model_validate(
             data.get("multivariate_contract", data)
         )
@@ -323,7 +326,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
             with_market_payload=with_market_payload,
         )
         data = await self._post(
-            f"/multivariate_event_collections/{collection_ticker}",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
             json=body,
         )
         return CreateMarketResponse.model_validate(data)
@@ -356,7 +359,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
             request, selected_markets=selected_markets,
         )
         data = await self._put(
-            f"/multivariate_event_collections/{collection_ticker}/lookup",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             json=body,
         )
         return _parse_lookup_tickers_response(data)
@@ -369,7 +372,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
     ) -> builtins.list[LookupPoint]:
         params = _params(lookback_seconds=lookback_seconds)
         data = await self._get(
-            f"/multivariate_event_collections/{collection_ticker}/lookup",
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,
         )
         raw = data.get("lookup_points", [])
