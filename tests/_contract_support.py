@@ -637,8 +637,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/series/fee_changes",
     ),
-    # NOTE: SDK currently sends {event_ticker} but spec uses {ticker}.
-    # Map stores the SPEC path (source of truth); SDK is RENAME target in AUDIT.
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.event_candlesticks",
         http_method="GET",

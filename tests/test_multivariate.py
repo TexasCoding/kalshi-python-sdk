@@ -196,6 +196,48 @@ class TestMultivariateLookupHistory:
         assert len(result) == 1
         assert result[0].event_ticker == "EVT-1"
 
+    @pytest.mark.parametrize("bad", [0, 1, 30, 600, 3601, -10])
+    def test_lookup_history_rejects_off_enum_lookback(
+        self, mv: MultivariateCollectionsResource, bad: int
+    ) -> None:
+        with pytest.raises(ValueError, match=r"lookback_seconds must be one of"):
+            mv.lookup_history("MVC-1", lookback_seconds=bad)
+
+    def test_lookup_history_emits_deprecation_warning(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        with respx.mock(base_url=BASE) as router:
+            router.get("/multivariate_event_collections/MVC-1/lookup").mock(
+                return_value=httpx.Response(200, json={"lookup_points": []})
+            )
+            with pytest.warns(DeprecationWarning, match=r"predates RFQs"):
+                mv.lookup_history("MVC-1", lookback_seconds=10)
+
+    def test_lookup_tickers_emits_deprecation_warning(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        with respx.mock(base_url=BASE) as router:
+            router.put("/multivariate_event_collections/MVC-1/lookup").mock(
+                return_value=httpx.Response(
+                    200, json={"event_ticker": "EVT-1", "market_ticker": "MKT-1"}
+                )
+            )
+            with pytest.warns(DeprecationWarning, match=r"predates RFQs"):
+                mv.lookup_tickers("MVC-1", selected_markets=[])
+
+    def test_create_market_emits_deprecation_warning(
+        self, mv: MultivariateCollectionsResource
+    ) -> None:
+        with respx.mock(base_url=BASE) as router:
+            router.post("/multivariate_event_collections/MVC-1").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={"event_ticker": "EVT-1", "market_ticker": "MKT-1"},
+                )
+            )
+            with pytest.warns(DeprecationWarning, match=r"predates RFQs"):
+                mv.create_market("MVC-1", selected_markets=[])
+
 
 class TestAsyncMultivariateCollectionsResource:
     @pytest.fixture
