@@ -111,9 +111,12 @@ orders = [
     CreateOrderRequest(ticker="X-YES", side="yes", action="buy", count=10, yes_price="0.60"),
     CreateOrderRequest(ticker="X-NO",  side="no",  action="buy", count=10, no_price="0.42"),
 ]
-created = client.orders.batch_create(orders)
-for o in created:
-    print(o.order_id, o.status)
+result = client.orders.batch_create(orders)
+for entry in result.orders:
+    if entry.error is not None:
+        print("failed:", entry.client_order_id, entry.error)
+    else:
+        print(entry.order.order_id, entry.order.status)
 ```
 
 Each child has `extra="forbid"`, so a typo in any leg fails at construction
@@ -122,8 +125,14 @@ before the round trip.
 ## Cancel
 
 ```python
-client.orders.cancel("ord_abc")                         # single
-client.orders.batch_cancel(["ord_abc", "ord_def"])       # convenience: list of strings
+client.orders.cancel("ord_abc")                          # single
+
+result = client.orders.batch_cancel(["ord_abc", "ord_def"])   # list of strings
+for entry in result.orders:
+    if entry.error is not None:
+        print("failed:", entry.order_id, entry.error)
+    else:
+        print(entry.order_id, "canceled", entry.reduced_by_fp)
 ```
 
 For per-entry subaccount routing, build the request explicitly:
@@ -131,7 +140,7 @@ For per-entry subaccount routing, build the request explicitly:
 ```python
 from kalshi import BatchCancelOrdersRequestOrder
 
-client.orders.batch_cancel([
+result = client.orders.batch_cancel([
     BatchCancelOrdersRequestOrder(order_id="ord_abc", subaccount=0),
     BatchCancelOrdersRequestOrder(order_id="ord_def", subaccount=1),
 ])
