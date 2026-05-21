@@ -1,6 +1,8 @@
 """User orders channel message models."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.models.orders import (
@@ -8,7 +10,7 @@ from kalshi.models.orders import (
     SelfTradePreventionTypeLiteral,
     SideLiteral,
 )
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class UserOrdersPayload(BaseModel):
@@ -31,15 +33,15 @@ class UserOrdersPayload(BaseModel):
     yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    fill_count: str = Field(
+    fill_count: FixedPointCount = Field(
         validation_alias=AliasChoices("fill_count_fp", "fill_count"),
-    )  # _fp format
-    remaining_count: str = Field(
+    )
+    remaining_count: FixedPointCount = Field(
         validation_alias=AliasChoices("remaining_count_fp", "remaining_count"),
-    )  # _fp format
-    initial_count: str = Field(
+    )
+    initial_count: FixedPointCount = Field(
         validation_alias=AliasChoices("initial_count_fp", "initial_count"),
-    )  # _fp format
+    )
     taker_fill_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("taker_fill_cost_dollars", "taker_fill_cost"),
     )
@@ -53,10 +55,10 @@ class UserOrdersPayload(BaseModel):
         validation_alias=AliasChoices("maker_fees_dollars", "maker_fees"),
     )
     client_order_id: str
-    created_time: str
+    created_time: datetime
     order_group_id: str | None = None
-    last_update_time: str | None = None
-    expiration_time: str | None = None
+    last_update_time: datetime | None = None
+    expiration_time: datetime | None = None
     subaccount_number: int | None = None
     # v0.14+ backfill (#162). outcome_side/book_side/self_trade_prevention_type
     # mirror Order from #159. *_ts_ms (Unix ms) supersede the *_time RFC3339
