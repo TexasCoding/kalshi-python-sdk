@@ -97,6 +97,30 @@ class TestErrorMapping:
         err = _map_error(resp)
         assert isinstance(err, KalshiServerError)
 
+    def test_408_request_timeout_maps_to_timeout(self) -> None:
+        # #251: 408 carries "may have committed" semantic — route to
+        # KalshiTimeoutError, not generic KalshiError.
+        resp = httpx.Response(408, json={"message": "request timeout"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiTimeoutError)
+        assert err.status_code == 408
+
+    def test_504_gateway_timeout_maps_to_timeout(self) -> None:
+        # #251: 504 carries same semantic as transport timeout — must route to
+        # KalshiTimeoutError, not KalshiServerError.
+        resp = httpx.Response(504, json={"message": "gateway timeout"})
+        err = _map_error(resp)
+        assert isinstance(err, KalshiTimeoutError)
+        assert err.status_code == 504
+
+    def test_500_still_server_error(self) -> None:
+        # #251: regression — 500/502/503 must continue to route to KalshiServerError.
+        for status in (500, 502, 503):
+            resp = httpx.Response(status, json={"message": "boom"})
+            err = _map_error(resp)
+            assert isinstance(err, KalshiServerError), f"status={status}"
+            assert not isinstance(err, KalshiTimeoutError), f"status={status}"
+
     def test_validation_error_with_details(self) -> None:
         resp = httpx.Response(
             400, json={"message": "validation failed", "details": {"ticker": "required"}}

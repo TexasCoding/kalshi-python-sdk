@@ -120,6 +120,12 @@ def _map_error(response: httpx.Response) -> KalshiError:
         return KalshiRateLimitError(
             message=message, status_code=status, retry_after=retry_after_val
         )
+    # #251: 408 Request Timeout and 504 Gateway Timeout carry the same
+    # "may have committed" semantic as a transport-level timeout. Route them
+    # to KalshiTimeoutError so callers can branch on it (e.g., reconcile via
+    # client_order_id before retrying an order create).
+    if status in (408, 504):
+        return KalshiTimeoutError(message=message, status_code=status)
     if status >= 500:
         return KalshiServerError(message=message, status_code=status)
 
