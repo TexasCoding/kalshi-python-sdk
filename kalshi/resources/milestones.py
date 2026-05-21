@@ -12,6 +12,8 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -50,6 +52,7 @@ def _list_milestones_params(
     cursor: str | None,
     min_updated_ts: int | None,
 ) -> dict[str, Any]:
+    _validate_limit(limit, hi=500)
     return _params(
         limit=limit,
         minimum_start_date=_iso(minimum_start_date),
@@ -125,7 +128,7 @@ class MilestonesResource(SyncResource):
         )
 
     def get(self, milestone_id: str) -> Milestone:
-        data = self._get(f"/milestones/{milestone_id}")
+        data = self._get(f"/milestones/{_seg(milestone_id, name='milestone_id')}")
         return GetMilestoneResponse.model_validate(data).milestone
 
 
@@ -184,5 +187,5 @@ class AsyncMilestonesResource(AsyncResource):
         )
 
     async def get(self, milestone_id: str) -> Milestone:
-        data = await self._get(f"/milestones/{milestone_id}")
+        data = await self._get(f"/milestones/{_seg(milestone_id, name='milestone_id')}")
         return GetMilestoneResponse.model_validate(data).milestone

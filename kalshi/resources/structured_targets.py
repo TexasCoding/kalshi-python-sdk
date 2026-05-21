@@ -14,6 +14,8 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -36,6 +38,7 @@ class StructuredTargetsResource(SyncResource):
         page_size: int | None = None,
         cursor: str | None = None,
     ) -> Page[StructuredTarget]:
+        _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
             type=target_type,
@@ -60,6 +63,7 @@ class StructuredTargetsResource(SyncResource):
         max_pages: int | None = None,
     ) -> Iterator[StructuredTarget]:
         _validate_max_pages(max_pages)
+        _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
             type=target_type,
@@ -75,7 +79,7 @@ class StructuredTargetsResource(SyncResource):
         )
 
     def get(self, structured_target_id: str) -> StructuredTarget | None:
-        data = self._get(f"/structured_targets/{structured_target_id}")
+        data = self._get(f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}")  # noqa: E501
         return GetStructuredTargetResponse.model_validate(data).structured_target
 
 
@@ -91,6 +95,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
         page_size: int | None = None,
         cursor: str | None = None,
     ) -> Page[StructuredTarget]:
+        _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
             type=target_type,
@@ -116,6 +121,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
     ) -> AsyncIterator[StructuredTarget]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
+        _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
             type=target_type,
@@ -131,5 +137,5 @@ class AsyncStructuredTargetsResource(AsyncResource):
         )
 
     async def get(self, structured_target_id: str) -> StructuredTarget | None:
-        data = await self._get(f"/structured_targets/{structured_target_id}")
+        data = await self._get(f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}")  # noqa: E501
         return GetStructuredTargetResponse.model_validate(data).structured_target

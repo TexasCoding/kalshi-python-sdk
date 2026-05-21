@@ -17,9 +17,11 @@ from kalshi.models.orders import (
     AmendOrderV2Response,
     BatchCancelOrdersRequest,
     BatchCancelOrdersRequestOrder,
+    BatchCancelOrdersResponse,
     BatchCancelOrdersV2Request,
     BatchCancelOrdersV2Response,
     BatchCreateOrdersRequest,
+    BatchCreateOrdersResponse,
     BatchCreateOrdersV2Request,
     BatchCreateOrdersV2Response,
     CancelOrderV2Response,
@@ -43,6 +45,8 @@ from kalshi.resources._base import (
     _check_request_exclusive,
     _join_tickers,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 from kalshi.types import to_decimal
@@ -239,6 +243,7 @@ def _list_orders_params(
     cursor: str | None,
     subaccount: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         ticker=ticker,
         event_ticker=event_ticker,
@@ -261,6 +266,7 @@ def _fills_params(
     cursor: str | None,
     subaccount: int | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         ticker=ticker,
         order_id=order_id,
@@ -381,7 +387,7 @@ class OrdersResource(SyncResource):
 
     def get(self, order_id: str) -> Order:
         self._require_auth()
-        data = self._get(f"/portfolio/orders/{order_id}")
+        data = self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}")
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -394,7 +400,7 @@ class OrdersResource(SyncResource):
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        self._delete(f"/portfolio/orders/{order_id}", params=params)
+        self._delete(f"/portfolio/orders/{_seg(order_id, name='order_id')}", params=params)
 
     def list(
         self,
@@ -445,41 +451,50 @@ class OrdersResource(SyncResource):
         self,
         *,
         request: BatchCreateOrdersRequest,
-    ) -> builtins.list[Order]: ...
+    ) -> BatchCreateOrdersResponse: ...
     @overload
     def batch_create(
         self,
         orders: Sequence[CreateOrderRequest],
-    ) -> builtins.list[Order]: ...
+    ) -> BatchCreateOrdersResponse: ...
     def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
         *,
         request: BatchCreateOrdersRequest | None = None,
-    ) -> builtins.list[Order]:
+    ) -> BatchCreateOrdersResponse:
+        """Place a batch of orders.
+
+        BREAKING in v3.0.0: previously returned ``list[Order]`` and would
+        crash with ``ValidationError`` on any partially-failed batch
+        (the spec marks each entry's ``order`` and ``error`` as nullable;
+        the old ``Order.model_validate(o.get("order", o))`` blew up the
+        instant the server returned ``{"order": null, "error": {...}}``).
+        Now returns :class:`BatchCreateOrdersResponse` so callers can
+        pair the per-leg ``client_order_id`` with ``order``/``error``.
+        """
         self._require_auth()
         body = _build_batch_create_body(request, orders)
         data = self._post("/portfolio/orders/batched", json=body)
-        raw_orders = data.get("orders", [])
-        return [Order.model_validate(o.get("order", o)) for o in raw_orders]
+        return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
     def batch_cancel(
         self,
         *,
         request: BatchCancelOrdersRequest,
-    ) -> None: ...
+    ) -> BatchCancelOrdersResponse: ...
     @overload
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
-    ) -> None: ...
+    ) -> BatchCancelOrdersResponse: ...
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
         *,
         request: BatchCancelOrdersRequest | None = None,
-    ) -> None:
+    ) -> BatchCancelOrdersResponse:
         """Batch-cancel orders.
 
         Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
@@ -488,16 +503,22 @@ class OrdersResource(SyncResource):
         mix of both. String entries are wrapped as
         ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
 
-        BREAKING in v0.8.0: previously the method signature was
-        ``batch_cancel(order_ids: list[str])`` and the wire body used the
-        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
-        ``orders`` field and renames the kwarg. Callers passing a plain
-        list of order-id strings still work without code changes via the
-        convenience shortcut.
+        BREAKING in v3.0.0: previously returned ``None`` and discarded
+        the server's per-leg response. Now returns
+        :class:`BatchCancelOrdersResponse` so callers can read the
+        load-bearing ``reduced_by_fp`` per entry (cents canceled) plus
+        any per-leg ``error`` blocks. A server that returns 204
+        No Content raises :class:`KalshiError` — every modern Kalshi
+        environment returns 200 with the typed body.
         """
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        self._delete_with_body("/portfolio/orders/batched", json=body)
+        data = self._delete_with_body("/portfolio/orders/batched", json=body)
+        if data is None:
+            raise KalshiError(
+                "Expected BatchCancelOrdersResponse body, got 204 No Content."
+            )
+        return BatchCancelOrdersResponse.model_validate(data)
 
     def fills(
         self,
@@ -587,7 +608,7 @@ class OrdersResource(SyncResource):
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = self._post(f"/portfolio/orders/{order_id}/amend", json=body)
+        data = self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend", json=body)
         return AmendOrderResponse.model_validate(data)
 
     @overload
@@ -619,7 +640,7 @@ class OrdersResource(SyncResource):
             request, reduce_by=reduce_by, reduce_to=reduce_to,
             subaccount=subaccount, exchange_index=exchange_index,
         )
-        data = self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
+        data = self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease", json=body)  # noqa: E501
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -642,7 +663,7 @@ class OrdersResource(SyncResource):
 
     def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
-        data = self._get(f"/portfolio/orders/{order_id}/queue_position")
+        data = self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position")
         return _parse_queue_position(data)
 
     # ------------------------------------------------------------------
@@ -666,7 +687,7 @@ class OrdersResource(SyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = self._delete(
-            f"/portfolio/events/orders/{order_id}", params=params,
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}", params=params,
         )
         if data is None:
             raise KalshiError(
@@ -692,7 +713,7 @@ class OrdersResource(SyncResource):
         params = _params(subaccount=subaccount)
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
-            f"/portfolio/events/orders/{order_id}/amend",
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/amend",
             params=params, json=body,
         )
         return AmendOrderV2Response.model_validate(data)
@@ -716,7 +737,7 @@ class OrdersResource(SyncResource):
         params = _params(subaccount=subaccount)
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
-            f"/portfolio/events/orders/{order_id}/decrease",
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/decrease",
             params=params, json=body,
         )
         return DecreaseOrderV2Response.model_validate(data)
@@ -828,7 +849,7 @@ class AsyncOrdersResource(AsyncResource):
 
     async def get(self, order_id: str) -> Order:
         self._require_auth()
-        data = await self._get(f"/portfolio/orders/{order_id}")
+        data = await self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}")
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -841,7 +862,7 @@ class AsyncOrdersResource(AsyncResource):
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        await self._delete(f"/portfolio/orders/{order_id}", params=params)
+        await self._delete(f"/portfolio/orders/{_seg(order_id, name='order_id')}", params=params)
 
     async def list(
         self,
@@ -893,59 +914,50 @@ class AsyncOrdersResource(AsyncResource):
         self,
         *,
         request: BatchCreateOrdersRequest,
-    ) -> builtins.list[Order]: ...
+    ) -> BatchCreateOrdersResponse: ...
     @overload
     async def batch_create(
         self,
         orders: Sequence[CreateOrderRequest],
-    ) -> builtins.list[Order]: ...
+    ) -> BatchCreateOrdersResponse: ...
     async def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
         *,
         request: BatchCreateOrdersRequest | None = None,
-    ) -> builtins.list[Order]:
+    ) -> BatchCreateOrdersResponse:
+        """Place a batch of orders. See :meth:`OrdersResource.batch_create`."""
         self._require_auth()
         body = _build_batch_create_body(request, orders)
         data = await self._post("/portfolio/orders/batched", json=body)
-        raw_orders = data.get("orders", [])
-        return [Order.model_validate(o.get("order", o)) for o in raw_orders]
+        return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
     async def batch_cancel(
         self,
         *,
         request: BatchCancelOrdersRequest,
-    ) -> None: ...
+    ) -> BatchCancelOrdersResponse: ...
     @overload
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
-    ) -> None: ...
+    ) -> BatchCancelOrdersResponse: ...
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
         *,
         request: BatchCancelOrdersRequest | None = None,
-    ) -> None:
-        """Batch-cancel orders.
-
-        Accepts a sequence of either ``BatchCancelOrdersRequestOrder``
-        entries (for per-order ``subaccount`` routing), plain order-id
-        strings (convenience shortcut — each is wrapped internally), or a
-        mix of both. String entries are wrapped as
-        ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
-
-        BREAKING in v0.8.0: previously the method signature was
-        ``batch_cancel(order_ids: list[str])`` and the wire body used the
-        spec-deprecated ``ids`` field. v0.8.0 emits the spec-preferred
-        ``orders`` field and renames the kwarg. Callers passing a plain
-        list of order-id strings still work without code changes via the
-        convenience shortcut.
-        """
+    ) -> BatchCancelOrdersResponse:
+        """Batch-cancel orders. See :meth:`OrdersResource.batch_cancel`."""
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        await self._delete_with_body("/portfolio/orders/batched", json=body)
+        data = await self._delete_with_body("/portfolio/orders/batched", json=body)
+        if data is None:
+            raise KalshiError(
+                "Expected BatchCancelOrdersResponse body, got 204 No Content."
+            )
+        return BatchCancelOrdersResponse.model_validate(data)
 
     async def fills(
         self,
@@ -1035,7 +1047,7 @@ class AsyncOrdersResource(AsyncResource):
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = await self._post(f"/portfolio/orders/{order_id}/amend", json=body)
+        data = await self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend", json=body)  # noqa: E501
         return AmendOrderResponse.model_validate(data)
 
     @overload
@@ -1067,7 +1079,7 @@ class AsyncOrdersResource(AsyncResource):
             request, reduce_by=reduce_by, reduce_to=reduce_to,
             subaccount=subaccount, exchange_index=exchange_index,
         )
-        data = await self._post(f"/portfolio/orders/{order_id}/decrease", json=body)
+        data = await self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease", json=body)  # noqa: E501
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -1090,7 +1102,7 @@ class AsyncOrdersResource(AsyncResource):
 
     async def queue_position(self, order_id: str) -> Decimal:
         self._require_auth()
-        data = await self._get(f"/portfolio/orders/{order_id}/queue_position")
+        data = await self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position")  # noqa: E501
         return _parse_queue_position(data)
 
     # V2 event-market orders (spec v3.18.0). See OrdersResource counterparts.
@@ -1113,7 +1125,7 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = await self._delete(
-            f"/portfolio/events/orders/{order_id}", params=params,
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}", params=params,
         )
         if data is None:
             raise KalshiError(
@@ -1139,7 +1151,7 @@ class AsyncOrdersResource(AsyncResource):
         params = _params(subaccount=subaccount)
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
-            f"/portfolio/events/orders/{order_id}/amend",
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/amend",
             params=params, json=body,
         )
         return AmendOrderV2Response.model_validate(data)
@@ -1163,7 +1175,7 @@ class AsyncOrdersResource(AsyncResource):
         params = _params(subaccount=subaccount)
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
-            f"/portfolio/events/orders/{order_id}/decrease",
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/decrease",
             params=params, json=body,
         )
         return DecreaseOrderV2Response.model_validate(data)

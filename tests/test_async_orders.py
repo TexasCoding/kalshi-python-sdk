@@ -469,8 +469,16 @@ class TestAsyncOrdersBatch:
                 200,
                 json={
                     "orders": [
-                        order_dict(order_id="b1", ticker="A"),
-                        order_dict(order_id="b2", ticker="B"),
+                        {
+                            "order": order_dict(order_id="b1", ticker="A"),
+                            "error": None,
+                            "client_order_id": "c1",
+                        },
+                        {
+                            "order": order_dict(order_id="b2", ticker="B"),
+                            "error": None,
+                            "client_order_id": "c2",
+                        },
                     ]
                 },
             )
@@ -479,9 +487,14 @@ class TestAsyncOrdersBatch:
             CreateOrderRequest(ticker="A", side="yes", action="buy"),
             CreateOrderRequest(ticker="B", side="no", action="buy"),
         ]
+        from kalshi.models.orders import BatchCreateOrdersResponse
+
         result = await orders.batch_create(reqs)
-        assert len(result) == 2
-        assert result[0].order_id == "b1"
+        assert isinstance(result, BatchCreateOrdersResponse)
+        assert len(result.orders) == 2
+        assert result.orders[0].order is not None
+        assert result.orders[0].order.order_id == "b1"
+        assert result.orders[0].client_order_id == "c1"
 
         # Verify serialization uses _dollars alias
         body = json.loads(route.calls[0].request.content)
@@ -490,11 +503,81 @@ class TestAsyncOrdersBatch:
 
     @respx.mock
     @pytest.mark.asyncio
+    async def test_batch_create_partial_failure_does_not_crash(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        """Async mirror of #194 partial-failure regression."""
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order": order_dict(order_id="ok", ticker="A"),
+                            "error": None,
+                            "client_order_id": "good",
+                        },
+                        {
+                            "order": None,
+                            "error": {"code": "bad_price", "message": "rejected"},
+                            "client_order_id": "bad",
+                        },
+                    ]
+                },
+            )
+        )
+        result = await orders.batch_create(
+            [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+        )
+        assert result.orders[0].order is not None
+        assert result.orders[1].order is None
+        assert result.orders[1].error is not None
+        assert result.orders[1].error["code"] == "bad_price"
+
+    @respx.mock
+    @pytest.mark.asyncio
     async def test_batch_cancel(self, orders: AsyncOrdersResource) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "o1",
+                            "reduced_by_fp": "2",
+                            "order": None,
+                            "error": None,
+                        },
+                        {
+                            "order_id": "o2",
+                            "reduced_by_fp": "0",
+                            "order": None,
+                            "error": {"code": "not_found", "message": "gone"},
+                        },
+                    ]
+                },
+            )
         )
-        await orders.batch_cancel(["o1", "o2"])  # should not raise
+        from kalshi.models.orders import BatchCancelOrdersResponse
+
+        result = await orders.batch_cancel(["o1", "o2"])
+        assert isinstance(result, BatchCancelOrdersResponse)
+        assert result.orders[0].reduced_by_fp == Decimal("2")
+        assert result.orders[1].error is not None
+        assert result.orders[1].error["code"] == "not_found"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_batch_cancel_raises_on_204(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        from kalshi.errors import KalshiError
+
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(204)
+        )
+        with pytest.raises(KalshiError, match="Expected BatchCancelOrdersResponse"):
+            await orders.batch_cancel(["ord-1"])
 
 
 class TestAsyncOrdersFills:
@@ -846,7 +929,7 @@ class TestBatchCancelWireShapeAsync:
     @pytest.mark.asyncio
     async def test_wraps_str_ids_into_orders(self, orders: AsyncOrdersResource) -> None:
         route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         await orders.batch_cancel(["ord-1", "ord-2"])
@@ -865,7 +948,7 @@ class TestBatchCancelWireShapeAsync:
         from kalshi.models.orders import BatchCancelOrdersRequestOrder
 
         route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         await orders.batch_cancel(
@@ -895,7 +978,7 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
         self, orders: AsyncOrdersResource
     ) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         # AsyncMock + wraps forwards every call to the real async method,
@@ -912,18 +995,6 @@ class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
                 "/portfolio/orders/batched",
                 json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
             )
-
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_batch_cancel_handles_204_no_content(self, orders: AsyncOrdersResource) -> None:
-        """Helper returns None on 204 — verifies it goes through the
-        shared response-handling path, not a raw ``transport.request`` call.
-        """
-        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(204)
-        )
-
-        await orders.batch_cancel(["ord-1"])  # must not raise on empty body
 
 
 class TestAmendWireShapeAsync:

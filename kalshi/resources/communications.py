@@ -25,6 +25,8 @@ from kalshi.resources._base import (
     SyncResource,
     _check_request_exclusive,
     _params,
+    _seg,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -70,6 +72,7 @@ def _list_rfqs_params(
     creator_user_id: str | None,
     user_filter: UserFilterLiteral | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=100)
     return _params(
         cursor=cursor,
         limit=limit,
@@ -96,6 +99,7 @@ def _list_quotes_params(
     user_filter: UserFilterLiteral | None,
     rfq_user_filter: UserFilterLiteral | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=500)
     return _params(
         cursor=cursor,
         limit=limit,
@@ -254,7 +258,7 @@ class CommunicationsResource(SyncResource):
 
     def get_rfq(self, rfq_id: str) -> GetRFQResponse:
         self._require_auth()
-        data = self._get(f"/communications/rfqs/{rfq_id}")
+        data = self._get(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
         return GetRFQResponse.model_validate(data)
 
     @overload
@@ -296,7 +300,7 @@ class CommunicationsResource(SyncResource):
 
     def delete_rfq(self, rfq_id: str) -> None:
         self._require_auth()
-        self._delete(f"/communications/rfqs/{rfq_id}")
+        self._delete(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
 
     def list_quotes(
         self,
@@ -368,7 +372,7 @@ class CommunicationsResource(SyncResource):
 
     def get_quote(self, quote_id: str) -> GetQuoteResponse:
         self._require_auth()
-        data = self._get(f"/communications/quotes/{quote_id}")
+        data = self._get(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
         return GetQuoteResponse.model_validate(data)
 
     @overload
@@ -406,7 +410,7 @@ class CommunicationsResource(SyncResource):
 
     def delete_quote(self, quote_id: str) -> None:
         self._require_auth()
-        self._delete(f"/communications/quotes/{quote_id}")
+        self._delete(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
 
     @overload
     def accept_quote(
@@ -425,12 +429,12 @@ class CommunicationsResource(SyncResource):
     ) -> None:
         self._require_auth()
         body = _build_accept_quote_body(request, accepted_side=accepted_side)
-        self._put(f"/communications/quotes/{quote_id}/accept", json=body)
+        self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept", json=body)
 
     def confirm_quote(self, quote_id: str) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
-        self._put(f"/communications/quotes/{quote_id}/confirm", json={})
+        self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm", json={})
 
 
 class AsyncCommunicationsResource(AsyncResource):
@@ -490,7 +494,7 @@ class AsyncCommunicationsResource(AsyncResource):
 
     async def get_rfq(self, rfq_id: str) -> GetRFQResponse:
         self._require_auth()
-        data = await self._get(f"/communications/rfqs/{rfq_id}")
+        data = await self._get(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
         return GetRFQResponse.model_validate(data)
 
     @overload
@@ -532,7 +536,7 @@ class AsyncCommunicationsResource(AsyncResource):
 
     async def delete_rfq(self, rfq_id: str) -> None:
         self._require_auth()
-        await self._delete(f"/communications/rfqs/{rfq_id}")
+        await self._delete(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
 
     async def list_quotes(
         self,
@@ -606,7 +610,7 @@ class AsyncCommunicationsResource(AsyncResource):
 
     async def get_quote(self, quote_id: str) -> GetQuoteResponse:
         self._require_auth()
-        data = await self._get(f"/communications/quotes/{quote_id}")
+        data = await self._get(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
         return GetQuoteResponse.model_validate(data)
 
     @overload
@@ -646,7 +650,7 @@ class AsyncCommunicationsResource(AsyncResource):
 
     async def delete_quote(self, quote_id: str) -> None:
         self._require_auth()
-        await self._delete(f"/communications/quotes/{quote_id}")
+        await self._delete(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
 
     @overload
     async def accept_quote(
@@ -665,9 +669,9 @@ class AsyncCommunicationsResource(AsyncResource):
     ) -> None:
         self._require_auth()
         body = _build_accept_quote_body(request, accepted_side=accepted_side)
-        await self._put(f"/communications/quotes/{quote_id}/accept", json=body)
+        await self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept", json=body)  # noqa: E501
 
     async def confirm_quote(self, quote_id: str) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
-        await self._put(f"/communications/quotes/{quote_id}/confirm", json={})
+        await self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm", json={})  # noqa: E501

@@ -420,8 +420,16 @@ class TestOrdersBatch:
                 200,
                 json={
                     "orders": [
-                        order_dict(order_id="b1", ticker="A"),
-                        order_dict(order_id="b2", ticker="B"),
+                        {
+                            "order": order_dict(order_id="b1", ticker="A"),
+                            "error": None,
+                            "client_order_id": "c1",
+                        },
+                        {
+                            "order": order_dict(order_id="b2", ticker="B"),
+                            "error": None,
+                            "client_order_id": "c2",
+                        },
                     ]
                 },
             )
@@ -430,9 +438,53 @@ class TestOrdersBatch:
             CreateOrderRequest(ticker="A", side="yes", action="buy"),
             CreateOrderRequest(ticker="B", side="no", action="buy"),
         ]
+        from kalshi.models.orders import BatchCreateOrdersResponse
+
         result = orders.batch_create(reqs)
-        assert len(result) == 2
-        assert result[0].order_id == "b1"
+        assert isinstance(result, BatchCreateOrdersResponse)
+        assert len(result.orders) == 2
+        assert result.orders[0].order is not None
+        assert result.orders[0].order.order_id == "b1"
+        assert result.orders[0].client_order_id == "c1"
+
+    @respx.mock
+    def test_batch_create_partial_failure_does_not_crash(
+        self, orders: OrdersResource
+    ) -> None:
+        """#194: a failed leg returns ``{"order": null, "error": {...}}``.
+
+        The old SDK called ``Order.model_validate(None)`` and tore down the
+        whole result; the typed envelope must preserve the per-leg shape.
+        """
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order": order_dict(order_id="ok", ticker="A"),
+                            "error": None,
+                            "client_order_id": "good",
+                        },
+                        {
+                            "order": None,
+                            "error": {"code": "bad_price", "message": "rejected"},
+                            "client_order_id": "bad",
+                        },
+                    ]
+                },
+            )
+        )
+        result = orders.batch_create(
+            [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+        )
+        assert len(result.orders) == 2
+        assert result.orders[0].order is not None
+        assert result.orders[0].error is None
+        assert result.orders[1].order is None
+        assert result.orders[1].error is not None
+        assert result.orders[1].error["code"] == "bad_price"
+        assert result.orders[1].client_order_id == "bad"
 
 
 class TestOrdersFills:
@@ -802,7 +854,7 @@ class TestBatchCancelWireShape:
         import json
 
         route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         orders.batch_cancel(["ord-1", "ord-2"])
@@ -821,7 +873,7 @@ class TestBatchCancelWireShape:
         from kalshi.models.orders import BatchCancelOrdersRequestOrder
 
         route = respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         orders.batch_cancel(
@@ -848,7 +900,7 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
     @respx.mock
     def test_batch_cancel_uses_delete_with_body_helper(self, orders: OrdersResource) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={})
+            return_value=httpx.Response(200, json={"orders": []})
         )
 
         # patch.object + wraps forwards every call to the real method,
@@ -865,28 +917,71 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
             )
 
     @respx.mock
-    def test_batch_cancel_parses_200_with_json_body(self, orders: OrdersResource) -> None:
-        """New base-class helper reads the response body on non-204; the
-        old local helper discarded it. Confirms the sync path parses JSON
-        without raising when the server returns 200 with content.
+    def test_batch_cancel_returns_typed_response_with_reduced_by_fp(
+        self, orders: OrdersResource
+    ) -> None:
+        """#194: response carries per-leg ``reduced_by_fp`` (Decimal,
+        load-bearing for risk reconciliation). Previous SDK discarded it.
         """
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
-            return_value=httpx.Response(200, json={"cancelled": 2})
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "ord-1",
+                            "reduced_by_fp": "3",
+                            "order": None,
+                            "error": None,
+                        },
+                    ]
+                },
+            )
         )
+        from kalshi.models.orders import BatchCancelOrdersResponse
 
-        orders.batch_cancel(["ord-1", "ord-2"])  # must not raise on JSON body
+        result = orders.batch_cancel(["ord-1"])
+        assert isinstance(result, BatchCancelOrdersResponse)
+        assert len(result.orders) == 1
+        assert result.orders[0].order_id == "ord-1"
+        assert result.orders[0].reduced_by_fp == Decimal("3")
+        assert result.orders[0].error is None
 
     @respx.mock
-    def test_batch_cancel_handles_204_no_content(self, orders: OrdersResource) -> None:
-        """Helper returns None on 204 — verifies sync goes through the
-        shared response-handling path, not a raw ``transport.request`` call.
-        Mirrors the async sibling.
+    def test_batch_cancel_per_entry_error_surfaced(
+        self, orders: OrdersResource
+    ) -> None:
+        """#194: per-leg ``error`` is preserved; ``reduced_by_fp`` is ``0``
+        when the leg failed.
         """
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orders": [
+                        {
+                            "order_id": "ord-bad",
+                            "reduced_by_fp": "0",
+                            "order": None,
+                            "error": {"code": "not_found", "message": "gone"},
+                        },
+                    ]
+                },
+            )
+        )
+        result = orders.batch_cancel(["ord-bad"])
+        assert result.orders[0].reduced_by_fp == Decimal("0")
+        assert result.orders[0].error is not None
+        assert result.orders[0].error["code"] == "not_found"
+
+    @respx.mock
+    def test_batch_cancel_raises_on_204_no_content(self, orders: OrdersResource) -> None:
+        """v3.0.0: typed response required — 204 indicates spec drift."""
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
             return_value=httpx.Response(204)
         )
-
-        orders.batch_cancel(["ord-1"])  # must not raise on empty body
+        with pytest.raises(KalshiError, match="Expected BatchCancelOrdersResponse"):
+            orders.batch_cancel(["ord-1"])
 
     @respx.mock
     def test_batch_cancel_200_with_empty_body_raises(self, orders: OrdersResource) -> None:
@@ -1581,3 +1676,95 @@ class TestV2RequiresAuth:
                     orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
                 ),
             )
+
+
+class TestPathSegmentEncoding:
+    """#211: caller-supplied path segments must be URL-encoded so a
+    ticker/order_id containing ``/``, whitespace, or ``..`` cannot
+    misroute (silently 404 or hit a different handler).
+    """
+
+    @respx.mock
+    def test_order_id_with_slash_is_encoded_not_routing_attack(
+        self, orders: OrdersResource
+    ) -> None:
+        # ``/`` is encoded as ``%2F`` so the server receives the encoded
+        # segment, never a path-traversal-adjacent URL.
+        encoded_path = (
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/"
+            "%2F..%2Fadmin"
+        )
+        route = respx.get(encoded_path).mock(
+            return_value=httpx.Response(
+                200, json={"order": order_dict(order_id="o", ticker="M")},
+            )
+        )
+        orders.get("/../admin")
+        assert route.called
+
+    @respx.mock
+    def test_order_id_with_space_encoded(self, orders: OrdersResource) -> None:
+        encoded_path = (
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord%20a"
+        )
+        route = respx.get(encoded_path).mock(
+            return_value=httpx.Response(
+                200, json={"order": order_dict(order_id="o", ticker="M")},
+            )
+        )
+        orders.get("ord a")
+        assert route.called
+
+    def test_empty_string_order_id_raises_value_error(
+        self, orders: OrdersResource
+    ) -> None:
+        with pytest.raises(ValueError, match="order_id must be non-empty"):
+            orders.get("")
+
+    def test_whitespace_only_order_id_rejected(
+        self, orders: OrdersResource
+    ) -> None:
+        with pytest.raises(ValueError, match="order_id must be non-empty"):
+            orders.cancel("   ")
+
+    def test_dotdot_order_id_rejected(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match=r"cannot be '\.' or '\.\.'"):
+            orders.get("..")
+
+    def test_single_dot_order_id_rejected(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match=r"cannot be '\.' or '\.\.'"):
+            orders.get(".")
+
+
+class TestLimitValidation:
+    """#214: client-side spec-bound enforcement avoids a wasted round
+    trip and produces a more actionable error than a server 400.
+    """
+
+    def test_orders_list_rejects_limit_below_1(
+        self, orders: OrdersResource
+    ) -> None:
+        with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
+            orders.list(limit=0)
+
+    def test_orders_list_rejects_limit_above_1000(
+        self, orders: OrdersResource
+    ) -> None:
+        with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
+            orders.list(limit=1001)
+
+    @respx.mock
+    def test_orders_list_accepts_limit_at_boundaries(
+        self, orders: OrdersResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        orders.list(limit=1)
+        orders.list(limit=1000)
+
+    def test_fills_rejects_limit_above_1000(
+        self, orders: OrdersResource
+    ) -> None:
+        with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
+            orders.fills(limit=10_000)

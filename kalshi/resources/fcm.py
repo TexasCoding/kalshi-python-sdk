@@ -22,6 +22,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _params,
+    _validate_limit,
     _validate_max_pages,
 )
 
@@ -39,6 +40,7 @@ def _fcm_orders_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         subtrader_id=subtrader_id,
         ticker=ticker,
@@ -61,6 +63,7 @@ def _fcm_positions_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
     return _params(
         subtrader_id=subtrader_id,
         ticker=ticker,
