@@ -9,6 +9,7 @@ from kalshi.models.common import Page
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
+    MarketPosition,
     PositionsResponse,
     Settlement,
     TotalRestingOrderValue,
@@ -100,6 +101,45 @@ class PortfolioResource(SyncResource):
         )
         data = self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
+
+    def positions_all(
+        self,
+        *,
+        limit: int | None = None,
+        count_filter: str | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[MarketPosition]:
+        """Auto-paginate ``/portfolio/positions``, yielding each ``MarketPosition``.
+
+        Mirrors :meth:`settlements_all`. The endpoint response also carries
+        ``event_positions`` (aggregate roll-ups over the same underlying
+        markets); those are *not* surfaced here because page boundaries cut
+        the aggregate arbitrarily and concatenating across pages would not
+        recompute a meaningful event-level total. Callers that need the
+        event view should iterate :meth:`positions` page-by-page.
+        """
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _positions_params(
+            limit=limit,
+            cursor=None,
+            count_filter=count_filter,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
+        )
+        return self._list_all(
+            "/portfolio/positions",
+            MarketPosition,
+            "market_positions",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
 
     def settlements(
         self,
@@ -283,6 +323,37 @@ class AsyncPortfolioResource(AsyncResource):
         )
         data = await self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
+
+    def positions_all(
+        self,
+        *,
+        limit: int | None = None,
+        count_filter: str | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[MarketPosition]:
+        """Async counterpart of :meth:`PortfolioResource.positions_all`. Use ``async for``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _positions_params(
+            limit=limit,
+            cursor=None,
+            count_filter=count_filter,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
+        )
+        return self._list_all(
+            "/portfolio/positions",
+            MarketPosition,
+            "market_positions",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
 
     async def settlements(
         self,
