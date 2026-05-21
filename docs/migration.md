@@ -1,5 +1,126 @@
 # Migration
 
+## v2.3 → v2.4
+
+v2.4 ships one user-visible breaking change — the V1 batch order
+return shape (#194) — plus several additive surfaces: new typed
+exceptions, passphrase-protected PEMs, opt-in HTTP/2, and per-request
+`extra_headers`.
+
+### Breaking: `batch_create` / `batch_cancel` return typed envelopes
+
+Per #194, `orders.batch_create` previously returned `list[Order]` and
+crashed with `ValidationError` on the first failed leg;
+`orders.batch_cancel` returned `None` and discarded the per-leg
+`reduced_by_fp` counts the server actually sent. Both now return
+typed envelopes matching the V2 family — pair legs by
+`client_order_id` and check `entry.error` per leg.
+
+```python
+# v2.3
+orders: list[Order] = client.orders.batch_create(request=req)
+for order in orders:
+    print(order.order_id, order.status)
+
+# v2.4
+from kalshi.models import BatchCreateOrdersResponse
+
+resp: BatchCreateOrdersResponse = client.orders.batch_create(request=req)
+for entry in resp.orders:
+    if entry.error is not None:
+        logger.error("leg %s failed: %s", entry.client_order_id, entry.error)
+        continue
+    assert entry.order is not None
+    print(entry.order.order_id, entry.order.status)
+```
+
+`batch_cancel` follows the same shape: each `resp.orders[i]` exposes
+`order_id`, `reduced_by_fp` (the count of contracts that actually
+canceled — load-bearing for risk reconciliation), plus
+`order`/`error` for the affected leg.
+
+### New typed exceptions
+
+Per #201 / #204 / #226, three new subclasses of `KalshiError` join
+the existing hierarchy:
+
+- `KalshiConflictError` — HTTP **409** (e.g. duplicate
+  `client_order_id`).
+- `KalshiTimeoutError` — `httpx.TimeoutException` at the request
+  level. **The server may or may not have processed the request.**
+  POST/DELETE still never retry on this; reconcile by querying with
+  the original `client_order_id` before issuing a fresh attempt.
+- `KalshiPoolExhaustedError` — `httpx.PoolTimeout`. The request
+  never reached the wire and IS safe to retry on POST/DELETE.
+
+422 now also routes to `KalshiValidationError` (was 400 only).
+
+```python
+from kalshi import (
+    KalshiConflictError,
+    KalshiTimeoutError,
+    KalshiPoolExhaustedError,
+)
+
+try:
+    client.orders.create(request=req)
+except KalshiConflictError:
+    existing = client.orders.get_by_client_order_id(req.client_order_id)
+except KalshiPoolExhaustedError:
+    # never touched the wire — safe to retry
+    client.orders.create(request=req)
+except KalshiTimeoutError:
+    # reconcile before retrying — server may have committed
+    existing = client.orders.get_by_client_order_id(req.client_order_id)
+```
+
+### Passphrase-protected PEMs
+
+Per #217 / #233, `KalshiAuth.from_pem`, `from_key_path`, `from_env`,
+and `try_from_env` accept a `password=` kwarg (`str` / `bytes` / a
+zero-arg callable returning either — the callable form lets you
+defer fetching the secret from a vault until load-time). `from_env`
+/ `try_from_env` also read `KALSHI_PRIVATE_KEY_PASSPHRASE` from the
+environment; the explicit `password=` wins when both are set.
+Encrypted PEMs no longer have to be stripped to disk first.
+
+```python
+auth = KalshiAuth.from_key_path(
+    "your-key-id",
+    "~/.kalshi/private_key.pem",
+    password=lambda: vault.get_secret("kalshi-pem-pass"),
+)
+```
+
+### Opt-in HTTP/2
+
+Per #233, `KalshiConfig(http2=True)` enables HTTP/2 on the REST
+client (off by default for compat). The `h2` dependency is not
+installed by default; `KalshiConfig.__post_init__` fail-fasts with a
+clear message when `http2=True` is set without it:
+
+```bash
+pip install 'kalshi-sdk[http2]'
+```
+
+```python
+config = KalshiConfig(http2=True)
+client = KalshiClient(auth=auth, config=config)
+```
+
+### Per-request `extra_headers` (transport-only, for now)
+
+Per #220, `KalshiConfig.extra_headers` sets client-wide default
+headers, and `SyncTransport.request(..., extra_headers=...)` /
+`AsyncTransport.request(..., extra_headers=...)` merge per-call
+overrides on top. `KALSHI-ACCESS-*` signing headers always win, so
+callers cannot forge them via this surface. Resource-method plumbing
+— so e.g. `client.orders.create(..., extra_headers=...)` works
+directly — is tracked in #253 and not yet shipped in v2.4; only the
+transport-level entry point is public.
+
+---
+
 ## v2.2 → v2.3
 
 v2.3 is additive on the REST surface and **soft-breaking on the WebSocket
