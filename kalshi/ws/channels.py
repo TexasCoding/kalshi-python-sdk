@@ -11,7 +11,11 @@ from typing import Any
 
 from websockets.exceptions import ConnectionClosed
 
-from kalshi.errors import KalshiConnectionError, KalshiSubscriptionError
+from kalshi.errors import (
+    KalshiBackpressureError,
+    KalshiConnectionError,
+    KalshiSubscriptionError,
+)
 from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
 from kalshi.ws.connection import ConnectionManager
 
@@ -266,12 +270,19 @@ class SubscriptionManager:
         maxsize: int = 1000,
     ) -> Subscription:
         """Subscribe to a channel. Returns a Subscription with a durable client_id."""
-        if queue is None:
-            queue = MessageQueue(maxsize=maxsize, overflow=overflow)
-
-        sub_params = params or {}
         client_id = self._next_client_id
         self._next_client_id += 1
+        if queue is None:
+            # #256: propagate identity to the queue so a backpressure overflow
+            # raises with structured channel/client_id fields populated.
+            queue = MessageQueue(
+                maxsize=maxsize,
+                overflow=overflow,
+                channel=channel,
+                client_id=client_id,
+            )
+
+        sub_params = params or {}
         sub = Subscription(
             client_id=client_id, channel=channel, params=sub_params, queue=queue
         )
@@ -544,10 +555,23 @@ class SubscriptionManager:
         ``StopAsyncIteration``. Subsequent puts on the queue become
         no-ops (the queue is now closed). Safe to call for unknown
         ``client_id`` — it becomes a no-op.
+
+        #256: for ``KalshiBackpressureError`` the raise site populates
+        ``channel``/``client_id``/``maxsize`` from the queue's
+        construction-time metadata. Sid is not known to the queue
+        (it's assigned at subscribe-ack and may change on resubscribe)
+        so enrich it here from the subscription's current
+        ``server_sid`` when missing.
         """
         sub = self._subscriptions.get(client_id)
         if sub is None:
             return
+        if (
+            isinstance(exc, KalshiBackpressureError)
+            and exc.sid is None
+            and sub.server_sid is not None
+        ):
+            exc.sid = sub.server_sid
         await sub.queue.put_error(exc)
 
     def take_stash(self) -> dict[int, collections.deque[str]]:

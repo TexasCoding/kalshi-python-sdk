@@ -54,9 +54,18 @@ class MessageQueue(Generic[T]):
         self,
         maxsize: int = 1000,
         overflow: OverflowStrategy = OverflowStrategy.DROP_OLDEST,
+        *,
+        channel: str | None = None,
+        client_id: int | None = None,
     ) -> None:
         self._maxsize = maxsize
         self._overflow = overflow
+        # #256: identity metadata used to populate ``KalshiBackpressureError``
+        # fields at the ``put()`` raise site, so consumers iterating multiple
+        # queues can ``except KalshiBackpressureError as e: route(e.channel,
+        # e.client_id, ...)`` without parsing the message string.
+        self._channel = channel
+        self._client_id = client_id
         # `maxlen=maxsize+1` is a hard memory ceiling enforced by deque itself,
         # independent of `_size`. If the counter ever drifts (a put path that
         # forgets to increment, an exception between append and increment, etc.)
@@ -82,7 +91,10 @@ class MessageQueue(Generic[T]):
                 raise KalshiBackpressureError(
                     f"Message queue full ({self._maxsize} items). "
                     "Consumer is too slow. Consider increasing maxsize or "
-                    "switching to DROP_OLDEST overflow strategy."
+                    "switching to DROP_OLDEST overflow strategy.",
+                    channel=self._channel,
+                    client_id=self._client_id,
+                    maxsize=self._maxsize,
                 )
 
         self._buffer.append(item)

@@ -17,6 +17,7 @@ from kalshi.config import KalshiConfig
 from kalshi.errors import (
     KalshiBackpressureError,
     KalshiConnectionError,
+    KalshiOrderbookUnavailableError,
     KalshiSequenceGapError,
     KalshiSubscriptionError,
 )
@@ -341,6 +342,28 @@ class KalshiWebSocket:
         seq = data.get("seq")
         msg_type = data.get("type", "")
 
+        # #255: stale orderbook frames arriving after a teardown
+        # (resubscribe_one or server-initiated unsubscribe reaped the
+        # sid) must not mutate the local book. The dispatcher already
+        # drops unknown-sid frames at routing time, but the orderbook
+        # apply paths below ran BEFORE that check, so a stale snapshot
+        # could re-seed the manager under the old sid index and a stale
+        # delta could clobber the freshly-resynced book. Gate ALL
+        # downstream processing (seq tracking, validation, apply,
+        # dispatch) on the sid being currently mapped. Frames without a
+        # sid (control envelopes, untracked channels) fall through.
+        if (
+            msg_type in ("orderbook_snapshot", "orderbook_delta")
+            and isinstance(sid, int)
+            and self._sub_mgr is not None
+            and self._sub_mgr.get_subscription_by_sid(sid) is None
+        ):
+            logger.debug(
+                "Dropping stale %s for unmapped sid=%d (post-teardown race)",
+                msg_type, sid,
+            )
+            return
+
         prev_seq: int | None = None
         tracked = False
         if sid is not None and seq is not None and self._seq_tracker:
@@ -453,19 +476,22 @@ class KalshiWebSocket:
                 self._running = False
 
     async def _drain_resubscribe_stash(self) -> None:
-        """Replay frames captured during ``resubscribe_all`` through dispatch.
+        """Replay frames captured during a resubscribe through dispatch.
 
-        #176: ``SubscriptionManager._wait_for_response`` captures non-matching
-        data frames into a per-sid stash while a resubscribe is in flight,
-        because between ``_sid_to_client.clear()`` and the new sid mapping
-        the dispatcher has no route for those frames. After all subscribes
-        complete, this method drains the stash via ``_process_frame`` so
-        seq tracking and orderbook state stay consistent with the natural
-        arrival path.
+        #176/#254: ``SubscriptionManager._wait_for_response`` captures
+        non-matching data frames into a per-sid stash while ``_stashing``
+        is set — which happens around both ``resubscribe_all`` (full
+        reconnect) and ``resubscribe_one`` (single-sub gap recovery).
+        Between ``_sid_to_client.clear()`` (or the per-sid teardown) and
+        the new sid mapping landing, the dispatcher has no route for
+        those frames. After the resubscribe completes, this method
+        drains the stash via ``_process_frame`` so seq tracking and
+        orderbook state stay consistent with the natural arrival path.
 
-        Frames whose sid did not get re-mapped (subscription failed during
-        ``resubscribe_all``) are dropped with a debug log — there's no
-        consumer to deliver them to.
+        Frames whose sid did not get re-mapped (subscription failed
+        during ``resubscribe_all``, or the targeted sid was replaced
+        without re-mapping in ``resubscribe_one``) are dropped with a
+        debug log — there's no consumer to deliver them to.
         """
         if self._sub_mgr is None:
             return
@@ -557,6 +583,20 @@ class KalshiWebSocket:
                     next_seq=gap.received,
                 ),
             )
+            return
+
+        # 3. #254: drain the resubscribe-window stash. ``resubscribe_one``
+        # toggles ``_stashing`` around its unsubscribe+subscribe pair, so
+        # any data frames the server emitted during the sid handoff are
+        # captured in ``_sub_mgr._stash``. Without this drain they sit
+        # there until the next full reconnect, and the post-resubscribe
+        # consumer can see a forward seq gap (delta with seq>1 arriving
+        # before the snapshot it depends on). The shared helper replays
+        # any sid that still has a mapping (covers the new sid and any
+        # OTHER live subscriptions whose frames happened to land during
+        # the resubscribe window) and drops frames for sids that no
+        # longer route to a subscription, with a debug log.
+        await self._drain_resubscribe_stash()
 
     # ------------------------------------------------------------------
     # Internal subscribe helper
@@ -912,8 +952,21 @@ class _OrderbookIterator:
         await self._stream.__anext__()
         book = self._mgr.get(self._ticker)
         if book is None:
-            # This shouldn't happen after snapshot, but handle gracefully
-            return Orderbook(ticker=self._ticker)
+            # #257: between a gap-triggered ``remove_by_sid`` and the
+            # resync snapshot landing in the manager, the underlying
+            # stream can yield a frame while ``get(ticker)`` is still
+            # None. Previously this iterator masked the gap by yielding
+            # a fresh empty :class:`Orderbook` — indistinguishable from
+            # a real market with zero liquidity. A strategy reading
+            # bid/ask off the empty book might place orders against
+            # nothing. Surface the absence as a typed error so callers
+            # can halt (or wait for the next snapshot) explicitly.
+            raise KalshiOrderbookUnavailableError(
+                f"Local orderbook for {self._ticker!r} is unavailable "
+                "(snapshot torn down, resync snapshot not yet applied). "
+                "Halt or wait for the next snapshot before reading bid/ask.",
+                ticker=self._ticker,
+            )
         return book
 
 
