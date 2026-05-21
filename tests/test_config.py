@@ -176,6 +176,30 @@ class TestExtraHeadersForwarding:
         config_a.extra_headers["X-Trace-Id"] = "a"
         assert config_b.extra_headers == {}
 
+    def test_extra_headers_rejects_kalshi_access_uppercase(self) -> None:
+        # #298 follow-up: config.extra_headers must not be a back door for the
+        # SDK-signed KALSHI-ACCESS-* surface. The per-request guard is not
+        # enough on its own — the config path bypassed it.
+        with pytest.raises(ValueError, match="KALSHI-ACCESS-"):
+            KalshiConfig(extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
+
+    def test_extra_headers_rejects_kalshi_access_lowercase(self) -> None:
+        # Case-mismatched key (the forge surface that motivated the per-call
+        # _ci_merge fix) must also fail at construction.
+        with pytest.raises(ValueError, match=r"kalshi-access-key"):
+            KalshiConfig(extra_headers={"kalshi-access-key": "x"})
+
+    def test_extra_headers_rejects_kalshi_access_signature_and_timestamp(self) -> None:
+        # Any KALSHI-ACCESS-* prefix is rejected, not just KALSHI-ACCESS-KEY.
+        for header in ("KALSHI-ACCESS-SIGNATURE", "KALSHI-ACCESS-TIMESTAMP"):
+            with pytest.raises(ValueError, match="KALSHI-ACCESS-"):
+                KalshiConfig(extra_headers={header: "v"})
+
+    def test_extra_headers_with_non_auth_keys_ok(self) -> None:
+        # Sanity: regular custom headers still work.
+        cfg = KalshiConfig(extra_headers={"X-Trace-Id": "a", "User-Agent": "sdk"})
+        assert cfg.extra_headers == {"X-Trace-Id": "a", "User-Agent": "sdk"}
+
 
 class TestHttpClientTuning:
     """http2 and limits are exposed on KalshiConfig and forwarded to httpx."""

@@ -264,6 +264,7 @@ class SyncResource:
             "DELETE",
             path,
             json=json,
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:
@@ -504,6 +505,7 @@ class AsyncResource:
             "DELETE",
             path,
             json=json,
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:

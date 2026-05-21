@@ -133,6 +133,22 @@ class KalshiConfig:
                 "KalshiConfig.production() / KalshiConfig.demo(), or pass both "
                 "base_url and ws_base_url explicitly."
             )
+        # #298 follow-up: bot review flagged that config.extra_headers
+        # bypasses the per-request _assert_no_auth_headers check, so a caller
+        # could still seed KALSHI-ACCESS-* on the httpx.Client default headers
+        # and forge the auth surface. Validate at construction. The prefix
+        # check is inlined (rather than importing kalshi._base_client) because
+        # _base_client imports KalshiConfig — avoiding a circular import.
+        if self.extra_headers:
+            leaked = sorted(
+                k for k in self.extra_headers if k.lower().startswith("kalshi-access-")
+            )
+            if leaked:
+                raise ValueError(
+                    f"KalshiConfig.extra_headers must not include KALSHI-ACCESS-* "
+                    f"keys (got: {leaked!r}). These are reserved for SDK-managed "
+                    f"RSA-PSS signing."
+                )
         if self.http2:
             import importlib.util
 

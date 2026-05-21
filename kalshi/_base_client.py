@@ -164,7 +164,7 @@ def _would_exceed_budget(start: float, delay: float, total_timeout: float | None
 _AUTH_HEADER_PREFIX = "kalshi-access-"
 
 
-def _strip_auth_headers(h: dict[str, str] | None) -> dict[str, str] | None:
+def _assert_no_auth_headers(h: dict[str, str] | None) -> dict[str, str] | None:
     """Reject caller-supplied ``KALSHI-ACCESS-*`` keys (case-insensitive).
 
     #298: auth headers are SDK-managed (RSA-PSS signed per attempt) and
@@ -257,7 +257,7 @@ class SyncTransport:
         # #298: reject KALSHI-ACCESS-* in caller-supplied extra_headers
         # before any merging — auth headers are SDK-signed per attempt and
         # the only safe behaviour is a hard error at the boundary.
-        _strip_auth_headers(extra_headers)
+        _assert_no_auth_headers(extra_headers)
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
         # P1.6: canonicalize trailing slash BEFORE both signing and httpx call
@@ -466,7 +466,7 @@ class AsyncTransport:
         # #298: reject KALSHI-ACCESS-* in caller-supplied extra_headers
         # before any merging — auth headers are SDK-signed per attempt and
         # the only safe behaviour is a hard error at the boundary.
-        _strip_auth_headers(extra_headers)
+        _assert_no_auth_headers(extra_headers)
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
 

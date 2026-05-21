@@ -75,19 +75,19 @@ class TestOrders:
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="KALSHI-ACCESS-"),
         ):
-                client.orders.create(
-                    ticker="BTC",
-                    side="yes",
-                    action="buy",
-                    client_order_id="cli-1",
-                    count=1,
-                    yes_price=50,
-                    extra_headers={
-                        "KALSHI-ACCESS-KEY": "spoofed",
-                        "KALSHI-ACCESS-SIGNATURE": "spoofed-sig",
-                        "KALSHI-ACCESS-TIMESTAMP": "0",
-                    },
-                )
+            client.orders.create(
+                ticker="BTC",
+                side="yes",
+                action="buy",
+                client_order_id="cli-1",
+                count=1,
+                yes_price=50,
+                extra_headers={
+                    "KALSHI-ACCESS-KEY": "spoofed",
+                    "KALSHI-ACCESS-SIGNATURE": "spoofed-sig",
+                    "KALSHI-ACCESS-TIMESTAMP": "0",
+                },
+            )
 
     @respx.mock
     def test_cancel_order_threads_extra_headers(self, test_auth: KalshiAuth) -> None:
@@ -118,7 +118,7 @@ class TestMarkets:
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="KALSHI-ACCESS-"),
         ):
-                client.markets.get("BTC", extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
+            client.markets.get("BTC", extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
 
 
 class TestPortfolio:
@@ -158,7 +158,7 @@ class TestPortfolio:
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="KALSHI-ACCESS-"),
         ):
-                client.portfolio.balance(extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
+            client.portfolio.balance(extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
 
 
 # ---------------------------------------------------------------------------
@@ -180,15 +180,15 @@ class TestHeaderCollision298:
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="kalshi-access-key"),
         ):
-                client.orders.create(
-                    ticker="BTC",
-                    side="yes",
-                    action="buy",
-                    client_order_id="cli-1",
-                    count=1,
-                    yes_price=50,
-                    extra_headers={"kalshi-access-key": "X"},
-                )
+            client.orders.create(
+                ticker="BTC",
+                side="yes",
+                action="buy",
+                client_order_id="cli-1",
+                count=1,
+                yes_price=50,
+                extra_headers={"kalshi-access-key": "X"},
+            )
 
     @respx.mock
     def test_post_json_body_pins_content_type_against_caller_override(
@@ -230,6 +230,50 @@ class TestHeaderCollision298:
         # And it appeared exactly once.
         rid_lines = [k for k, _ in wire.raw if k.lower() == b"x-request-id"]
         assert len(rid_lines) == 1, rid_lines
+
+    @respx.mock
+    def test_delete_with_body_sync_pins_content_type(self, test_auth: KalshiAuth) -> None:
+        # #298 follow-up: bot review flagged that _delete_with_body (sync)
+        # left Content-Type unspecified, so a stale config.extra_headers or
+        # extra_headers={"content-type": "text/plain"} could ride on the wire
+        # alongside a JSON body. Mirror the _post/_put guarantee.
+        from kalshi.models.orders import BatchCancelOrdersV2Request
+
+        route = respx.delete(
+            f"{MOCK_BASE}/portfolio/events/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        with KalshiClient(auth=test_auth, config=_config()) as client:
+            client.orders.batch_cancel_v2(
+                request=BatchCancelOrdersV2Request(orders=[]),
+                extra_headers={"content-type": "text/plain"},
+            )
+        wire = route.calls.last.request.headers
+        assert wire["content-type"].startswith("application/json")
+        ct_lines = [k for k, _ in wire.raw if k.lower() == b"content-type"]
+        assert len(ct_lines) == 1, ct_lines
+
+    async def test_delete_with_body_async_pins_content_type(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # Async mirror of the sync wire-assertion above.
+        import respx as _respx
+
+        from kalshi import AsyncKalshiClient
+        from kalshi.models.orders import BatchCancelOrdersV2Request
+
+        with _respx.mock(assert_all_called=False) as router:
+            route = router.delete(
+                f"{MOCK_BASE}/portfolio/events/orders/batched"
+            ).mock(return_value=httpx.Response(200, json={"orders": []}))
+            async with AsyncKalshiClient(auth=test_auth, config=_config()) as client:
+                await client.orders.batch_cancel_v2(
+                    request=BatchCancelOrdersV2Request(orders=[]),
+                    extra_headers={"content-type": "text/plain"},
+                )
+            wire = route.calls.last.request.headers
+            assert wire["content-type"].startswith("application/json")
+            ct_lines = [k for k, _ in wire.raw if k.lower() == b"content-type"]
+            assert len(ct_lines) == 1, ct_lines
 
 
 # ---------------------------------------------------------------------------
