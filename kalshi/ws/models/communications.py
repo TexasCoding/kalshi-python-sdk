@@ -1,9 +1,7 @@
 """Communications channel message models (RFQ and quote notifications)."""
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -19,7 +17,7 @@ class RfqCreatedPayload(BaseModel):
     id: str
     creator_id: str
     market_ticker: str
-    created_ts: datetime
+    created_ts: AwareDatetime
     event_ticker: str | None = None
     contracts: FixedPointCount | None = Field(
         default=None,
@@ -47,7 +45,7 @@ class RfqDeletedPayload(BaseModel):
     id: str
     creator_id: str
     market_ticker: str
-    deleted_ts: datetime
+    deleted_ts: AwareDatetime
 
     # v0.14+ backfill (#162). Same RFQ context as RfqCreatedPayload —
     # surfaced again on delete for clients that subscribed mid-RFQ.
@@ -76,7 +74,7 @@ class QuoteCreatedPayload(BaseModel):
     no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
-    created_ts: datetime
+    created_ts: AwareDatetime
 
     # v0.14+ backfill (#162). Event linkage + RFQ offer/cost context echoed
     # on the quote so subscribers don't need to look up the parent RFQ.
@@ -143,7 +141,7 @@ class QuoteExecutedPayload(BaseModel):
     order_id: str
     client_order_id: str
     market_ticker: str
-    executed_ts: datetime
+    executed_ts: AwareDatetime
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
