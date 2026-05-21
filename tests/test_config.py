@@ -10,6 +10,8 @@ Covers two gaps flagged by Wave 5 audit (issue #99):
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 import pytest
 import respx
@@ -141,9 +143,7 @@ class TestExtraHeadersForwarding:
             transport.close()
 
     @respx.mock
-    def test_extra_headers_persist_across_multiple_requests(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    def test_extra_headers_persist_across_multiple_requests(self, test_auth: KalshiAuth) -> None:
         # Regression: extras are set on httpx.Client(headers=...), so every request
         # carries them — not just the first one.
         config = KalshiConfig(
@@ -198,9 +198,7 @@ class TestHttpClientTuning:
         finally:
             transport.close()
 
-    def test_custom_limits_forwarded_to_sync_client(
-        self, test_auth: KalshiAuth
-    ) -> None:
+    def test_custom_limits_forwarded_to_sync_client(self, test_auth: KalshiAuth) -> None:
         limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
         config = KalshiConfig(limits=limits)
         transport = SyncTransport(test_auth, config)
@@ -281,6 +279,8 @@ class TestWsExtraConfigFields:
         cfg = KalshiConfig(ws_json_loads=json.loads, ws_json_dumps=json.dumps)
         assert cfg.ws_json_loads is json.loads
         assert cfg.ws_json_dumps is json.dumps
+
+
 class TestHttp2ImportCheck:
     """P1.1: ``http2=True`` must fail-fast at construction if ``h2`` is missing,
     instead of deferring an opaque ImportError to the first request.
@@ -337,3 +337,88 @@ class TestHttp2ImportCheck:
         monkeypatch.setattr(_ilu, "find_spec", tracking_find_spec)
         KalshiConfig()
         assert "h2" not in called
+
+
+_UNKNOWN_BASE = "https://attacker.example/trade-api/v2"
+_UNKNOWN_WS = "wss://attacker.example/trade-api/ws/v2"
+
+
+class TestUnknownHostDefaultFail:
+    """#250: a typo or hostile ``KALSHI_API_BASE_URL`` value used to slip
+    through with only ``logger.warning``. Production log filters silently
+    drop the warning while the SDK keeps signing every request — including
+    the KALSHI-ACCESS-KEY and matching RSA-PSS signature — to the attacker.
+    Now: default-fail, with explicit opt-in for mock servers and proxies."""
+
+    def test_known_host_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        config = KalshiConfig(base_url=PRODUCTION_BASE_URL, ws_base_url=PRODUCTION_WS_URL)
+        assert config.base_url == PRODUCTION_BASE_URL
+
+    def test_unknown_host_raises_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        with pytest.raises(ValueError, match=r"not a known Kalshi endpoint"):
+            KalshiConfig(base_url=_UNKNOWN_BASE, ws_base_url=_UNKNOWN_WS)
+
+    def test_unknown_host_error_message_lists_known_hosts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        with pytest.raises(ValueError) as excinfo:
+            KalshiConfig(base_url=_UNKNOWN_BASE, ws_base_url=_UNKNOWN_WS)
+        msg = str(excinfo.value)
+        assert "api.elections.kalshi.com" in msg
+        assert "demo-api.kalshi.co" in msg
+        assert "allow_unknown_host=True" in msg
+        assert "KALSHI_ALLOW_UNKNOWN_HOST=1" in msg
+
+    def test_unknown_host_with_flag_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        with caplog.at_level(logging.WARNING, logger="kalshi"):
+            config = KalshiConfig(
+                base_url=_UNKNOWN_BASE,
+                ws_base_url=_UNKNOWN_WS,
+                allow_unknown_host=True,
+            )
+        assert config.base_url == _UNKNOWN_BASE
+        assert any("not a known Kalshi endpoint" in r.message for r in caplog.records)
+
+    def test_unknown_host_with_env_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.setenv("KALSHI_ALLOW_UNKNOWN_HOST", "1")
+        with caplog.at_level(logging.WARNING, logger="kalshi"):
+            config = KalshiConfig(base_url=_UNKNOWN_BASE, ws_base_url=_UNKNOWN_WS)
+        assert config.base_url == _UNKNOWN_BASE
+        assert any("not a known Kalshi endpoint" in r.message for r in caplog.records)
+
+    def test_env_opt_in_only_honors_exact_one(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Any value other than literal "1" must NOT opt in — otherwise a stale
+        # ``KALSHI_ALLOW_UNKNOWN_HOST=0`` from a previous shell would silently
+        # disable the check.
+        monkeypatch.setenv("KALSHI_ALLOW_UNKNOWN_HOST", "0")
+        with pytest.raises(ValueError, match=r"not a known Kalshi endpoint"):
+            KalshiConfig(base_url=_UNKNOWN_BASE, ws_base_url=_UNKNOWN_WS)
+        monkeypatch.setenv("KALSHI_ALLOW_UNKNOWN_HOST", "true")
+        with pytest.raises(ValueError, match=r"not a known Kalshi endpoint"):
+            KalshiConfig(base_url=_UNKNOWN_BASE, ws_base_url=_UNKNOWN_WS)
+
+    def test_localhost_ok_without_opt_in(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        config = KalshiConfig(
+            base_url="http://localhost:8080/trade-api/v2",
+            ws_base_url="ws://localhost:8080/trade-api/ws/v2",
+        )
+        assert "localhost" in config.base_url
+
+    def test_unknown_ws_host_also_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Unknown ws_base_url with a known base_url must also default-fail —
+        # the WS feed leaks the same KALSHI-ACCESS-KEY on connect.
+        monkeypatch.delenv("KALSHI_ALLOW_UNKNOWN_HOST", raising=False)
+        with pytest.raises(ValueError, match=r"not a known Kalshi endpoint"):
+            KalshiConfig(
+                base_url=PRODUCTION_BASE_URL,
+                ws_base_url="wss://attacker.example/trade-api/ws/v2",
+            )

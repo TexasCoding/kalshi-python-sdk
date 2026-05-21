@@ -22,8 +22,16 @@ for _v in (
     "KALSHI_API_BASE_URL",
     "KALSHI_WS_BASE_URL",
     "KALSHI_DEMO",
+    "KALSHI_ALLOW_UNKNOWN_HOST",
 ):
     os.environ.pop(_v, None)
+
+# #250: tests use ``https://test.kalshi.com/trade-api/v2`` as a respx-mocked
+# sentinel host; default-fail on unknown hosts would break ~25 fixture-based
+# files. Enabling the escape hatch process-wide here mirrors how a real caller
+# pointing at a mock server would do it. The new tests in test_config.py for
+# the default-fail behaviour explicitly ``monkeypatch.delenv`` it.
+os.environ["KALSHI_ALLOW_UNKNOWN_HOST"] = "1"
 
 
 @pytest.fixture
