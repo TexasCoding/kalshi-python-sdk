@@ -11,8 +11,28 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-from kalshi.auth import KalshiAuth
+from kalshi.auth import KalshiAuth, _normalize_percent_encoding
 from kalshi.errors import KalshiAuthError
+
+
+class TestNormalizePercentEncoding:
+    """#261: short-circuit when the path contains no ``%`` so the hot REST
+    signing path doesn't burn a regex compile + scan per request."""
+
+    def test_no_percent_returns_input_identity(self) -> None:
+        # Identity (``is``) is the contract — short-circuit must not allocate.
+        path = "/trade-api/v2/markets"
+        assert _normalize_percent_encoding(path) is path
+
+    def test_uppercase_percent_passthrough(self) -> None:
+        path = "/trade-api/v2/markets/ABC%2FDEF"
+        assert _normalize_percent_encoding(path) == path
+
+    def test_lowercase_percent_uppercased(self) -> None:
+        assert (
+            _normalize_percent_encoding("/trade-api/v2/markets/ABC%2fDEF")
+            == "/trade-api/v2/markets/ABC%2FDEF"
+        )
 
 
 class TestSignRequest:

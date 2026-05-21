@@ -44,6 +44,10 @@ def _normalize_percent_encoding(path: str) -> str:
         /markets/ABC%2fDEF -> /markets/ABC%2FDEF
         /markets/ABC%2FDEF -> /markets/ABC%2FDEF (no change)
     """
+    # #261: vast majority of signed paths contain no percent-encoding (e.g.
+    # /trade-api/v2/markets); skip the regex compile + scan in the hot path.
+    if "%" not in path:
+        return path
     return re.sub(
         r"%([0-9a-fA-F]{2})",
         lambda m: "%" + m.group(1).upper(),
