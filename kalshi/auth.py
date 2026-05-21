@@ -44,6 +44,10 @@ def _normalize_percent_encoding(path: str) -> str:
         /markets/ABC%2fDEF -> /markets/ABC%2FDEF
         /markets/ABC%2FDEF -> /markets/ABC%2FDEF (no change)
     """
+    # #261: vast majority of signed paths contain no percent-encoding (e.g.
+    # /trade-api/v2/markets); skip the regex compile + scan in the hot path.
+    if "%" not in path:
+        return path
     return re.sub(
         r"%([0-9a-fA-F]{2})",
         lambda m: "%" + m.group(1).upper(),
@@ -163,8 +167,7 @@ class KalshiAuth:
         key_id = os.environ.get("KALSHI_KEY_ID")
         if not key_id:
             raise KalshiAuthError(
-                "KALSHI_KEY_ID environment variable is not set. "
-                "Set it to your Kalshi API key ID."
+                "KALSHI_KEY_ID environment variable is not set. Set it to your Kalshi API key ID."
             )
 
         resolved_password = (
@@ -172,10 +175,17 @@ class KalshiAuth:
         )
 
         pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
+        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
+        # #249: refuse ambiguous credential bundle — naming both env vars makes
+        # the misconfiguration obvious in production logs.
+        if pem_string and key_path:
+            raise KalshiAuthError(
+                "Both KALSHI_PRIVATE_KEY and KALSHI_PRIVATE_KEY_PATH are set. "
+                "Provide exactly one — unset whichever you don't intend to use."
+            )
         if pem_string:
             return cls.from_pem(key_id, pem_string, password=resolved_password)
 
-        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
         if key_path:
             return cls.from_key_path(key_id, key_path, password=resolved_password)
 
@@ -211,10 +221,17 @@ class KalshiAuth:
         )
 
         pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
+        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
+        # #249: refuse ambiguous credential bundle — naming both env vars makes
+        # the misconfiguration obvious in production logs.
+        if pem_string and key_path:
+            raise KalshiAuthError(
+                "Both KALSHI_PRIVATE_KEY and KALSHI_PRIVATE_KEY_PATH are set. "
+                "Provide exactly one — unset whichever you don't intend to use."
+            )
         if pem_string:
             return cls.from_pem(key_id, pem_string, password=resolved_password)
 
-        key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
         if key_path:
             return cls.from_key_path(key_id, key_path, password=resolved_password)
 
@@ -289,8 +306,7 @@ class KalshiAuth:
         """
         if self._closed:
             raise RuntimeError(
-                "KalshiAuth has been closed; create a new instance to "
-                "sign further requests."
+                "KalshiAuth has been closed; create a new instance to sign further requests."
             )
         if self._sign_executor is None:
             with self._sign_executor_lock:

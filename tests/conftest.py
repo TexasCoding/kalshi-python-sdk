@@ -2,12 +2,36 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
+
+# Tests assume a clean KALSHI_* environment. The user's shell may have these
+# exported (real credentials, base URL overrides, etc.); strip them at import
+# time so tests stay hermetic regardless of where they're run.
+for _v in (
+    "KALSHI_KEY_ID",
+    "KALSHI_PRIVATE_KEY",
+    "KALSHI_PRIVATE_KEY_PATH",
+    "KALSHI_PRIVATE_KEY_PASSPHRASE",
+    "KALSHI_API_BASE_URL",
+    "KALSHI_WS_BASE_URL",
+    "KALSHI_DEMO",
+    "KALSHI_ALLOW_UNKNOWN_HOST",
+):
+    os.environ.pop(_v, None)
+
+# #250: tests use ``https://test.kalshi.com/trade-api/v2`` as a respx-mocked
+# sentinel host; default-fail on unknown hosts would break ~25 fixture-based
+# files. Enabling the escape hatch process-wide here mirrors how a real caller
+# pointing at a mock server would do it. The new tests in test_config.py for
+# the default-fail behaviour explicitly ``monkeypatch.delenv`` it.
+os.environ["KALSHI_ALLOW_UNKNOWN_HOST"] = "1"
 
 
 @pytest.fixture

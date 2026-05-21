@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -20,9 +21,7 @@ DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_WS_MAX_RETRIES = 10
 
-_KNOWN_HOSTS = frozenset(
-    {"api.elections.kalshi.com", "demo-api.kalshi.co"}
-)
+_KNOWN_HOSTS = frozenset({"api.elections.kalshi.com", "demo-api.kalshi.co"})
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 logger = logging.getLogger("kalshi")
@@ -71,6 +70,7 @@ class KalshiConfig:
     ws_close_timeout: float = 5.0
     ws_json_loads: Callable[[bytes | str], Any] | None = None
     ws_json_dumps: Callable[[Any], bytes | str] | None = None
+    allow_unknown_host: bool = False
 
     def __post_init__(self) -> None:
         # Strip trailing slash to prevent double-slash in auth signing paths
@@ -78,8 +78,26 @@ class KalshiConfig:
             object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
         if self.ws_base_url.endswith("/"):
             object.__setattr__(self, "ws_base_url", self.ws_base_url.rstrip("/"))
-        KalshiConfig._validate_url(self.base_url, "base_url", secure="https", plaintext="http")
-        KalshiConfig._validate_url(self.ws_base_url, "ws_base_url", secure="wss", plaintext="ws")
+        # #250: ``KALSHI_ALLOW_UNKNOWN_HOST=1`` is a process-wide escape hatch
+        # for mock servers and proxies — it relaxes the host check the same
+        # way the per-instance ``allow_unknown_host=True`` flag does.
+        allow_unknown = self.allow_unknown_host or (
+            os.environ.get("KALSHI_ALLOW_UNKNOWN_HOST", "").strip() == "1"
+        )
+        KalshiConfig._validate_url(
+            self.base_url,
+            "base_url",
+            secure="https",
+            plaintext="http",
+            allow_unknown_host=allow_unknown,
+        )
+        KalshiConfig._validate_url(
+            self.ws_base_url,
+            "ws_base_url",
+            secure="wss",
+            plaintext="ws",
+            allow_unknown_host=allow_unknown,
+        )
         # #202: prevent silently calling /trade-api or /v1 by enforcing the
         # v2 path component. Trailing slashes are already stripped above.
         base_path = urlparse(self.base_url).path
@@ -119,7 +137,14 @@ class KalshiConfig:
                 )
 
     @staticmethod
-    def _validate_url(url: str, field_name: str, *, secure: str, plaintext: str) -> None:
+    def _validate_url(
+        url: str,
+        field_name: str,
+        *,
+        secure: str,
+        plaintext: str,
+        allow_unknown_host: bool,
+    ) -> None:
         """Reject URLs that would expose credentials (bad scheme or plaintext-to-remote)."""
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
@@ -131,9 +156,7 @@ class KalshiConfig:
                 f"got scheme={scheme!r} (url={url!r})"
             )
         if not host:
-            raise ValueError(
-                f"KalshiConfig.{field_name} is missing a host: {url!r}"
-            )
+            raise ValueError(f"KalshiConfig.{field_name} is missing a host: {url!r}")
         if scheme == plaintext and host not in _LOCAL_HOSTS:
             raise ValueError(
                 f"KalshiConfig.{field_name} must use {secure}:// for non-loopback "
@@ -142,10 +165,28 @@ class KalshiConfig:
                 f"expose the KALSHI-ACCESS-KEY header and request signature."
             )
         if host not in _KNOWN_HOSTS and host not in _LOCAL_HOSTS:
+            # #250: a typo or hostile env value (e.g. KALSHI_API_BASE_URL=
+            # https://api.elections.kalsi.com/trade-api/v2 — note the missing
+            # 'h') used to slip through with only a logger.warning. Production
+            # log filters silently drop the warning while the SDK keeps signing
+            # every request — including the KALSHI-ACCESS-KEY and matching
+            # RSA-PSS signature — to the attacker. Default-fail; mock servers
+            # and proxies opt in via ``allow_unknown_host=True`` or the
+            # process-wide ``KALSHI_ALLOW_UNKNOWN_HOST=1`` env var.
+            if not allow_unknown_host:
+                raise ValueError(
+                    f"KalshiConfig.{field_name} host {host!r} is not a known "
+                    f"Kalshi endpoint. Known hosts: {sorted(_KNOWN_HOSTS)}. "
+                    "If this is an intentional mock server, proxy, or "
+                    "alternate Kalshi region, opt in with "
+                    "KalshiConfig(allow_unknown_host=True) or set the "
+                    "environment variable KALSHI_ALLOW_UNKNOWN_HOST=1."
+                )
             logger.warning(
-                "KalshiConfig.%s host %r is not a known Kalshi "
-                "endpoint (%s). Requests will be signed and sent there "
-                "with your API key — verify this is intentional.",
+                "KalshiConfig.%s host %r is not a known Kalshi endpoint (%s). "
+                "Requests will be signed and sent there with your API key — "
+                "verify this is intentional. (allow_unknown_host=True or "
+                "KALSHI_ALLOW_UNKNOWN_HOST=1 silenced the default error.)",
                 field_name,
                 host,
                 sorted(_KNOWN_HOSTS),
