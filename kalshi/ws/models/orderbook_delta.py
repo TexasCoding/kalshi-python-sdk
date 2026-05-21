@@ -1,11 +1,55 @@
 """Orderbook delta and snapshot message models."""
+
 from __future__ import annotations
 
-from typing import Literal
+from decimal import Decimal
+from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, BeforeValidator, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import DollarDecimal, FixedPointCount, _coerce_decimal
+
+
+def _levels_to_dict(value: Any) -> Any:
+    """Collapse the snapshot wire payload into a single dict in one walk.
+
+    The wire format for ``yes_dollars_fp`` / ``no_dollars_fp`` is a list of
+    ``[price, count]`` string pairs. Previously the model validated that into
+    ``list[tuple[Decimal, Decimal]]`` and ``OrderbookManager`` then called
+    ``dict(...)`` on it — a second per-level Python walk that dominated
+    snapshot apply cost for deep books (#263).
+
+    Coercing each price/count to ``Decimal`` inline and returning a fully
+    typed ``dict[Decimal, Decimal]`` means (a) pydantic-core just bounces
+    the already-validated map back without a second walk, and (b)
+    ``_apply_snapshot_inplace`` adopts the dict directly with no rebuild.
+
+    Accepts ``None`` (→ empty), an already-built dict (direct constructor /
+    re-validation — keys/values still coerced so callers can pass strings),
+    or any iterable of 2-element ``(price, count)`` pairs (wire shape).
+    """
+    if value is None:
+        return {}
+    coerce = _coerce_decimal
+    if isinstance(value, dict):
+        # Fast path when keys/values are already Decimal (avoids hashing the
+        # same Decimal twice on dict rebuild).
+        if all(type(k) is Decimal and type(v) is Decimal for k, v in value.items()):
+            return value
+        return {coerce(k): coerce(v) for k, v in value.items()}
+    out: dict[Decimal, Decimal] = {}
+    for row in value:
+        price, count = row
+        out[coerce(price)] = coerce(count)
+    return out
+
+
+# Field type is ``dict[Decimal, Decimal]`` (not ``dict[DollarDecimal, FixedPointCount]``)
+# so pydantic-core does not re-run the per-item ``BeforeValidator(_coerce_decimal)``
+# walk on values our ``BeforeValidator`` has already coerced. The on-the-wire
+# semantics are unchanged — prices are dollar-decimals, counts are fixed-point
+# counts — they are simply both ``Decimal`` once parsed.
+PriceCountMap = Annotated[dict[Decimal, Decimal], BeforeValidator(_levels_to_dict)]
 
 
 class OrderbookSnapshotPayload(BaseModel):
@@ -13,18 +57,21 @@ class OrderbookSnapshotPayload(BaseModel):
 
     Wire format per AsyncAPI spec: ``yes_dollars_fp`` and ``no_dollars_fp`` are
     arrays of ``[price_in_dollars, contract_count_fp]`` string pairs. Each row
-    is two JSON strings, e.g. ``["0.5500", "100.00"]``. Consumers should parse
-    both elements as :class:`decimal.Decimal`.
+    is two JSON strings, e.g. ``["0.5500", "100.00"]``.
+
+    These are validated directly into ``dict[Decimal, Decimal]`` (price ->
+    count) in a single walk so ``OrderbookManager._apply_snapshot_inplace``
+    can adopt the map with no second iteration (#263).
     """
 
     market_ticker: str
     market_id: str
-    yes: list[tuple[DollarDecimal, FixedPointCount]] = Field(
-        default=[],
+    yes: PriceCountMap = Field(
+        default_factory=dict,
         validation_alias=AliasChoices("yes_dollars_fp", "yes"),
     )
-    no: list[tuple[DollarDecimal, FixedPointCount]] = Field(
-        default=[],
+    no: PriceCountMap = Field(
+        default_factory=dict,
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )
     model_config = {"extra": "allow", "populate_by_name": True}
@@ -58,6 +105,7 @@ class OrderbookDeltaPayload(BaseModel):
 
 class OrderbookSnapshotMessage(BaseModel):
     """Full orderbook snapshot, sent on initial subscribe."""
+
     type: str = "orderbook_snapshot"
     sid: int
     seq: int
@@ -67,6 +115,7 @@ class OrderbookSnapshotMessage(BaseModel):
 
 class OrderbookDeltaMessage(BaseModel):
     """Incremental orderbook update."""
+
     type: str = "orderbook_delta"
     sid: int
     seq: int

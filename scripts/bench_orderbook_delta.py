@@ -28,28 +28,41 @@ def _build_snapshot(ticker: str, depth: int) -> OrderbookSnapshotMessage:
     yes = [(Decimal("0." + f"{i:04d}"), Decimal("100.00")) for i in range(1, depth + 1)]
     no = [(Decimal("0." + f"{i:04d}"), Decimal("100.00")) for i in range(1, depth + 1)]
     return OrderbookSnapshotMessage(
-        sid=1, seq=1,
+        sid=1,
+        seq=1,
         msg=OrderbookSnapshotPayload(
-            market_ticker=ticker, market_id=ticker, yes=yes, no=no,
+            market_ticker=ticker,
+            market_id=ticker,
+            yes=yes,
+            no=no,
         ),
     )
 
 
 def _build_delta(
-    ticker: str, seq: int, price: Decimal, delta: Decimal, side: str,
+    ticker: str,
+    seq: int,
+    price: Decimal,
+    delta: Decimal,
+    side: str,
 ) -> OrderbookDeltaMessage:
     return OrderbookDeltaMessage(
-        sid=1, seq=seq,
+        sid=1,
+        seq=seq,
         msg=OrderbookDeltaPayload(
-            market_ticker=ticker, market_id=ticker,
-            price=price, delta=delta, side=side,  # type: ignore[arg-type]
+            market_ticker=ticker,
+            market_id=ticker,
+            price=price,
+            delta=delta,
+            side=side,  # type: ignore[arg-type]
         ),
     )
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     p.add_argument("--depth", type=int, default=100)
     p.add_argument("--updates", type=int, default=100_000)
     args = p.parse_args()
@@ -60,12 +73,16 @@ def main() -> None:
 
     # Pre-build deltas so the loop only measures _apply_delta_inplace.
     prices = [Decimal("0." + f"{(i % args.depth) + 1:04d}") for i in range(args.updates)]
-    deltas = [_build_delta(
-        ticker, seq=i + 2,
-        price=prices[i],
-        delta=Decimal("1.00") if i % 2 == 0 else Decimal("-1.00"),
-        side="yes" if i % 2 == 0 else "no",
-    ) for i in range(args.updates)]
+    deltas = [
+        _build_delta(
+            ticker,
+            seq=i + 2,
+            price=prices[i],
+            delta=Decimal("1.00") if i % 2 == 0 else Decimal("-1.00"),
+            side="yes" if i % 2 == 0 else "no",
+        )
+        for i in range(args.updates)
+    ]
 
     gc.collect()
     t0 = time.perf_counter()

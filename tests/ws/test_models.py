@@ -99,7 +99,10 @@ class TestOrderbookModels:
         assert msg.seq == 1
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert len(msg.msg.yes) == 2
-        assert msg.msg.yes[0] == (Decimal("0.50"), Decimal("100.00"))
+        assert msg.msg.yes == {
+            Decimal("0.50"): Decimal("100.00"),
+            Decimal("0.55"): Decimal("200.00"),
+        }
 
     def test_parse_delta(self) -> None:
         raw = {
@@ -129,8 +132,8 @@ class TestOrderbookModels:
             "msg": {"market_ticker": "T", "market_id": "x", "yes": [], "no": []},
         }
         msg = OrderbookSnapshotMessage.model_validate(raw)
-        assert msg.msg.yes == []
-        assert msg.msg.no == []
+        assert msg.msg.yes == {}
+        assert msg.msg.no == {}
 
     def test_delta_with_optional_fields(self) -> None:
         raw = {
@@ -980,9 +983,7 @@ class TestWsPayloadDecimalCoercion:
             {
                 "type": "market_positions",
                 "sid": 1,
-                "msg": market_positions_payload_dict(
-                    position_fp="100", volume_fp="200"
-                ),
+                "msg": market_positions_payload_dict(position_fp="100", volume_fp="200"),
             }
         )
         assert isinstance(msg.msg.position, Decimal)
@@ -1004,11 +1005,15 @@ class TestWsPayloadDecimalCoercion:
                 },
             }
         )
-        assert msg.msg.yes[0] == (Decimal("0.50"), Decimal("100.00"))
-        assert isinstance(msg.msg.yes[0][0], Decimal)
-        assert isinstance(msg.msg.yes[0][1], Decimal)
-        assert isinstance(msg.msg.no[0][0], Decimal)
-        assert isinstance(msg.msg.no[0][1], Decimal)
+        assert msg.msg.yes == {
+            Decimal("0.50"): Decimal("100.00"),
+            Decimal("0.55"): Decimal("200.00"),
+        }
+        assert msg.msg.no == {Decimal("0.45"): Decimal("150.00")}
+        for d in (msg.msg.yes, msg.msg.no):
+            for key, value in d.items():
+                assert isinstance(key, Decimal)
+                assert isinstance(value, Decimal)
 
     def test_rfq_created_contracts_parses_as_decimal(self) -> None:
         payload = RfqCreatedPayload.model_validate(
@@ -1189,6 +1194,8 @@ class TestOrderbookDeltaPayloadSideLiteral:
                     "side": "yes ",
                 }
             )
+
+
 # ---------- P2#3: populate_by_name across every WS payload model ----------
 
 _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
