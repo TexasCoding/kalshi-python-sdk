@@ -11,7 +11,7 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (98 operations across 19 resources, OpenAPI v3.18.0) and WebSocket API (13 channels).
+- **Full coverage** of the Kalshi REST API (98 operations across 19 resources, OpenAPI v3.18.0) and WebSocket API (11 typed `subscribe_*` channels + 2 escape-hatch).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
@@ -191,12 +191,16 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (13): 11 have dedicated `subscribe_*` methods — `ticker`,
-`trade`, `orderbook_delta`, `fill`, `market_positions`, `user_orders`,
-`order_group_updates`, `market_lifecycle_v2`, `multivariate`,
-`multivariate_market_lifecycle`, `communications`. The remaining two
-(`control_frames`, `root`) are reachable through the generic
-`subscribe(channel, ...)` escape hatch.
+Available channels (11 typed + 2 escape-hatch). Eleven have dedicated
+`subscribe_*` methods — `subscribe_ticker`, `subscribe_trade`,
+`subscribe_orderbook_delta`, `subscribe_fill`, `subscribe_market_positions`,
+`subscribe_user_orders`, `subscribe_order_group`,
+`subscribe_market_lifecycle`, `subscribe_multivariate`,
+`subscribe_multivariate_lifecycle`, `subscribe_communications`. The
+AsyncAPI-declared `control_frames` and `root` channels are reachable
+through the generic `subscribe(channel, ...)` escape hatch. See
+[docs/websockets.md](docs/websockets.md#the-11-channels) for the full
+channel table.
 
 ## Error handling
 
