@@ -123,6 +123,13 @@ class KalshiWebSocket:
 
     async def _start(self) -> None:
         """Connect and initialize managers. Does NOT start recv_loop yet."""
+        if self._connection is not None or self._running:
+            raise RuntimeError(
+                "KalshiWebSocket session is already started. Each instance "
+                "supports one active session at a time — await the existing "
+                "`async with ws.connect()` to exit, or create a fresh "
+                "KalshiWebSocket() for a new session."
+            )
         self._connection = ConnectionManager(
             auth=self._auth,
             config=self._config,
@@ -171,6 +178,20 @@ class KalshiWebSocket:
 
         if self._connection:
             await self._connection.close()
+
+        # #297: clear instance state so the same KalshiWebSocket() can be
+        # reused for a fresh `connect()` after a clean `__aexit__`. Done
+        # after close so any final teardown above still has access to the
+        # managers via self.* attributes.
+        self._connection = None
+        self._sub_mgr = None
+        self._seq_tracker = None
+        self._orderbook_mgr = None
+        self._dispatcher = None
+        self._recv_task = None
+        self._pause_pending = False
+        self._pause_granted.clear()
+        self._resume_signal.clear()
 
     async def _broadcast_sentinels(self) -> None:
         """Put a shutdown sentinel on every active subscription queue.

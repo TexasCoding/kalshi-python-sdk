@@ -31,12 +31,14 @@ class TestWebSocketLifecycle:
             assert session._connection.state == ConnectionState.CONNECTED
 
     async def test_close_sets_state(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        """#297: after a clean __aexit__, _connection (and the other managers)
+        are cleared so the same instance can be reused for a fresh connect()."""
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect():
             pass
-        assert ws._connection is not None
-        assert ws._connection.state == ConnectionState.CLOSED
+        assert ws._connection is None
+        assert ws._running is False
 
     async def test_connect_returns_session(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
@@ -56,6 +58,49 @@ class TestWebSocketLifecycle:
             pass
         # Should have at least DISCONNECTED->CONNECTING and CONNECTING->CONNECTED
         assert any(new == ConnectionState.CONNECTED for _, new in states)
+
+    async def test_double_start_raises(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        """#297: re-entering connect() on an active session must fail loudly
+        rather than silently clobbering the managers."""
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect():
+            with pytest.raises(RuntimeError, match="already started"):
+                async with ws.connect():
+                    pass
+
+    async def test_reconnect_after_stop_works(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        """#297: after a clean __aexit__, the same instance can be reused
+        for a fresh connect() — the guard rejects overlap, not legitimate
+        restart."""
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+
+        async with ws.connect() as session:
+            assert session._connection is not None
+        # State cleared after exit
+        assert ws._connection is None
+        assert ws._sub_mgr is None
+        assert ws._dispatcher is None
+        assert ws._recv_task is None
+        assert ws._running is False
+
+        # Reuse same instance: subscribe and receive a frame.
+        async with ws.connect() as session:
+            assert session._connection is not None
+            assert session._connection.state == ConnectionState.CONNECTED
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T1", market_id="x", yes_bid_dollars="55"
+                    ),
+                }
+            )
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert msg.msg.market_ticker == "T1"
 
 
 # ---------------------------------------------------------------------------

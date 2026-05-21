@@ -591,9 +591,9 @@ class TestIntegrationShutdown:
             assert msg.msg.yes_bid == 42
             # Context manager exit happens here
 
-        # After exit, the connection should be closed
-        assert ws._connection is not None
-        assert ws._connection.state == ConnectionState.CLOSED
+        # After exit, #297: managers are cleared so the instance can be reused.
+        assert ws._connection is None
+        assert ws._running is False
 
         # Sentinel was pushed; iteration should stop immediately
         items: list[object] = []
