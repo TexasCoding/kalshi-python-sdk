@@ -8,9 +8,10 @@ client-side phantom-key check catches user typos at call time.
 from __future__ import annotations
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 import kalshi.models
+from tests._request_model_fixtures import minimal_kwargs
 
 # Request bodies must stay `extra="forbid"`. Identified by name suffix per
 # the CLAUDE.md "Adding a new resource" convention. Both `Request` and the
@@ -66,6 +67,46 @@ def test_request_bodies_use_extra_forbid(name: str, cls: type[BaseModel]) -> Non
     assert extra == "forbid", (
         f"Request body {name} has extra={extra!r}; expected 'forbid' so "
         f"phantom kwargs fail at call time (CLAUDE.md key convention)."
+    )
+
+
+@pytest.mark.parametrize(
+    "cls", [c for _, c in _REQUEST_MODELS], ids=[n for n, _ in _REQUEST_MODELS],
+)
+def test_request_model_rejects_phantom_field(cls: type[BaseModel]) -> None:
+    """Behavioral pair for ``test_request_bodies_use_extra_forbid``.
+
+    The config test pins ``model_config['extra'] == 'forbid'``; this one
+    pins the resulting *behavior* — constructing the model with an unknown
+    kwarg raises ``ValidationError`` with an ``extra_forbidden`` entry. A
+    contributor who flips the config AND adds a typo'd field would slip
+    the config gate but get caught here (#219).
+    """
+    valid = minimal_kwargs(cls)
+    with pytest.raises(ValidationError) as exc:
+        cls(**valid, ghost_field="x")
+    assert any(err["type"] == "extra_forbidden" for err in exc.value.errors()), (
+        f"{cls.__name__} did not raise an extra_forbidden error for "
+        f"ghost_field='x'; got errors={exc.value.errors()!r}"
+    )
+
+
+def test_minimal_kwargs_helper_handles_all_request_models() -> None:
+    """Meta-test: the auto-builder covers every model in ``_REQUEST_MODELS``.
+
+    If a new Request model is added with an annotation the auto-builder
+    can't synthesize, this fails before the parametrized phantom test
+    surfaces a confusing per-case error.
+    """
+    failures: list[str] = []
+    for name, cls in _REQUEST_MODELS:
+        try:
+            cls(**minimal_kwargs(cls))
+        except (RuntimeError, TypeError) as e:
+            failures.append(f"{name}: {type(e).__name__}: {e}")
+    assert not failures, (
+        "minimal_kwargs helper cannot build these Request models; add "
+        f"overrides in tests/_request_model_fixtures.py: {failures}"
     )
 
 
