@@ -84,6 +84,20 @@ class KalshiClient:
         if config is not None:
             self._config = config
         else:
+            # #239: reject demo=True combined with an explicit non-demo
+            # base_url. The old setdefault logic silently honored base_url
+            # while still pinning ws_base_url to DEMO_WS_URL, producing a
+            # split REST/WS environment (real-money REST + demo WS feed).
+            if demo and base_url is not None and base_url.rstrip("/") != DEMO_BASE_URL:
+                raise ValueError(
+                    "Conflicting environment: demo=True together with explicit "
+                    f"base_url={base_url!r}. demo=True implies base_url="
+                    f"{DEMO_BASE_URL!r}; passing a different REST endpoint would "
+                    "leave ws_base_url pinned to the demo WS feed, producing a "
+                    "split REST/WS environment. Drop demo=True and pass both "
+                    "base_url and ws_base_url via a KalshiConfig, or use "
+                    "KalshiConfig.demo() / KalshiConfig.production()."
+                )
             config_kwargs: dict[str, object] = {}
             if base_url:
                 config_kwargs["base_url"] = base_url

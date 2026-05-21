@@ -14,7 +14,7 @@ from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.client import KalshiClient
-from kalshi.config import DEMO_BASE_URL, KalshiConfig
+from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
     KalshiNotFoundError,
@@ -61,13 +61,13 @@ def async_comms(
 
 @pytest.fixture
 def client(test_auth: KalshiAuth) -> KalshiClient:
-    cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
+    cfg = KalshiConfig(base_url=DEMO_BASE_URL, ws_base_url=DEMO_WS_URL, timeout=5.0, max_retries=0)
     return KalshiClient(auth=test_auth, config=cfg)
 
 
 @pytest.fixture
 def async_client(test_auth: KalshiAuth) -> AsyncKalshiClient:
-    cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
+    cfg = KalshiConfig(base_url=DEMO_BASE_URL, ws_base_url=DEMO_WS_URL, timeout=5.0, max_retries=0)
     return AsyncKalshiClient(auth=test_auth, config=cfg)
 
 

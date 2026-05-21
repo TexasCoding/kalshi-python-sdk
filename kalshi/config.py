@@ -88,6 +88,27 @@ class KalshiConfig:
                 f"KalshiConfig.base_url must include the /trade-api/v2 path "
                 f"component, got base_url={self.base_url!r}"
             )
+        # #239: reject split REST/WS environment. If base_url and ws_base_url
+        # resolve to *different* known Kalshi environments (prod vs demo), a
+        # caller who set demo=True alongside an explicit prod base_url would
+        # otherwise place live orders against signals from a demo book.
+        # Localhost on either side is fine (mock servers).
+        base_host = (urlparse(self.base_url).hostname or "").lower()
+        ws_host = (urlparse(self.ws_base_url).hostname or "").lower()
+        _prod_host = "api.elections.kalshi.com"
+        _demo_host = "demo-api.kalshi.co"
+        if (base_host == _prod_host and ws_host == _demo_host) or (
+            base_host == _demo_host and ws_host == _prod_host
+        ):
+            raise ValueError(
+                "KalshiConfig: split REST/WS environment is not allowed. "
+                f"base_url={self.base_url!r} and ws_base_url={self.ws_base_url!r} "
+                "resolve to different Kalshi environments (production vs demo). "
+                "REST and WS must point at the same environment to avoid placing "
+                "live orders against demo-derived signals (or vice versa). Use "
+                "KalshiConfig.production() / KalshiConfig.demo(), or pass both "
+                "base_url and ws_base_url explicitly."
+            )
         if self.http2:
             import importlib.util
 

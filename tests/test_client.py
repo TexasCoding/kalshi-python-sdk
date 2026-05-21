@@ -522,11 +522,12 @@ class TestKalshiClientConstructor:
         assert client._config.base_url == custom
         client.close()
 
-    def test_base_url_takes_precedence_over_demo(self, test_auth: KalshiAuth) -> None:
+    def test_demo_with_non_demo_base_url_rejected(self, test_auth: KalshiAuth) -> None:
+        # #239: demo=True + an explicit non-demo base_url used to silently produce
+        # a split REST/WS env (real-money REST + demo WS feed). Now rejected.
         custom = "https://custom.api.com/trade-api/v2"
-        client = KalshiClient(auth=test_auth, base_url=custom, demo=True)
-        assert client._config.base_url == custom
-        client.close()
+        with pytest.raises(ValueError, match="demo=True"):
+            KalshiClient(auth=test_auth, base_url=custom, demo=True)
 
     def test_default_production_url(self, test_auth: KalshiAuth) -> None:
         client = KalshiClient(auth=test_auth)

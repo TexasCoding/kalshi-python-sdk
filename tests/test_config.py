@@ -29,11 +29,18 @@ class TestTrailingSlashStripping:
     """F-Q-05: __post_init__ rstrips trailing slashes on base_url and ws_base_url."""
 
     def test_trailing_slash_stripped_on_base_url(self) -> None:
-        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2/")
+        # Pair with matching demo ws_base_url to satisfy #239 split-env check.
+        config = KalshiConfig(
+            base_url="https://demo-api.kalshi.co/trade-api/v2/",
+            ws_base_url=DEMO_WS_URL,
+        )
         assert config.base_url == "https://demo-api.kalshi.co/trade-api/v2"
 
     def test_trailing_slash_stripped_on_ws_base_url(self) -> None:
-        config = KalshiConfig(ws_base_url="wss://demo-api.kalshi.co/trade-api/ws/v2/")
+        config = KalshiConfig(
+            base_url=DEMO_BASE_URL,
+            ws_base_url="wss://demo-api.kalshi.co/trade-api/ws/v2/",
+        )
         assert config.ws_base_url == "wss://demo-api.kalshi.co/trade-api/ws/v2"
 
     def test_multiple_trailing_slashes_all_stripped(self) -> None:
@@ -63,7 +70,10 @@ class TestTrailingSlashStripping:
     def test_trailing_slash_base_url_still_passes_validation(self) -> None:
         # Regression: stripping happens before _validate_url, so a known-host URL
         # with a trailing slash must not trip the validator.
-        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2/")
+        config = KalshiConfig(
+            base_url="https://demo-api.kalshi.co/trade-api/v2/",
+            ws_base_url=DEMO_WS_URL,
+        )
         assert config.base_url == DEMO_BASE_URL
 
 
@@ -76,6 +86,7 @@ class TestTrailingSlashSignedRequest:
     ) -> None:
         config = KalshiConfig(
             base_url="https://demo-api.kalshi.co/trade-api/v2/",
+            ws_base_url=DEMO_WS_URL,
             timeout=5.0,
             max_retries=0,
         )
@@ -103,6 +114,7 @@ class TestExtraHeadersForwarding:
     def test_extra_headers_forwarded_to_request(self, test_auth: KalshiAuth) -> None:
         config = KalshiConfig(
             base_url="https://demo-api.kalshi.co/trade-api/v2",
+            ws_base_url=DEMO_WS_URL,
             timeout=5.0,
             max_retries=0,
             extra_headers={
@@ -136,6 +148,7 @@ class TestExtraHeadersForwarding:
         # carries them — not just the first one.
         config = KalshiConfig(
             base_url="https://demo-api.kalshi.co/trade-api/v2",
+            ws_base_url=DEMO_WS_URL,
             timeout=5.0,
             max_retries=0,
             extra_headers={"X-Trace-Id": "trace-1"},
@@ -211,12 +224,18 @@ class TestBaseUrlPathValidation:
             KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api")
 
     def test_base_url_with_trade_api_v2_accepted(self) -> None:
-        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2")
+        config = KalshiConfig(
+            base_url="https://demo-api.kalshi.co/trade-api/v2",
+            ws_base_url=DEMO_WS_URL,
+        )
         assert config.base_url == "https://demo-api.kalshi.co/trade-api/v2"
 
     def test_base_url_with_trailing_slash_accepted(self) -> None:
         # Trailing slash is stripped before path validation.
-        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2/")
+        config = KalshiConfig(
+            base_url="https://demo-api.kalshi.co/trade-api/v2/",
+            ws_base_url=DEMO_WS_URL,
+        )
         assert config.base_url == "https://demo-api.kalshi.co/trade-api/v2"
 
 

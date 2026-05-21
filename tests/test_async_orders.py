@@ -56,9 +56,9 @@ def unauth_orders_async(config: KalshiConfig) -> AsyncOrdersResource:
 @pytest.fixture
 def client(test_auth: KalshiAuth) -> AsyncKalshiClient:
     """AsyncKalshiClient wired to the demo base URL (matches wire-shape test mocks)."""
-    from kalshi.config import DEMO_BASE_URL
+    from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL
 
-    cfg = KalshiConfig(base_url=DEMO_BASE_URL, timeout=5.0, max_retries=0)
+    cfg = KalshiConfig(base_url=DEMO_BASE_URL, ws_base_url=DEMO_WS_URL, timeout=5.0, max_retries=0)
     return AsyncKalshiClient(auth=test_auth, config=cfg)
 
 
