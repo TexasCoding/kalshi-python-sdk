@@ -13,11 +13,19 @@ SEQUENCED_CHANNELS = {"orderbook_delta", "orderbook_snapshot", "order_group_upda
 
 @dataclass
 class SequenceGap:
-    """Represents a detected sequence gap."""
+    """Represents a detected sequence gap.
+
+    ``kind`` is ``"gap"`` for the normal forward-gap case (``received >
+    expected``) and ``"reset"`` for the seq-went-backwards case
+    (``received <= last``, treated as a server-side reset that preserved
+    the sid). Both cases require the same recovery action (clear local
+    state, resubscribe), so they share the ``on_gap`` callback.
+    """
 
     sid: int
     expected: int
     received: int
+    kind: str = "gap"
 
 
 class SequenceTracker:
@@ -39,10 +47,29 @@ class SequenceTracker:
         return channel in SEQUENCED_CHANNELS
 
     async def track(self, sid: int, seq: int | None, channel: str) -> bool:
-        """Track a message's sequence number. Returns True if OK, False if gap detected.
+        """Track a message's sequence number.
 
-        For non-sequenced channels, always returns True.
-        For seq=None on a sequenced channel, returns True (first message or snapshot).
+        Returns ``True`` if the caller should dispatch the message,
+        ``False`` if it should be dropped.
+
+        Three-way distinction for sequenced channels (#196):
+
+        1. ``seq == expected`` — happy path. Advance watermark, dispatch.
+        2. ``seq > expected`` — forward gap. Fire ``on_gap`` with
+           ``kind="gap"``, advance watermark to ``seq``, drop the
+           message (caller's resync handler will resubscribe).
+        3. ``seq == last`` — exact duplicate. **Drop** without
+           dispatch. Previously dispatched-without-tracking, which
+           let a re-delivered delta be applied twice to the orderbook.
+        4. ``seq < last`` — server-side reset that reused the sid (or
+           seq=1 after a high watermark). Fire ``on_gap`` with
+           ``kind="reset"``, rewind watermark to ``seq``, drop the
+           message so the resync handler can resubscribe from a clean
+           snapshot. Without this, every subsequent post-reset message
+           would be treated as another duplicate until the old
+           watermark was re-crossed, silently corrupting state.
+
+        Non-sequenced channels and ``seq=None`` always return ``True``.
         """
         if not self.should_track(channel) or seq is None:
             return True
@@ -59,13 +86,29 @@ class SequenceTracker:
             self._last_seq[sid] = seq
             return True
 
-        if seq <= last:
-            # Duplicate or old message, skip
-            logger.debug("Duplicate seq %d for sid %d (last=%d)", seq, sid, last)
-            return True
+        if seq == last:
+            # Exact duplicate. Drop instead of dispatching, so a redelivered
+            # delta cannot be applied twice to the orderbook.
+            logger.debug("Duplicate seq %d for sid %d (last=%d); dropping", seq, sid, last)
+            return False
 
-        # Gap detected
-        gap = SequenceGap(sid=sid, expected=expected, received=seq)
+        if seq < last:
+            # Server-side reset that preserved the sid (or seq=1 after a
+            # high watermark). Treat as a gap with kind="reset" so the
+            # gap handler clears local state and resubscribes from a
+            # fresh snapshot. Rewind the watermark so subsequent
+            # post-reset messages aren't silently dropped as "still old".
+            gap = SequenceGap(sid=sid, expected=expected, received=seq, kind="reset")
+            logger.warning(
+                "Sequence reset on sid=%d: last=%d got=%d", sid, last, seq,
+            )
+            self._last_seq[sid] = seq
+            if self._on_gap is not None:
+                await self._on_gap(gap)
+            return False
+
+        # Forward gap (seq > expected).
+        gap = SequenceGap(sid=sid, expected=expected, received=seq, kind="gap")
         logger.warning("Sequence gap: sid=%d expected=%d got=%d", sid, expected, seq)
         self._last_seq[sid] = seq  # Accept the new seq to continue tracking
 

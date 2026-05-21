@@ -28,12 +28,15 @@ class TestSequenceTracker:
         assert gaps[0].expected == 2
         assert gaps[0].received == 4
 
-    async def test_duplicate_seq_accepted(self) -> None:
+    async def test_duplicate_seq_dropped(self) -> None:
+        """#196: exact-duplicate seq is dropped (return False), not dispatched."""
         tracker = SequenceTracker()
         await tracker.track(1, 1, "orderbook_delta")
         await tracker.track(1, 2, "orderbook_delta")
         result = await tracker.track(1, 2, "orderbook_delta")  # duplicate
-        assert result is True  # duplicates are OK
+        assert result is False
+        # Watermark unchanged.
+        assert tracker.peek(1) == 2
 
     async def test_non_sequenced_channel_always_ok(self) -> None:
         tracker = SequenceTracker()

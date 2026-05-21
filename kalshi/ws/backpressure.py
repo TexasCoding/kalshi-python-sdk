@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import collections
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from enum import Enum
 from typing import Generic, TypeVar
 
@@ -12,6 +13,22 @@ from kalshi.errors import KalshiBackpressureError
 T = TypeVar("T")
 
 _SENTINEL = object()
+
+
+@dataclass(frozen=True)
+class _ErrorSentinel:
+    """Wraps a terminal exception so the iterator can raise it from ``__anext__``.
+
+    Used by :meth:`MessageQueue.put_error` to surface real, programmatic
+    error signals (e.g. ``KalshiBackpressureError`` from the recv loop)
+    to ``async for`` consumers — previously such errors were swallowed
+    and the iterator exited indistinguishably from a clean shutdown
+    (#207). The exception is buffered like any other item and raised
+    only when the consumer reaches it, preserving any prior in-flight
+    messages that landed before the error fired.
+    """
+
+    exc: BaseException
 
 
 class OverflowStrategy(Enum):
@@ -28,7 +45,9 @@ class MessageQueue(Generic[T]):
     """Bounded async queue with configurable overflow behavior.
 
     Implements AsyncIterator so consumers can ``async for msg in queue``.
-    Iteration stops when a sentinel is pushed (graceful shutdown).
+    Iteration stops when a sentinel is pushed (graceful shutdown), and
+    raises the wrapped exception when an error sentinel from
+    :meth:`put_error` is reached (#207).
     """
 
     def __init__(
@@ -71,9 +90,35 @@ class MessageQueue(Generic[T]):
         self._event.set()
 
     async def put_sentinel(self) -> None:
-        """Push shutdown sentinel. Causes async iteration to stop."""
+        """Push shutdown sentinel. Causes async iteration to stop.
+
+        Idempotent: after the queue is closed (sentinel or error sentinel
+        already pushed), subsequent calls are no-ops. Without this the
+        deque's ``maxlen=maxsize+1`` would evict a real buffered item to
+        make room for a redundant sentinel — losing the last in-flight
+        message between e.g. an ERROR-overflow ``put_error`` and the
+        recv-loop's broadcast ``put_sentinel`` fan-out.
+        """
+        if self._closed:
+            return
         self._closed = True
         self._buffer.append(_SENTINEL)
+        self._event.set()
+
+    async def put_error(self, exc: BaseException) -> None:
+        """Push a terminal error sentinel.
+
+        The iterator yields any items already in the buffer first, then
+        raises ``exc`` when it reaches the sentinel. Subsequent ``put`` /
+        ``put_error`` / ``put_sentinel`` calls are silently dropped (the
+        queue is now closed). Used by the recv loop on
+        ``KalshiBackpressureError`` so consumers see the failure rather
+        than a silent ``StopAsyncIteration`` (#207).
+        """
+        if self._closed:
+            return
+        self._closed = True
+        self._buffer.append(_ErrorSentinel(exc=exc))
         self._event.set()
 
     async def get(self) -> T:
@@ -85,6 +130,8 @@ class MessageQueue(Generic[T]):
         item = self._buffer.popleft()
         if item is _SENTINEL:
             raise StopAsyncIteration
+        if isinstance(item, _ErrorSentinel):
+            raise item.exc
         self._size -= 1
         return item  # type: ignore[return-value]
 
@@ -103,5 +150,7 @@ class MessageQueue(Generic[T]):
         item = self._buffer.popleft()
         if item is _SENTINEL:
             raise StopAsyncIteration
+        if isinstance(item, _ErrorSentinel):
+            raise item.exc
         self._size -= 1
         return item  # type: ignore[return-value]

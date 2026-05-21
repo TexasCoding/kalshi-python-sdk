@@ -26,11 +26,19 @@ class _BookState:
 
     Kept separate from the public :class:`Orderbook` model so the manager can
     mutate freely without leaking changes to previously-handed-out snapshots.
+
+    ``sid`` records the server-assigned subscription id that produced this
+    book's most recent snapshot. Used by
+    :meth:`OrderbookManager.remove_by_sid` so all-markets subscriptions
+    (no ``market_tickers`` param) can be cleanly torn down on gap recovery
+    or unsubscribe without the caller having to know which tickers the
+    server happened to forward through that sid.
     """
 
     ticker: str
     yes: dict[Decimal, Decimal] = field(default_factory=dict)
     no: dict[Decimal, Decimal] = field(default_factory=dict)
+    sid: int | None = None
 
     def to_orderbook(self) -> Orderbook:
         """Build a fresh ``Orderbook`` snapshot from the current state.
@@ -63,6 +71,11 @@ class OrderbookManager:
     returns a fresh :class:`Orderbook` instance. Consumers may safely retain
     references; subsequent updates will not mutate previously-returned books.
 
+    Per-sid tracking (:meth:`tickers_for_sid`, :meth:`remove_by_sid`) lets
+    callers tear down all books owned by a subscription without enumerating
+    tickers — critical for all-markets ``subscribe_orderbook_delta`` where
+    the server picks which tickers to forward.
+
     Usage:
         mgr = OrderbookManager()
         book = mgr.apply_snapshot(snapshot_msg)  # Initialize
@@ -72,19 +85,51 @@ class OrderbookManager:
 
     def __init__(self) -> None:
         self._books: dict[str, _BookState] = {}
+        # sid -> set of tickers seeded by snapshots on that sid. Maintained
+        # in lockstep with ``_books`` so ``remove_by_sid`` is O(k) in the
+        # number of tickers owned by the sid, not O(n) over every book.
+        self._sid_tickers: dict[int, set[str]] = {}
 
-    def apply_snapshot(self, msg: OrderbookSnapshotMessage) -> Orderbook:
-        """Initialize (or reset) a book from a full snapshot."""
+    def apply_snapshot(
+        self, msg: OrderbookSnapshotMessage, sid: int | None = None
+    ) -> Orderbook:
+        """Initialize (or reset) a book from a full snapshot.
+
+        ``sid`` records which subscription produced this snapshot so the
+        ticker can be torn down later via :meth:`remove_by_sid` — required
+        for all-markets subscriptions that don't pin tickers up front.
+        If omitted, defaults to ``msg.sid`` from the envelope.
+        """
         ticker = msg.msg.market_ticker
+        sid_val = sid if sid is not None else msg.sid
         yes_levels = dict(msg.msg.yes)
         no_levels = dict(msg.msg.no)
-        state = _BookState(ticker=ticker, yes=yes_levels, no=no_levels)
+
+        # If a prior book existed under a different sid (e.g. server moved
+        # the ticker between subs), unindex it from the old sid first so
+        # remove_by_sid on the stale id doesn't drop the live book.
+        prior = self._books.get(ticker)
+        if prior is not None and prior.sid is not None and prior.sid != sid_val:
+            old_bucket = self._sid_tickers.get(prior.sid)
+            if old_bucket is not None:
+                old_bucket.discard(ticker)
+                if not old_bucket:
+                    self._sid_tickers.pop(prior.sid, None)
+
+        state = _BookState(ticker=ticker, yes=yes_levels, no=no_levels, sid=sid_val)
         self._books[ticker] = state
+        if sid_val is not None:
+            bucket = self._sid_tickers.get(sid_val)
+            if bucket is None:
+                bucket = set()
+                self._sid_tickers[sid_val] = bucket
+            bucket.add(ticker)
         logger.debug(
-            "Orderbook snapshot: %s (%d yes, %d no levels)",
+            "Orderbook snapshot: %s (%d yes, %d no levels, sid=%s)",
             ticker,
             len(yes_levels),
             len(no_levels),
+            sid_val,
         )
         return state.to_orderbook()
 
@@ -135,8 +180,42 @@ class OrderbookManager:
 
     def remove(self, ticker: str) -> None:
         """Remove a book (e.g., on unsubscribe)."""
-        self._books.pop(ticker, None)
+        state = self._books.pop(ticker, None)
+        if state is not None and state.sid is not None:
+            bucket = self._sid_tickers.get(state.sid)
+            if bucket is not None:
+                bucket.discard(ticker)
+                if not bucket:
+                    self._sid_tickers.pop(state.sid, None)
+
+    def tickers_for_sid(self, sid: int) -> set[str]:
+        """Return tickers currently tracked under ``sid``.
+
+        Returns a fresh set; mutating the returned value does not affect
+        the manager's internal state.
+        """
+        bucket = self._sid_tickers.get(sid)
+        return set(bucket) if bucket is not None else set()
+
+    def remove_by_sid(self, sid: int) -> list[str]:
+        """Remove every book associated with ``sid``.
+
+        Returns the tickers that were removed (empty if the sid was
+        unknown). Used by the gap-recovery and unsubscribe paths so a
+        single call tears down all per-sid local state, including
+        all-markets subscriptions where the caller didn't know which
+        tickers the server would forward.
+        """
+        bucket = self._sid_tickers.pop(sid, None)
+        if not bucket:
+            return []
+        removed: list[str] = []
+        for ticker in bucket:
+            if self._books.pop(ticker, None) is not None:
+                removed.append(ticker)
+        return removed
 
     def clear(self) -> None:
         """Remove all books (e.g., on reconnect before resubscribe)."""
         self._books.clear()
+        self._sid_tickers.clear()

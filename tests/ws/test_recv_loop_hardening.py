@@ -350,17 +350,21 @@ class TestRecvLoopExceptionPolicy:
             assert recv_task is not None
             await asyncio.wait_for(recv_task, timeout=2.0)
 
-            # Iterator must terminate. Buffer holds [snapshot, SENTINEL]
-            # (sentinel is appended unconditionally by put_sentinel).
+            # #207: iterator yields the snapshot, then raises
+            # KalshiBackpressureError so the consumer can distinguish data
+            # loss from a clean shutdown. Previously the error was
+            # swallowed and the iterator exited with StopAsyncIteration.
+            from kalshi.errors import KalshiBackpressureError
             collected: list[object] = []
             try:
                 async with asyncio.timeout(3.0):
-                    async for msg in stream:
-                        collected.append(msg)
+                    with pytest.raises(KalshiBackpressureError):
+                        async for msg in stream:
+                            collected.append(msg)
             except TimeoutError:
                 pytest.fail(
-                    "#83 regression: BackpressureError was swallowed; "
-                    "iterator did not receive sentinel."
+                    "#83 regression: iterator did not terminate after "
+                    "BackpressureError."
                 )
             assert len(collected) == 1  # only the snapshot was queued
 
