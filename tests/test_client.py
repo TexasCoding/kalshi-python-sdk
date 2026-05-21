@@ -987,7 +987,6 @@ class TestKalshiClientFromEnvUnauthenticated:
         assert client._config.max_retries == 11
         client.close()
 
-
 class TestWidenedRetrySet:
     """#192: Cloudflare 5xx (520-524) + 408 are retryable on safe methods only."""
 
@@ -1062,6 +1061,36 @@ class TestErrorBodyBuffering:
         err = _map_error(resp)
         assert "suppressed" in str(err)
         assert "50000" in str(err)
+        # #252: typed exception class preserved even when body is suppressed.
+        assert isinstance(err, KalshiServerError)
+
+    def test_oversized_body_429_preserves_rate_limit_with_retry_after(self) -> None:
+        # #252: a hostile 429 with verbose body must still surface as
+        # KalshiRateLimitError and the Retry-After header (read separately
+        # from the body) must still populate.
+        resp = httpx.Response(
+            429,
+            headers={"content-length": "50000", "Retry-After": "2.5"},
+            text="x",
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after == 2.5
+        assert "suppressed" in str(err)
+
+    def test_oversized_body_401_preserves_auth_error(self) -> None:
+        # #252
+        resp = httpx.Response(401, headers={"content-length": "20000"}, text="x")
+        err = _map_error(resp)
+        assert isinstance(err, KalshiAuthError)
+        assert "suppressed" in str(err)
+
+    def test_oversized_body_409_preserves_conflict_error(self) -> None:
+        # #252
+        resp = httpx.Response(409, headers={"content-length": "20000"}, text="x")
+        err = _map_error(resp)
+        assert isinstance(err, KalshiConflictError)
+        assert "suppressed" in str(err)
 
     def test_error_message_truncated_to_1024_chars(self) -> None:
         long_msg = "A" * 5000

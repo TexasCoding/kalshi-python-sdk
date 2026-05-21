@@ -49,26 +49,30 @@ def _map_error(response: httpx.Response) -> KalshiError:
     status = response.status_code
 
     # #203: cap body buffering. If the server advertises an oversized body,
-    # short-circuit before httpx materialises it into memory.
+    # short-circuit before httpx materialises it into memory. We still fall
+    # through to status dispatch so the typed exception class is preserved
+    # (#252) — only the message changes.
     content_length = response.headers.get("content-length")
+    suppressed: bool = False
     if content_length:
         try:
             if int(content_length) > MAX_ERROR_BODY_BYTES:
-                return KalshiError(
-                    message=f"HTTP {status} (body {content_length} bytes, suppressed)",
-                    status_code=status,
-                )
+                suppressed = True
         except ValueError:
             pass  # malformed Content-Length — fall through to normal parse
 
-    try:
-        body = response.json()
-    except Exception:
+    body: dict[str, Any]
+    if suppressed:
         body = {}
-
-    raw_message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
-    # Truncate to bound log-line and exception-message size.
-    message = str(raw_message)[:MAX_ERROR_MESSAGE_CHARS]
+        message = f"HTTP {status} (body {content_length} bytes, suppressed)"
+    else:
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
+        raw_message = body.get("message") or body.get("error") or response.text or f"HTTP {status}"
+        # Truncate to bound log-line and exception-message size.
+        message = str(raw_message)[:MAX_ERROR_MESSAGE_CHARS]
 
     if status in (400, 422):
         details = body.get("details") or body.get("errors")
