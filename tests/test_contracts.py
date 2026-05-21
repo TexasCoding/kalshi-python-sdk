@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import typing
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from types import UnionType
@@ -562,10 +563,12 @@ def _unwrap_annotation(ann: Any) -> Any:
 def _sdk_type_kind(ann: Any) -> str:
     """Classify a Pydantic field annotation into a spec-aligned kind label.
 
-    Returns: ``'int'``, ``'str'``, ``'bool'``, ``'decimal'``, ``'list[<kind>]'``,
-    or ``'unknown'``. Decimals (DollarDecimal, FixedPointCount) count as
-    ``'decimal'`` — a Decimal-typed field is considered compatible with a
-    spec-declared dollar string.
+    Returns: ``'int'``, ``'str'``, ``'bool'``, ``'decimal'``, ``'datetime'``,
+    ``'list[<kind>]'``, or ``'unknown'``. Decimals (DollarDecimal,
+    FixedPointCount) count as ``'decimal'`` — a Decimal-typed field is
+    considered compatible with a spec-declared dollar string. ``datetime`` is
+    compatible with spec ``string`` + ``format=date-time`` (Pydantic
+    auto-coerces RFC3339 to tz-aware datetime).
     """
     base = _unwrap_annotation(ann)
     if base is int:
@@ -576,6 +579,8 @@ def _sdk_type_kind(ann: Any) -> str:
         return "bool"
     if base is Decimal:
         return "decimal"
+    if base is datetime:
+        return "datetime"
     origin = typing.get_origin(base)
     if origin is list:
         args = typing.get_args(base)
@@ -645,10 +650,14 @@ def _ws_field_type_violations(
     # Rule 2: spec string with format=date-time (ISO timestamp) must be str
     # on the SDK. An int-typed SDK field rejects the wire string
     # "2026-04-19T18:43:37.662364Z".
-    if spec_type == "string" and spec_format == "date-time" and sdk_kind not in ("str",):
+    if (
+        spec_type == "string"
+        and spec_format == "date-time"
+        and sdk_kind not in ("str", "datetime")
+    ):
         problems.append(
             f"{sdk_name!r}: spec '{spec_name}' is string (date-time), "
-            f"SDK typed as {sdk_kind}. Use str."
+            f"SDK typed as {sdk_kind}. Use str or datetime."
         )
 
     # Rule 3: spec array of strings (e.g. orderbook snapshot rows of
