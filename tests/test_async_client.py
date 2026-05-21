@@ -448,6 +448,17 @@ class TestAsyncKalshiClientFromEnv:
         client = AsyncKalshiClient.from_env()
         assert client._auth is None
 
+    def test_from_env_typed_kwargs_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """#266: typed kwargs in ``ClientInitKwargs`` reach ``__init__``. The
+        old ``**kwargs: object`` signature would have accepted ``time_out=10``
+        silently; the Unpack[TypedDict] signature catches that statically via
+        mypy. Runtime check pins that the forwarder still wires through
+        ``timeout`` and ``max_retries`` from the kwargs path."""
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        client = AsyncKalshiClient.from_env(timeout=7.5, max_retries=11)
+        assert client._config.timeout == 7.5
+        assert client._config.max_retries == 11
+
 
 class TestAsyncUnauthenticatedResourceGuards:
     @pytest.mark.asyncio

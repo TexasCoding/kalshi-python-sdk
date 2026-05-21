@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, Unpack
 
 import httpx
 
@@ -32,6 +32,27 @@ from kalshi.resources.search import AsyncSearchResource
 from kalshi.resources.series import AsyncSeriesResource
 from kalshi.resources.structured_targets import AsyncStructuredTargetsResource
 from kalshi.resources.subaccounts import AsyncSubaccountsResource
+
+
+class ClientInitKwargs(TypedDict, total=False):
+    """Typed forwarder shape for :meth:`AsyncKalshiClient.from_env`.
+
+    Mirrors the ``__init__`` keyword surface so ``mypy --strict`` catches typos
+    like ``from_env(time_out=10)`` instead of silently swallowing them under
+    ``**kwargs: object``. See #266.
+    """
+
+    key_id: str | None
+    private_key: str | bytes | None
+    private_key_path: str | Path | None
+    auth: KalshiAuth | None
+    config: KalshiConfig | None
+    demo: bool
+    base_url: str | None
+    timeout: float | None
+    max_retries: int | None
+    transport: httpx.AsyncBaseTransport | None
+
 
 if TYPE_CHECKING:
     from kalshi.ws.client import KalshiWebSocket
@@ -175,7 +196,7 @@ class AsyncKalshiClient:
         return _KalshiWebSocket(auth=self._auth, config=self._config)
 
     @classmethod
-    def from_env(cls, **kwargs: object) -> AsyncKalshiClient:
+    def from_env(cls, **kwargs: Unpack[ClientInitKwargs]) -> AsyncKalshiClient:
         """Create async client from environment variables.
 
         Reads:
@@ -186,12 +207,16 @@ class AsyncKalshiClient:
 
         Returns an unauthenticated client if no credentials are configured.
         """
-        auth = KalshiAuth.try_from_env()
-        demo = os.environ.get("KALSHI_DEMO", "").lower() == "true"
-        base_url = os.environ.get("KALSHI_API_BASE_URL")
-        client = cls(auth=auth, demo=demo, base_url=base_url, **kwargs)  # type: ignore[arg-type]
+        # Caller-supplied kwargs win over env-derived values (legacy behaviour
+        # via ``cls(auth=..., demo=..., base_url=..., **kwargs)`` would have
+        # TypeError'd on duplicates; setdefault preserves env semantics while
+        # giving the static signature a clean shape). See #266.
+        kwargs.setdefault("auth", KalshiAuth.try_from_env())
+        kwargs.setdefault("demo", os.environ.get("KALSHI_DEMO", "").lower() == "true")
+        kwargs.setdefault("base_url", os.environ.get("KALSHI_API_BASE_URL"))
+        client = cls(**kwargs)
         # from_env constructs auth locally — caller never owned it.
-        client._auth_owned = auth is not None
+        client._auth_owned = kwargs["auth"] is not None
         return client
 
     async def close(self) -> None:

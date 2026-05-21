@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from types import TracebackType
+from typing import TypedDict, Unpack
 
 import httpx
 
@@ -30,6 +31,26 @@ from kalshi.resources.search import SearchResource
 from kalshi.resources.series import SeriesResource
 from kalshi.resources.structured_targets import StructuredTargetsResource
 from kalshi.resources.subaccounts import SubaccountsResource
+
+
+class ClientInitKwargs(TypedDict, total=False):
+    """Typed forwarder shape for :meth:`KalshiClient.from_env`.
+
+    Mirrors the ``__init__`` keyword surface so ``mypy --strict`` catches typos
+    like ``from_env(time_out=10)`` instead of silently swallowing them under
+    ``**kwargs: object``. See #266.
+    """
+
+    key_id: str | None
+    private_key: str | bytes | None
+    private_key_path: str | Path | None
+    auth: KalshiAuth | None
+    config: KalshiConfig | None
+    demo: bool
+    base_url: str | None
+    timeout: float | None
+    max_retries: int | None
+    transport: httpx.BaseTransport | None
 
 
 class KalshiClient:
@@ -143,7 +164,7 @@ class KalshiClient:
         return self._auth is not None
 
     @classmethod
-    def from_env(cls, **kwargs: object) -> KalshiClient:
+    def from_env(cls, **kwargs: Unpack[ClientInitKwargs]) -> KalshiClient:
         """Create client from environment variables.
 
         Reads:
@@ -154,12 +175,16 @@ class KalshiClient:
 
         Returns an unauthenticated client if no credentials are configured.
         """
-        auth = KalshiAuth.try_from_env()
-        demo = os.environ.get("KALSHI_DEMO", "").lower() == "true"
-        base_url = os.environ.get("KALSHI_API_BASE_URL")
-        client = cls(auth=auth, demo=demo, base_url=base_url, **kwargs)  # type: ignore[arg-type]
+        # Caller-supplied kwargs win over env-derived values (legacy behaviour
+        # via ``cls(auth=..., demo=..., base_url=..., **kwargs)`` would have
+        # TypeError'd on duplicates; setdefault preserves env semantics while
+        # giving the static signature a clean shape). See #266.
+        kwargs.setdefault("auth", KalshiAuth.try_from_env())
+        kwargs.setdefault("demo", os.environ.get("KALSHI_DEMO", "").lower() == "true")
+        kwargs.setdefault("base_url", os.environ.get("KALSHI_API_BASE_URL"))
+        client = cls(**kwargs)
         # from_env constructs auth locally — caller never owned it.
-        client._auth_owned = auth is not None
+        client._auth_owned = kwargs["auth"] is not None
         return client
 
     def close(self) -> None:
