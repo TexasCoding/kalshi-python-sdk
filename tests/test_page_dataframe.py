@@ -310,7 +310,7 @@ class TestPageToPolarsDollarDecimal:
         assert df["price"].to_list()[0] == Decimal("0.5600")
 
     def test_page_to_polars_decimal_sum_is_decimal(self) -> None:
-        pl = pytest.importorskip("polars")
+        pytest.importorskip("polars")
         page: Page[_DollarRow] = Page(
             items=_dollar_items("0.5600", "0.5600"), cursor=None
         )

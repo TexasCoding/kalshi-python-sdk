@@ -1,10 +1,10 @@
 """Tests for DollarDecimal / FixedPointCount type-fallback branches in kalshi.types."""
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 from pydantic import BaseModel
-
-from decimal import Decimal
 
 from kalshi.types import DollarDecimal, FixedPointCount, _decimal_to_str, to_decimal
 
