@@ -102,6 +102,26 @@ class TestWebSocketLifecycle:
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.market_ticker == "T1"
 
+    async def test_failed_connect_allows_retry(self, test_auth) -> None:  # type: ignore[no-untyped-def]
+        """#297: a failed connect() must not brick the instance.
+
+        ``__aexit__`` does not run if ``__aenter__`` raises, so ``_start()``
+        is responsible for resetting any partially-assigned managers when
+        ``ConnectionManager.connect()`` blows up. Otherwise the guard at the
+        top of ``_start()`` permanently rejects every subsequent attempt.
+        """
+        # Unreachable port -> ConnectionManager.connect() will raise.
+        config = KalshiConfig(ws_base_url="ws://127.0.0.1:1", timeout=1.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        with pytest.raises(Exception):  # noqa: B017 — any connect failure must clear state
+            async with ws.connect():
+                pass
+        # Core invariant: state cleared so the guard doesn't trip on retry.
+        assert ws._connection is None
+        assert ws._sub_mgr is None
+        assert ws._dispatcher is None
+        assert ws._running is False
+
 
 # ---------------------------------------------------------------------------
 # Typed subscribe methods

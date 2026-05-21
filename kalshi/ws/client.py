@@ -130,29 +130,40 @@ class KalshiWebSocket:
                 "`async with ws.connect()` to exit, or create a fresh "
                 "KalshiWebSocket() for a new session."
             )
-        self._connection = ConnectionManager(
-            auth=self._auth,
-            config=self._config,
-            heartbeat_timeout=self._heartbeat_timeout,
-            on_state_change=self._on_state_change,
-        )
-        await self._connection.connect()
+        try:
+            self._connection = ConnectionManager(
+                auth=self._auth,
+                config=self._config,
+                heartbeat_timeout=self._heartbeat_timeout,
+                on_state_change=self._on_state_change,
+            )
+            await self._connection.connect()
 
-        self._sub_mgr = SubscriptionManager(self._connection, json_loads=self._json_loads)
-        self._seq_tracker = SequenceTracker(on_gap=self._handle_seq_gap)
-        self._orderbook_mgr = OrderbookManager()
-        self._dispatcher = MessageDispatcher(
-            sub_mgr=self._sub_mgr,
-            on_error=self._on_error,
-            seq_tracker=self._seq_tracker,
-            orderbook_mgr=self._orderbook_mgr,
-        )
-        self._running = True
+            self._sub_mgr = SubscriptionManager(self._connection, json_loads=self._json_loads)
+            self._seq_tracker = SequenceTracker(on_gap=self._handle_seq_gap)
+            self._orderbook_mgr = OrderbookManager()
+            self._dispatcher = MessageDispatcher(
+                sub_mgr=self._sub_mgr,
+                on_error=self._on_error,
+                seq_tracker=self._seq_tracker,
+                orderbook_mgr=self._orderbook_mgr,
+            )
+            self._running = True
 
-        # Register any callbacks that were buffered before connect()
-        for channel, func in self._pending_callbacks:
-            self._dispatcher.register_callback(channel, func)
-        self._pending_callbacks.clear()
+            # Register any callbacks that were buffered before connect()
+            for channel, func in self._pending_callbacks:
+                self._dispatcher.register_callback(channel, func)
+            self._pending_callbacks.clear()
+        except BaseException:
+            # #297: partial-failure cleanup. __aexit__ won't run if __aenter__
+            # raises, so reset state here to keep the instance reusable.
+            self._connection = None
+            self._sub_mgr = None
+            self._seq_tracker = None
+            self._orderbook_mgr = None
+            self._dispatcher = None
+            self._running = False
+            raise
 
     async def _stop(self) -> None:
         """Stop the receive loop and close the connection."""
@@ -179,10 +190,7 @@ class KalshiWebSocket:
         if self._connection:
             await self._connection.close()
 
-        # #297: clear instance state so the same KalshiWebSocket() can be
-        # reused for a fresh `connect()` after a clean `__aexit__`. Done
-        # after close so any final teardown above still has access to the
-        # managers via self.* attributes.
+        # Reset state AFTER awaiting close so teardown still has manager refs (#297).
         self._connection = None
         self._sub_mgr = None
         self._seq_tracker = None
