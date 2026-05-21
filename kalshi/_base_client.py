@@ -213,20 +213,20 @@ class SyncTransport:
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
-        config_extra = self._config.extra_headers or {}
-        per_call_extra = extra_headers or {}
-        body_headers = headers or {}
+        # #262: header layers config_extra/per_call_extra/body_headers are
+        # loop-invariant; only auth_headers changes per attempt (fresh
+        # timestamp). Merge the invariant base once outside the loop.
+        # Order matters: config defaults < per-request overrides
+        #               < body-helper headers < signed auth.
+        base_headers: dict[str, str] = {
+            **(self._config.extra_headers or {}),
+            **(extra_headers or {}),
+            **(headers or {}),
+        }
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
-            # Order matters: config defaults < per-request overrides
-            #               < body-helper headers < signed auth.
-            merged_headers = {
-                **config_extra,
-                **per_call_extra,
-                **body_headers,
-                **auth_headers,
-            }
+            merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -413,21 +413,22 @@ class AsyncTransport:
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
-        config_extra = self._config.extra_headers or {}
-        per_call_extra = extra_headers or {}
-        body_headers = headers or {}
+        # #262: see SyncTransport.request — hoist invariant header layers
+        # out of the retry loop; only auth_headers changes per attempt.
+        # Order matters: config defaults < per-request overrides
+        #               < body-helper headers < signed auth.
+        base_headers: dict[str, str] = {
+            **(self._config.extra_headers or {}),
+            **(extra_headers or {}),
+            **(headers or {}),
+        }
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
                 auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
             else:
                 auth_headers = {}
-            merged_headers = {
-                **config_extra,
-                **per_call_extra,
-                **body_headers,
-                **auth_headers,
-            }
+            merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
