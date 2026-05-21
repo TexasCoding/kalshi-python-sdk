@@ -138,3 +138,31 @@ field site that the value is *seconds* (not milliseconds, not a datetime).
 Callers wanting a :class:`datetime.datetime` can use
 ``datetime.fromtimestamp(value, tz=timezone.utc)``.
 """
+
+
+def _reject_bool_int(value: object) -> object:
+    """Reject ``bool`` on ``int`` fields used by request models.
+
+    ``bool`` is an ``int`` subclass, so Pydantic would otherwise coerce
+    ``True`` -> 1 / ``False`` -> 0 silently. #243 hardened
+    ``CreateOrderRequest.buy_max_cost`` against this for money cap; #295
+    extends the same guard to every other money-routing / counting int
+    field on Request models (subaccount, exchange_index, contracts_limit,
+    amount_cents, from_subaccount, to_subaccount, ...). Mirrors the
+    bool-rejection guard in :func:`_coerce_decimal` for the Decimal aliases.
+    """
+    if isinstance(value, bool):
+        raise ValueError(
+            "bool is not a valid int here — pass an explicit integer "
+            "(e.g. 1 instead of True). bool is an int subclass so True "
+            "would otherwise silently become 1."
+        )
+    return value
+
+
+StrictInt = Annotated[int, BeforeValidator(_reject_bool_int)]
+"""An ``int`` that rejects ``bool`` to avoid silent True->1 coercion on
+money-routing fields (subaccount, exchange_index, contracts_limit,
+amount_cents, from_subaccount, to_subaccount, ...). Use on every ``int``
+field of a Request model. Response models keep plain ``int`` — they
+parse server-emitted data which is never a Python bool. See #295."""

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, StrictInt
 
 
 class CreateSubaccountResponse(BaseModel):
@@ -31,9 +31,9 @@ class ApplySubaccountTransferRequest(BaseModel):
     """
 
     client_transfer_id: UUID
-    from_subaccount: int = Field(ge=0)
-    to_subaccount: int = Field(ge=0)
-    amount_cents: int = Field(gt=0)
+    from_subaccount: StrictInt = Field(ge=0)
+    to_subaccount: StrictInt = Field(ge=0)
+    amount_cents: StrictInt = Field(gt=0)
 
     model_config = {"extra": "forbid"}
 
