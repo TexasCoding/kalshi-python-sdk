@@ -125,10 +125,9 @@ class OrderbookManager:
         """
         ticker = msg.msg.market_ticker
         sid_val = sid if sid is not None else msg.sid
-        # #263/#296: the validator returns these dicts already typed as
-        # ``dict[Decimal, Decimal]``; adopt them by identity. The model is
-        # discarded immediately after this call so there are no external
-        # references that would observe later in-place delta mutations.
+        # Adopt by identity — validator already produced dict[Decimal, Decimal],
+        # and the model is discarded immediately after this call so nothing
+        # outside _BookState can observe later in-place delta mutations.
         yes_levels = msg.msg.yes
         no_levels = msg.msg.no
 
