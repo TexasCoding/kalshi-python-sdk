@@ -66,17 +66,13 @@ class MessageQueue(Generic[T]):
         # e.client_id, ...)`` without parsing the message string.
         self._channel = channel
         self._client_id = client_id
-        # `maxlen=maxsize+1` is a hard memory ceiling enforced by deque itself,
-        # independent of `_size`. If the counter ever drifts (a put path that
-        # forgets to increment, an exception between append and increment, etc.)
-        # the buffer still cannot grow without bound. +1 because put_sentinel
-        # appends without going through the size-check overflow path. (#173)
+        # `maxlen=maxsize+1` is a hard memory ceiling enforced by deque
+        # itself. Even if the size check is bypassed for any reason, the buffer
+        # still cannot grow without bound. +1 because put_sentinel appends
+        # without going through the size-check overflow path. (#173)
         self._buffer: collections.deque[T | object] = collections.deque(maxlen=maxsize + 1)
         self._event = asyncio.Event()
         self._closed = False
-        # O(1) size tracking: counts real items only (excludes sentinel).
-        # Kept in sync with _buffer on every put/popleft path.
-        self._size = 0
 
     async def put(self, item: T) -> None:
         """Add an item to the queue, applying overflow strategy if full."""
@@ -86,7 +82,6 @@ class MessageQueue(Generic[T]):
         if len(self._buffer) >= self._maxsize:
             if self._overflow is OverflowStrategy.DROP_OLDEST:
                 self._buffer.popleft()
-                self._size -= 1
             elif self._overflow is OverflowStrategy.ERROR:
                 raise KalshiBackpressureError(
                     f"Message queue full ({self._maxsize} items). "
@@ -98,7 +93,6 @@ class MessageQueue(Generic[T]):
                 )
 
         self._buffer.append(item)
-        self._size += 1
         self._event.set()
 
     async def put_sentinel(self) -> None:
@@ -144,12 +138,19 @@ class MessageQueue(Generic[T]):
             raise StopAsyncIteration
         if isinstance(item, _ErrorSentinel):
             raise item.exc
-        self._size -= 1
         return item  # type: ignore[return-value]
 
     def qsize(self) -> int:
-        """Number of items currently in the queue (excludes sentinel). O(1)."""
-        return self._size
+        """Number of items currently in the queue (excludes sentinel). O(1).
+
+        Derived from ``len(self._buffer)`` minus one when a terminal sentinel
+        has been appended (``put_sentinel`` / ``put_error`` both flip
+        ``_closed`` and push exactly one sentinel-shaped item).
+        """
+        n = len(self._buffer)
+        if self._closed and n:
+            return n - 1
+        return n
 
     def __aiter__(self) -> AsyncIterator[T]:
         return self
@@ -164,5 +165,4 @@ class MessageQueue(Generic[T]):
             raise StopAsyncIteration
         if isinstance(item, _ErrorSentinel):
             raise item.exc
-        self._size -= 1
         return item  # type: ignore[return-value]

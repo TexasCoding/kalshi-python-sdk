@@ -6,6 +6,7 @@ and dispatch to whichever transport the client was constructed with.
 
 from __future__ import annotations
 
+import asyncio
 import email.utils
 import logging
 import math
@@ -407,8 +408,6 @@ class AsyncTransport:
 
         See :meth:`SyncTransport.request` for ``extra_headers`` semantics.
         """
-        import asyncio
-
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
 
