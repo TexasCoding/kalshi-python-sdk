@@ -2,6 +2,264 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.5.0 — 2026-05-21
+
+Post-v2.4 multi-reviewer audit closure (`#273`). 34 issues across security,
+HTTP transport, WebSocket reliability, models/types, REST resources,
+performance, and docs/testing — identified by a 7-agent parallel review on
+top of the v2.4 sweep and executed across 4 sequential waves (W0 docs, W1
+money-risk, W2 medium, W3 polish) in disjoint git worktrees. 20 PRs merged;
+main is mypy --strict clean, ruff clean, 2742 unit tests passing.
+
+### Breaking changes
+
+Two user-visible breakages, both fence-and-forget. Migration in
+`docs/migration.md` v2.4 → v2.5 section.
+
+- **`orders.create()` kwarg path requires `count` and `action` explicitly**
+  (`#242`). Previously `client.orders.create(ticker=..., side="yes")` placed
+  a 1-contract live buy because `action` defaulted to `"buy"` and `count` to
+  `1`. Now raises `TypeError` before any HTTP request. The `request=...`
+  overload is unaffected; `CreateOrderRequest.count` no longer has a default.
+- **Six REST + three WS model fields widened from `str`/`float` to `Decimal`**
+  (`#258`, `#259`). WS: `OrderGroupPayload.contracts_limit` (`str` →
+  `FixedPointCount`), `TickerPayload.dollar_volume` and `dollar_open_interest`
+  (`str` → `DollarDecimal`). REST: `Market.floor_strike`, `Market.cap_strike`,
+  `Event.fee_multiplier_override`, `MarketLifecyclePayload.floor_strike`,
+  `Series.fee_multiplier`, `SeriesFeeChange.fee_multiplier` (bare `Decimal`
+  or `float` → `DollarDecimal` / `Decimal` via `_coerce_decimal`). Wire
+  format unchanged; consumers must adopt `Decimal` arithmetic.
+
+### Critical (money-risk fixes)
+
+- **WS: validation failure on a sequenced frame no longer silently advances
+  the seq watermark** (`#241`). Before: a malformed `orderbook_delta` /
+  `order_group_update` frame was logged + skipped but seq tracking had
+  already advanced, so the next legitimate frame matched expected-seq and
+  gap detection never fired — local orderbook silently corrupted with no
+  resync trigger. After: pre-validate + apply + dispatch is wrapped in a
+  try/except that rolls back the watermark on any exception, so the next
+  delta triggers a real gap-recovery resubscribe.
+- **REST/WS split-environment combinations rejected at construction**
+  (`#239`). Before: `KalshiClient(demo=True,
+  base_url="https://api.elections.kalshi.com/...")` (or the env-var
+  equivalent) silently produced a config where REST hit production but WS
+  hit demo — a WS-driven strategy could trade real money against a demo
+  book. After: `KalshiConfig.__post_init__` rejects mismatched REST/WS
+  hosts and the constructors raise `ValueError` with both inputs named.
+- **`CreateOrderRequest.buy_max_cost` validator rejects `bool`** (`#243`).
+  Before: `buy_max_cost=True` slipped through as `1` (1¢ cap) because
+  `bool` is an `int` subclass. After: explicit rejection, matching the
+  `_coerce_decimal` invariant set by v2.4's `#225`.
+- **`orders.create()` no longer silently defaults to 1-contract buy**
+  (`#242`, see Breaking changes).
+- **Transport retries network-level httpx errors on idempotent verbs**
+  (`#240`). `ConnectError` / `NetworkError` / `RemoteProtocolError` /
+  `ReadError` / `WriteError` now participate in the same `RETRYABLE_METHODS`
+  + backoff + total-timeout loop the timeout branch already uses for
+  GET/HEAD/OPTIONS. `ConnectError` on POST/DELETE is also safe (request
+  never reached the wire, mirroring v2.4's `#204` PoolTimeout carve-out).
+  Other transport errors on non-idempotent verbs still surface immediately
+  so the caller can reconcile via `client_order_id`. New
+  `KalshiNetworkError` raised when retries are exhausted.
+
+### High-impact correctness
+
+- **Errors `408` and `504` route to `KalshiTimeoutError`** (`#251`). Carries
+  the "may or may not have committed" semantic from v2.4's `#226`; callers
+  can branch on `except KalshiTimeoutError` and reconcile.
+- **Suppressed error bodies preserve the typed exception class** (`#252`).
+  A 429/401/409/422/504 whose body exceeds the 16KB `Content-Length` cap
+  still routes to the right subclass instead of degrading to
+  `KalshiError`. 429 Retry-After is still populated.
+- **WS: resubscribe-window stash drained on every gap recovery** (`#254`).
+  Frames captured between unsubscribe-ack and the new subscribe-ack are
+  replayed through `_process_frame` for the new sid (filtered by sid;
+  others dropped with a debug log). Was previously only drained on full
+  reconnect, so per-gap stashes accumulated until the next disconnect.
+- **WS: stale orderbook frames no longer mutate the local book** (`#255`).
+  Snapshot/delta apply is gated on subscription-existence at the configured
+  sid; frames arriving after teardown short-circuit before validation,
+  fixing a race where the high-level `subscribe_book` iterator could read a
+  stale book.
+- **WS: `_OrderbookIterator` raises `KalshiOrderbookUnavailableError`
+  instead of yielding an empty `Orderbook`** (`#257`). Before: if
+  `mgr.get(ticker)` returned `None` mid-resync, the iterator yielded an
+  empty book — indistinguishable from a real zero-liquidity market. After:
+  typed error surfaces the race so the caller can reattach to a fresh
+  iterator after the resync snapshot lands.
+- **WS: `KalshiBackpressureError` carries structured `channel` / `sid` /
+  `client_id` / `maxsize`** (`#256`). Matches the structured-error contract
+  v2.4's `#213` established for `KalshiSequenceGapError` /
+  `KalshiSubscriptionError`.
+- **WS: orphan `subscribed` acks released** (`#268`). If a `subscribe` task
+  is cancelled between send and ack, the server still completes the
+  subscription; the dispatcher now detects the orphan ack (sid present, no
+  client_id mapping) and emits `unsubscribe` so the sid doesn't leak.
+- **WS: snapshot payload `yes`/`no` required** (`#268`). A malformed
+  snapshot now raises `ValidationError` (which pairs cleanly with `#241`'s
+  seq rollback) instead of silently materializing an empty book.
+- **Auth: conflicting key inputs rejected explicitly** (`#249`).
+  `KalshiClient(private_key_path=..., private_key=...)` and dual env-var
+  (`KALSHI_PRIVATE_KEY` + `KALSHI_PRIVATE_KEY_PATH`) now raise instead of
+  silently preferring one source.
+- **Unknown `base_url` host fails closed by default** (`#250`). New
+  `KalshiConfig.allow_unknown_host=False` rejects hosts outside
+  `{api.elections.kalshi.com, demo-api.kalshi.co, localhost, 127.0.0.1,
+  ::1}` so a typo like `kalsi.com` no longer delivers signed requests to
+  an attacker. Opt-in via the field or `KALSHI_ALLOW_UNKNOWN_HOST=1`.
+- **`Decimal('NaN')` / `Infinity` rejected at the boundary** (`#270`).
+  `_coerce_decimal` calls `is_finite()` after coercion so a downstream
+  arithmetic NaN never ships `"NaN"` to a real-money order endpoint.
+- **Sign-executor close race fixed** (`#267`). `_get_sign_executor`
+  rechecks `_closed` under the lock so a racing `close()` can't leave a
+  freshly-instantiated `ThreadPoolExecutor` dangling.
+
+### Performance
+
+- **WS recv loop drops per-frame `asyncio.Task` + `asyncio.shield`**
+  (`#245`). Cooperative pause via `Event` + 50 ms poll instead of
+  allocating a `Task` / `Future` / contextvars copy per frame. Inline
+  dispatch on the hot path.
+- **`subscribe_book` iterator caches the materialized `Orderbook`**
+  (`#244`). Memoized on `_BookState`, invalidated by the in-place apply
+  helpers; eliminates the O(n log n) sort + 2N `OrderbookLevel`
+  validations per delta that the high-level iterator was paying on top of
+  v2.4's `#199` in-place fast path.
+- **WS snapshot apply collapses to a single dict walk** (`#263`).
+  `OrderbookSnapshotPayload.yes` / `.no` validate directly into
+  `dict[Decimal, Decimal]` via a `BeforeValidator`; `_apply_snapshot_inplace`
+  adopts the dict in identity (no rebuild). ~5× faster on a 200-level book.
+- **`Page.to_dataframe` / `to_polars` built column-oriented** (`#264`).
+  Replaces per-row `model_dump(mode="python")` with a single getattr-driven
+  column build. Preserves the v2.4 Decimal contract; nested-model cells
+  still dumped per-column so polars Struct inference works.
+- **REST has a pluggable JSON loader** (`#260`). New
+  `KalshiConfig.rest_json_loads` mirrors the existing `ws_json_loads`; set
+  to `orjson.loads` for ~2–3× faster list-endpoint parsing.
+- **Signing path skips regex on the common case** (`#261`).
+  `_normalize_percent_encoding` short-circuits when no `%` appears.
+- **Header merge hoisted out of the retry loop** (`#262`). Only
+  `auth_headers` changes per attempt; the 3-way `config_extra +
+  per_call_extra + body_headers` merge is now precomputed once per
+  request, saving N-1 dict copies across retries.
+- **`MessageQueue._size` counter dropped** (`#271`). `qsize()` derives from
+  `len(self._buffer)` adjusted for the sentinel; two ints saved per put/get
+  on the WS hot path.
+- **`import asyncio` hoisted out of `AsyncTransport.request`** (`#271`).
+  Stray per-request `sys.modules` lookup eliminated.
+
+### Configuration knobs (additive)
+
+- `KalshiConfig.rest_json_loads` (`#260`).
+- `KalshiConfig.allow_unknown_host` + `KALSHI_ALLOW_UNKNOWN_HOST` env var
+  (`#250`).
+- `extra_headers=` plumbed through every public REST resource method —
+  302 method signatures via codemod (`#253`). `KALSHI-ACCESS-*` signing
+  headers always win, so callers cannot forge them via this surface.
+
+### Typed-exception expansion
+
+- New `KalshiNetworkError` (`#240`) — exhausted retries on a network-level
+  httpx error.
+- New `KalshiOrderbookUnavailableError` (`#257`) — `_OrderbookIterator`
+  race where `mgr.get(ticker)` returned `None` mid-resync.
+- `KalshiBackpressureError` gains `channel` / `sid` / `client_id` /
+  `maxsize` keyword-only fields (`#256`).
+
+### Models, types, request shape
+
+- **WS `user_orders` + `communications` payloads use `pydantic.AwareDatetime`**
+  (`#270`). Closes the gap left by v2.4's `#234` REST sweep — naive RFC3339
+  strings now raise `ValidationError` on WS too.
+- **V1 `CreateOrderRequest` enum-style fields narrowed to `Literal[...]`**
+  (`#270`). Closes the V1/V2 strictness gap; users constructing the
+  request directly fail at construction instead of server-side.
+- **`MultiplierDecimal` alias + `_coerce_decimal` on multiplier fields**
+  (`#259`, see Breaking changes).
+- **Internal `UnixSecondsTimestamp` alias** (`#270`). Documents the
+  seconds-vs-milliseconds wire-shape choice on `Balance.updated_ts`,
+  `Deposit.created_ts` / `finalized_ts`, `Withdrawal.created_ts` /
+  `finalized_ts`.
+- **`Retry-After` past-date / negative form clamps to 0.0** (`#267`). Both
+  delta-seconds and HTTP-date branches now agree (was: negative delta-
+  seconds fell back to computed backoff while past HTTP-date retried
+  immediately).
+
+### REST resources
+
+- **`portfolio.positions_all()` / `fcm.positions_all()`** (`#269`). Both
+  endpoints are cursor-paginated; previously they shipped no `*_all()`
+  iterator, breaking the SDK's pagination convention.
+- **`multivariate.lookup_history` validates `lookback_seconds` enum
+  locally** (`#269`). Spec restricts to `{10, 60, 300, 3600}`; passing
+  anything else now raises `ValueError` before the round trip.
+- **Three deprecated multivariate endpoints marked
+  `@typing_extensions.deprecated`** (`#269`). `lookup_tickers`,
+  `lookup_history`, `create_market` (sync + async) carry the spec's
+  "should not be used for new integrations" message; emit
+  `DeprecationWarning` on first call.
+- **`event_ticker` accepts `list[str] | str`** on `OrdersResource.list` /
+  `list_all` (`#269`). Joined via `_join_tickers(values, max_items=10)`
+  matching the spec's `MultipleEventTickerQuery`; the kwarg previously
+  typed `str` only.
+
+### `from_env` ergonomics
+
+- **`KalshiClient.from_env(**kwargs: Unpack[ClientInitKwargs])`** (`#266`).
+  `from_env` now exposes a `typing.Unpack`-driven TypedDict so typos like
+  `time_out=10` trip mypy strict at the call site; the internal
+  `# type: ignore[arg-type]` is gone.
+
+### Documentation
+
+- `docs/migration.md` gains a `v2.4 → v2.5` section covering the two
+  breaking changes above.
+- `docs/migration.md` v2.3 → v2.4 section added (`#246`) covering the V1
+  batch shape change, the new typed exceptions, passphrase-protected PEMs,
+  HTTP/2, and per-request `extra_headers`.
+- `docs/resources/orders.md` batch_create / batch_cancel examples
+  rewritten for the v2.4 typed-response shape (`#247`).
+- README pagination quickstart uses `Page.has_next` (was `has_more`, which
+  never existed) (`#248`).
+- Three docstrings retagged from `v3.0.0 BREAKING` to `v2.4.0` where the
+  change actually shipped (`#265`).
+- `pyproject.toml` gains `Framework :: AsyncIO`, `Operating System :: OS
+  Independent`, and `Topic :: Office/Business :: Financial :: Investment`
+  classifiers for PyPI discoverability (`#272`).
+- Stale `Unreleased (post-v2.2.0)` bullet removed from ROADMAP (`#272`).
+
+### Testing
+
+- **34 regression tests added** across waves W1 / W2 / W3 (TDD per issue).
+- **`tests/test_split_env.py`** — 12 tests covering the REST/WS host
+  cross-check (`#239`).
+- **`tests/test_http2.py`** (skipif `h2` missing) — asserts `http2=True`
+  propagates to the underlying httpx pools on both sync + async clients
+  (`#271`).
+- **`tests/test_rest_json_loader.py`** — six tests covering the new
+  `rest_json_loads` hook (`#260`).
+- **`tests/test_extra_headers_plumbing.py`** — 245 reflective tests
+  asserting every public resource method exposes the new `extra_headers`
+  kwarg (`#253`).
+- **Two new bench scripts**: `scripts/bench_orderbook_iterator.py` (drives
+  `_OrderbookIterator.__anext__` end-to-end) and
+  `scripts/bench_page_to_dataframe.py` (`#271`).
+- **Hermetic test fixtures**: `tests/conftest.py` strips `KALSHI_*` env at
+  import + enables `KALSHI_ALLOW_UNKNOWN_HOST=1` process-wide so existing
+  tests using `https://test.kalshi.com` still work alongside the new
+  default-fail.
+
+### Breaking changes summary
+
+1. **`#242`** — `orders.create()` requires `count` and `action`
+   explicitly on the kwarg path (no silent 1-contract buy).
+2. **`#258` + `#259`** — six REST model fields + three WS payload fields
+   widened from `str` / `float` to `Decimal`. Wire format unchanged;
+   consumers must adopt `Decimal` arithmetic.
+
+See `docs/migration.md` v2.4 → v2.5 for code-level migration snippets.
+
 ## 2.4.0 — 2026-05-21
 
 Comprehensive multi-reviewer audit (`#224`) — 33 issues across security, HTTP

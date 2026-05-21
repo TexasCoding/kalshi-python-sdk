@@ -1,5 +1,243 @@
 # Migration
 
+## v2.4 → v2.5
+
+v2.5 ships two user-visible breaking changes — both surface bugs that
+v2.4's audit missed — plus performance wins on the WS hot path, REST
+per-request headers, and a pluggable REST JSON loader. Wire format is
+unchanged.
+
+### Breaking: `orders.create()` requires `count` and `action`
+
+Per #242, the kwarg-form `client.orders.create(ticker=..., side=...)`
+previously defaulted `action` to `"buy"` and `count` to `1` if you
+forgot them — placing a 1-contract live buy with no error. Now both are
+required on the kwarg path and the model: `CreateOrderRequest.count`
+no longer has a default.
+
+```python
+# v2.4 (silent 1-contract buy on the missing kwargs)
+client.orders.create(ticker="EXAMPLE-25-T", side="yes")
+
+# v2.5 (raises TypeError before any HTTP request)
+client.orders.create(ticker="EXAMPLE-25-T", side="yes")
+# TypeError: create() requires `ticker`, `side`, `count`, and `action`
+
+# v2.5 (explicit, works)
+client.orders.create(
+    ticker="EXAMPLE-25-T",
+    side="yes",
+    action="buy",
+    count=10,
+    yes_price="0.65",
+)
+```
+
+The `request=...` overload is unaffected — `CreateOrderRequest(...)` is
+the recommended path for programmatic order construction.
+
+### Breaking: WS + REST model fields widened to `Decimal`
+
+Per #258 and #259, nine model fields previously typed as `str` or
+`float` are now `Decimal`-backed via `DollarDecimal` /
+`FixedPointCount` / `Decimal`-via-`_coerce_decimal`. This brings them
+under the same coercion contract every other money/count field in the
+SDK has used since v2.0:
+
+| Field | Was | Now |
+|---|---|---|
+| `OrderGroupPayload.contracts_limit` (WS) | `str \| None` | `FixedPointCount \| None` |
+| `TickerPayload.dollar_volume` (WS) | `str` | `DollarDecimal` |
+| `TickerPayload.dollar_open_interest` (WS) | `str` | `DollarDecimal` |
+| `Market.floor_strike` | `Decimal \| None` (bare) | `DollarDecimal \| None` |
+| `Market.cap_strike` | `Decimal \| None` (bare) | `DollarDecimal \| None` |
+| `Event.fee_multiplier_override` | `Decimal \| None` (bare) | `Decimal \| None` (coerced) |
+| `MarketLifecyclePayload.floor_strike` (WS) | `Decimal \| None` (bare) | `DollarDecimal \| None` |
+| `Series.fee_multiplier` | `float` | `Decimal` (coerced) |
+| `SeriesFeeChange.fee_multiplier` | `float` | `Decimal` (coerced) |
+
+Wire format is unchanged — the spec already specified these as decimal
+strings or fixed-point. The behavior change is at the Python boundary:
+
+```python
+# v2.4
+ticker_payload.dollar_volume          # "1234.5600"  (str)
+ticker_payload.dollar_volume + 1.0    # TypeError
+
+# v2.5
+ticker_payload.dollar_volume          # Decimal("1234.5600")
+ticker_payload.dollar_volume + Decimal("1.00")  # Decimal arithmetic
+```
+
+If you were already wrapping these in `Decimal(...)` at the consumer
+side, that wrapper now becomes a no-op identity coercion — safe to
+keep or remove. Float arithmetic against `Series.fee_multiplier` will
+now raise `TypeError`; coerce to `Decimal` first.
+
+### Additive: per-request `extra_headers`
+
+Per #253, every public REST resource method now accepts an
+`extra_headers` kwarg for distributed-tracing, idempotency, or
+per-call routing. `KALSHI-ACCESS-*` signing headers always win, so
+callers cannot forge them via this surface.
+
+```python
+import uuid
+
+client.orders.create(
+    ticker="EXAMPLE-25-T", side="yes", action="buy",
+    count=10, yes_price="0.65",
+    extra_headers={"Idempotency-Key": str(uuid.uuid4())},
+)
+```
+
+Client-wide defaults still go via `KalshiConfig.extra_headers`; per-call
+values merge on top (later wins).
+
+### Additive: pluggable REST JSON loader
+
+Per #260, `KalshiConfig.rest_json_loads` mirrors the existing
+`ws_json_loads` (v2.4 `#209`). Set to `orjson.loads` for ~2–3× faster
+list-endpoint parsing:
+
+```python
+import orjson
+from kalshi import KalshiClient, KalshiConfig
+
+config = KalshiConfig(rest_json_loads=orjson.loads)
+client = KalshiClient(auth=..., config=config)
+```
+
+Default (`None`) falls back to `httpx.Response.json()`.
+
+### Additive: unknown-host default-fail
+
+Per #250, `KalshiConfig` now rejects `base_url` / `ws_base_url` hosts
+outside `{api.elections.kalshi.com, demo-api.kalshi.co, localhost,
+127.0.0.1, ::1}` by default. A typo like `kalsi.com` no longer silently
+delivers signed requests to the wrong endpoint. Opt-in for mock servers
+or custom proxies:
+
+```python
+# Either:
+config = KalshiConfig(
+    base_url="https://my-mock-server.test/trade-api/v2",
+    allow_unknown_host=True,
+)
+
+# Or process-wide:
+os.environ["KALSHI_ALLOW_UNKNOWN_HOST"] = "1"
+```
+
+### Additive: split REST/WS environment guard
+
+Per #239, `KalshiClient(demo=True, base_url="https://api.elections.kalshi.com/...")`
+(or the env-var equivalent) now raises `ValueError` at construction
+instead of silently producing a config where REST hits production but
+WS hits demo. If you genuinely need mixed environments, build the
+`KalshiConfig` explicitly with both `base_url` and `ws_base_url`
+pointing at hosts in the same environment.
+
+### Additive: new typed exceptions
+
+- `KalshiNetworkError` (#240) — exhausted retries on `httpx.ConnectError`,
+  `NetworkError`, `RemoteProtocolError`, `ReadError`, or `WriteError`.
+  Transport now retries these on idempotent verbs (GET/HEAD/OPTIONS) and
+  on `ConnectError` for POST/DELETE (request never reached the wire).
+- `KalshiOrderbookUnavailableError` (#257) — raised by the high-level
+  `subscribe_book` iterator when the local book is missing between a
+  gap-recovery teardown and the new snapshot. Catch and reattach to a
+  fresh iterator:
+
+  ```python
+  while True:
+      try:
+          async for book in session.subscribe_book(ticker="EXAMPLE-25-T"):
+              ...
+      except KalshiOrderbookUnavailableError:
+          # gap recovery in flight; reattach
+          continue
+  ```
+
+- `KalshiBackpressureError` now carries `channel`, `sid`, `client_id`,
+  and `maxsize` (#256). Consumers iterating multiple subscriptions can
+  route the error by channel:
+
+  ```python
+  try:
+      async for msg in session.subscribe_ticker(tickers=[...]):
+          ...
+  except KalshiBackpressureError as e:
+      logger.warning("backpressure on %s (sid=%s)", e.channel, e.sid)
+  ```
+
+### Additive: `from_env(**kwargs: Unpack[ClientInitKwargs])`
+
+Per #266, `KalshiClient.from_env` and `AsyncKalshiClient.from_env` now
+expose a `typing.Unpack`-driven TypedDict signature so typos like
+`time_out=10` trip mypy strict at the call site. No runtime change.
+
+### Additive: `portfolio.positions_all()` / `fcm.positions_all()`
+
+Per #269, both endpoints now ship cursor-iterating `*_all()` helpers
+matching the rest of the SDK's pagination convention.
+
+```python
+for position in client.portfolio.positions_all():
+    print(position.ticker, position.position)
+```
+
+### Multivariate endpoints emit `DeprecationWarning`
+
+Per #269, `multivariate.lookup_tickers`, `multivariate.lookup_history`,
+and `multivariate.create_market` (sync + async) carry
+`@typing_extensions.deprecated` decorators citing the spec's "should
+not be used for new integrations" guidance. Use RFQs instead. The
+endpoints still work; calls just emit a `DeprecationWarning` on first
+use.
+
+`multivariate.lookup_history` also now validates `lookback_seconds`
+locally against the spec enum `{10, 60, 300, 3600}` and raises
+`ValueError` for any other value before the round trip.
+
+### `orders.list(event_ticker=...)` accepts lists
+
+Per #269, `event_ticker` accepts `list[str] | str | None` on
+`OrdersResource.list` and `list_all` (sync + async). Lists are joined
+via `_join_tickers` with a spec-enforced `max_items=10`:
+
+```python
+for order in client.orders.list_all(event_ticker=["EV1", "EV2", "EV3"]):
+    ...
+```
+
+### Observable but not breaking
+
+- WS recv loop no longer allocates a `Task` + `shield` per frame (#245).
+  Pause/resume now uses a cooperative `Event` + 50 ms poll; lower
+  allocation pressure on high-volume markets.
+- `subscribe_book` iterator caches the materialized `Orderbook` per
+  ticker (#244); consecutive `mgr.get(ticker)` calls without intervening
+  mutations return the same object identity.
+- `OrderbookSnapshotPayload.yes` and `.no` are now `dict[Decimal, Decimal]`
+  rather than `list[tuple[Decimal, Decimal]]` (#263). External consumers
+  reading these fields directly will see a dict; iterate `.items()` if
+  you need the prior tuple shape.
+- `OrderbookSnapshotPayload.yes`/`.no` are now required (no `default=[]`);
+  a malformed snapshot raises `ValidationError` (#268).
+- `Decimal('NaN')` / `Decimal('Infinity')` rejected at parse and at
+  serialize (#270); construct fresh values from finite inputs.
+- WS `user_orders` and `communications` payloads now use
+  `pydantic.AwareDatetime` (#270); naive RFC3339 strings raise
+  `ValidationError` (REST was already strict per v2.4 #234).
+- V1 `CreateOrderRequest` enum-style fields (`side`, `action`,
+  `time_in_force`, `self_trade_prevention_type`) are now
+  `Literal[...]` typed (#270); typos fail at construction instead of
+  server-side.
+- `Retry-After: -5` and `Retry-After: <past HTTP-date>` now both clamp
+  to 0.0 (retry immediately) — the delta-seconds form previously fell
+  back to computed backoff while the date form already clamped (#267).
+
 ## v2.3 → v2.4
 
 v2.4 ships one user-visible breaking change — the V1 batch order

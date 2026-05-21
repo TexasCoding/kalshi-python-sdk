@@ -4,6 +4,22 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **v2.5.0 (2026-05-21)** — post-v2.4 multi-reviewer SDK audit closure
+  (#273, 34 issues across 7 surfaces). Critical fixes: WS seq watermark
+  rolls back on validation failure (#241), REST/WS split-environment
+  rejected (#239), `buy_max_cost` rejects bool (#243), network-level
+  httpx errors retry on idempotent verbs (#240, `KalshiNetworkError`).
+  Two breaking changes folded in: `orders.create()` requires
+  `count`+`action` (#242), six REST + three WS model fields widened
+  `str`/`float` → `Decimal` (#258, #259). Performance wins on the WS
+  hot path: per-frame Task/shield dropped (#245), materialized
+  Orderbook cached on `_BookState` (#244), snapshot apply single dict
+  walk (#263), `Page.to_dataframe` column-oriented (#264), pluggable
+  REST JSON loader (#260). DX: `extra_headers=` plumbed through every
+  public resource method (#253), `KalshiConfig.allow_unknown_host`
+  default-fail (#250). Executed across 4 sequential waves (W0 docs,
+  W1 money-risk, W2 medium, W3 polish) — 20 PRs merged.
+
 - **v2.4.0 (2026-05-21)** — multi-reviewer SDK audit closure (#224, 33
   issues across 7 surfaces). Critical fixes: WS orderbook resync on
   sequence gap (#189), DataFrame Decimal preservation (#190), positional
