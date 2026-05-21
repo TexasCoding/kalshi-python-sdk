@@ -250,7 +250,7 @@ class KalshiWebSocket:
                 raw = await asyncio.wait_for(
                     self._connection.recv(), timeout=_RECV_POLL_S,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except asyncio.CancelledError:
                 # External cancel (``_stop`` fallback). Exit cleanly.

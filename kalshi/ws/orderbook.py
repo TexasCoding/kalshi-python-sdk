@@ -33,20 +33,34 @@ class _BookState:
     (no ``market_tickers`` param) can be cleanly torn down on gap recovery
     or unsubscribe without the caller having to know which tickers the
     server happened to forward through that sid.
+
+    #244: ``_cached`` memoizes the materialized :class:`Orderbook` so the
+    high-frequency ``subscribe_book`` iterator path doesn't pay an
+    O(n log n) sort + 2N :class:`OrderbookLevel` validations + 1
+    :class:`Orderbook` validation on every delta. The cache is invalidated
+    by :meth:`_apply_delta_inplace` / :meth:`_apply_snapshot_inplace`
+    whenever a side mutates. Identity-stable: consecutive ``get(ticker)``
+    calls without intervening mutations return the *same* object.
     """
 
     ticker: str
     yes: dict[Decimal, Decimal] = field(default_factory=dict)
     no: dict[Decimal, Decimal] = field(default_factory=dict)
     sid: int | None = None
+    # #244: lazy memoization of the materialized public Orderbook view.
+    # ``None`` means "stale — rebuild on next read".
+    _cached: Orderbook | None = field(default=None, repr=False, compare=False)
 
     def to_orderbook(self) -> Orderbook:
-        """Build a fresh ``Orderbook`` snapshot from the current state.
+        """Build (or return cached) ``Orderbook`` snapshot from current state.
 
         Levels are emitted price-ascending to match the historical wire-order
         contract that the previous list-backed implementation maintained via
-        ``list.sort`` after every insert.
+        ``list.sort`` after every insert. #244: the result is cached and
+        invalidated only when ``_apply_*_inplace`` mutates a side.
         """
+        if self._cached is not None:
+            return self._cached
         yes_levels = [
             OrderbookLevel(price=price, quantity=qty)
             for price, qty in sorted(self.yes.items())
@@ -55,7 +69,13 @@ class _BookState:
             OrderbookLevel(price=price, quantity=qty)
             for price, qty in sorted(self.no.items())
         ]
-        return Orderbook(ticker=self.ticker, yes=yes_levels, no=no_levels)
+        ob = Orderbook(ticker=self.ticker, yes=yes_levels, no=no_levels)
+        self._cached = ob
+        return ob
+
+    def invalidate(self) -> None:
+        """Drop the cached :class:`Orderbook` view; next read re-materializes."""
+        self._cached = None
 
 
 class OrderbookManager:
@@ -162,8 +182,12 @@ class OrderbookManager:
                 del levels[price]
             else:
                 levels[price] = new_qty
+            # #244: a side mutated; drop the cached Orderbook view so
+            # the next `to_orderbook`/`get` rebuilds with the new side.
+            state.invalidate()
         elif delta > 0:
             levels[price] = delta
+            state.invalidate()
 
         return True
 
