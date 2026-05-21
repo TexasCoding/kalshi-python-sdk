@@ -150,6 +150,26 @@ class SyncResource:
         result: dict[str, Any] = response.json()
         return result
 
+    def _post_json(
+        self,
+        path: str,
+        *,
+        content: bytes,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """POST a pre-serialized JSON body (bytes).
+
+        Skips the dict-walk pass httpx's ``json=`` does. Use this when
+        a Pydantic model already produced the wire bytes via
+        ``model_dump_json(...).encode()``.
+        """
+        response = self._transport.request(
+            "POST", path, params=params, content=content,
+            headers={"Content-Type": "application/json"},
+        )
+        result: dict[str, Any] = response.json()
+        return result
+
     def _put(
         self,
         path: str,
@@ -176,6 +196,23 @@ class SyncResource:
         self, path: str, *, json: dict[str, Any]
     ) -> dict[str, Any] | None:
         response = self._transport.request("DELETE", path, json=json)
+        if response.status_code == 204:
+            return None
+        result: dict[str, Any] = response.json()
+        return result
+
+    def _delete_with_body_json(
+        self,
+        path: str,
+        *,
+        content: bytes,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """DELETE with a pre-serialized JSON body (bytes). See :meth:`_post_json`."""
+        response = self._transport.request(
+            "DELETE", path, params=params, content=content,
+            headers={"Content-Type": "application/json"},
+        )
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()
@@ -225,11 +262,13 @@ class SyncResource:
         cursor-repeat guard below provides the safety net against
         infinite loops.
 
-        Raises ``KalshiError`` if a cursor value repeats, which indicates
-        a server-side pagination bug.
+        Raises ``KalshiError`` if the previous page's cursor repeats —
+        the realistic server-pagination-bug shape (last page replayed
+        forever). Only the most recent cursor is retained, so memory is
+        O(1) regardless of page count.
         """
         current_params = dict(params) if params else {}
-        seen_cursors: set[str] = set()
+        last_cursor: str | None = None
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
             page = self._list(
@@ -240,13 +279,13 @@ class SyncResource:
             pages_fetched += 1
             if not page.cursor:
                 break
-            if page.cursor in seen_cursors:
+            if page.cursor == last_cursor:
                 raise KalshiError(
                     f"Cursor loop detected on {path}: server returned "
                     f"cursor {page.cursor!r} which was already used. "
                     f"This indicates a server-side pagination bug."
                 )
-            seen_cursors.add(page.cursor)
+            last_cursor = page.cursor
             current_params["cursor"] = page.cursor
 
 
@@ -282,6 +321,21 @@ class AsyncResource:
         result: dict[str, Any] = response.json()
         return result
 
+    async def _post_json(
+        self,
+        path: str,
+        *,
+        content: bytes,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Async :meth:`SyncResource._post_json`."""
+        response = await self._transport.request(
+            "POST", path, params=params, content=content,
+            headers={"Content-Type": "application/json"},
+        )
+        result: dict[str, Any] = response.json()
+        return result
+
     async def _put(
         self,
         path: str,
@@ -308,6 +362,23 @@ class AsyncResource:
         self, path: str, *, json: dict[str, Any]
     ) -> dict[str, Any] | None:
         response = await self._transport.request("DELETE", path, json=json)
+        if response.status_code == 204:
+            return None
+        result: dict[str, Any] = response.json()
+        return result
+
+    async def _delete_with_body_json(
+        self,
+        path: str,
+        *,
+        content: bytes,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Async :meth:`SyncResource._delete_with_body_json`."""
+        response = await self._transport.request(
+            "DELETE", path, params=params, content=content,
+            headers={"Content-Type": "application/json"},
+        )
         if response.status_code == 204:
             return None
         result: dict[str, Any] = response.json()
@@ -344,7 +415,7 @@ class AsyncResource:
         Raises ``KalshiError`` on repeated cursor; see sync docstring.
         """
         current_params = dict(params) if params else {}
-        seen_cursors: set[str] = set()
+        last_cursor: str | None = None
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
             page = await self._list(
@@ -356,11 +427,11 @@ class AsyncResource:
             pages_fetched += 1
             if not page.cursor:
                 break
-            if page.cursor in seen_cursors:
+            if page.cursor == last_cursor:
                 raise KalshiError(
                     f"Cursor loop detected on {path}: server returned "
                     f"cursor {page.cursor!r} which was already used. "
                     f"This indicates a server-side pagination bug."
                 )
-            seen_cursors.add(page.cursor)
+            last_cursor = page.cursor
             current_params["cursor"] = page.cursor

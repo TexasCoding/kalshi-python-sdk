@@ -890,15 +890,18 @@ class TestBatchCancelWireShape:
         ]
 
 
-class TestBatchCancelRoutesThroughDeleteWithBody:
-    """Regression for issue #47: sync batch_cancel must route through the
-    shared ``SyncResource._delete_with_body`` helper so retry / error-mapping
-    behavior added to the helper applies to the sync path. Symmetric with
-    ``test_async_orders.py::TestAsyncBatchCancelRoutesThroughDeleteWithBody``.
+class TestBatchCancelRoutesThroughDeleteWithBodyJson:
+    """Regression for issue #47 / #223: sync batch_cancel must route through
+    the shared ``SyncResource._delete_with_body_json`` bytes helper so retry /
+    error-mapping behavior added to the helper applies to the sync path.
+    Symmetric with
+    ``test_async_orders.py::TestAsyncBatchCancelRoutesThroughDeleteWithBodyJson``.
     """
 
     @respx.mock
-    def test_batch_cancel_uses_delete_with_body_helper(self, orders: OrdersResource) -> None:
+    def test_batch_cancel_uses_delete_with_body_json_helper(
+        self, orders: OrdersResource,
+    ) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
             return_value=httpx.Response(200, json={"orders": []})
         )
@@ -907,14 +910,20 @@ class TestBatchCancelRoutesThroughDeleteWithBody:
         # so the respx mock above still resolves; the spy only records.
         with patch.object(
             orders,
-            "_delete_with_body",
-            wraps=orders._delete_with_body,
+            "_delete_with_body_json",
+            wraps=orders._delete_with_body_json,
         ) as spy:
             orders.batch_cancel(["ord-1", "ord-2"])
-            spy.assert_called_once_with(
-                "/portfolio/orders/batched",
-                json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
-            )
+            spy.assert_called_once()
+            args, kwargs = spy.call_args
+            assert args == ("/portfolio/orders/batched",)
+            # Bytes path: caller passes pre-serialized JSON via ``content=``,
+            # NOT a dict via ``json=`` (P4.2).
+            assert "json" not in kwargs
+            assert isinstance(kwargs["content"], bytes)
+            assert json.loads(kwargs["content"]) == {
+                "orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]
+            }
 
     @respx.mock
     def test_batch_cancel_returns_typed_response_with_reduced_by_fp(
@@ -1208,6 +1217,77 @@ class TestBatchCreateWireShape:
         # no phantom top-level keys
         assert set(body.keys()) == {"orders"}
 
+
+
+class TestBatchCreateUsesBytesPath:
+    """P4.2: batch_create / batch_cancel serialize via model_dump_json directly
+    to bytes and hand them to httpx as ``content=`` (not ``json=``). This
+    skips one full dict-walk pass on large payloads where the serializer
+    cost dominates."""
+
+    @respx.mock
+    def test_batch_create_uses_bytes_path(self, orders: OrdersResource) -> None:
+        """The transport is called with ``content=bytes`` and the
+        Content-Type header is set explicitly (httpx doesn't infer it for
+        a raw ``content=`` body)."""
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+
+        with patch.object(
+            orders._transport, "request", wraps=orders._transport.request,
+        ) as spy:
+            orders.batch_create(
+                [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+            )
+            spy.assert_called_once()
+            args, kwargs = spy.call_args
+            assert args == ("POST", "/portfolio/orders/batched")
+            assert "json" not in kwargs or kwargs.get("json") is None
+            assert isinstance(kwargs["content"], bytes)
+            assert kwargs["headers"]["Content-Type"] == "application/json"
+
+    @respx.mock
+    def test_batch_cancel_uses_bytes_path(self, orders: OrdersResource) -> None:
+        """Mirror of ``test_batch_create_uses_bytes_path`` for batch_cancel
+        — DELETE-with-body bytes path."""
+        respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+
+        with patch.object(
+            orders._transport, "request", wraps=orders._transport.request,
+        ) as spy:
+            orders.batch_cancel(["ord-1"])
+            spy.assert_called_once()
+            args, kwargs = spy.call_args
+            assert args == ("DELETE", "/portfolio/orders/batched")
+            assert "json" not in kwargs or kwargs.get("json") is None
+            assert isinstance(kwargs["content"], bytes)
+            assert kwargs["headers"]["Content-Type"] == "application/json"
+
+    @respx.mock
+    def test_batch_create_bytes_path_preserves_decimal_precision(
+        self, orders: OrdersResource,
+    ) -> None:
+        """P4.2: the bytes path uses ``model_dump_json`` which round-trips
+        Decimals via the configured DollarDecimal serializer. Round-trip
+        ``Decimal("0.5600")`` through the wire and confirm the exact
+        string is preserved (no float-conversion drift)."""
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+
+        orders.batch_create([
+            CreateOrderRequest(
+                ticker="A", side="yes", action="buy",
+                count=10, yes_price=Decimal("0.5600"),
+            ),
+        ])
+
+        raw = route.calls[0].request.content
+        body = json.loads(raw)
+        assert body["orders"][0]["yes_price_dollars"] == "0.5600"
 
 # ── V2 event-market orders (spec v3.18.0) ───────────────────
 

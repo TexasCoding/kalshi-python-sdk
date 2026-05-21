@@ -8,6 +8,7 @@ import os
 import tempfile
 
 import pytest
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
@@ -268,10 +269,41 @@ class TestSignRequestAsync:
 
     @pytest.mark.asyncio
     async def test_close_is_idempotent(self, test_auth: KalshiAuth) -> None:
+        """Double-close (and triple-close) must not raise. The terminality
+        check lives in ``test_close_is_terminal_no_silent_respawn`` /
+        ``test_closed_auth_raises_on_sign_request_async``."""
         test_auth.close()  # no executor yet
+        test_auth.close()
+        test_auth.close()  # triple-close OK
+
+    @pytest.mark.asyncio
+    async def test_closed_auth_raises_on_sign_request_async(
+        self, test_auth: KalshiAuth,
+    ) -> None:
+        """P4.6: ``close()`` is terminal — a subsequent ``sign_request_async``
+        raises ``RuntimeError`` instead of silently respawning the
+        ThreadPoolExecutor (which would defeat the lifecycle contract and
+        prevent clients from detecting use-after-close in tests)."""
         await test_auth.sign_request_async("GET", "/x", timestamp_ms=1)
         test_auth.close()
-        test_auth.close()  # double-close OK
+        with pytest.raises(RuntimeError, match=r"KalshiAuth has been closed"):
+            await test_auth.sign_request_async("GET", "/y", timestamp_ms=2)
+
+    @pytest.mark.asyncio
+    async def test_close_is_terminal_no_silent_respawn(
+        self, test_auth: KalshiAuth,
+    ) -> None:
+        """P4.6: after ``close()``, the executor stays None — the lazy-init
+        in ``_get_sign_executor`` never reinstates it. Pre-fix it would
+        have re-allocated a fresh ``ThreadPoolExecutor`` on the next
+        async sign, leaking resources past the lifecycle bound."""
+        await test_auth.sign_request_async("GET", "/x", timestamp_ms=1)
+        assert test_auth._sign_executor is not None
+        test_auth.close()
+        assert test_auth._sign_executor is None
+        with pytest.raises(RuntimeError):
+            await test_auth.sign_request_async("GET", "/y", timestamp_ms=2)
+        assert test_auth._sign_executor is None  # no silent respawn
 
     @pytest.mark.asyncio
     async def test_concurrent_signs_do_not_stall_event_loop(
@@ -453,6 +485,47 @@ class TestFromEnv:
             assert auth.key_id == "path-key"
         os.unlink(f.name)
 
+    def test_from_env_pem_takes_precedence_over_path(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """P4.4: when BOTH ``KALSHI_PRIVATE_KEY`` (inline PEM) and
+        ``KALSHI_PRIVATE_KEY_PATH`` (file) are set, ``from_env`` must
+        load the inline PEM. Pins the existing precedence so a future
+        refactor that flips the order doesn't silently swap which key
+        signs production requests."""
+        key_a = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        key_b = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem_a = key_a.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        pem_b = key_b.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(pem_b)
+            f.flush()
+            try:
+                monkeypatch.setenv("KALSHI_KEY_ID", "precedence-key")
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_a)
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", f.name)
+                auth = KalshiAuth.from_env()
+                headers = auth.sign_request("GET", "/x", timestamp_ms=1)
+                sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+                pss = padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.DIGEST_LENGTH,
+                )
+                # Verifies with A; FAILS to verify with B (proves A signed).
+                key_a.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+                with pytest.raises(InvalidSignature):
+                                    key_b.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+            finally:
+                os.unlink(f.name)
+
 
 class TestTryFromEnv:
     def test_returns_auth_when_env_vars_set(
@@ -482,6 +555,45 @@ class TestTryFromEnv:
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         auth = KalshiAuth.try_from_env()
         assert auth is None
+
+    def test_try_from_env_pem_takes_precedence_over_path(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """P4.4: mirror of
+        ``TestFromEnv.test_from_env_pem_takes_precedence_over_path``
+        for ``try_from_env``. Same precedence contract."""
+        key_a = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        key_b = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem_a = key_a.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode()
+        pem_b = key_b.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(pem_b)
+            f.flush()
+            try:
+                monkeypatch.setenv("KALSHI_KEY_ID", "precedence-key")
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_a)
+                monkeypatch.setenv("KALSHI_PRIVATE_KEY_PATH", f.name)
+                auth = KalshiAuth.try_from_env()
+                assert auth is not None
+                headers = auth.sign_request("GET", "/x", timestamp_ms=1)
+                sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+                pss = padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.DIGEST_LENGTH,
+                )
+                key_a.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+                with pytest.raises(InvalidSignature):
+                                    key_b.public_key().verify(sig, b"1GET/x", pss, hashes.SHA256())
+            finally:
+                os.unlink(f.name)
 
 
 class TestPassphraseSupport:

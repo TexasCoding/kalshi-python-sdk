@@ -60,23 +60,39 @@ logger = logging.getLogger(__name__)
 DEMO_HOST = "demo-api.kalshi.co"
 
 
-def _bridge_env_vars() -> None:
+@pytest.fixture(scope="session")
+def _monkeypatch_session() -> Iterator[pytest.MonkeyPatch]:
+    """Session-scoped ``pytest.MonkeyPatch`` (pytest ships only a
+    function-scoped fixture). All mutations restore at session end."""
+    with pytest.MonkeyPatch.context() as mp:
+        yield mp
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _bridge_env_vars(
+    _monkeypatch_session: pytest.MonkeyPatch,
+) -> None:
     """Map KALSHI_DEMO_* env vars to KALSHI_* for from_env() compatibility.
 
     Supports both naming conventions:
       .env style:  KALSHI_DEMO_KEY_ID, KALSHI_DEMO_PRIVATE_KEY_PATH
       from_env():  KALSHI_KEY_ID, KALSHI_PRIVATE_KEY_PATH, KALSHI_DEMO=true
+
+    Bridged through ``_monkeypatch_session`` so the mutations are
+    automatically rolled back when the integration session ends.
+    Previously the same logic ran at conftest import time, leaking
+    demo credentials into any unit test that read ``os.environ``
+    without an explicit override (e.g. running ``pytest tests/`` would
+    silently bridge demo creds for the whole process).
     """
-    if os.environ.get("KALSHI_DEMO_KEY_ID") and not os.environ.get("KALSHI_KEY_ID"):
-        os.environ["KALSHI_KEY_ID"] = os.environ["KALSHI_DEMO_KEY_ID"]
-    if os.environ.get("KALSHI_DEMO_PRIVATE_KEY_PATH") and not os.environ.get(
-        "KALSHI_PRIVATE_KEY_PATH"
-    ):
-        os.environ["KALSHI_PRIVATE_KEY_PATH"] = os.environ["KALSHI_DEMO_PRIVATE_KEY_PATH"]
-    os.environ.setdefault("KALSHI_DEMO", "true")
-
-
-_bridge_env_vars()
+    demo_key_id = os.environ.get("KALSHI_DEMO_KEY_ID")
+    if demo_key_id and not os.environ.get("KALSHI_KEY_ID"):
+        _monkeypatch_session.setenv("KALSHI_KEY_ID", demo_key_id)
+    demo_path = os.environ.get("KALSHI_DEMO_PRIVATE_KEY_PATH")
+    if demo_path and not os.environ.get("KALSHI_PRIVATE_KEY_PATH"):
+        _monkeypatch_session.setenv("KALSHI_PRIVATE_KEY_PATH", demo_path)
+    if "KALSHI_DEMO" not in os.environ:
+        _monkeypatch_session.setenv("KALSHI_DEMO", "true")
 
 
 def _credentials_available() -> bool:
