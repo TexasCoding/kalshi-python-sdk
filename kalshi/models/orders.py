@@ -367,8 +367,8 @@ class BatchCreateOrdersResponseEntry(BaseModel):
 class BatchCreateOrdersResponse(BaseModel):
     """Response from ``POST /portfolio/orders/batched``.
 
-    Spec ``components.schemas.BatchCreateOrdersResponse``. v3.0.0
-    BREAKING: previously the SDK returned ``list[Order]`` and crashed
+    Spec ``components.schemas.BatchCreateOrdersResponse``. Changed in v2.4.0
+    (breaking): previously the SDK returned ``list[Order]`` and crashed
     with ``ValidationError`` on the first failed leg
     (``Order.model_validate(None)``). Now returns the typed envelope so
     callers can inspect per-leg ``order``/``error``/``client_order_id``.
@@ -402,8 +402,8 @@ class BatchCancelOrdersResponseEntry(BaseModel):
 class BatchCancelOrdersResponse(BaseModel):
     """Response from ``DELETE /portfolio/orders/batched``.
 
-    Spec ``components.schemas.BatchCancelOrdersResponse``. v3.0.0
-    BREAKING: previously the SDK declared ``-> None`` and discarded the
+    Spec ``components.schemas.BatchCancelOrdersResponse``. Changed in v2.4.0
+    (breaking): previously the SDK declared ``-> None`` and discarded the
     response body. Per-leg ``reduced_by_fp`` and any per-leg errors are
     now surfaced.
     """
