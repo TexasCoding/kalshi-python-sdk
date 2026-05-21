@@ -16,6 +16,7 @@ a real gap on the wire.
 from __future__ import annotations
 
 import asyncio
+import collections
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -187,6 +188,9 @@ class TestGapHandlerWithoutTickers:
             ) -> None:
                 self.broadcast_called = True
 
+            def take_stash(self) -> dict[int, collections.deque[str]]:
+                return {}
+
         stub = _StubMgr()
         ws._sub_mgr = stub  # type: ignore[assignment]
 
@@ -230,6 +234,9 @@ class TestGapHandlerWithoutTickers:
                 self, client_id: int, exc: BaseException
             ) -> None:
                 self.broadcast_args = (client_id, exc)
+
+            def take_stash(self) -> dict[int, collections.deque[str]]:
+                return {}
 
         stub = _FailingMgr()
         ws._sub_mgr = stub  # type: ignore[assignment]

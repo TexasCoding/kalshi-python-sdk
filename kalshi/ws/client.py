@@ -453,19 +453,22 @@ class KalshiWebSocket:
                 self._running = False
 
     async def _drain_resubscribe_stash(self) -> None:
-        """Replay frames captured during ``resubscribe_all`` through dispatch.
+        """Replay frames captured during a resubscribe through dispatch.
 
-        #176: ``SubscriptionManager._wait_for_response`` captures non-matching
-        data frames into a per-sid stash while a resubscribe is in flight,
-        because between ``_sid_to_client.clear()`` and the new sid mapping
-        the dispatcher has no route for those frames. After all subscribes
-        complete, this method drains the stash via ``_process_frame`` so
-        seq tracking and orderbook state stay consistent with the natural
-        arrival path.
+        #176/#254: ``SubscriptionManager._wait_for_response`` captures
+        non-matching data frames into a per-sid stash while ``_stashing``
+        is set — which happens around both ``resubscribe_all`` (full
+        reconnect) and ``resubscribe_one`` (single-sub gap recovery).
+        Between ``_sid_to_client.clear()`` (or the per-sid teardown) and
+        the new sid mapping landing, the dispatcher has no route for
+        those frames. After the resubscribe completes, this method
+        drains the stash via ``_process_frame`` so seq tracking and
+        orderbook state stay consistent with the natural arrival path.
 
-        Frames whose sid did not get re-mapped (subscription failed during
-        ``resubscribe_all``) are dropped with a debug log — there's no
-        consumer to deliver them to.
+        Frames whose sid did not get re-mapped (subscription failed
+        during ``resubscribe_all``, or the targeted sid was replaced
+        without re-mapping in ``resubscribe_one``) are dropped with a
+        debug log — there's no consumer to deliver them to.
         """
         if self._sub_mgr is None:
             return
@@ -557,6 +560,20 @@ class KalshiWebSocket:
                     next_seq=gap.received,
                 ),
             )
+            return
+
+        # 3. #254: drain the resubscribe-window stash. ``resubscribe_one``
+        # toggles ``_stashing`` around its unsubscribe+subscribe pair, so
+        # any data frames the server emitted during the sid handoff are
+        # captured in ``_sub_mgr._stash``. Without this drain they sit
+        # there until the next full reconnect, and the post-resubscribe
+        # consumer can see a forward seq gap (delta with seq>1 arriving
+        # before the snapshot it depends on). The shared helper replays
+        # any sid that still has a mapping (covers the new sid and any
+        # OTHER live subscriptions whose frames happened to land during
+        # the resubscribe window) and drops frames for sids that no
+        # longer route to a subscription, with a debug log.
+        await self._drain_resubscribe_stash()
 
     # ------------------------------------------------------------------
     # Internal subscribe helper
