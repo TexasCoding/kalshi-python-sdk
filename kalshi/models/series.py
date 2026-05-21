@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.models.markets import Candlestick
-from kalshi.types import FixedPointCount, NullableList
+from kalshi.types import FixedPointCount, MultiplierDecimal, NullableList
 
 # Fee type constants (use str fields, not StrEnum, for forward-compat)
 FEE_TYPE_QUADRATIC = "quadratic"
@@ -28,7 +28,7 @@ class Series(BaseModel):
     contract_terms_url: str
     product_metadata: dict[str, Any] | None = None
     fee_type: str
-    fee_multiplier: float
+    fee_multiplier: MultiplierDecimal
     additional_prohibitions: NullableList[str]
     volume: FixedPointCount | None = Field(
         default=None,
@@ -45,7 +45,7 @@ class SeriesFeeChange(BaseModel):
     id: str
     series_ticker: str
     fee_type: str
-    fee_multiplier: float
+    fee_multiplier: MultiplierDecimal
     scheduled_ts: AwareDatetime
 
     model_config = {"extra": "allow"}

@@ -18,11 +18,13 @@ from tests.integration.assertions import _annotation_contains, assert_model_fiel
 
 class FakePrice(BaseModel):
     """Minimal model with a price-range field."""
+
     price: Decimal
 
 
 class FakeMarket(BaseModel):
     """Minimal model mimicking Market fields."""
+
     ticker: str
     yes_bid: Decimal | None = None
     created_time: datetime | None = None
@@ -32,12 +34,13 @@ class FakeMarket(BaseModel):
 
 
 class FakeRateBearing(BaseModel):
-    """Model with a legitimately-float field (like Series.fee_multiplier).
+    """Model with a legitimately-float field (negative case for the oracle).
 
     Represents the negative case for the annotation-aware float check —
     when a field's annotation IS float, a float value must NOT trigger
     the 'DollarDecimal parsing failed' assertion.
     """
+
     ticker: str
     fee_multiplier: float = 0.0
     optional_rate: float | None = None
@@ -49,9 +52,7 @@ class TestDecimalEnforcement:
         assert_model_fields(m)  # should not raise
 
     def test_fails_with_float(self) -> None:
-        m = FakeMarket.__pydantic_validator__.validate_python(
-            {"ticker": "T"}
-        )
+        m = FakeMarket.__pydantic_validator__.validate_python({"ticker": "T"})
         # Manually set a float to simulate a parse failure
         object.__setattr__(m, "volume", 0.5)
         with pytest.raises(AssertionError, match=r"float.*expected Decimal"):
@@ -60,8 +61,9 @@ class TestDecimalEnforcement:
     def test_float_field_with_float_value_does_not_raise(self) -> None:
         """Regression: a field annotated as float with a float value is fine.
 
-        Series.fee_multiplier is a rate multiplier typed as float per spec.
-        Before the annotation-aware check, the oracle misfired here.
+        Some external models legitimately type rate fields as float; before the
+                annotation-aware check the oracle misfired on those. Series.fee_multiplier
+                itself uses MultiplierDecimal post-#259, so this is now a synthetic case.
         """
         m = FakeRateBearing(ticker="T", fee_multiplier=1.5)
         assert_model_fields(m)  # must not raise
@@ -131,9 +133,7 @@ class TestTimestampEnforcement:
         assert_model_fields(m)
 
     def test_fails_with_raw_string(self) -> None:
-        m = FakeMarket.__pydantic_validator__.validate_python(
-            {"ticker": "T"}
-        )
+        m = FakeMarket.__pydantic_validator__.validate_python({"ticker": "T"})
         object.__setattr__(m, "created_time", "2026-01-01T00:00:00Z")
         with pytest.raises(AssertionError, match=r"raw string.*expected datetime"):
             assert_model_fields(m)
@@ -141,9 +141,7 @@ class TestTimestampEnforcement:
 
 class TestRequiredFields:
     def test_fails_when_required_is_none(self) -> None:
-        m = FakeMarket.__pydantic_validator__.validate_python(
-            {"ticker": "T"}
-        )
+        m = FakeMarket.__pydantic_validator__.validate_python({"ticker": "T"})
         object.__setattr__(m, "ticker", None)
         with pytest.raises(AssertionError, match="None but field is required"):
             assert_model_fields(m)

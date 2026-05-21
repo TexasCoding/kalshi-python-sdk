@@ -1,7 +1,7 @@
 """Market lifecycle v2 channel message models."""
+
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel
@@ -40,7 +40,7 @@ class MarketLifecyclePayload(BaseModel):
     # events; floor_strike/yes_sub_title for `metadata_updated`;
     # price_level_structure for `price_level_structure_updated` (or `created`).
     additional_metadata: dict[str, Any] | None = None
-    floor_strike: Decimal | None = None
+    floor_strike: DollarDecimal | None = None
     price_level_structure: str | None = None
     yes_sub_title: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}

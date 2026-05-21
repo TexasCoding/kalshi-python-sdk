@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
@@ -114,8 +113,8 @@ class Market(BaseModel):
     category: str | None = None
     risk_limit_cents: int | None = None
     strike_type: str | None = None
-    floor_strike: Decimal | None = None
-    cap_strike: Decimal | None = None
+    floor_strike: DollarDecimal | None = None
+    cap_strike: DollarDecimal | None = None
     rules_primary: str
     rules_secondary: str
 

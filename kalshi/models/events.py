@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel
 
 from kalshi.models.markets import Market
-from kalshi.types import NullableList
+from kalshi.types import MultiplierDecimal, NullableList
 
 EventStatusLiteral = Literal["unopened", "open", "closed", "settled"]
 """Event status filter for GET /events. Spec: GetEvents.status query enum."""
@@ -38,7 +37,7 @@ class Event(BaseModel):
     # format: double` per spec — Decimal (matches Market.floor_strike /
     # cap_strike precedent for the same wire shape).
     fee_type_override: str | None = None
-    fee_multiplier_override: Decimal | None = None
+    fee_multiplier_override: MultiplierDecimal | None = None
     exchange_index: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}

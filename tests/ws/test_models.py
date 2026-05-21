@@ -1400,3 +1400,34 @@ def test_ws_payload_constructable_with_sdk_field_names(
     payload = payload_cls(**kwargs)
     for key, value in kwargs.items():
         assert getattr(payload, key) == value, key
+
+
+class TestMarketLifecycleFloorStrikeDecimal:
+    """#259: WS MarketLifecyclePayload.floor_strike uses DollarDecimal."""
+
+    def test_float_floor_strike_routed_through_str(self) -> None:
+        raw = {
+            "type": "market_lifecycle_v2",
+            "sid": 1,
+            "msg": {
+                "event_type": "metadata_updated",
+                "market_ticker": "T",
+                "floor_strike": 95000.65,
+            },
+        }
+        msg = MarketLifecycleMessage.model_validate(raw)
+        assert isinstance(msg.msg.floor_strike, Decimal)
+        assert msg.msg.floor_strike == Decimal("95000.65")
+
+    def test_floor_strike_rejects_bool(self) -> None:
+        raw = {
+            "type": "market_lifecycle_v2",
+            "sid": 1,
+            "msg": {
+                "event_type": "metadata_updated",
+                "market_ticker": "T",
+                "floor_strike": True,
+            },
+        }
+        with pytest.raises(TypeError, match="bool"):
+            MarketLifecycleMessage.model_validate(raw)
