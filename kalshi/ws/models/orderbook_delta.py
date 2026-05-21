@@ -62,16 +62,21 @@ class OrderbookSnapshotPayload(BaseModel):
     These are validated directly into ``dict[Decimal, Decimal]`` (price ->
     count) in a single walk so ``OrderbookManager._apply_snapshot_inplace``
     can adopt the map with no second iteration (#263).
+
+    Both sides are required (#268): a snapshot envelope missing
+    ``yes_dollars_fp`` or ``no_dollars_fp`` is schema drift or a partial
+    server response, not "an empty book on that side". Surfacing a
+    ``ValidationError`` lets the recv loop's malformed-frame handler
+    log it and roll back the seq watermark for #241 rather than silently
+    resetting the local book to empty.
     """
 
     market_ticker: str
     market_id: str
     yes: PriceCountMap = Field(
-        default_factory=dict,
         validation_alias=AliasChoices("yes_dollars_fp", "yes"),
     )
     no: PriceCountMap = Field(
-        default_factory=dict,
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )
     model_config = {"extra": "allow", "populate_by_name": True}

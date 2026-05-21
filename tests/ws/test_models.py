@@ -1085,6 +1085,27 @@ class TestWsPayloadDecimalCoercion:
                 assert isinstance(key, Decimal)
                 assert isinstance(value, Decimal)
 
+    def test_orderbook_snapshot_missing_sides_raises(self) -> None:
+        """#268: dropping the mutable default means a snapshot envelope
+        missing both `yes_dollars_fp` and `no_dollars_fp` (schema drift or
+        a partial server response) must surface as a ValidationError
+        rather than silently materializing an empty book.
+        """
+        from kalshi.ws.models.orderbook_delta import OrderbookSnapshotPayload
+
+        with pytest.raises(ValidationError):
+            OrderbookSnapshotPayload.model_validate(
+                {"market_ticker": "T", "market_id": "x"}
+            )
+        with pytest.raises(ValidationError):
+            OrderbookSnapshotPayload.model_validate(
+                {"market_ticker": "T", "market_id": "x", "yes": []}
+            )
+        with pytest.raises(ValidationError):
+            OrderbookSnapshotPayload.model_validate(
+                {"market_ticker": "T", "market_id": "x", "no": []}
+            )
+
     def test_rfq_created_contracts_parses_as_decimal(self) -> None:
         payload = RfqCreatedPayload.model_validate(
             {
