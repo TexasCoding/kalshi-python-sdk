@@ -36,6 +36,7 @@ with KalshiClient(key_id="...", private_key_path="...", config=config) as client
 | `max_retries` | `3` | Maximum retry attempts on retryable methods. |
 | `retry_base_delay` | `0.5` | Base for exponential backoff (seconds). |
 | `retry_max_delay` | `30.0` | Cap on any single retry sleep — also caps `Retry-After`. |
+| `total_timeout` | `None` | Wall-clock cap (seconds) across the whole request including all retries. `None` = unbounded; cap with the per-attempt `timeout` only. See [Retries & idempotency](retries.md). |
 | `extra_headers` | `{}` | Extra HTTP headers added to every request. Useful for custom User-Agent. |
 | `ws_base_url` | `wss://api.elections.kalshi.com/trade-api/ws/v2` | WebSocket base URL. |
 | `ws_max_retries` | `10` | Maximum reconnect attempts before the WS gives up. |
@@ -44,10 +45,9 @@ with KalshiClient(key_id="...", private_key_path="...", config=config) as client
 | `ws_json_loads` | `None` | Optional callable for parsing WS frames (e.g. `orjson.loads`). |
 | `ws_json_dumps` | `None` | Optional callable for serializing outbound WS commands. |
 | `limits` | `None` | Connection-pool limits passed to `httpx`. When `None`, the underlying `httpx.Client` uses its own pool defaults. Pass an `httpx.Limits(...)` to tune. See [Performance](websockets.md#performance) for WS sizing guidance. |
-| `total_timeout` | `None` | Wall-clock cap (seconds) across the whole request including all retries. `None` = unbounded; cap with the per-attempt `timeout` only. See [Retries & idempotency](retries.md). |
 | `ws_ping_interval` | `20.0` | Seconds between WebSocket keepalive pings (forwarded to the `websockets` library). |
 | `ws_close_timeout` | `5.0` | Seconds to wait for a clean WebSocket close handshake before forcing the socket shut. |
-| `allow_unknown_host` | `False` | When `False`, reject `base_url` / `ws_base_url` whose host is not in the Kalshi allowlist (`api.elections.kalshi.com`, `demo-api.kalshi.co`) or a loopback host. Opt out via the field or `KALSHI_ALLOW_UNKNOWN_HOST=1` when targeting a mock server, proxy, or alternate region. (Added in v2.5.0, #250.) |
+| `allow_unknown_host` | `False` | When `False`, reject `base_url` / `ws_base_url` whose host is not in the Kalshi allowlist (`api.elections.kalshi.com`, `demo-api.kalshi.co`) or a loopback host. Set `allow_unknown_host=True` or `KALSHI_ALLOW_UNKNOWN_HOST=1` to allow it (mock server, proxy, alternate region). (Added in v2.5.0, #250.) |
 
 See [Retries & idempotency](retries.md) for what `max_retries`,
 `retry_base_delay`, `retry_max_delay` do at runtime.
