@@ -255,3 +255,69 @@ class TestToPolarsNested:
 
         assert isinstance(df["price"].dtype, pl.Decimal)
         assert df["price"].to_list() == [Decimal("0.55"), Decimal("0.42")]
+
+
+# ---------------------------------------------------------------------------
+# Issue #190: DollarDecimal-typed columns must land in the DataFrame as live
+# Decimal objects, not strings. Before when_used="json" was set, the
+# PlainSerializer fired on mode="python" too and produced str — silently
+# breaking df["price"].sum() (string concat) and any numeric reduction.
+# ---------------------------------------------------------------------------
+
+from kalshi.types import DollarDecimal  # noqa: E402
+
+
+class _DollarRow(BaseModel):
+    price: DollarDecimal
+
+
+def _dollar_items(*values: str) -> list[_DollarRow]:
+    return [_DollarRow(price=Decimal(v)) for v in values]  # type: ignore[arg-type]
+
+
+class TestPageDataframeDollarDecimal:
+    def test_page_to_dataframe_preserves_decimal_objects(self) -> None:
+        pytest.importorskip("pandas")
+        page: Page[_DollarRow] = Page(items=_dollar_items("0.5600"), cursor=None)
+
+        df = page.to_dataframe()
+
+        assert isinstance(df["price"].iloc[0], Decimal)
+        assert df["price"].iloc[0] == Decimal("0.5600")
+
+    def test_page_to_dataframe_decimal_sum_is_decimal_not_concatenated_strings(self) -> None:
+        pytest.importorskip("pandas")
+        page: Page[_DollarRow] = Page(
+            items=_dollar_items("0.5600", "0.5600"), cursor=None
+        )
+
+        df = page.to_dataframe()
+        total = df["price"].sum()
+
+        assert total == Decimal("1.1200")
+        assert not isinstance(total, str)
+
+
+class TestPageToPolarsDollarDecimal:
+    def test_page_to_polars_preserves_decimal_objects(self) -> None:
+        pl = pytest.importorskip("polars")
+        page: Page[_DollarRow] = Page(items=_dollar_items("0.5600"), cursor=None)
+
+        df = page.to_polars()
+
+        # polars infers a Decimal column from the Python Decimal objects, not Utf8.
+        assert isinstance(df["price"].dtype, pl.Decimal)
+        assert df["price"].to_list()[0] == Decimal("0.5600")
+
+    def test_page_to_polars_decimal_sum_is_decimal(self) -> None:
+        pytest.importorskip("polars")
+        page: Page[_DollarRow] = Page(
+            items=_dollar_items("0.5600", "0.5600"), cursor=None
+        )
+
+        df = page.to_polars()
+        total = df["price"].sum()
+
+        # polars Decimal.sum() returns a Python Decimal — never a string concat.
+        assert isinstance(total, Decimal)
+        assert total == Decimal("1.1200")
