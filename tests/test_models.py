@@ -1590,6 +1590,81 @@ class TestStrictIntRejectsBoolOnRequestModels:
                     "to_subaccount": 2,
                 },
             ),
+            # V2 order requests (#295 follow-up)
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "expiration_time",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "subaccount",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "exchange_index",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:DecreaseOrderV2Request",
+                "exchange_index",
+                {"reduce_by": 1},
+            ),
+            (
+                "kalshi.models.orders:AmendOrderV2Request",
+                "exchange_index",
+                {"ticker": "MKT", "side": "bid", "price": "0.50", "count": 1},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersV2RequestOrder",
+                "subaccount",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersV2RequestOrder",
+                "exchange_index",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.subaccounts:UpdateSubaccountNettingRequest",
+                "subaccount_number",
+                {"enabled": True},
+            ),
+            (
+                "kalshi.models.communications:CreateQuoteRequest",
+                "subaccount",
+                {
+                    "rfq_id": "rfq1",
+                    "yes_bid": "0.50",
+                    "no_bid": "0.50",
+                    "rest_remainder": True,
+                },
+            ),
         ],
     )
     def test_strict_int_rejects_bool_on_request_models(

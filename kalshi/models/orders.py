@@ -475,13 +475,13 @@ class CreateOrderV2Request(BaseModel):
     price: DollarDecimal
     time_in_force: TimeInForceLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral
-    expiration_time: int | None = None
+    expiration_time: StrictInt | None = None
     post_only: bool | None = None
     cancel_order_on_pause: bool | None = None
     reduce_only: bool | None = None
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: StrictInt | None = Field(default=None, ge=0)
     order_group_id: str | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -520,7 +520,7 @@ class DecreaseOrderV2Request(BaseModel):
 
     reduce_by: FixedPointCount | None = None
     reduce_to: FixedPointCount | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -560,7 +560,7 @@ class AmendOrderV2Request(BaseModel):
     count: FixedPointCount
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -622,8 +622,8 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
     """Single entry in BatchCancelOrdersV2Request.orders."""
 
     order_id: str
-    subaccount: int | None = Field(default=None, ge=0)
-    exchange_index: int | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 

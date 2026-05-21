@@ -83,7 +83,7 @@ class SubaccountTransfer(BaseModel):
 class UpdateSubaccountNettingRequest(BaseModel):
     """Body for PUT /portfolio/subaccounts/netting."""
 
-    subaccount_number: int = Field(ge=0)
+    subaccount_number: StrictInt = Field(ge=0)
     enabled: bool
 
     model_config = {"extra": "forbid"}
