@@ -218,9 +218,9 @@ class TestCreateOrderWireShape:
         ``TypeError`` BEFORE any HTTP request is dispatched. Pre-#242 the SDK
         silently defaulted to count=1, action="buy" — converting a missing-arg
         bug into a real 1-contract BUY fill (money risk)."""
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         with pytest.raises(TypeError, match=r"count.*action"):
             client.orders.create(ticker="X", side="yes")
@@ -238,9 +238,9 @@ class TestCreateOrderWireShape:
     ) -> None:
         """#242: regression — explicit ``count`` + ``action`` kwargs still build
         and dispatch normally."""
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(ticker="X", side="yes", count=10, action="buy", yes_price="0.5")
 
@@ -258,9 +258,9 @@ class TestCreateOrderWireShape:
         """#242: the ``request=CreateOrderRequest(...)`` path is unaffected by
         the kwarg-overload guard — the model itself now declares count/action
         required, so a fully-populated request still dispatches."""
-        route = respx_mock.post(
-            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
-        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+        route = respx_mock.post("https://demo-api.kalshi.co/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
+        )
 
         client.orders.create(
             request=CreateOrderRequest(
@@ -436,6 +436,26 @@ class TestOrdersList:
         assert params["subaccount"] == "7"
 
     @respx.mock
+    def test_list_accepts_event_ticker_list(self, orders: OrdersResource) -> None:
+        """Spec MultipleEventTickerQuery: comma-joined, server caps at 10."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        orders.list(event_ticker=["EVT-A", "EVT-B", "EVT-C"])
+        params = dict(route.calls[0].request.url.params)
+        # Asserts wire is ?event_ticker=A,B,C (NOT explode:true).
+        assert params["event_ticker"] == "EVT-A,EVT-B,EVT-C"
+
+    def test_list_rejects_event_ticker_list_over_spec_max(self, orders: OrdersResource) -> None:
+        with pytest.raises(ValueError, match=r"too many tickers: 11 > spec max 10"):
+            orders.list(event_ticker=[f"E-{i}" for i in range(11)])
+
+    def test_list_all_rejects_event_ticker_list_over_spec_max(self, orders: OrdersResource) -> None:
+        # Eager validation — must fire at call time, not on iteration.
+        with pytest.raises(ValueError, match=r"too many tickers"):
+            orders.list_all(event_ticker=[f"E-{i}" for i in range(11)])
+
+    @respx.mock
     def test_empty_string_ticker_passes_through(self, orders: OrdersResource) -> None:
         """Regression: pre-v0.7.0 the `if ticker:` truthiness check silently dropped
         empty strings. After _params() standardization, empty string reaches the wire."""
@@ -524,9 +544,7 @@ class TestOrdersBatch:
         assert result.orders[0].client_order_id == "c1"
 
     @respx.mock
-    def test_batch_create_partial_failure_does_not_crash(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_batch_create_partial_failure_does_not_crash(self, orders: OrdersResource) -> None:
         """#194: a failed leg returns ``{"order": null, "error": {...}}``.
 
         The old SDK called ``Order.model_validate(None)`` and tore down the
@@ -976,7 +994,8 @@ class TestBatchCancelRoutesThroughDeleteWithBodyJson:
 
     @respx.mock
     def test_batch_cancel_uses_delete_with_body_json_helper(
-        self, orders: OrdersResource,
+        self,
+        orders: OrdersResource,
     ) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
             return_value=httpx.Response(200, json={"orders": []})
@@ -1033,9 +1052,7 @@ class TestBatchCancelRoutesThroughDeleteWithBodyJson:
         assert result.orders[0].error is None
 
     @respx.mock
-    def test_batch_cancel_per_entry_error_surfaced(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_batch_cancel_per_entry_error_surfaced(self, orders: OrdersResource) -> None:
         """#194: per-leg ``error`` is preserved; ``reduced_by_fp`` is ``0``
         when the leg failed.
         """
@@ -1294,7 +1311,6 @@ class TestBatchCreateWireShape:
         assert set(body.keys()) == {"orders"}
 
 
-
 class TestBatchCreateUsesBytesPath:
     """P4.2: batch_create / batch_cancel serialize via model_dump_json directly
     to bytes and hand them to httpx as ``content=`` (not ``json=``). This
@@ -1311,11 +1327,11 @@ class TestBatchCreateUsesBytesPath:
         )
 
         with patch.object(
-            orders._transport, "request", wraps=orders._transport.request,
+            orders._transport,
+            "request",
+            wraps=orders._transport.request,
         ) as spy:
-            orders.batch_create(
-                [CreateOrderRequest(ticker="A", side="yes", action="buy", count=1)]
-            )
+            orders.batch_create([CreateOrderRequest(ticker="A", side="yes", action="buy", count=1)])
             spy.assert_called_once()
             args, kwargs = spy.call_args
             assert args == ("POST", "/portfolio/orders/batched")
@@ -1332,7 +1348,9 @@ class TestBatchCreateUsesBytesPath:
         )
 
         with patch.object(
-            orders._transport, "request", wraps=orders._transport.request,
+            orders._transport,
+            "request",
+            wraps=orders._transport.request,
         ) as spy:
             orders.batch_cancel(["ord-1"])
             spy.assert_called_once()
@@ -1344,26 +1362,33 @@ class TestBatchCreateUsesBytesPath:
 
     @respx.mock
     def test_batch_create_bytes_path_preserves_decimal_precision(
-        self, orders: OrdersResource,
+        self,
+        orders: OrdersResource,
     ) -> None:
         """P4.2: the bytes path uses ``model_dump_json`` which round-trips
         Decimals via the configured DollarDecimal serializer. Round-trip
         ``Decimal("0.5600")`` through the wire and confirm the exact
         string is preserved (no float-conversion drift)."""
-        route = respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/batched"
-        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        route = respx.post("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
 
-        orders.batch_create([
-            CreateOrderRequest(
-                ticker="A", side="yes", action="buy",
-                count=10, yes_price=Decimal("0.5600"),
-            ),
-        ])
+        orders.batch_create(
+            [
+                CreateOrderRequest(
+                    ticker="A",
+                    side="yes",
+                    action="buy",
+                    count=10,
+                    yes_price=Decimal("0.5600"),
+                ),
+            ]
+        )
 
         raw = route.calls[0].request.content
         body = json.loads(raw)
         assert body["orders"][0]["yes_price_dollars"] == "0.5600"
+
 
 # ── V2 event-market orders (spec v3.18.0) ───────────────────
 
@@ -1846,13 +1871,11 @@ class TestPathSegmentEncoding:
     ) -> None:
         # ``/`` is encoded as ``%2F`` so the server receives the encoded
         # segment, never a path-traversal-adjacent URL.
-        encoded_path = (
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/"
-            "%2F..%2Fadmin"
-        )
+        encoded_path = "https://test.kalshi.com/trade-api/v2/portfolio/orders/%2F..%2Fadmin"
         route = respx.get(encoded_path).mock(
             return_value=httpx.Response(
-                200, json={"order": order_dict(order_id="o", ticker="M")},
+                200,
+                json={"order": order_dict(order_id="o", ticker="M")},
             )
         )
         orders.get("/../admin")
@@ -1860,26 +1883,21 @@ class TestPathSegmentEncoding:
 
     @respx.mock
     def test_order_id_with_space_encoded(self, orders: OrdersResource) -> None:
-        encoded_path = (
-            "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord%20a"
-        )
+        encoded_path = "https://test.kalshi.com/trade-api/v2/portfolio/orders/ord%20a"
         route = respx.get(encoded_path).mock(
             return_value=httpx.Response(
-                200, json={"order": order_dict(order_id="o", ticker="M")},
+                200,
+                json={"order": order_dict(order_id="o", ticker="M")},
             )
         )
         orders.get("ord a")
         assert route.called
 
-    def test_empty_string_order_id_raises_value_error(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_empty_string_order_id_raises_value_error(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match="order_id must be non-empty"):
             orders.get("")
 
-    def test_whitespace_only_order_id_rejected(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_whitespace_only_order_id_rejected(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match="order_id must be non-empty"):
             orders.cancel("   ")
 
@@ -1897,30 +1915,22 @@ class TestLimitValidation:
     trip and produces a more actionable error than a server 400.
     """
 
-    def test_orders_list_rejects_limit_below_1(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_orders_list_rejects_limit_below_1(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
             orders.list(limit=0)
 
-    def test_orders_list_rejects_limit_above_1000(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_orders_list_rejects_limit_above_1000(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
             orders.list(limit=1001)
 
     @respx.mock
-    def test_orders_list_accepts_limit_at_boundaries(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_orders_list_accepts_limit_at_boundaries(self, orders: OrdersResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/portfolio/orders").mock(
             return_value=httpx.Response(200, json={"orders": []})
         )
         orders.list(limit=1)
         orders.list(limit=1000)
 
-    def test_fills_rejects_limit_above_1000(
-        self, orders: OrdersResource
-    ) -> None:
+    def test_fills_rejects_limit_above_1000(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
             orders.fills(limit=10_000)
