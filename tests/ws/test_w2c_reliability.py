@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import collections
 import json
+from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -228,7 +230,7 @@ class TestIssue257OrderbookUnavailable:
 
         mgr = OrderbookManager()
 
-        async def _stream() -> object:
+        async def _stream() -> AsyncIterator[Any]:
             # First yield: a placeholder; the iterator only checks the manager.
             yield {"type": "orderbook_delta"}
             yield {"type": "orderbook_delta"}
@@ -261,9 +263,118 @@ class TestIssue257OrderbookUnavailable:
         )
         mgr._apply_snapshot_inplace(snap, sid=1)
 
-        async def _stream() -> object:
+        async def _stream() -> AsyncIterator[Any]:
             yield {"type": "orderbook_snapshot"}
 
         it = _OrderbookIterator(_stream(), mgr, "OK")
         book = await it.__anext__()
         assert book.ticker == "OK"
+
+
+@pytest.mark.asyncio
+class TestIssue255StaleOrderbookGating:
+    """#255: ``_process_frame`` must drop orderbook frames whose sid no
+    longer maps to a live subscription, BEFORE validating or applying
+    them to the local manager. Otherwise a stale snapshot can re-seed
+    the book under the old sid index, or a stale delta can clobber a
+    freshly-resynced book."""
+
+    async def test_stale_snapshot_does_not_mutate_book(self) -> None:
+        ws = _make_ws()
+
+        class _EmptyMgr:
+            def get_subscription_by_sid(self, sid: int) -> Subscription | None:
+                return None
+
+            def get_subscription(self, client_id: int) -> Subscription | None:
+                return None
+
+        ws._sub_mgr = _EmptyMgr()  # type: ignore[assignment]
+        ws._dispatcher = MessageDispatcher(sub_mgr=ws._sub_mgr)  # type: ignore[arg-type]
+        ob_mgr = ws._orderbook_mgr
+        assert ob_mgr is not None
+
+        stale_snapshot = json.dumps(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 42,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "STALE",
+                    "market_id": "m",
+                    "yes": [["0.50", "100"]],
+                    "no": [],
+                },
+            }
+        )
+        await ws._process_frame(stale_snapshot)
+        # Stale snapshot dropped before apply: book remains empty.
+        assert ob_mgr.get("STALE") is None
+
+    async def test_stale_delta_does_not_mutate_existing_book(self) -> None:
+        """A delta arriving on the OLD sid after resubscribe (new sid is now
+        valid for the same ticker) must not mutate the new book."""
+        ws = _make_ws()
+        ob_mgr = ws._orderbook_mgr
+        assert ob_mgr is not None
+
+        # Seed a book under the NEW sid (post-resubscribe).
+        from kalshi.ws.models.orderbook_delta import OrderbookSnapshotMessage
+
+        new_snap = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 99,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "m",
+                    "yes": [["0.50", "100"]],
+                    "no": [],
+                },
+            }
+        )
+        ob_mgr._apply_snapshot_inplace(new_snap, sid=99)
+        book_before = ob_mgr.get("T")
+        assert book_before is not None
+        yes_before = list(book_before.yes)
+
+        new_sub = Subscription(
+            client_id=1,
+            channel="orderbook_delta",
+            params={},
+            queue=MessageQueue(),
+        )
+        new_sub.server_sid = 99
+
+        class _NewSidOnlyMgr:
+            def get_subscription_by_sid(self, sid: int) -> Subscription | None:
+                return new_sub if sid == 99 else None
+
+            def get_subscription(self, client_id: int) -> Subscription | None:
+                return new_sub if client_id == 1 else None
+
+        ws._sub_mgr = _NewSidOnlyMgr()  # type: ignore[assignment]
+        ws._dispatcher = MessageDispatcher(sub_mgr=ws._sub_mgr)  # type: ignore[arg-type]
+
+        # Stale delta for OLD sid that should be dropped before apply.
+        stale_delta = json.dumps(
+            {
+                "type": "orderbook_delta",
+                "sid": 42,
+                "seq": 7,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "m",
+                    "price": 50,
+                    "delta": -50,
+                    "side": "yes",
+                },
+            }
+        )
+        await ws._process_frame(stale_delta)
+
+        # New-sid book is unchanged.
+        book_after = ob_mgr.get("T")
+        assert book_after is not None
+        assert list(book_after.yes) == yes_before

@@ -342,6 +342,28 @@ class KalshiWebSocket:
         seq = data.get("seq")
         msg_type = data.get("type", "")
 
+        # #255: stale orderbook frames arriving after a teardown
+        # (resubscribe_one or server-initiated unsubscribe reaped the
+        # sid) must not mutate the local book. The dispatcher already
+        # drops unknown-sid frames at routing time, but the orderbook
+        # apply paths below ran BEFORE that check, so a stale snapshot
+        # could re-seed the manager under the old sid index and a stale
+        # delta could clobber the freshly-resynced book. Gate ALL
+        # downstream processing (seq tracking, validation, apply,
+        # dispatch) on the sid being currently mapped. Frames without a
+        # sid (control envelopes, untracked channels) fall through.
+        if (
+            msg_type in ("orderbook_snapshot", "orderbook_delta")
+            and isinstance(sid, int)
+            and self._sub_mgr is not None
+            and self._sub_mgr.get_subscription_by_sid(sid) is None
+        ):
+            logger.debug(
+                "Dropping stale %s for unmapped sid=%d (post-teardown race)",
+                msg_type, sid,
+            )
+            return
+
         prev_seq: int | None = None
         tracked = False
         if sid is not None and seq is not None and self._seq_tracker:
