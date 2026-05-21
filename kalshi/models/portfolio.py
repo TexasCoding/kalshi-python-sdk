@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount, NullableList
+from kalshi.types import DollarDecimal, FixedPointCount, NullableList, UnixSecondsTimestamp
 
 SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
 """Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
@@ -44,7 +44,7 @@ class Balance(BaseModel):
     balance: int
     balance_dollars: DollarDecimal
     portfolio_value: int
-    updated_ts: int
+    updated_ts: UnixSecondsTimestamp
     balance_breakdown: list[IndexedBalance] | None = None
 
     model_config = {"extra": "allow"}
@@ -63,7 +63,16 @@ class TotalRestingOrderValue(BaseModel):
 
 
 class MarketPosition(BaseModel):
-    """A position in a single market."""
+    """A position in a single market.
+
+    ``total_traded`` and ``position`` are typed ``DollarDecimal | None`` /
+    ``FixedPointCount | None`` without ``default=None`` because the OpenAPI
+    spec (``MarketPosition.required``) marks ``total_traded_dollars`` and
+    ``position_fp`` as **required** response keys. The ``| None`` admits the
+    server's observed ``null`` on flat positions while a missing key still
+    raises ValidationError — silent omission is treated as a schema regression,
+    not a default.
+    """
 
     ticker: str
     total_traded: DollarDecimal | None = Field(
@@ -142,8 +151,8 @@ class Deposit(BaseModel):
     type: PaymentTypeLiteral
     amount_cents: int
     fee_cents: int
-    created_ts: int
-    finalized_ts: int | None = None
+    created_ts: UnixSecondsTimestamp
+    finalized_ts: UnixSecondsTimestamp | None = None
 
     model_config = {"extra": "allow"}
 
@@ -156,8 +165,8 @@ class Withdrawal(BaseModel):
     type: PaymentTypeLiteral
     amount_cents: int
     fee_cents: int
-    created_ts: int
-    finalized_ts: int | None = None
+    created_ts: UnixSecondsTimestamp
+    finalized_ts: UnixSecondsTimestamp | None = None
 
     model_config = {"extra": "allow"}
 

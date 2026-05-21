@@ -171,8 +171,8 @@ class CreateOrderRequest(BaseModel):
     """
 
     ticker: str
-    side: str
-    action: str
+    side: SideLiteral
+    action: ActionLiteral
     count: FixedPointCount = Field(serialization_alias="count_fp")
     yes_price: DollarDecimal | None = Field(
         default=None,
@@ -185,10 +185,10 @@ class CreateOrderRequest(BaseModel):
     client_order_id: str | None = None
     expiration_ts: int | None = None
     buy_max_cost: int | None = None
-    time_in_force: str | None = None
+    time_in_force: TimeInForceLiteral | None = None
     post_only: bool | None = None
     reduce_only: bool | None = None
-    self_trade_prevention_type: str | None = None
+    self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
     order_group_id: str | None = None
     cancel_order_on_pause: bool | None = None
     subaccount: int | None = None

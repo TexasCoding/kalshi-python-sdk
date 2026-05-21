@@ -30,7 +30,9 @@ except ImportError:
     yaml = None  # type: ignore[assignment]
 
 from pydantic import AliasChoices
+from pydantic import AwareDatetime as _PydAware
 from pydantic import BaseModel as PydanticBase
+from pydantic import NaiveDatetime as _PydNaive
 from pydantic.fields import FieldInfo
 
 from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
@@ -42,6 +44,12 @@ from tests._contract_support import (
     _resolve_path_params,
     _resolve_request_body_schema,
 )
+
+# pydantic v2 ships AwareDatetime / NaiveDatetime as concrete classes whose
+# validation produces a stdlib datetime. The drift checker treats them as
+# equivalent to ``datetime`` for kind-classification purposes (spec is just
+# ``string`` + ``format: date-time``).
+_PYDANTIC_DATETIME_TYPES: tuple[type, ...] = (_PydAware, _PydNaive)
 
 SPEC_FILE = Path(__file__).parent.parent / "specs" / "openapi.yaml"
 
@@ -580,6 +588,22 @@ def _sdk_type_kind(ann: Any) -> str:
     if base is Decimal:
         return "decimal"
     if base is datetime:
+        return "datetime"
+    # Pydantic AwareDatetime / NaiveDatetime are concrete classes whose
+    # validation produces a ``datetime``; treat them as the same kind for
+    # spec-drift purposes (spec is just ``string`` + ``format: date-time``).
+    if base in _PYDANTIC_DATETIME_TYPES:
+        return "datetime"
+    # Pydantic stores ``AwareDatetime``/``NaiveDatetime`` field annotations
+    # as ``ForwardRef('datetime')`` (or ``'datetime | None'``) until the
+    # first model_validate triggers eager resolution. The drift suite runs
+    # before any frame parses, so resolve the forward-ref class-name here
+    # so a date-time field is classified ``datetime``, not ``unknown``.
+    if isinstance(base, typing.ForwardRef) and base.__forward_arg__ in (
+        "datetime", "datetime | None",
+        "AwareDatetime", "AwareDatetime | None",
+        "NaiveDatetime", "NaiveDatetime | None",
+    ):
         return "datetime"
     origin = typing.get_origin(base)
     if origin is list:

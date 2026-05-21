@@ -116,3 +116,16 @@ Use on response-model fields (extra='allow') whose spec says 'array' but where
 the live API has been observed to return null. Do NOT use on request bodies —
 those should enforce strict validation.
 """
+
+# Internal type aid — not re-exported via kalshi.__init__. The bare int
+# wire shape is preserved; this alias only documents intent and gives mypy/IDE
+# a greppable name when balance/deposit/withdrawal timestamps are read
+# alongside the AwareDatetime peers on MarketPosition/Settlement.
+UnixSecondsTimestamp = Annotated[int, "Unix epoch seconds (int64) per OpenAPI spec"]
+"""Server-side ``format: int64`` Unix-seconds timestamp.
+
+Same wire shape as plain ``int``; the alias exists to make it obvious at the
+field site that the value is *seconds* (not milliseconds, not a datetime).
+Callers wanting a :class:`datetime.datetime` can use
+``datetime.fromtimestamp(value, tz=timezone.utc)``.
+"""
