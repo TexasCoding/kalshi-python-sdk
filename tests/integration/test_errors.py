@@ -40,10 +40,14 @@ class TestErrorPaths:
     def test_malformed_params_returns_validation_error(
         self, sync_client: KalshiClient
     ) -> None:
-        """Malformed request params should raise KalshiValidationError (400)."""
-        # Use an obviously invalid limit value
+        """Malformed request params should raise KalshiValidationError (400).
+
+        Uses a malformed cursor — the SDK passes it verbatim to the server,
+        which rejects it with a 400. (Numeric range checks like negative
+        limit are now enforced client-side via ValueError per #214.)
+        """
         with pytest.raises(KalshiValidationError) as exc_info:
-            sync_client.markets.list(limit=-1)
+            sync_client.markets.list(cursor="!!!not-a-valid-cursor!!!")
 
         exc = exc_info.value
         assert exc.status_code == 400
@@ -98,7 +102,7 @@ class TestErrorPaths:
     ) -> None:
         """KalshiValidationError should have a details attribute (may be None or dict)."""
         with pytest.raises(KalshiValidationError) as exc_info:
-            sync_client.markets.list(limit=-1)
+            sync_client.markets.list(cursor="!!!not-a-valid-cursor!!!")
 
         exc = exc_info.value
         assert hasattr(exc, "details")

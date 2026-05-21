@@ -193,14 +193,15 @@ class TestOrdersSync:
             for i in range(2)
         ]
 
-        orders = sync_client.orders.batch_create(requests)
-        assert isinstance(orders, list)
-        assert len(orders) > 0
-        for o in orders:
+        response = sync_client.orders.batch_create(requests)
+        assert len(response.orders) > 0
+        successful = [e.order for e in response.orders if e.order is not None]
+        assert successful, f"All legs failed: {response.orders}"
+        for o in successful:
             assert isinstance(o, Order)
             assert_model_fields(o)
 
-        order_ids = [o.order_id for o in orders]
+        order_ids = [o.order_id for o in successful]
         try:
             sync_client.orders.batch_cancel(order_ids)
         except Exception:
@@ -306,14 +307,15 @@ class TestOrdersAsync:
             for i in range(2)
         ]
 
-        orders = await async_client.orders.batch_create(requests)
-        assert isinstance(orders, list)
-        assert len(orders) > 0
-        for o in orders:
+        response = await async_client.orders.batch_create(requests)
+        assert len(response.orders) > 0
+        successful = [e.order for e in response.orders if e.order is not None]
+        assert successful, f"All legs failed: {response.orders}"
+        for o in successful:
             assert isinstance(o, Order)
             assert_model_fields(o)
 
-        order_ids = [o.order_id for o in orders]
+        order_ids = [o.order_id for o in successful]
         try:
             await async_client.orders.batch_cancel(order_ids)
         except Exception:
