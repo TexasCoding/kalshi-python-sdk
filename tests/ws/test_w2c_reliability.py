@@ -12,7 +12,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiOrderbookUnavailableError, KalshiSubscriptionError
+from kalshi.errors import (
+    KalshiBackpressureError,
+    KalshiOrderbookUnavailableError,
+    KalshiSubscriptionError,
+)
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.client import KalshiWebSocket
@@ -378,3 +382,89 @@ class TestIssue255StaleOrderbookGating:
         book_after = ob_mgr.get("T")
         assert book_after is not None
         assert list(book_after.yes) == yes_before
+
+
+@pytest.mark.asyncio
+class TestIssue256BackpressureErrorFields:
+    """#256: ``KalshiBackpressureError`` exposes structured channel/sid/
+    client_id/maxsize fields populated at the raise site
+    (``MessageQueue.put``) and broadcast site
+    (``SubscriptionManager.broadcast_error``)."""
+
+    async def test_put_overflow_populates_channel_client_id_maxsize(self) -> None:
+        from kalshi.ws.backpressure import OverflowStrategy
+
+        q: MessageQueue[int] = MessageQueue(
+            maxsize=2,
+            overflow=OverflowStrategy.ERROR,
+            channel="orderbook_delta",
+            client_id=42,
+        )
+        await q.put(1)
+        await q.put(2)
+        with pytest.raises(KalshiBackpressureError) as excinfo:
+            await q.put(3)
+        err = excinfo.value
+        assert err.channel == "orderbook_delta"
+        assert err.client_id == 42
+        assert err.maxsize == 2
+        # sid is not known to the queue; populated at broadcast_error site.
+        assert err.sid is None
+
+    async def test_broadcast_error_enriches_sid(self) -> None:
+        """``SubscriptionManager.broadcast_error`` populates ``sid`` from the
+        subscription's current server_sid when the error doesn't already
+        carry one."""
+        from kalshi.ws.backpressure import OverflowStrategy
+        from kalshi.ws.channels import SubscriptionManager
+
+        mgr = SubscriptionManager(connection=None)  # type: ignore[arg-type]
+        queue: MessageQueue[Any] = MessageQueue(
+            maxsize=10,
+            overflow=OverflowStrategy.ERROR,
+            channel="orderbook_delta",
+            client_id=7,
+        )
+        sub = Subscription(
+            client_id=7,
+            channel="orderbook_delta",
+            params={},
+            queue=queue,
+        )
+        sub.server_sid = 314
+        mgr._subscriptions[7] = sub
+
+        exc = KalshiBackpressureError(
+            "queue full",
+            channel="orderbook_delta",
+            client_id=7,
+            maxsize=10,
+        )
+        assert exc.sid is None
+        await mgr.broadcast_error(7, exc)
+        assert exc.sid == 314
+
+        # And the iterator surfaces it with all fields populated.
+        with pytest.raises(KalshiBackpressureError) as excinfo:
+            async for _ in queue:
+                pass
+        raised = excinfo.value
+        assert raised.channel == "orderbook_delta"
+        assert raised.sid == 314
+        assert raised.client_id == 7
+        assert raised.maxsize == 10
+
+    async def test_subscribe_default_queue_carries_identity(self) -> None:
+        """The default queue constructed by SubscriptionManager carries the
+        subscription's channel + client_id, so an overflow surfaces with
+        identity intact even without the caller threading it through."""
+        from kalshi.ws.backpressure import OverflowStrategy
+
+        q: MessageQueue[Any] = MessageQueue(
+            maxsize=5,
+            overflow=OverflowStrategy.ERROR,
+            channel="ticker",
+            client_id=11,
+        )
+        assert q._channel == "ticker"
+        assert q._client_id == 11

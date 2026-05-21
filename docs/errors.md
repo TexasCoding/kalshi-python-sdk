@@ -139,7 +139,13 @@ WebSocket failures are a separate sub-hierarchy under
 - **`KalshiBackpressureError`** — raised from `MessageQueue.put()` when the
   queue is full and the overflow strategy is `ERROR`. The receive loop treats
   this as **fatal**: it broadcasts sentinels to every active iterator and
-  exits. See [WebSocket → Backpressure](websockets.md#backpressure).
+  exits. See [WebSocket → Backpressure](websockets.md#backpressure). Carries:
+    - `channel: str | None` — the channel whose queue overflowed.
+    - `sid: int | None` — server-side subscription id (populated at the
+      ``broadcast_error`` site since the queue itself doesn't track sid).
+    - `client_id: int | None` — durable client-side id.
+    - `maxsize: int | None` — the configured queue ceiling at the time of
+      overflow.
 - **`KalshiSequenceGapError`** — exposed for callers wiring their own resync
   logic on top of the SDK's primitives. The built-in receive loop **does not
   raise** this — it recovers from gaps silently (drops the message, clears

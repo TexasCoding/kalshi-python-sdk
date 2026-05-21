@@ -129,7 +129,27 @@ class KalshiSequenceGapError(KalshiWebSocketError):
 
 
 class KalshiBackpressureError(KalshiWebSocketError):
-    """Message queue overflow with ERROR strategy."""
+    """Message queue overflow with ERROR strategy.
+
+    Carries structured context so consumers iterating multiple
+    subscriptions can route the failure by channel/sid/client_id
+    without parsing the error message string.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        channel: str | None = None,
+        sid: int | None = None,
+        client_id: int | None = None,
+        maxsize: int | None = None,
+    ) -> None:
+        self.channel = channel
+        self.sid = sid
+        self.client_id = client_id
+        self.maxsize = maxsize
+        super().__init__(message)
 
 
 class KalshiOrderbookUnavailableError(KalshiWebSocketError):
