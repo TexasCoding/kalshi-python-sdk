@@ -51,8 +51,9 @@ class Page(BaseModel, Generic[T]):
                 "Install it with: pip install 'kalshi-sdk[pandas]'"
             ) from exc
 
-        records = [item.model_dump(mode="python") for item in self.items]
-        return pd.DataFrame(records)
+        if not self.items:
+            return pd.DataFrame()
+        return pd.DataFrame(self._columns())
 
     def to_polars(self) -> polars.DataFrame:
         """Return page items as a polars DataFrame (requires kalshi-sdk[polars])."""
@@ -64,5 +65,24 @@ class Page(BaseModel, Generic[T]):
                 "Install it with: pip install 'kalshi-sdk[polars]'"
             ) from exc
 
-        records = [item.model_dump(mode="python") for item in self.items]
-        return pl.DataFrame(records)
+        if not self.items:
+            return pl.DataFrame()
+        return pl.DataFrame(self._columns())
+
+    def _columns(self) -> dict[str, list[object]]:
+        """Build a column-oriented dict[field, list[value]] over self.items.
+
+        Avoids the per-row ``model_dump`` walk used previously (issue #264).
+        Nested ``BaseModel`` cells are dumped to dicts per column so that
+        polars can still infer a ``Struct`` dtype and the #225 / #190
+        Decimal contract is preserved (DollarDecimal lands as ``Decimal``
+        in ``mode="python"``, not as ``str``).
+        """
+        fields = type(self.items[0]).model_fields.keys()
+        columns: dict[str, list[object]] = {}
+        for field in fields:
+            col: list[object] = [getattr(item, field) for item in self.items]
+            if col and isinstance(col[0], BaseModel):
+                col = [v.model_dump(mode="python") if isinstance(v, BaseModel) else v for v in col]
+            columns[field] = col
+        return columns
