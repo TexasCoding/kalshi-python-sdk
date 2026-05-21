@@ -362,6 +362,24 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="BatchCancelOrdersV2Response.orders.items",
         notes="Inline object schema (no named component)",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersResponse",
+        spec_schema="BatchCreateOrdersResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCreateOrdersResponseEntry",
+        spec_schema="BatchCreateOrdersResponse.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersResponse",
+        spec_schema="BatchCancelOrdersResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.orders.BatchCancelOrdersResponseEntry",
+        spec_schema="BatchCancelOrdersResponse.orders.items",
+        notes="Inline object schema (no named component)",
+    ),
     # -- events sub-models (#171) ----------------------------------------
     ContractEntry(
         sdk_model="kalshi.models.events.MarketMetadata",
