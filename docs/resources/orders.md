@@ -49,7 +49,7 @@ with KalshiClient.from_env() as client:
     order = client.orders.create(
         ticker="KXPRES-24-DJT",
         side="yes",                    # SideLiteral
-        action="buy",                  # ActionLiteral, defaults to "buy"
+        action="buy",                  # ActionLiteral (required)
         count=10,
         yes_price="0.65",              # str or Decimal — never float
         client_order_id=str(uuid.uuid4()),
