@@ -91,15 +91,22 @@ class MilestonesResource(SyncResource):
         related_event_ticker: str | None = None,
         cursor: str | None = None,
         min_updated_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Milestone]:
         params = _list_milestones_params(
-            limit=limit, minimum_start_date=minimum_start_date,
-            category=category, competition=competition,
-            source_id=source_id, milestone_type=milestone_type,
+            limit=limit,
+            minimum_start_date=minimum_start_date,
+            category=category,
+            competition=competition,
+            source_id=source_id,
+            milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=cursor, min_updated_ts=min_updated_ts,
+            cursor=cursor,
+            min_updated_ts=min_updated_ts,
         )
-        return self._list("/milestones", Milestone, "milestones", params=params)
+        return self._list(
+            "/milestones", Milestone, "milestones", params=params, extra_headers=extra_headers
+        )
 
     def list_all(
         self,
@@ -113,22 +120,33 @@ class MilestonesResource(SyncResource):
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Milestone]:
         _validate_max_pages(max_pages)
         params = _list_milestones_params(
-            limit=limit, minimum_start_date=minimum_start_date,
-            category=category, competition=competition,
-            source_id=source_id, milestone_type=milestone_type,
+            limit=limit,
+            minimum_start_date=minimum_start_date,
+            category=category,
+            competition=competition,
+            source_id=source_id,
+            milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=None, min_updated_ts=min_updated_ts,
+            cursor=None,
+            min_updated_ts=min_updated_ts,
         )
         return self._list_all(
-            "/milestones", Milestone, "milestones",
-            params=params, max_pages=max_pages,
+            "/milestones",
+            Milestone,
+            "milestones",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get(self, milestone_id: str) -> Milestone:
-        data = self._get(f"/milestones/{_seg(milestone_id, name='milestone_id')}")
+    def get(self, milestone_id: str, *, extra_headers: dict[str, str] | None = None) -> Milestone:
+        data = self._get(
+            f"/milestones/{_seg(milestone_id, name='milestone_id')}", extra_headers=extra_headers
+        )
         return GetMilestoneResponse.model_validate(data).milestone
 
 
@@ -147,16 +165,21 @@ class AsyncMilestonesResource(AsyncResource):
         related_event_ticker: str | None = None,
         cursor: str | None = None,
         min_updated_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Milestone]:
         params = _list_milestones_params(
-            limit=limit, minimum_start_date=minimum_start_date,
-            category=category, competition=competition,
-            source_id=source_id, milestone_type=milestone_type,
+            limit=limit,
+            minimum_start_date=minimum_start_date,
+            category=category,
+            competition=competition,
+            source_id=source_id,
+            milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=cursor, min_updated_ts=min_updated_ts,
+            cursor=cursor,
+            min_updated_ts=min_updated_ts,
         )
         return await self._list(
-            "/milestones", Milestone, "milestones", params=params,
+            "/milestones", Milestone, "milestones", params=params, extra_headers=extra_headers
         )
 
     def list_all(
@@ -171,21 +194,34 @@ class AsyncMilestonesResource(AsyncResource):
         related_event_ticker: str | None = None,
         min_updated_ts: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Milestone]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
         params = _list_milestones_params(
-            limit=limit, minimum_start_date=minimum_start_date,
-            category=category, competition=competition,
-            source_id=source_id, milestone_type=milestone_type,
+            limit=limit,
+            minimum_start_date=minimum_start_date,
+            category=category,
+            competition=competition,
+            source_id=source_id,
+            milestone_type=milestone_type,
             related_event_ticker=related_event_ticker,
-            cursor=None, min_updated_ts=min_updated_ts,
+            cursor=None,
+            min_updated_ts=min_updated_ts,
         )
         return self._list_all(
-            "/milestones", Milestone, "milestones",
-            params=params, max_pages=max_pages,
+            "/milestones",
+            Milestone,
+            "milestones",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get(self, milestone_id: str) -> Milestone:
-        data = await self._get(f"/milestones/{_seg(milestone_id, name='milestone_id')}")
+    async def get(
+        self, milestone_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> Milestone:
+        data = await self._get(
+            f"/milestones/{_seg(milestone_id, name='milestone_id')}", extra_headers=extra_headers
+        )
         return GetMilestoneResponse.model_validate(data).milestone

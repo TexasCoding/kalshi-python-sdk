@@ -30,16 +30,18 @@ def _build_create_api_key_body(
     scopes: builtins.list[str] | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
-        request, name=name, public_key=public_key, scopes=scopes,
+        request,
+        name=name,
+        public_key=public_key,
+        scopes=scopes,
     )
     if request is None:
         if name is None or public_key is None:
-            raise TypeError(
-                "create() requires `name` and `public_key` "
-                "(or pass `request=...`)"
-            )
+            raise TypeError("create() requires `name` and `public_key` (or pass `request=...`)")
         request = CreateApiKeyRequest(
-            name=name, public_key=public_key, scopes=scopes,
+            name=name,
+            public_key=public_key,
+            scopes=scopes,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -53,9 +55,7 @@ def _build_generate_api_key_body(
     _check_request_exclusive(request, name=name, scopes=scopes)
     if request is None:
         if name is None:
-            raise TypeError(
-                "generate() requires `name` (or pass `request=...`)"
-            )
+            raise TypeError("generate() requires `name` (or pass `request=...`)")
         request = GenerateApiKeyRequest(name=name, scopes=scopes)
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -68,13 +68,15 @@ class ApiKeysResource(SyncResource):
     private key once (see :class:`GenerateApiKeyResponse`).
     """
 
-    def list(self) -> GetApiKeysResponse:
+    def list(self, *, extra_headers: dict[str, str] | None = None) -> GetApiKeysResponse:
         self._require_auth()
-        data = self._get("/api_keys")
+        data = self._get("/api_keys", extra_headers=extra_headers)
         return GetApiKeysResponse.model_validate(data)
 
     @overload
-    def create(self, *, request: CreateApiKeyRequest) -> CreateApiKeyResponse: ...
+    def create(
+        self, *, request: CreateApiKeyRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateApiKeyResponse: ...
     @overload
     def create(
         self,
@@ -82,6 +84,7 @@ class ApiKeysResource(SyncResource):
         name: str,
         public_key: str,
         scopes: builtins.list[str] | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     def create(
         self,
@@ -90,22 +93,29 @@ class ApiKeysResource(SyncResource):
         name: str | None = None,
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
         body = _build_create_api_key_body(
-            request, name=name, public_key=public_key, scopes=scopes,
+            request,
+            name=name,
+            public_key=public_key,
+            scopes=scopes,
         )
-        data = self._post("/api_keys", json=body)
+        data = self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
 
     @overload
-    def generate(self, *, request: GenerateApiKeyRequest) -> GenerateApiKeyResponse: ...
+    def generate(
+        self, *, request: GenerateApiKeyRequest, extra_headers: dict[str, str] | None = None
+    ) -> GenerateApiKeyResponse: ...
     @overload
     def generate(
         self,
         *,
         name: str,
         scopes: builtins.list[str] | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     def generate(
         self,
@@ -113,27 +123,30 @@ class ApiKeysResource(SyncResource):
         request: GenerateApiKeyRequest | None = None,
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
         body = _build_generate_api_key_body(request, name=name, scopes=scopes)
-        data = self._post("/api_keys/generate", json=body)
+        data = self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
 
-    def delete(self, api_key: str) -> None:
+    def delete(self, api_key: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
-        self._delete(f"/api_keys/{_seg(api_key, name='api_key')}")
+        self._delete(f"/api_keys/{_seg(api_key, name='api_key')}", extra_headers=extra_headers)
 
 
 class AsyncApiKeysResource(AsyncResource):
     """Async API keys resource."""
 
-    async def list(self) -> GetApiKeysResponse:
+    async def list(self, *, extra_headers: dict[str, str] | None = None) -> GetApiKeysResponse:
         self._require_auth()
-        data = await self._get("/api_keys")
+        data = await self._get("/api_keys", extra_headers=extra_headers)
         return GetApiKeysResponse.model_validate(data)
 
     @overload
-    async def create(self, *, request: CreateApiKeyRequest) -> CreateApiKeyResponse: ...
+    async def create(
+        self, *, request: CreateApiKeyRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateApiKeyResponse: ...
     @overload
     async def create(
         self,
@@ -141,6 +154,7 @@ class AsyncApiKeysResource(AsyncResource):
         name: str,
         public_key: str,
         scopes: builtins.list[str] | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     async def create(
         self,
@@ -149,17 +163,21 @@ class AsyncApiKeysResource(AsyncResource):
         name: str | None = None,
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
         body = _build_create_api_key_body(
-            request, name=name, public_key=public_key, scopes=scopes,
+            request,
+            name=name,
+            public_key=public_key,
+            scopes=scopes,
         )
-        data = await self._post("/api_keys", json=body)
+        data = await self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
 
     @overload
     async def generate(
-        self, *, request: GenerateApiKeyRequest,
+        self, *, request: GenerateApiKeyRequest, extra_headers: dict[str, str] | None = None
     ) -> GenerateApiKeyResponse: ...
     @overload
     async def generate(
@@ -167,6 +185,7 @@ class AsyncApiKeysResource(AsyncResource):
         *,
         name: str,
         scopes: builtins.list[str] | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     async def generate(
         self,
@@ -174,12 +193,15 @@ class AsyncApiKeysResource(AsyncResource):
         request: GenerateApiKeyRequest | None = None,
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
         body = _build_generate_api_key_body(request, name=name, scopes=scopes)
-        data = await self._post("/api_keys/generate", json=body)
+        data = await self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
 
-    async def delete(self, api_key: str) -> None:
+    async def delete(self, api_key: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
-        await self._delete(f"/api_keys/{_seg(api_key, name='api_key')}")
+        await self._delete(
+            f"/api_keys/{_seg(api_key, name='api_key')}", extra_headers=extra_headers
+        )

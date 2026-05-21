@@ -9,28 +9,32 @@ from kalshi.resources._base import AsyncResource, SyncResource
 class AccountResource(SyncResource):
     """Sync account API."""
 
-    def limits(self) -> AccountApiLimits:
+    def limits(self, *, extra_headers: dict[str, str] | None = None) -> AccountApiLimits:
         self._require_auth()
-        data = self._get("/account/limits")
+        data = self._get("/account/limits", extra_headers=extra_headers)
         return AccountApiLimits.model_validate(data)
 
-    def endpoint_costs(self) -> AccountEndpointCosts:
+    def endpoint_costs(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> AccountEndpointCosts:
         """List API v2 endpoints with non-default token costs."""
         self._require_auth()
-        data = self._get("/account/endpoint_costs")
+        data = self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)
 
 
 class AsyncAccountResource(AsyncResource):
     """Async account API."""
 
-    async def limits(self) -> AccountApiLimits:
+    async def limits(self, *, extra_headers: dict[str, str] | None = None) -> AccountApiLimits:
         self._require_auth()
-        data = await self._get("/account/limits")
+        data = await self._get("/account/limits", extra_headers=extra_headers)
         return AccountApiLimits.model_validate(data)
 
-    async def endpoint_costs(self) -> AccountEndpointCosts:
+    async def endpoint_costs(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> AccountEndpointCosts:
         """List API v2 endpoints with non-default token costs."""
         self._require_auth()
-        data = await self._get("/account/endpoint_costs")
+        data = await self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)

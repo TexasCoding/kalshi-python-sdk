@@ -44,8 +44,10 @@ def _build_transfer_body(
     )
     if request is None:
         if (
-            client_transfer_id is None or from_subaccount is None
-            or to_subaccount is None or amount_cents is None
+            client_transfer_id is None
+            or from_subaccount is None
+            or to_subaccount is None
+            or amount_cents is None
         ):
             raise TypeError(
                 "transfer() requires `client_transfer_id`, `from_subaccount`, "
@@ -54,9 +56,7 @@ def _build_transfer_body(
         # Accept str for caller ergonomics; coerce once to surface a clean
         # ValueError on malformed strings before the model validator sees them.
         uid = (
-            client_transfer_id
-            if isinstance(client_transfer_id, UUID)
-            else UUID(client_transfer_id)
+            client_transfer_id if isinstance(client_transfer_id, UUID) else UUID(client_transfer_id)
         )
         request = ApplySubaccountTransferRequest(
             client_transfer_id=uid,
@@ -74,7 +74,9 @@ def _build_update_netting_body(
     enabled: bool | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
-        request, subaccount_number=subaccount_number, enabled=enabled,
+        request,
+        subaccount_number=subaccount_number,
+        enabled=enabled,
     )
     if request is None:
         if subaccount_number is None or enabled is None:
@@ -83,7 +85,8 @@ def _build_update_netting_body(
                 "(or pass `request=...`)"
             )
         request = UpdateSubaccountNettingRequest(
-            subaccount_number=subaccount_number, enabled=enabled,
+            subaccount_number=subaccount_number,
+            enabled=enabled,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -98,17 +101,22 @@ class SubaccountsResource(SyncResource):
     empty body (spec takes no request payload).
     """
 
-    def create(self) -> CreateSubaccountResponse:
+    def create(self, *, extra_headers: dict[str, str] | None = None) -> CreateSubaccountResponse:
         self._require_auth()
         # Spec defines no requestBody, but httpx omits Content-Type when no
         # body is passed and demo rejects the POST with `invalid_content_type`.
         # json={} forces Content-Type: application/json — same workaround
         # used on order_groups reset/trigger PUTs.
-        data = self._post("/portfolio/subaccounts", json={})
+        data = self._post("/portfolio/subaccounts", json={}, extra_headers=extra_headers)
         return CreateSubaccountResponse.model_validate(data)
 
     @overload
-    def transfer(self, *, request: ApplySubaccountTransferRequest) -> None: ...
+    def transfer(
+        self,
+        *,
+        request: ApplySubaccountTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
     @overload
     def transfer(
         self,
@@ -117,6 +125,7 @@ class SubaccountsResource(SyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     def transfer(
         self,
@@ -126,6 +135,7 @@ class SubaccountsResource(SyncResource):
         from_subaccount: int | None = None,
         to_subaccount: int | None = None,
         amount_cents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_transfer_body(
@@ -135,15 +145,21 @@ class SubaccountsResource(SyncResource):
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
         )
-        self._post("/portfolio/subaccounts/transfer", json=body)
+        self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
 
-    def list_balances(self) -> GetSubaccountBalancesResponse:
+    def list_balances(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSubaccountBalancesResponse:
         self._require_auth()
-        data = self._get("/portfolio/subaccounts/balances")
+        data = self._get("/portfolio/subaccounts/balances", extra_headers=extra_headers)
         return GetSubaccountBalancesResponse.model_validate(data)
 
     def list_transfers(
-        self, *, cursor: str | None = None, limit: int | None = None,
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[SubaccountTransfer]:
         self._require_auth()
         _validate_limit(limit, hi=1000)
@@ -153,6 +169,7 @@ class SubaccountsResource(SyncResource):
             SubaccountTransfer,
             "transfers",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all_transfers(
@@ -160,6 +177,7 @@ class SubaccountsResource(SyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[SubaccountTransfer]:
         self._require_auth()
         _validate_max_pages(max_pages)
@@ -171,15 +189,19 @@ class SubaccountsResource(SyncResource):
             "transfers",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     def update_netting(
-        self, *, request: UpdateSubaccountNettingRequest,
+        self,
+        *,
+        request: UpdateSubaccountNettingRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
     def update_netting(
-        self, *, subaccount_number: int, enabled: bool,
+        self, *, subaccount_number: int, enabled: bool, extra_headers: dict[str, str] | None = None
     ) -> None: ...
     def update_netting(
         self,
@@ -187,32 +209,42 @@ class SubaccountsResource(SyncResource):
         request: UpdateSubaccountNettingRequest | None = None,
         subaccount_number: int | None = None,
         enabled: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_update_netting_body(
-            request, subaccount_number=subaccount_number, enabled=enabled,
+            request,
+            subaccount_number=subaccount_number,
+            enabled=enabled,
         )
-        self._put("/portfolio/subaccounts/netting", json=body)
+        self._put("/portfolio/subaccounts/netting", json=body, extra_headers=extra_headers)
 
-    def get_netting(self) -> GetSubaccountNettingResponse:
+    def get_netting(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSubaccountNettingResponse:
         self._require_auth()
-        data = self._get("/portfolio/subaccounts/netting")
+        data = self._get("/portfolio/subaccounts/netting", extra_headers=extra_headers)
         return GetSubaccountNettingResponse.model_validate(data)
 
 
 class AsyncSubaccountsResource(AsyncResource):
     """Async subaccounts API."""
 
-    async def create(self) -> CreateSubaccountResponse:
+    async def create(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> CreateSubaccountResponse:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects the
         # POST with `invalid_content_type` when no body is passed.
-        data = await self._post("/portfolio/subaccounts", json={})
+        data = await self._post("/portfolio/subaccounts", json={}, extra_headers=extra_headers)
         return CreateSubaccountResponse.model_validate(data)
 
     @overload
     async def transfer(
-        self, *, request: ApplySubaccountTransferRequest,
+        self,
+        *,
+        request: ApplySubaccountTransferRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
     async def transfer(
@@ -222,6 +254,7 @@ class AsyncSubaccountsResource(AsyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     async def transfer(
         self,
@@ -231,6 +264,7 @@ class AsyncSubaccountsResource(AsyncResource):
         from_subaccount: int | None = None,
         to_subaccount: int | None = None,
         amount_cents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_transfer_body(
@@ -240,15 +274,21 @@ class AsyncSubaccountsResource(AsyncResource):
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
         )
-        await self._post("/portfolio/subaccounts/transfer", json=body)
+        await self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
 
-    async def list_balances(self) -> GetSubaccountBalancesResponse:
+    async def list_balances(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSubaccountBalancesResponse:
         self._require_auth()
-        data = await self._get("/portfolio/subaccounts/balances")
+        data = await self._get("/portfolio/subaccounts/balances", extra_headers=extra_headers)
         return GetSubaccountBalancesResponse.model_validate(data)
 
     async def list_transfers(
-        self, *, cursor: str | None = None, limit: int | None = None,
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[SubaccountTransfer]:
         self._require_auth()
         _validate_limit(limit, hi=1000)
@@ -258,6 +298,7 @@ class AsyncSubaccountsResource(AsyncResource):
             SubaccountTransfer,
             "transfers",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all_transfers(
@@ -265,6 +306,7 @@ class AsyncSubaccountsResource(AsyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[SubaccountTransfer]:
         # Plain `def` (not `async def`) so _require_auth and _validate_max_pages
         # run at call time, not when the returned AsyncIterator is awaited.
@@ -278,15 +320,19 @@ class AsyncSubaccountsResource(AsyncResource):
             "transfers",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     async def update_netting(
-        self, *, request: UpdateSubaccountNettingRequest,
+        self,
+        *,
+        request: UpdateSubaccountNettingRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
     async def update_netting(
-        self, *, subaccount_number: int, enabled: bool,
+        self, *, subaccount_number: int, enabled: bool, extra_headers: dict[str, str] | None = None
     ) -> None: ...
     async def update_netting(
         self,
@@ -294,14 +340,19 @@ class AsyncSubaccountsResource(AsyncResource):
         request: UpdateSubaccountNettingRequest | None = None,
         subaccount_number: int | None = None,
         enabled: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_update_netting_body(
-            request, subaccount_number=subaccount_number, enabled=enabled,
+            request,
+            subaccount_number=subaccount_number,
+            enabled=enabled,
         )
-        await self._put("/portfolio/subaccounts/netting", json=body)
+        await self._put("/portfolio/subaccounts/netting", json=body, extra_headers=extra_headers)
 
-    async def get_netting(self) -> GetSubaccountNettingResponse:
+    async def get_netting(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSubaccountNettingResponse:
         self._require_auth()
-        data = await self._get("/portfolio/subaccounts/netting")
+        data = await self._get("/portfolio/subaccounts/netting", extra_headers=extra_headers)
         return GetSubaccountNettingResponse.model_validate(data)

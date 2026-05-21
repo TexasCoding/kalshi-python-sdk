@@ -28,6 +28,7 @@ class LiveDataResource(SyncResource):
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
         params = _params(
             include_player_stats=_bool_param(include_player_stats),
@@ -35,6 +36,7 @@ class LiveDataResource(SyncResource):
         data = self._get(
             f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}",
             params=params,
+            extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
 
@@ -44,6 +46,7 @@ class LiveDataResource(SyncResource):
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
         """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
 
@@ -60,6 +63,7 @@ class LiveDataResource(SyncResource):
         data = self._get(
             f"/live_data/{_seg(milestone_type, name='milestone_type')}/milestone/{_seg(milestone_id, name='milestone_id')}",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
 
@@ -68,6 +72,7 @@ class LiveDataResource(SyncResource):
         *,
         milestone_ids: builtins.list[str],
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LiveData]:
         """Fetch up to 100 milestones in one call.
 
@@ -87,12 +92,17 @@ class LiveDataResource(SyncResource):
             milestone_ids=milestone_ids,
             include_player_stats=_bool_param(include_player_stats),
         )
-        data = self._get("/live_data/batch", params=params)
+        data = self._get("/live_data/batch", params=params, extra_headers=extra_headers)
         return GetLiveDatasResponse.model_validate(data).live_datas
 
-    def game_stats(self, milestone_id: str) -> GetGameStatsResponse:
+    def game_stats(
+        self, milestone_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetGameStatsResponse:
         """Play-by-play stats. Returns ``pbp=None`` for unsupported sports."""
-        data = self._get(f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats")  # noqa: E501
+        data = self._get(
+            f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats",
+            extra_headers=extra_headers,
+        )
         return GetGameStatsResponse.model_validate(data)
 
 
@@ -104,6 +114,7 @@ class AsyncLiveDataResource(AsyncResource):
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
         params = _params(
             include_player_stats=_bool_param(include_player_stats),
@@ -111,6 +122,7 @@ class AsyncLiveDataResource(AsyncResource):
         data = await self._get(
             f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}",
             params=params,
+            extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
 
@@ -120,6 +132,7 @@ class AsyncLiveDataResource(AsyncResource):
         milestone_id: str,
         *,
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
         """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
 
@@ -136,6 +149,7 @@ class AsyncLiveDataResource(AsyncResource):
         data = await self._get(
             f"/live_data/{_seg(milestone_type, name='milestone_type')}/milestone/{_seg(milestone_id, name='milestone_id')}",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
 
@@ -144,6 +158,7 @@ class AsyncLiveDataResource(AsyncResource):
         *,
         milestone_ids: builtins.list[str],
         include_player_stats: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LiveData]:
         """Fetch up to 100 milestones in one call.
 
@@ -163,10 +178,15 @@ class AsyncLiveDataResource(AsyncResource):
             milestone_ids=milestone_ids,
             include_player_stats=_bool_param(include_player_stats),
         )
-        data = await self._get("/live_data/batch", params=params)
+        data = await self._get("/live_data/batch", params=params, extra_headers=extra_headers)
         return GetLiveDatasResponse.model_validate(data).live_datas
 
-    async def game_stats(self, milestone_id: str) -> GetGameStatsResponse:
+    async def game_stats(
+        self, milestone_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetGameStatsResponse:
         """Play-by-play stats. Returns ``pbp=None`` for unsupported sports."""
-        data = await self._get(f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats")  # noqa: E501
+        data = await self._get(
+            f"/live_data/milestone/{_seg(milestone_id, name='milestone_id')}/game_stats",
+            extra_headers=extra_headers,
+        )
         return GetGameStatsResponse.model_validate(data)

@@ -163,6 +163,32 @@ returns the same shapes as `portfolio.*`. Non-FCM accounts get 401/403.
 
 See [FCM](resources/fcm.md).
 
+
+## Per-request headers (Idempotency-Key, tracing)
+
+Every public resource method accepts an ``extra_headers: dict[str, str] | None = None``
+kwarg that lands on the wire for that single call. Use it for per-request
+idempotency keys, distributed-tracing headers, or any one-off header that
+doesn't belong on every request (set those via ``KalshiConfig.extra_headers``).
+
+```python
+import uuid
+
+order = client.orders.create(
+    ticker="KXPRES-24-DJT",
+    side="yes",
+    action="buy",
+    count=1,
+    yes_price="0.65",
+    client_order_id="cli-1",
+    extra_headers={"Idempotency-Key": str(uuid.uuid4())},
+)
+```
+
+Auth headers are sacred: ``KALSHI-ACCESS-KEY`` / ``KALSHI-ACCESS-SIGNATURE`` /
+``KALSHI-ACCESS-TIMESTAMP`` cannot be overridden via ``extra_headers`` — the
+SDK-signed values always win at the transport layer.
+
 ## API key, scope
 
 Authentication identity. Has `read` and `write` scopes; `write` requires

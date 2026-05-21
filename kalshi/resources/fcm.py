@@ -89,14 +89,22 @@ class FcmResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
         params = _fcm_orders_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return self._list("/fcm/orders", Order, "orders", params=params)
+        return self._list(
+            "/fcm/orders", Order, "orders", params=params, extra_headers=extra_headers
+        )
 
     def orders_all(
         self,
@@ -109,17 +117,27 @@ class FcmResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fcm_orders_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/fcm/orders", Order, "orders",
-            params=params, max_pages=max_pages,
+            "/fcm/orders",
+            Order,
+            "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     def positions(
@@ -132,15 +150,19 @@ class FcmResource(SyncResource):
         settlement_status: SettlementStatusLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _fcm_positions_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, count_filter=count_filter,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            count_filter=count_filter,
             settlement_status=settlement_status,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
-        data = self._get("/fcm/positions", params=params)
+        data = self._get("/fcm/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
 
 
@@ -158,14 +180,22 @@ class AsyncFcmResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
         params = _fcm_orders_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return await self._list("/fcm/orders", Order, "orders", params=params)
+        return await self._list(
+            "/fcm/orders", Order, "orders", params=params, extra_headers=extra_headers
+        )
 
     def orders_all(
         self,
@@ -178,18 +208,28 @@ class AsyncFcmResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Order]:
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fcm_orders_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/fcm/orders", Order, "orders",
-            params=params, max_pages=max_pages,
+            "/fcm/orders",
+            Order,
+            "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     async def positions(
@@ -202,13 +242,17 @@ class AsyncFcmResource(AsyncResource):
         settlement_status: SettlementStatusLiteral | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _fcm_positions_params(
-            subtrader_id=subtrader_id, ticker=ticker,
-            event_ticker=event_ticker, count_filter=count_filter,
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            count_filter=count_filter,
             settlement_status=settlement_status,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
-        data = await self._get("/fcm/positions", params=params)
+        data = await self._get("/fcm/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)

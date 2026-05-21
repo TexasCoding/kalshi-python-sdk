@@ -37,6 +37,7 @@ class StructuredTargetsResource(SyncResource):
         competition: str | None = None,
         page_size: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[StructuredTarget]:
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
@@ -51,6 +52,7 @@ class StructuredTargetsResource(SyncResource):
             StructuredTarget,
             "structured_targets",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -61,6 +63,7 @@ class StructuredTargetsResource(SyncResource):
         competition: str | None = None,
         page_size: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[StructuredTarget]:
         _validate_max_pages(max_pages)
         _validate_limit(page_size, hi=2000, name="page_size")
@@ -76,10 +79,16 @@ class StructuredTargetsResource(SyncResource):
             "structured_targets",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get(self, structured_target_id: str) -> StructuredTarget | None:
-        data = self._get(f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}")  # noqa: E501
+    def get(
+        self, structured_target_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> StructuredTarget | None:
+        data = self._get(
+            f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}",
+            extra_headers=extra_headers,
+        )
         return GetStructuredTargetResponse.model_validate(data).structured_target
 
 
@@ -94,6 +103,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
         competition: str | None = None,
         page_size: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[StructuredTarget]:
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
@@ -108,6 +118,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
             StructuredTarget,
             "structured_targets",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -118,6 +129,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
         competition: str | None = None,
         page_size: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[StructuredTarget]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
@@ -134,8 +146,14 @@ class AsyncStructuredTargetsResource(AsyncResource):
             "structured_targets",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get(self, structured_target_id: str) -> StructuredTarget | None:
-        data = await self._get(f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}")  # noqa: E501
+    async def get(
+        self, structured_target_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> StructuredTarget | None:
+        data = await self._get(
+            f"/structured_targets/{_seg(structured_target_id, name='structured_target_id')}",
+            extra_headers=extra_headers,
+        )
         return GetStructuredTargetResponse.model_validate(data).structured_target
