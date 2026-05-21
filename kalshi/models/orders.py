@@ -198,16 +198,26 @@ class CreateOrderRequest(BaseModel):
 
     @field_validator("buy_max_cost", mode="before")
     @classmethod
-    def _reject_decimal_and_float_buy_max_cost(cls, v: object) -> object:
-        """Reject Decimal and float inputs on buy_max_cost.
+    def _reject_decimal_float_and_bool_buy_max_cost(cls, v: object) -> object:
+        """Reject Decimal, float, and bool inputs on buy_max_cost.
 
         Spec says integer cents. Accepting Decimal would silently coerce
         callers who pass Decimal('5.00') (expecting $5.00 under the old
         DollarDecimal semantics) into 5 cents — data corruption with no
-        error. Reject at the boundary.
+        error. Bool is an ``int`` subclass, so ``True`` would otherwise
+        slip through as 1 (= 1 cent cap), the same class of bug #225
+        closed for ``DollarDecimal`` / ``FixedPointCount``. Reject at
+        the boundary (#243).
 
         int and int-shaped strings are fine (Pydantic coerces normally).
         """
+        if isinstance(v, bool):
+            raise ValueError(
+                "buy_max_cost must be int (cents), not bool — "
+                "bool is an int subclass, so True would otherwise slip "
+                "through as 1 (= 1 cent cap). Pass cents directly "
+                "(e.g., 500 for $5.00)."
+            )
         if isinstance(v, Decimal):
             raise ValueError(
                 "buy_max_cost must be int (cents), not Decimal. "

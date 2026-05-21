@@ -267,7 +267,10 @@ class TestMissingRequiredKwargsRaisesTypeError:
         orders: OrdersResource,
     ) -> None:
         # create() requires `ticker` and `side`. Passing only one raises.
-        with pytest.raises(TypeError, match=r"create\(\) requires `ticker`, `side`, `count`, and `action`"):
+        with pytest.raises(
+            TypeError,
+            match=r"create\(\) requires `ticker`, `side`, `count`, and `action`",
+        ):
             orders.create(ticker="MKT")
 
     def test_list_required_kwarg_missing(

@@ -871,6 +871,49 @@ class TestCreateOrderRequestExtended:
                 buy_max_cost=5.0,  # type: ignore[arg-type]
             )
 
+    def test_buy_max_cost_rejects_bool(self) -> None:
+        """#243: bool inputs must raise — bool is an ``int`` subclass, so
+        ``True`` would otherwise slip through as ``1`` (= 1 cent cap), a
+        silent money-risk failure matching the #225 class of bug for
+        ``DollarDecimal`` / ``FixedPointCount``. A caller who passes a flag
+        (``risk_check_passed``, ``dry_run``) where cents were expected must
+        get a clear error, not a $0.01-capped order."""
+        from pydantic import ValidationError
+
+        from kalshi.models.orders import CreateOrderRequest
+
+        with pytest.raises(ValidationError, match=r"bool"):
+            CreateOrderRequest(
+                ticker="MKT",
+                side="yes",
+                action="buy",
+                count=1,
+                buy_max_cost=True,  # type: ignore[arg-type]
+            )
+        with pytest.raises(ValidationError, match=r"bool"):
+            CreateOrderRequest(
+                ticker="MKT",
+                side="yes",
+                action="buy",
+                count=1,
+                buy_max_cost=False,  # type: ignore[arg-type]
+            )
+
+    def test_buy_max_cost_accepts_plain_int(self) -> None:
+        """#243: regression — plain int (cents) still works."""
+        from kalshi.models.orders import CreateOrderRequest
+
+        req = CreateOrderRequest(
+            ticker="MKT",
+            side="yes",
+            action="buy",
+            count=1,
+            buy_max_cost=500,
+        )
+        assert req.buy_max_cost == 500
+        assert isinstance(req.buy_max_cost, int)
+        assert not isinstance(req.buy_max_cost, bool)
+
     def test_buy_max_cost_accepts_int_string(self) -> None:
         """Int-shaped strings are coerced normally (e.g., loading from env/config)."""
         from kalshi.models.orders import CreateOrderRequest

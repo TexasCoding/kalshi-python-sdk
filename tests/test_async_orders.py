@@ -309,7 +309,9 @@ class TestAsyncOrdersCreate:
                 },
             )
         )
-        order = await orders.create(ticker="TEST-MKT", side="yes", action="buy", count=10, yes_price=0.65)
+        order = await orders.create(
+            ticker="TEST-MKT", side="yes", action="buy", count=10, yes_price=0.65
+        )
         assert order.order_id == "ord-123"
         assert order.yes_price == Decimal("0.6500")
         assert order.count == 10

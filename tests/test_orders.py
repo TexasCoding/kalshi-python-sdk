@@ -163,7 +163,9 @@ class TestCreateOrderWireShape:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        client.orders.create(ticker="MKT", side="yes", action="buy", count=1, yes_price=0.5, buy_max_cost=500)
+        client.orders.create(
+            ticker="MKT", side="yes", action="buy", count=1, yes_price=0.5, buy_max_cost=500
+        )
 
         body = json.loads(route.calls[0].request.content)
         assert body["buy_max_cost"] == 500
