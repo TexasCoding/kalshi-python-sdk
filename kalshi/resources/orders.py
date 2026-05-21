@@ -473,7 +473,7 @@ class OrdersResource(SyncResource):
     ) -> BatchCreateOrdersResponse:
         """Place a batch of orders.
 
-        BREAKING in v3.0.0: previously returned ``list[Order]`` and would
+        Changed in v2.4.0 (breaking): previously returned ``list[Order]`` and would
         crash with ``ValidationError`` on any partially-failed batch
         (the spec marks each entry's ``order`` and ``error`` as nullable;
         the old ``Order.model_validate(o.get("order", o))`` blew up the
@@ -511,7 +511,7 @@ class OrdersResource(SyncResource):
         mix of both. String entries are wrapped as
         ``BatchCancelOrdersRequestOrder(order_id=<id>)`` before serialization.
 
-        BREAKING in v3.0.0: previously returned ``None`` and discarded
+        Changed in v2.4.0 (breaking): previously returned ``None`` and discarded
         the server's per-leg response. Now returns
         :class:`BatchCancelOrdersResponse` so callers can read the
         load-bearing ``reduced_by_fp`` per entry (cents canceled) plus
