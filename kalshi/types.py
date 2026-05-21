@@ -66,6 +66,22 @@ FixedPointCount = Annotated[
 """
 
 
+MultiplierDecimal = Annotated[
+    Decimal,
+    BeforeValidator(_coerce_decimal),
+    PlainSerializer(_decimal_to_str, return_type=str, when_used="json"),
+]
+"""A Decimal field for fee/rate multipliers (e.g. ``Series.fee_multiplier``).
+
+Wire shape is ``type: number, format: double`` per spec. Using the bare
+``float`` annotation commits the value to binary float at parse time
+(``0.65 -> 0.65000000000000002...``); using bare ``Decimal`` skips
+_coerce_decimal entirely and routes JSON numbers through float. This
+alias applies the same coercion as :data:`DollarDecimal` /
+:data:`FixedPointCount` so multipliers honor the #225 invariant.
+"""
+
+
 def to_decimal(value: int | float | str | Decimal) -> Decimal:
     """Convert a user-supplied price/count value to Decimal safely.
 

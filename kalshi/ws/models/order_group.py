@@ -1,7 +1,10 @@
 """Order group updates channel message models."""
+
 from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
+
+from kalshi.types import FixedPointCount
 
 
 class OrderGroupPayload(BaseModel):
@@ -9,10 +12,10 @@ class OrderGroupPayload(BaseModel):
 
     event_type: str  # created/triggered/reset/deleted/limit_updated
     order_group_id: str
-    contracts_limit: str | None = Field(
+    contracts_limit: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_limit_fp", "contracts_limit"),
-    )  # _fp format
+    )  # _fp format — coerced to Decimal per #225/#230 invariant
     # v0.14+ backfill (#162). Matching engine timestamp in Unix ms.
     ts_ms: int
     model_config = {"extra": "allow", "populate_by_name": True}

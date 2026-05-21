@@ -1359,6 +1359,7 @@ class TestBatchCancelOrdersRequestOrder:
 
 # ---------- P2#4: AwareDatetime on REST response models ----------
 
+
 class TestAwareDatetimeRejectsNaive:
     """REST models reject naive datetimes at construction (#221 P2.4)."""
 
@@ -1402,3 +1403,60 @@ class TestAwareDatetimeRejectsNaive:
         assert ts.tzinfo is not None
         # UTC conversion round-trips cleanly.
         assert ts.astimezone(UTC).isoformat().startswith("2026-01-01T12:00:00")
+
+
+class TestMarketStrikeDecimal:
+    """#259: floor_strike / cap_strike use DollarDecimal (not bare Decimal)."""
+
+    def test_floor_strike_float_routed_through_str(self) -> None:
+        from tests._model_fixtures import market_dict
+
+        m = Market.model_validate(market_dict(ticker="T", floor_strike=4487.65))
+        assert isinstance(m.floor_strike, Decimal)
+        # Bare-Decimal path commits via float — DollarDecimal goes through str.
+        assert m.floor_strike == Decimal("4487.65")
+        assert str(m.floor_strike) == "4487.65"
+
+    def test_cap_strike_string_parses(self) -> None:
+        from tests._model_fixtures import market_dict
+
+        m = Market.model_validate(market_dict(ticker="T", cap_strike="100.50"))
+        assert isinstance(m.cap_strike, Decimal)
+        assert m.cap_strike == Decimal("100.50")
+
+    def test_strikes_reject_bool(self) -> None:
+        import pytest
+
+        from tests._model_fixtures import market_dict
+
+        with pytest.raises(TypeError, match="bool"):
+            Market.model_validate(market_dict(ticker="T", floor_strike=True))
+        with pytest.raises(TypeError, match="bool"):
+            Market.model_validate(market_dict(ticker="T", cap_strike=True))
+
+    def test_strikes_default_to_none(self) -> None:
+        from tests._model_fixtures import market_dict
+
+        m = Market.model_validate(market_dict(ticker="T"))
+        assert m.floor_strike is None
+        assert m.cap_strike is None
+
+
+class TestEventFeeMultiplierOverrideDecimal:
+    """#259: Event.fee_multiplier_override uses MultiplierDecimal."""
+
+    def test_float_routed_through_str(self) -> None:
+        from tests._model_fixtures import event_dict
+
+        e = Event.model_validate(event_dict(fee_multiplier_override=0.65))
+        assert isinstance(e.fee_multiplier_override, Decimal)
+        assert e.fee_multiplier_override == Decimal("0.65")
+        assert str(e.fee_multiplier_override) == "0.65"
+
+    def test_rejects_bool(self) -> None:
+        import pytest
+
+        from tests._model_fixtures import event_dict
+
+        with pytest.raises(TypeError, match="bool"):
+            Event.model_validate(event_dict(fee_multiplier_override=True))

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, ClassVar
 
 from kalshi.models.series import (
     EventCandlesticks,
@@ -238,3 +238,50 @@ class TestForecastPercentilesPointModel:
         assert len(fp.percentile_points) == 2
         assert fp.percentile_points[0].percentile == 2500
         assert fp.percentile_points[1].formatted_forecast == "5.5%"
+
+
+class TestSeriesFeeMultiplierDecimal:
+    """#259: fee_multiplier coerces to Decimal via MultiplierDecimal (not float)."""
+
+    _BASE: ClassVar[dict[str, Any]] = {
+        "ticker": "T",
+        "frequency": "daily",
+        "title": "T",
+        "category": "T",
+        "tags": [],
+        "settlement_sources": [],
+        "contract_url": "",
+        "contract_terms_url": "",
+        "fee_type": "quadratic",
+        "additional_prohibitions": [],
+    }
+
+    def test_fee_multiplier_string_coerced_to_decimal(self) -> None:
+        s = Series.model_validate({**self._BASE, "fee_multiplier": "0.65"})
+        assert isinstance(s.fee_multiplier, Decimal)
+        assert s.fee_multiplier == Decimal("0.65")
+        # Critical: not subject to binary float drift.
+        assert str(s.fee_multiplier) == "0.65"
+
+    def test_fee_multiplier_float_routed_through_str(self) -> None:
+        """JSON-number 0.65 must not commit to binary float (the #259 motivation)."""
+        s = Series.model_validate({**self._BASE, "fee_multiplier": 0.65})
+        assert s.fee_multiplier == Decimal("0.65")
+        assert s.fee_multiplier * Decimal("100") == Decimal("65.00")
+
+    def test_fee_multiplier_rejects_bool(self) -> None:
+        import pytest
+
+        with pytest.raises(TypeError, match="bool"):
+            Series.model_validate({**self._BASE, "fee_multiplier": True})
+
+    def test_series_fee_change_multiplier_decimal(self) -> None:
+        fc = SeriesFeeChange.model_validate({
+            "id": "fc-1",
+            "series_ticker": "T",
+            "fee_type": "flat",
+            "fee_multiplier": 1.5,
+            "scheduled_ts": "2026-01-01T00:00:00Z",
+        })
+        assert isinstance(fc.fee_multiplier, Decimal)
+        assert fc.fee_multiplier == Decimal("1.5")
