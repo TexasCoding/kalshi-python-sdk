@@ -21,6 +21,7 @@ from kalshi.errors import (
     KalshiAuthError,
     KalshiConflictError,
     KalshiError,
+    KalshiNetworkError,
     KalshiPoolExhaustedError,
     KalshiServerError,
     KalshiTimeoutError,
@@ -769,3 +770,86 @@ class TestAsyncCloseOwnership:
         client = AsyncKalshiClient.from_env()
         assert client._auth_owned is True
         await client.close()
+
+
+class TestAsyncTransportNetworkRetry:
+    """#240: async httpx.TransportError retry policy. Mirrors sync tests."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_get_retries_on_connect_error_then_succeeds(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.ConnectError("connection refused"),
+                httpx.ConnectError("connection refused"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 3
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_get_exhausts_retries_raises_KalshiNetworkError(  # noqa: N802
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=httpx.ConnectError("connection refused")
+        )
+        with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
+            await transport.request("GET", "/markets")
+        assert route.call_count == 3
+        assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_retries_on_connect_error(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            side_effect=[
+                httpx.ConnectError("connection refused"),
+                httpx.Response(200, json={"order_id": "abc"}),
+            ]
+        )
+        resp = await transport.request(
+            "POST", "/portfolio/orders", json={"ticker": "T"}
+        )
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_post_does_not_retry_on_read_error(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_sleep(d: float) -> None:
+            pass
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.ReadError("socket read failed"))
+        with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
+            await transport.request(
+                "POST", "/portfolio/orders", json={"ticker": "T"}
+            )
+        assert route.call_count == 1
+        assert isinstance(exc_info.value.__cause__, httpx.ReadError)
