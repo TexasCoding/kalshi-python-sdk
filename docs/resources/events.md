@@ -67,9 +67,10 @@ print(md.tags, md.category)
     - `Event.product_metadata` is typed `dict[str, Any] | None`. The OpenAPI
       spec marks it `required`, but the live demo server omits the key on
       most events. Defaults to `None`.
-    - `EventMetadata.market_details` uses `NullableList[MarketMetadata]`,
-      which coerces a JSON `null` payload to `[]`. The spec contract (key
-      present) is still enforced; callers always see a list.
+    - `EventMetadata.market_details: list[MarketMetadata]` — when the live
+      server sends JSON `null`, the SDK coerces it to `[]` so callers
+      always see a list. The spec contract (key present) is still
+      enforced.
 
     Both are tracked under `server_omits_despite_required` in the SDK's
     EXCLUSIONS map.

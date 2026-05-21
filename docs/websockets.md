@@ -298,9 +298,12 @@ the stash through the normal dispatch path so the seq tracker advances,
 orderbook state applies, and iterator consumers receive them in arrival
 order.
 
-`stash_maxlen` defaults to `1000` per sid. On overflow, oldest evicts (deque
-semantics) and a single WARNING per `(sid, replay-cycle)` is logged so the
-caller notices congestion. Worst-case memory is bounded at
+The stash is bounded by an internal `stash_maxlen=1000` per sid — generous
+enough for normal market-burst reconnects, low enough to bound memory if
+resubscribe stalls (not user-configurable on `KalshiWebSocket`). On
+overflow, oldest evicts (deque semantics) and a WARNING fires **once per
+sid per resubscribe cycle** so the caller notices congestion without log
+spam. Worst-case memory is bounded at
 `stash_maxlen × len(active_subs) × avg_frame_size`. Frames whose sid never
 gets re-mapped (a per-sub failure during resubscribe) are dropped on drain
 with a debug log — there's no consumer to deliver them to.
