@@ -65,28 +65,29 @@ class TestOrders:
         assert route.calls[0].request.headers["Idempotency-Key"] == "abc"
 
     @respx.mock
-    def test_create_order_extra_headers_cannot_override_auth(self, test_auth: KalshiAuth) -> None:
-        route = respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
+    def test_create_order_extra_headers_rejects_kalshi_access(self, test_auth: KalshiAuth) -> None:
+        # #298: caller-supplied KALSHI-ACCESS-* keys now raise instead of
+        # silently leaking onto the wire alongside the SDK-signed pair.
+        respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
             return_value=httpx.Response(200, json={"order": _example_order_payload()})
         )
-        with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.orders.create(
-                ticker="BTC",
-                side="yes",
-                action="buy",
-                client_order_id="cli-1",
-                count=1,
-                yes_price=50,
-                extra_headers={
-                    "KALSHI-ACCESS-KEY": "spoofed",
-                    "KALSHI-ACCESS-SIGNATURE": "spoofed-sig",
-                    "KALSHI-ACCESS-TIMESTAMP": "0",
-                },
-            )
-        req = route.calls[0].request
-        assert req.headers["KALSHI-ACCESS-KEY"] == "test-key-id"
-        assert req.headers["KALSHI-ACCESS-SIGNATURE"] != "spoofed-sig"
-        assert req.headers["KALSHI-ACCESS-TIMESTAMP"] != "0"
+        with (
+            KalshiClient(auth=test_auth, config=_config()) as client,
+            pytest.raises(ValueError, match="KALSHI-ACCESS-"),
+        ):
+                client.orders.create(
+                    ticker="BTC",
+                    side="yes",
+                    action="buy",
+                    client_order_id="cli-1",
+                    count=1,
+                    yes_price=50,
+                    extra_headers={
+                        "KALSHI-ACCESS-KEY": "spoofed",
+                        "KALSHI-ACCESS-SIGNATURE": "spoofed-sig",
+                        "KALSHI-ACCESS-TIMESTAMP": "0",
+                    },
+                )
 
     @respx.mock
     def test_cancel_order_threads_extra_headers(self, test_auth: KalshiAuth) -> None:
@@ -109,13 +110,15 @@ class TestMarkets:
         assert route.calls[0].request.headers["X-Test"] == "v"
 
     @respx.mock
-    def test_get_market_extra_headers_cannot_override_auth(self, test_auth: KalshiAuth) -> None:
-        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+    def test_get_market_extra_headers_rejects_kalshi_access(self, test_auth: KalshiAuth) -> None:
+        respx.get(f"{MOCK_BASE}/markets/BTC").mock(
             return_value=httpx.Response(200, json={"market": _example_market_payload()})
         )
-        with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.markets.get("BTC", extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
-        assert route.calls[0].request.headers["KALSHI-ACCESS-KEY"] == "test-key-id"
+        with (
+            KalshiClient(auth=test_auth, config=_config()) as client,
+            pytest.raises(ValueError, match="KALSHI-ACCESS-"),
+        ):
+                client.markets.get("BTC", extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
 
 
 class TestPortfolio:
@@ -138,8 +141,8 @@ class TestPortfolio:
         assert route.calls[0].request.headers["X-Test"] == "v"
 
     @respx.mock
-    def test_balance_extra_headers_cannot_override_auth(self, test_auth: KalshiAuth) -> None:
-        route = respx.get(f"{MOCK_BASE}/portfolio/balance").mock(
+    def test_balance_extra_headers_rejects_kalshi_access(self, test_auth: KalshiAuth) -> None:
+        respx.get(f"{MOCK_BASE}/portfolio/balance").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -151,9 +154,82 @@ class TestPortfolio:
                 },
             )
         )
+        with (
+            KalshiClient(auth=test_auth, config=_config()) as client,
+            pytest.raises(ValueError, match="KALSHI-ACCESS-"),
+        ):
+                client.portfolio.balance(extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
+
+
+# ---------------------------------------------------------------------------
+# #298: KALSHI-ACCESS-* rejection, Content-Type pinning, header round-trip.
+# ---------------------------------------------------------------------------
+
+
+class TestHeaderCollision298:
+    @respx.mock
+    def test_extra_headers_lowercase_kalshi_access_raises(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # Case-mismatched key (lowercase) was previously a forge surface; the
+        # public boundary now raises ValueError naming the leaked key.
+        respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        )
+        with (
+            KalshiClient(auth=test_auth, config=_config()) as client,
+            pytest.raises(ValueError, match="kalshi-access-key"),
+        ):
+                client.orders.create(
+                    ticker="BTC",
+                    side="yes",
+                    action="buy",
+                    client_order_id="cli-1",
+                    count=1,
+                    yes_price=50,
+                    extra_headers={"kalshi-access-key": "X"},
+                )
+
+    @respx.mock
+    def test_post_json_body_pins_content_type_against_caller_override(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # Caller-supplied lowercase ``content-type`` must NOT win over the
+        # JSON body's content-type, which the SDK pins at the body-helper
+        # layer in resources/_base.py:_post.
+        route = respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
+            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        )
         with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.portfolio.balance(extra_headers={"KALSHI-ACCESS-KEY": "spoofed"})
-        assert route.calls[0].request.headers["KALSHI-ACCESS-KEY"] == "test-key-id"
+            client.orders.create(
+                ticker="BTC",
+                side="yes",
+                action="buy",
+                client_order_id="cli-1",
+                count=1,
+                yes_price=50,
+                extra_headers={"content-type": "text/plain"},
+            )
+        wire = route.calls.last.request.headers
+        assert wire["content-type"].startswith("application/json")
+        # And only one Content-Type line went on the wire (case-insensitive).
+        ct_lines = [k for k, _ in wire.raw if k.lower() == b"content-type"]
+        assert len(ct_lines) == 1, ct_lines
+
+    @respx.mock
+    def test_extra_headers_non_auth_round_trips_unchanged(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+            return_value=httpx.Response(200, json={"market": _example_market_payload()})
+        )
+        with KalshiClient(auth=test_auth, config=_config()) as client:
+            client.markets.get("BTC", extra_headers={"x-request-id": "abc"})
+        wire = route.calls.last.request.headers
+        assert wire["x-request-id"] == "abc"
+        # And it appeared exactly once.
+        rid_lines = [k for k, _ in wire.raw if k.lower() == b"x-request-id"]
+        assert len(rid_lines) == 1, rid_lines
 
 
 # ---------------------------------------------------------------------------
