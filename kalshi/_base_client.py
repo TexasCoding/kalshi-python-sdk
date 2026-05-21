@@ -23,6 +23,7 @@ from kalshi.errors import (
     KalshiAuthError,
     KalshiConflictError,
     KalshiError,
+    KalshiNetworkError,
     KalshiNotFoundError,
     KalshiPoolExhaustedError,
     KalshiRateLimitError,
@@ -259,14 +260,36 @@ class SyncTransport:
                 # include the full URL with query string and can leak
                 # token-like values into uncaught-exception sinks. The
                 # underlying exception is preserved via `__cause__`.
-                last_error = KalshiTimeoutError(
-                    f"Request timed out: {method.upper()} {path}"
-                )
+                last_error = KalshiTimeoutError(f"Request timed out: {method.upper()} {path}")
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
                         raise last_error from None
                     logger.warning("Timeout on %s %s, retrying in %.1fs", method, path, delay)
+                    time.sleep(delay)
+                    continue
+                raise last_error from e
+            except httpx.TransportError as e:
+                # #240: TCP/TLS/DNS/protocol faults. Idempotent verbs retry on
+                # any transport error; non-idempotent verbs only retry on
+                # ConnectError (mirrors PoolTimeout — request never reached
+                # the wire, so no partial-commit risk). ReadError/WriteError/
+                # RemoteProtocolError on POST/DELETE may indicate the server
+                # accepted bytes already; surface them so the caller can
+                # reconcile via client_order_id.
+                last_error = KalshiNetworkError(f"Network error: {method.upper()} {path}")
+                pre_wire = isinstance(e, httpx.ConnectError)
+                idempotent = method.upper() in RETRYABLE_METHODS
+                if (idempotent or pre_wire) and attempt < self._config.max_retries:
+                    delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from e
+                    logger.warning(
+                        "Network error on %s %s, retrying in %.1fs",
+                        method,
+                        path,
+                        delay,
+                    )
                     time.sleep(delay)
                     continue
                 raise last_error from e
@@ -293,10 +316,7 @@ class SyncTransport:
 
             # Use Retry-After header if available for 429.
             # `is not None` — not truthy — so Retry-After: 0 ("retry immediately") is honored.
-            if (
-                isinstance(error, KalshiRateLimitError)
-                and error.retry_after is not None
-            ):
+            if isinstance(error, KalshiRateLimitError) and error.retry_after is not None:
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)
@@ -438,9 +458,7 @@ class AsyncTransport:
                 raise last_error from e
             except httpx.TimeoutException as e:
                 # F-O-09: see sync transport above.
-                last_error = KalshiTimeoutError(
-                    f"Request timed out: {method.upper()} {path}"
-                )
+                last_error = KalshiTimeoutError(f"Request timed out: {method.upper()} {path}")
                 if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
@@ -449,12 +467,28 @@ class AsyncTransport:
                     await asyncio.sleep(delay)
                     continue
                 raise last_error from e
+            except httpx.TransportError as e:
+                # #240: see SyncTransport above for the retry rules.
+                last_error = KalshiNetworkError(f"Network error: {method.upper()} {path}")
+                pre_wire = isinstance(e, httpx.ConnectError)
+                idempotent = method.upper() in RETRYABLE_METHODS
+                if (idempotent or pre_wire) and attempt < self._config.max_retries:
+                    delay = _compute_backoff(attempt, self._config)
+                    if _would_exceed_budget(start, delay, total_timeout):
+                        raise last_error from e
+                    logger.warning(
+                        "Network error on %s %s, retrying in %.1fs",
+                        method,
+                        path,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                raise last_error from e
             except httpx.HTTPError as e:
                 raise KalshiError(f"HTTP error: {method.upper()} {path}") from e
 
-            logger.debug(
-                "Async response: %s %s → %d", method.upper(), path, response.status_code
-            )
+            logger.debug("Async response: %s %s → %d", method.upper(), path, response.status_code)
 
             if response.is_success:
                 return response
@@ -472,10 +506,7 @@ class AsyncTransport:
                 raise error
 
             # `is not None` so Retry-After: 0 ("retry immediately") is honored.
-            if (
-                isinstance(error, KalshiRateLimitError)
-                and error.retry_after is not None
-            ):
+            if isinstance(error, KalshiRateLimitError) and error.retry_after is not None:
                 delay = min(error.retry_after, self._config.retry_max_delay)
             else:
                 delay = _compute_backoff(attempt, self._config)

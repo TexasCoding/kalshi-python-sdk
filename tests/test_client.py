@@ -22,6 +22,7 @@ from kalshi.errors import (
     KalshiAuthError,
     KalshiConflictError,
     KalshiError,
+    KalshiNetworkError,
     KalshiNotFoundError,
     KalshiPoolExhaustedError,
     KalshiRateLimitError,
@@ -1307,3 +1308,74 @@ class TestExtraHeadersPerRequest:
         # Non-auth headers still pass through.
         assert sent.headers["X-Trace"] == "ok"
         transport.close()
+
+
+class TestTransportNetworkRetry:
+    """#240: httpx.TransportError retry policy.
+
+    Idempotent verbs (GET/HEAD/OPTIONS) retry on any transport error;
+    POST/DELETE/PUT only retry on ConnectError (pre-wire).
+    """
+
+    @respx.mock
+    def test_get_retries_on_connect_error_then_succeeds(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.ConnectError("connection refused"),
+                httpx.ConnectError("connection refused"),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 3
+
+    @respx.mock
+    def test_get_exhausts_retries_raises_KalshiNetworkError(  # noqa: N802
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=httpx.ConnectError("connection refused")
+        )
+        with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
+            transport.request("GET", "/markets")
+        # max_retries=2 → 1 + 2 = 3 attempts.
+        assert route.call_count == 3
+        # Original httpx exception chained via __cause__.
+        assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+    @respx.mock
+    def test_post_retries_on_connect_error(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(
+            side_effect=[
+                httpx.ConnectError("connection refused"),
+                httpx.Response(200, json={"order_id": "abc"}),
+            ]
+        )
+        resp = transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert resp.status_code == 200
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_post_does_not_retry_on_read_error(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # ReadError on POST may indicate the server accepted a partial commit;
+        # surface immediately so the caller can reconcile via client_order_id.
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: None)
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/orders"
+        ).mock(side_effect=httpx.ReadError("socket read failed"))
+        with pytest.raises(KalshiNetworkError, match="Network error") as exc_info:
+            transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
+        assert route.call_count == 1
+        assert isinstance(exc_info.value.__cause__, httpx.ReadError)

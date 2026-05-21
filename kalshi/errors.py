@@ -82,6 +82,16 @@ class KalshiPoolExhaustedError(KalshiError):
     """
 
 
+class KalshiNetworkError(KalshiError):
+    """Transport-level network failure (TCP/TLS/DNS/protocol).
+
+    Raised after the retry loop has exhausted attempts on a transient
+    ``httpx.TransportError`` — ``ConnectError``, ``ReadError``,
+    ``WriteError``, ``RemoteProtocolError``, etc. The original httpx
+    exception is chained via ``__cause__``.
+    """
+
+
 class KalshiServerError(KalshiError):
     """Server-side error (5xx)."""
 

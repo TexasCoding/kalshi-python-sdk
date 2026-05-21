@@ -28,6 +28,7 @@ KalshiError                          # base, .status_code: int | None
 ├── KalshiConflictError              # 409 (e.g., duplicate client_order_id)
 ├── KalshiTimeoutError                # request timed out; commit-status unknown on POST
 ├── KalshiPoolExhaustedError         # local pool full; request never sent
+├── KalshiNetworkError               # TCP/TLS/DNS/protocol fault after retries
 ├── KalshiServerError                # 5xx
 └── KalshiWebSocketError             # base for WS errors
     ├── KalshiConnectionError        # handshake / reconnect failure
@@ -93,8 +94,14 @@ Non-HTTP failures are wrapped to a typed exception with the original as
   never reached the wire, so it's safe to retry regardless of HTTP method.
   Persistent pool exhaustion means you should raise
   `KalshiConfig.limits.max_connections`.
-- **Connection failures** (DNS, TLS, RST) raise `KalshiError` immediately on
-  any verb, no retry.
+- **Network failures** (DNS, TLS, TCP RST, HTTP/2 RST_STREAM, half-close)
+  raise `KalshiNetworkError`. On idempotent verbs (`GET`, `HEAD`, `OPTIONS`)
+  the transport retries first; on `POST` / `DELETE` / `PUT` only
+  `httpx.ConnectError` is retried (request never reached the wire — mirrors
+  `KalshiPoolExhaustedError`). All other transport faults on non-idempotent
+  verbs surface immediately so the caller can reconcile a possibly-committed
+  request via `client_order_id`. The original `httpx` exception is preserved
+  via `__cause__`.
 
 ## Catching everything from the SDK
 
@@ -173,6 +180,8 @@ re-established at all.
 ::: kalshi.errors.KalshiTimeoutError
 
 ::: kalshi.errors.KalshiPoolExhaustedError
+
+::: kalshi.errors.KalshiNetworkError
 
 ::: kalshi.errors.KalshiServerError
 
