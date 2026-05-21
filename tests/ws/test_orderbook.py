@@ -1,4 +1,5 @@
 """Tests for OrderbookManager."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -21,17 +22,19 @@ def make_snapshot(
     # that ``OrderbookSnapshotPayload.yes/no: list[tuple[str, str]]`` expects.
     # Callers pass list-of-list literals for readability; direct constructor
     # arguments would trip mypy strict on the list vs tuple mismatch.
-    return OrderbookSnapshotMessage.model_validate({
-        "type": "orderbook_snapshot",
-        "sid": 1,
-        "seq": seq,
-        "msg": {
-            "market_ticker": ticker,
-            "market_id": "id",
-            "yes": yes or [],
-            "no": no or [],
-        },
-    })
+    return OrderbookSnapshotMessage.model_validate(
+        {
+            "type": "orderbook_snapshot",
+            "sid": 1,
+            "seq": seq,
+            "msg": {
+                "market_ticker": ticker,
+                "market_id": "id",
+                "yes": yes or [],
+                "no": no or [],
+            },
+        }
+    )
 
 
 def make_delta(
@@ -242,16 +245,10 @@ class TestOrderbookManager:
         # If O(1), they're identical.
         def measure(n: int) -> int:
             mgr = OrderbookManager()
-            mgr.apply_snapshot(
-                make_snapshot(yes=[[f"0.{i:04d}", "100"] for i in range(1, n + 1)])
-            )
+            mgr.apply_snapshot(make_snapshot(yes=[[f"0.{i:04d}", "100"] for i in range(1, n + 1)]))
             counting = CountingDict(mgr._books["T"].yes)
-            mgr._books["T"] = _BookState(
-                ticker="T", yes=counting, no=mgr._books["T"].no
-            )
-            mgr.apply_delta(
-                make_delta(price=f"0.{n // 2:04d}", delta="1", side="yes")
-            )
+            mgr._books["T"] = _BookState(ticker="T", yes=counting, no=mgr._books["T"].no)
+            mgr.apply_delta(make_delta(price=f"0.{n // 2:04d}", delta="1", side="yes"))
             return counting.accesses
 
         small = measure(10)
@@ -271,9 +268,7 @@ class TestOrderbookManager:
         """
         mgr = OrderbookManager()
         mgr.apply_snapshot(make_snapshot(yes=[["0.0100", "0.00"]]))
-        book = mgr.apply_delta(
-            make_delta(price="0.0100", delta="1.00", side="yes")
-        )
+        book = mgr.apply_delta(make_delta(price="0.0100", delta="1.00", side="yes"))
         assert book is not None
         # Decimal("0.00") + Decimal("1.00") == Decimal("1.00"), not Decimal("1")
         assert book.yes[0].quantity == Decimal("1.00")
@@ -309,9 +304,7 @@ class TestOrderbookManagerInplace:
     def test_apply_delta_inplace_returns_true_on_known_ticker(self) -> None:
         mgr = OrderbookManager()
         mgr._apply_snapshot_inplace(make_snapshot(yes=[["0.50", "10.00"]]))
-        ok = mgr._apply_delta_inplace(
-            make_delta(price="0.50", delta="5.00", side="yes")
-        )
+        ok = mgr._apply_delta_inplace(make_delta(price="0.50", delta="5.00", side="yes"))
         assert ok is True
         book = mgr.get("T")
         assert book is not None
@@ -319,13 +312,12 @@ class TestOrderbookManagerInplace:
 
     def test_apply_delta_inplace_returns_false_for_unknown_ticker(self) -> None:
         mgr = OrderbookManager()
-        ok = mgr._apply_delta_inplace(
-            make_delta(ticker="OTHER", price="0.50", delta="5.00")
-        )
+        ok = mgr._apply_delta_inplace(make_delta(ticker="OTHER", price="0.50", delta="5.00"))
         assert ok is False
 
     def test_apply_delta_inplace_does_not_call_to_orderbook(
-        self, monkeypatch: object,
+        self,
+        monkeypatch: object,
     ) -> None:
         """Hot-path invariant: the in-place variant MUST NOT materialize
         an Orderbook. Spy on ``_BookState.to_orderbook`` and assert zero
@@ -345,9 +337,7 @@ class TestOrderbookManagerInplace:
         mgr = OrderbookManager()
         mgr._apply_snapshot_inplace(make_snapshot(yes=[["0.50", "10.00"]]))
         for _ in range(5):
-            mgr._apply_delta_inplace(
-                make_delta(price="0.50", delta="1.00", side="yes")
-            )
+            mgr._apply_delta_inplace(make_delta(price="0.50", delta="1.00", side="yes"))
         assert calls == []
 
     def test_public_apply_delta_still_returns_orderbook(self) -> None:
@@ -367,9 +357,7 @@ class TestOrderbookManagerInplace:
 
     def test_public_apply_snapshot_returns_orderbook(self) -> None:
         mgr = OrderbookManager()
-        book = mgr.apply_snapshot(
-            make_snapshot(yes=[["0.10", "5.00"]], no=[["0.90", "5.00"]])
-        )
+        book = mgr.apply_snapshot(make_snapshot(yes=[["0.10", "5.00"]], no=[["0.90", "5.00"]]))
         assert book is not None
         assert book.ticker == "T"
         assert len(book.yes) == 1

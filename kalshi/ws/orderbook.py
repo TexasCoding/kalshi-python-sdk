@@ -1,4 +1,5 @@
 """Local orderbook manager from WebSocket snapshots and deltas."""
+
 from __future__ import annotations
 
 import logging
@@ -62,12 +63,10 @@ class _BookState:
         if self._cached is not None:
             return self._cached
         yes_levels = [
-            OrderbookLevel(price=price, quantity=qty)
-            for price, qty in sorted(self.yes.items())
+            OrderbookLevel(price=price, quantity=qty) for price, qty in sorted(self.yes.items())
         ]
         no_levels = [
-            OrderbookLevel(price=price, quantity=qty)
-            for price, qty in sorted(self.no.items())
+            OrderbookLevel(price=price, quantity=qty) for price, qty in sorted(self.no.items())
         ]
         ob = Orderbook(ticker=self.ticker, yes=yes_levels, no=no_levels)
         self._cached = ob
@@ -191,9 +190,7 @@ class OrderbookManager:
 
         return True
 
-    def apply_snapshot(
-        self, msg: OrderbookSnapshotMessage, sid: int | None = None
-    ) -> Orderbook:
+    def apply_snapshot(self, msg: OrderbookSnapshotMessage, sid: int | None = None) -> Orderbook:
         """Initialize (or reset) a book from a full snapshot.
 
         Public wrapper that mutates in place then materializes the
