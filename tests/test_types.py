@@ -90,3 +90,42 @@ class TestFixedPointCountDumpMode:
         result = m.model_dump(mode="python")
         assert isinstance(result["count"], Decimal)
         assert result["count"] == Decimal("42")
+
+
+class TestCoerceDecimalRejectsNonFinite:
+    """#270 Item 5: NaN/Infinity rejected so they never reach the wire.
+
+    ``f"{Decimal('NaN'):f}"`` returns the literal string ``"NaN"``, and before this
+    guard ``_coerce_decimal`` short-circuited on the ``isinstance(value, Decimal)``
+    branch — a caller doing arithmetic that produced NaN would silently ship
+    ``"NaN"`` to a real-money order placement endpoint. Same for Infinity.
+    """
+
+    def test_rejects_nan_decimal_on_dollar_field(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            _DollarModel.model_validate({"x": Decimal("NaN")})
+
+    def test_rejects_infinity_decimal_on_dollar_field(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            _DollarModel.model_validate({"x": Decimal("Infinity")})
+
+    def test_rejects_negative_infinity_decimal_on_count_field(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            _CountModel.model_validate({"x": Decimal("-Infinity")})
+
+    def test_rejects_nan_string_on_dollar_field(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            _DollarModel.model_validate({"x": "NaN"})
+
+    def test_accepts_finite_decimal(self) -> None:
+        m = _DollarModel.model_validate({"x": Decimal("0.5")})
+        assert m.x == Decimal("0.5")
+
+    def test_create_order_request_rejects_nan_yes_price(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+        with pytest.raises(ValueError, match="finite"):
+            CreateOrderRequest(
+                ticker="T", side="yes", action="buy",
+                count=Decimal("1"), yes_price=Decimal("NaN"),
+            )
+
