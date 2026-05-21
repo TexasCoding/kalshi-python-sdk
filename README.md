@@ -266,7 +266,7 @@ page = client.markets.list(status="open", limit=200)
 while True:
     for market in page:
         ...
-    if not page.has_more:
+    if not page.has_next:
         break
     page = client.markets.list(status="open", limit=200, cursor=page.cursor)
 
