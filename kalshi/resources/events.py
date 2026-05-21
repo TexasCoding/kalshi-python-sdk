@@ -76,15 +76,19 @@ class EventsResource(SyncResource):
         min_updated_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Event]:
         params = _list_events_params(
-            status=status, series_ticker=series_ticker,
+            status=status,
+            series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
-            min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
-            limit=limit, cursor=cursor,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return self._list("/events", Event, "events", params=params)
+        return self._list("/events", Event, "events", params=params, extra_headers=extra_headers)
 
     def list_all(
         self,
@@ -97,17 +101,26 @@ class EventsResource(SyncResource):
         min_updated_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Event]:
         _validate_max_pages(max_pages)
         params = _list_events_params(
-            status=status, series_ticker=series_ticker,
+            status=status,
+            series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
-            min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
-            limit=limit, cursor=None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/events", Event, "events", params=params, max_pages=max_pages,
+            "/events",
+            Event,
+            "events",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     def list_multivariate(
@@ -118,14 +131,18 @@ class EventsResource(SyncResource):
         with_nested_markets: bool | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Event]:
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
-        return self._list("/events/multivariate", Event, "events", params=params)
+        return self._list(
+            "/events/multivariate", Event, "events", params=params, extra_headers=extra_headers
+        )
 
     def list_all_multivariate(
         self,
@@ -135,17 +152,23 @@ class EventsResource(SyncResource):
         with_nested_markets: bool | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Event]:
         _validate_max_pages(max_pages)
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
-            limit=limit, cursor=None,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/events/multivariate", Event, "events",
-            params=params, max_pages=max_pages,
+            "/events/multivariate",
+            Event,
+            "events",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     def get(
@@ -153,15 +176,25 @@ class EventsResource(SyncResource):
         event_ticker: str,
         *,
         with_nested_markets: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
         )
-        data = self._get(f"/events/{_seg(event_ticker, name='event_ticker')}", params=params)
+        data = self._get(
+            f"/events/{_seg(event_ticker, name='event_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return Event.model_validate(data.get("event", data))
 
-    def metadata(self, event_ticker: str) -> EventMetadata:
-        data = self._get(f"/events/{_seg(event_ticker, name='event_ticker')}/metadata")
+    def metadata(
+        self, event_ticker: str, *, extra_headers: dict[str, str] | None = None
+    ) -> EventMetadata:
+        data = self._get(
+            f"/events/{_seg(event_ticker, name='event_ticker')}/metadata",
+            extra_headers=extra_headers,
+        )
         return EventMetadata.model_validate(data)
 
 
@@ -179,15 +212,21 @@ class AsyncEventsResource(AsyncResource):
         min_updated_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Event]:
         params = _list_events_params(
-            status=status, series_ticker=series_ticker,
+            status=status,
+            series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
-            min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
-            limit=limit, cursor=cursor,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return await self._list("/events", Event, "events", params=params)
+        return await self._list(
+            "/events", Event, "events", params=params, extra_headers=extra_headers
+        )
 
     def list_all(
         self,
@@ -200,17 +239,26 @@ class AsyncEventsResource(AsyncResource):
         min_updated_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Event]:
         _validate_max_pages(max_pages)
         params = _list_events_params(
-            status=status, series_ticker=series_ticker,
+            status=status,
+            series_ticker=series_ticker,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
-            min_close_ts=min_close_ts, min_updated_ts=min_updated_ts,
-            limit=limit, cursor=None,
+            min_close_ts=min_close_ts,
+            min_updated_ts=min_updated_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/events", Event, "events", params=params, max_pages=max_pages,
+            "/events",
+            Event,
+            "events",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     async def list_multivariate(
@@ -221,14 +269,18 @@ class AsyncEventsResource(AsyncResource):
         with_nested_markets: bool | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Event]:
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
-        return await self._list("/events/multivariate", Event, "events", params=params)
+        return await self._list(
+            "/events/multivariate", Event, "events", params=params, extra_headers=extra_headers
+        )
 
     def list_all_multivariate(
         self,
@@ -238,17 +290,23 @@ class AsyncEventsResource(AsyncResource):
         with_nested_markets: bool | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Event]:
         _validate_max_pages(max_pages)
         params = _list_multivariate_events_params(
             series_ticker=series_ticker,
             collection_ticker=collection_ticker,
             with_nested_markets=with_nested_markets,
-            limit=limit, cursor=None,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/events/multivariate", Event, "events",
-            params=params, max_pages=max_pages,
+            "/events/multivariate",
+            Event,
+            "events",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     async def get(
@@ -256,13 +314,23 @@ class AsyncEventsResource(AsyncResource):
         event_ticker: str,
         *,
         with_nested_markets: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
         )
-        data = await self._get(f"/events/{_seg(event_ticker, name='event_ticker')}", params=params)
+        data = await self._get(
+            f"/events/{_seg(event_ticker, name='event_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return Event.model_validate(data.get("event", data))
 
-    async def metadata(self, event_ticker: str) -> EventMetadata:
-        data = await self._get(f"/events/{_seg(event_ticker, name='event_ticker')}/metadata")
+    async def metadata(
+        self, event_ticker: str, *, extra_headers: dict[str, str] | None = None
+    ) -> EventMetadata:
+        data = await self._get(
+            f"/events/{_seg(event_ticker, name='event_ticker')}/metadata",
+            extra_headers=extra_headers,
+        )
         return EventMetadata.model_validate(data)

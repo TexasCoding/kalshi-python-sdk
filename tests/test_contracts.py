@@ -1081,6 +1081,10 @@ class TestRequestParamDrift:
             assert hasattr(module, cls_name), f"Missing async sibling {cls_name} in {module_name}"
 
         sdk_params = _signature_params(sdk_fqn)
+        # #253: ``extra_headers`` is an SDK-meta kwarg (per-request header overrides)
+        # threaded onto every public resource method. It is never part of the
+        # OpenAPI spec, so exclude it from the drift comparison globally.
+        sdk_params.discard("extra_headers")
         spec_params_list = _resolve_path_params(
             self.spec,
             entry.path_template,

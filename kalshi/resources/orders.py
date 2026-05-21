@@ -83,11 +83,18 @@ def _build_create_order_body(
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
-        ticker=ticker, side=side, action=action, count=count,
-        yes_price=yes_price, no_price=no_price,
-        client_order_id=client_order_id, expiration_ts=expiration_ts,
-        buy_max_cost=buy_max_cost, time_in_force=time_in_force,
-        post_only=post_only, reduce_only=reduce_only,
+        ticker=ticker,
+        side=side,
+        action=action,
+        count=count,
+        yes_price=yes_price,
+        no_price=no_price,
+        client_order_id=client_order_id,
+        expiration_ts=expiration_ts,
+        buy_max_cost=buy_max_cost,
+        time_in_force=time_in_force,
+        post_only=post_only,
+        reduce_only=reduce_only,
         self_trade_prevention_type=self_trade_prevention_type,
         order_group_id=order_group_id,
         cancel_order_on_pause=cancel_order_on_pause,
@@ -99,7 +106,7 @@ def _build_create_order_body(
             raise TypeError(
                 "create() requires `ticker`, `side`, `count`, and `action` "
                 "(or pass `request=...`). Pre-#242 the SDK silently defaulted "
-                "missing `count` to 1 contract and missing `action` to \"buy\" — "
+                'missing `count` to 1 contract and missing `action` to "buy" — '
                 "that has been removed: a missing arg would otherwise translate "
                 "into a real 1-contract BUY on the wire."
             )
@@ -138,9 +145,7 @@ def _build_batch_create_body(
     _check_request_exclusive(request, orders=orders)
     if request is None:
         if orders is None:
-            raise TypeError(
-                "batch_create() requires `orders` (or pass `request=...`)"
-            )
+            raise TypeError("batch_create() requires `orders` (or pass `request=...`)")
         request = BatchCreateOrdersRequest(orders=list(orders))
     return request.model_dump_json(exclude_none=True, by_alias=True).encode()
 
@@ -154,14 +159,9 @@ def _build_batch_cancel_body(
     _check_request_exclusive(request, orders=orders)
     if request is None:
         if orders is None:
-            raise TypeError(
-                "batch_cancel() requires `orders` (or pass `request=...`)"
-            )
+            raise TypeError("batch_cancel() requires `orders` (or pass `request=...`)")
         normalized = [
-            (
-                BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o
-            )
-            for o in orders
+            (BatchCancelOrdersRequestOrder(order_id=o) if isinstance(o, str) else o) for o in orders
         ]
         request = BatchCancelOrdersRequest(orders=normalized)
     return request.model_dump_json(exclude_none=True, by_alias=True).encode()
@@ -183,8 +183,12 @@ def _build_amend_body(
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
-        ticker=ticker, side=side, action=action,
-        yes_price=yes_price, no_price=no_price, count=count,
+        ticker=ticker,
+        side=side,
+        action=action,
+        yes_price=yes_price,
+        no_price=no_price,
+        count=count,
         client_order_id=client_order_id,
         updated_client_order_id=updated_client_order_id,
         subaccount=subaccount,
@@ -193,13 +197,10 @@ def _build_amend_body(
     if request is None:
         if ticker is None or side is None or action is None:
             raise TypeError(
-                "amend() requires `ticker`, `side`, and `action` "
-                "(or pass `request=...`)"
+                "amend() requires `ticker`, `side`, and `action` (or pass `request=...`)"
             )
         if yes_price is None and no_price is None and count is None:
-            raise ValueError(
-                "amend() requires at least one of yes_price, no_price, or count"
-            )
+            raise ValueError("amend() requires at least one of yes_price, no_price, or count")
         request = AmendOrderRequest(
             ticker=ticker,
             side=side,
@@ -224,8 +225,11 @@ def _build_decrease_body(
     exchange_index: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
-        request, reduce_by=reduce_by, reduce_to=reduce_to,
-        subaccount=subaccount, exchange_index=exchange_index,
+        request,
+        reduce_by=reduce_by,
+        reduce_to=reduce_to,
+        subaccount=subaccount,
+        exchange_index=exchange_index,
     )
     if request is None:
         # Method-level guards mirror DecreaseOrderRequest._enforce_reduce_xor
@@ -319,7 +323,9 @@ class OrdersResource(SyncResource):
     """Sync orders API."""
 
     @overload
-    def create(self, *, request: CreateOrderRequest) -> Order: ...
+    def create(
+        self, *, request: CreateOrderRequest, extra_headers: dict[str, str] | None = None
+    ) -> Order: ...
     @overload
     def create(
         self,
@@ -341,6 +347,7 @@ class OrdersResource(SyncResource):
         cancel_order_on_pause: bool | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     def create(
         self,
@@ -363,6 +370,7 @@ class OrdersResource(SyncResource):
         cancel_order_on_pause: bool | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order:
         """Place a new order.
 
@@ -389,24 +397,33 @@ class OrdersResource(SyncResource):
         self._require_auth()
         body = _build_create_order_body(
             request,
-            ticker=ticker, side=side, action=action, count=count,
-            yes_price=yes_price, no_price=no_price,
-            client_order_id=client_order_id, expiration_ts=expiration_ts,
-            buy_max_cost=buy_max_cost, time_in_force=time_in_force,
-            post_only=post_only, reduce_only=reduce_only,
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=count,
+            yes_price=yes_price,
+            no_price=no_price,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
             self_trade_prevention_type=self_trade_prevention_type,
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = self._post("/portfolio/orders", json=body)
+        data = self._post("/portfolio/orders", json=body, extra_headers=extra_headers)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    def get(self, order_id: str) -> Order:
+    def get(self, order_id: str, *, extra_headers: dict[str, str] | None = None) -> Order:
         self._require_auth()
-        data = self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}")
+        data = self._get(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}", extra_headers=extra_headers
+        )
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -416,10 +433,15 @@ class OrdersResource(SyncResource):
         *,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        self._delete(f"/portfolio/orders/{_seg(order_id, name='order_id')}", params=params)
+        self._delete(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
 
     def list(
         self,
@@ -432,14 +454,22 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
         params = _list_orders_params(
-            ticker=ticker, event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
             subaccount=subaccount,
         )
-        return self._list("/portfolio/orders", Order, "orders", params=params)
+        return self._list(
+            "/portfolio/orders", Order, "orders", params=params, extra_headers=extra_headers
+        )
 
     def list_all(
         self,
@@ -452,35 +482,43 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Order]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_orders_params(
-            ticker=ticker, event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/orders", Order, "orders",
-            params=params, max_pages=max_pages,
+            "/portfolio/orders",
+            Order,
+            "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     def batch_create(
-        self,
-        *,
-        request: BatchCreateOrdersRequest,
+        self, *, request: BatchCreateOrdersRequest, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersResponse: ...
     @overload
     def batch_create(
-        self,
-        orders: Sequence[CreateOrderRequest],
+        self, orders: Sequence[CreateOrderRequest], *, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersResponse: ...
     def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
         *,
         request: BatchCreateOrdersRequest | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCreateOrdersResponse:
         """Place a batch of orders.
 
@@ -494,25 +532,28 @@ class OrdersResource(SyncResource):
         """
         self._require_auth()
         body = _build_batch_create_body(request, orders)
-        data = self._post_json("/portfolio/orders/batched", content=body)
+        data = self._post_json(
+            "/portfolio/orders/batched", content=body, extra_headers=extra_headers
+        )
         return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
     def batch_cancel(
-        self,
-        *,
-        request: BatchCancelOrdersRequest,
+        self, *, request: BatchCancelOrdersRequest, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersResponse: ...
     @overload
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
+        *,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCancelOrdersResponse: ...
     def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
         *,
         request: BatchCancelOrdersRequest | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCancelOrdersResponse:
         """Batch-cancel orders.
 
@@ -532,11 +573,11 @@ class OrdersResource(SyncResource):
         """
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        data = self._delete_with_body_json("/portfolio/orders/batched", content=body)
+        data = self._delete_with_body_json(
+            "/portfolio/orders/batched", content=body, extra_headers=extra_headers
+        )
         if data is None:
-            raise KalshiError(
-                "Expected BatchCancelOrdersResponse body, got 204 No Content."
-            )
+            raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
     def fills(
@@ -549,14 +590,21 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         self._require_auth()
         params = _fills_params(
-            ticker=ticker, order_id=order_id,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
             subaccount=subaccount,
         )
-        return self._list("/portfolio/fills", Fill, "fills", params=params)
+        return self._list(
+            "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
+        )
 
     def fills_all(
         self,
@@ -568,22 +616,35 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
-            ticker=ticker, order_id=order_id,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/fills", Fill, "fills",
-            params=params, max_pages=max_pages,
+            "/portfolio/fills",
+            Fill,
+            "fills",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     def amend(
-        self, order_id: str, *, request: AmendOrderRequest,
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse: ...
     @overload
     def amend(
@@ -600,6 +661,7 @@ class OrdersResource(SyncResource):
         updated_client_order_id: str | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse: ...
     def amend(
         self,
@@ -616,23 +678,36 @@ class OrdersResource(SyncResource):
         updated_client_order_id: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
         body = _build_amend_body(
             request,
-            ticker=ticker, side=side, action=action,
-            yes_price=yes_price, no_price=no_price, count=count,
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=yes_price,
+            no_price=no_price,
+            count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend", json=body)
+        data = self._post(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend",
+            json=body,
+            extra_headers=extra_headers,
+        )
         return AmendOrderResponse.model_validate(data)
 
     @overload
     def decrease(
-        self, order_id: str, *, request: DecreaseOrderRequest,
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     @overload
     def decrease(
@@ -643,6 +718,7 @@ class OrdersResource(SyncResource):
         reduce_to: int | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     def decrease(
         self,
@@ -653,13 +729,21 @@ class OrdersResource(SyncResource):
         reduce_to: int | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order:
         self._require_auth()
         body = _build_decrease_body(
-            request, reduce_by=reduce_by, reduce_to=reduce_to,
-            subaccount=subaccount, exchange_index=exchange_index,
+            request,
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+            exchange_index=exchange_index,
         )
-        data = self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease", json=body)  # noqa: E501
+        data = self._post(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease",
+            json=body,
+            extra_headers=extra_headers,
+        )
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -669,6 +753,7 @@ class OrdersResource(SyncResource):
         market_tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
         params = _queue_positions_params(
@@ -676,13 +761,20 @@ class OrdersResource(SyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
-        data = self._get("/portfolio/orders/queue_positions", params=params)
+        data = self._get(
+            "/portfolio/orders/queue_positions", params=params, extra_headers=extra_headers
+        )
         raw = data.get("queue_positions", [])
         return [OrderQueuePosition.model_validate(item) for item in raw]
 
-    def queue_position(self, order_id: str) -> Decimal:
+    def queue_position(
+        self, order_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> Decimal:
         self._require_auth()
-        data = self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position")
+        data = self._get(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position",
+            extra_headers=extra_headers,
+        )
         return _parse_queue_position(data)
 
     # ------------------------------------------------------------------
@@ -690,10 +782,12 @@ class OrdersResource(SyncResource):
     # Model-only API surface — pass a fully-constructed request model.
     # ------------------------------------------------------------------
 
-    def create_v2(self, *, request: CreateOrderV2Request) -> CreateOrderV2Response:
+    def create_v2(
+        self, *, request: CreateOrderV2Request, extra_headers: dict[str, str] | None = None
+    ) -> CreateOrderV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post("/portfolio/events/orders", json=body)
+        data = self._post("/portfolio/events/orders", json=body, extra_headers=extra_headers)
         return CreateOrderV2Response.model_validate(data)
 
     def cancel_v2(
@@ -702,16 +796,17 @@ class OrdersResource(SyncResource):
         *,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CancelOrderV2Response:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = self._delete(
-            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}", params=params,
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}",
+            params=params,
+            extra_headers=extra_headers,
         )
         if data is None:
-            raise KalshiError(
-                "Expected CancelOrderV2Response body, got 204 No Content."
-            )
+            raise KalshiError("Expected CancelOrderV2Response body, got 204 No Content.")
         return CancelOrderV2Response.model_validate(data)
 
     def amend_v2(
@@ -720,6 +815,7 @@ class OrdersResource(SyncResource):
         *,
         request: AmendOrderV2Request,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderV2Response:
         """Amend an event-market order (V2).
 
@@ -733,7 +829,9 @@ class OrdersResource(SyncResource):
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
             f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/amend",
-            params=params, json=body,
+            params=params,
+            json=body,
+            extra_headers=extra_headers,
         )
         return AmendOrderV2Response.model_validate(data)
 
@@ -743,6 +841,7 @@ class OrdersResource(SyncResource):
         *,
         request: DecreaseOrderV2Request,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> DecreaseOrderV2Response:
         """Decrease an event-market order (V2).
 
@@ -757,30 +856,32 @@ class OrdersResource(SyncResource):
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post(
             f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/decrease",
-            params=params, json=body,
+            params=params,
+            json=body,
+            extra_headers=extra_headers,
         )
         return DecreaseOrderV2Response.model_validate(data)
 
     def batch_create_v2(
-        self, *, request: BatchCreateOrdersV2Request,
+        self, *, request: BatchCreateOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post("/portfolio/events/orders/batched", json=body)
+        data = self._post(
+            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        )
         return BatchCreateOrdersV2Response.model_validate(data)
 
     def batch_cancel_v2(
-        self, *, request: BatchCancelOrdersV2Request,
+        self, *, request: BatchCancelOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._delete_with_body(
-            "/portfolio/events/orders/batched", json=body,
+            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
         )
         if data is None:
-            raise KalshiError(
-                "Expected BatchCancelOrdersV2Response body, got 204 No Content."
-            )
+            raise KalshiError("Expected BatchCancelOrdersV2Response body, got 204 No Content.")
         return BatchCancelOrdersV2Response.model_validate(data)
 
 
@@ -788,7 +889,9 @@ class AsyncOrdersResource(AsyncResource):
     """Async orders API."""
 
     @overload
-    async def create(self, *, request: CreateOrderRequest) -> Order: ...
+    async def create(
+        self, *, request: CreateOrderRequest, extra_headers: dict[str, str] | None = None
+    ) -> Order: ...
     @overload
     async def create(
         self,
@@ -810,6 +913,7 @@ class AsyncOrdersResource(AsyncResource):
         cancel_order_on_pause: bool | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     async def create(
         self,
@@ -832,6 +936,7 @@ class AsyncOrdersResource(AsyncResource):
         cancel_order_on_pause: bool | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order:
         """Place a new order.
 
@@ -858,24 +963,33 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         body = _build_create_order_body(
             request,
-            ticker=ticker, side=side, action=action, count=count,
-            yes_price=yes_price, no_price=no_price,
-            client_order_id=client_order_id, expiration_ts=expiration_ts,
-            buy_max_cost=buy_max_cost, time_in_force=time_in_force,
-            post_only=post_only, reduce_only=reduce_only,
+            ticker=ticker,
+            side=side,
+            action=action,
+            count=count,
+            yes_price=yes_price,
+            no_price=no_price,
+            client_order_id=client_order_id,
+            expiration_ts=expiration_ts,
+            buy_max_cost=buy_max_cost,
+            time_in_force=time_in_force,
+            post_only=post_only,
+            reduce_only=reduce_only,
             self_trade_prevention_type=self_trade_prevention_type,
             order_group_id=order_group_id,
             cancel_order_on_pause=cancel_order_on_pause,
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = await self._post("/portfolio/orders", json=body)
+        data = await self._post("/portfolio/orders", json=body, extra_headers=extra_headers)
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
-    async def get(self, order_id: str) -> Order:
+    async def get(self, order_id: str, *, extra_headers: dict[str, str] | None = None) -> Order:
         self._require_auth()
-        data = await self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}")
+        data = await self._get(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}", extra_headers=extra_headers
+        )
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -885,10 +999,15 @@ class AsyncOrdersResource(AsyncResource):
         *,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
-        await self._delete(f"/portfolio/orders/{_seg(order_id, name='order_id')}", params=params)
+        await self._delete(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
 
     async def list(
         self,
@@ -901,14 +1020,22 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
         params = _list_orders_params(
-            ticker=ticker, event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
             subaccount=subaccount,
         )
-        return await self._list("/portfolio/orders", Order, "orders", params=params)
+        return await self._list(
+            "/portfolio/orders", Order, "orders", params=params, extra_headers=extra_headers
+        )
 
     def list_all(
         self,
@@ -921,68 +1048,79 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Order]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_orders_params(
-            ticker=ticker, event_ticker=event_ticker, status=status,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            status=status,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/orders", Order, "orders",
-            params=params, max_pages=max_pages,
+            "/portfolio/orders",
+            Order,
+            "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     async def batch_create(
-        self,
-        *,
-        request: BatchCreateOrdersRequest,
+        self, *, request: BatchCreateOrdersRequest, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersResponse: ...
     @overload
     async def batch_create(
-        self,
-        orders: Sequence[CreateOrderRequest],
+        self, orders: Sequence[CreateOrderRequest], *, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersResponse: ...
     async def batch_create(
         self,
         orders: Sequence[CreateOrderRequest] | None = None,
         *,
         request: BatchCreateOrdersRequest | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCreateOrdersResponse:
         """Place a batch of orders. See :meth:`OrdersResource.batch_create`."""
         self._require_auth()
         body = _build_batch_create_body(request, orders)
-        data = await self._post_json("/portfolio/orders/batched", content=body)
+        data = await self._post_json(
+            "/portfolio/orders/batched", content=body, extra_headers=extra_headers
+        )
         return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
     async def batch_cancel(
-        self,
-        *,
-        request: BatchCancelOrdersRequest,
+        self, *, request: BatchCancelOrdersRequest, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersResponse: ...
     @overload
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str],
+        *,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCancelOrdersResponse: ...
     async def batch_cancel(
         self,
         orders: Sequence[BatchCancelOrdersRequestOrder | str] | None = None,
         *,
         request: BatchCancelOrdersRequest | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> BatchCancelOrdersResponse:
         """Batch-cancel orders. See :meth:`OrdersResource.batch_cancel`."""
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        data = await self._delete_with_body_json("/portfolio/orders/batched", content=body)
+        data = await self._delete_with_body_json(
+            "/portfolio/orders/batched", content=body, extra_headers=extra_headers
+        )
         if data is None:
-            raise KalshiError(
-                "Expected BatchCancelOrdersResponse body, got 204 No Content."
-            )
+            raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
     async def fills(
@@ -995,14 +1133,21 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         self._require_auth()
         params = _fills_params(
-            ticker=ticker, order_id=order_id,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=cursor,
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
             subaccount=subaccount,
         )
-        return await self._list("/portfolio/fills", Fill, "fills", params=params)
+        return await self._list(
+            "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
+        )
 
     def fills_all(
         self,
@@ -1014,22 +1159,35 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
-            ticker=ticker, order_id=order_id,
-            min_ts=min_ts, max_ts=max_ts, limit=limit, cursor=None,
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/fills", Fill, "fills",
-            params=params, max_pages=max_pages,
+            "/portfolio/fills",
+            Fill,
+            "fills",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     @overload
     async def amend(
-        self, order_id: str, *, request: AmendOrderRequest,
+        self,
+        order_id: str,
+        *,
+        request: AmendOrderRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse: ...
     @overload
     async def amend(
@@ -1046,6 +1204,7 @@ class AsyncOrdersResource(AsyncResource):
         updated_client_order_id: str | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse: ...
     async def amend(
         self,
@@ -1062,23 +1221,36 @@ class AsyncOrdersResource(AsyncResource):
         updated_client_order_id: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderResponse:
         self._require_auth()
         body = _build_amend_body(
             request,
-            ticker=ticker, side=side, action=action,
-            yes_price=yes_price, no_price=no_price, count=count,
+            ticker=ticker,
+            side=side,
+            action=action,
+            yes_price=yes_price,
+            no_price=no_price,
+            count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             subaccount=subaccount,
             exchange_index=exchange_index,
         )
-        data = await self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend", json=body)  # noqa: E501
+        data = await self._post(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/amend",
+            json=body,
+            extra_headers=extra_headers,
+        )
         return AmendOrderResponse.model_validate(data)
 
     @overload
     async def decrease(
-        self, order_id: str, *, request: DecreaseOrderRequest,
+        self,
+        order_id: str,
+        *,
+        request: DecreaseOrderRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     @overload
     async def decrease(
@@ -1089,6 +1261,7 @@ class AsyncOrdersResource(AsyncResource):
         reduce_to: int | None = ...,
         subaccount: int | None = ...,
         exchange_index: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order: ...
     async def decrease(
         self,
@@ -1099,13 +1272,21 @@ class AsyncOrdersResource(AsyncResource):
         reduce_to: int | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Order:
         self._require_auth()
         body = _build_decrease_body(
-            request, reduce_by=reduce_by, reduce_to=reduce_to,
-            subaccount=subaccount, exchange_index=exchange_index,
+            request,
+            reduce_by=reduce_by,
+            reduce_to=reduce_to,
+            subaccount=subaccount,
+            exchange_index=exchange_index,
         )
-        data = await self._post(f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease", json=body)  # noqa: E501
+        data = await self._post(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/decrease",
+            json=body,
+            extra_headers=extra_headers,
+        )
         order_data = data.get("order", data)
         return Order.model_validate(order_data)
 
@@ -1115,6 +1296,7 @@ class AsyncOrdersResource(AsyncResource):
         market_tickers: builtins.list[str] | str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[OrderQueuePosition]:
         self._require_auth()
         params = _queue_positions_params(
@@ -1122,23 +1304,30 @@ class AsyncOrdersResource(AsyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
-        data = await self._get("/portfolio/orders/queue_positions", params=params)
+        data = await self._get(
+            "/portfolio/orders/queue_positions", params=params, extra_headers=extra_headers
+        )
         raw = data.get("queue_positions", [])
         return [OrderQueuePosition.model_validate(item) for item in raw]
 
-    async def queue_position(self, order_id: str) -> Decimal:
+    async def queue_position(
+        self, order_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> Decimal:
         self._require_auth()
-        data = await self._get(f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position")  # noqa: E501
+        data = await self._get(
+            f"/portfolio/orders/{_seg(order_id, name='order_id')}/queue_position",
+            extra_headers=extra_headers,
+        )
         return _parse_queue_position(data)
 
     # V2 event-market orders (spec v3.18.0). See OrdersResource counterparts.
 
     async def create_v2(
-        self, *, request: CreateOrderV2Request,
+        self, *, request: CreateOrderV2Request, extra_headers: dict[str, str] | None = None
     ) -> CreateOrderV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post("/portfolio/events/orders", json=body)
+        data = await self._post("/portfolio/events/orders", json=body, extra_headers=extra_headers)
         return CreateOrderV2Response.model_validate(data)
 
     async def cancel_v2(
@@ -1147,16 +1336,17 @@ class AsyncOrdersResource(AsyncResource):
         *,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CancelOrderV2Response:
         self._require_auth()
         params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = await self._delete(
-            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}", params=params,
+            f"/portfolio/events/orders/{_seg(order_id, name='order_id')}",
+            params=params,
+            extra_headers=extra_headers,
         )
         if data is None:
-            raise KalshiError(
-                "Expected CancelOrderV2Response body, got 204 No Content."
-            )
+            raise KalshiError("Expected CancelOrderV2Response body, got 204 No Content.")
         return CancelOrderV2Response.model_validate(data)
 
     async def amend_v2(
@@ -1165,6 +1355,7 @@ class AsyncOrdersResource(AsyncResource):
         *,
         request: AmendOrderV2Request,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AmendOrderV2Response:
         """Amend an event-market order (V2).
 
@@ -1178,7 +1369,9 @@ class AsyncOrdersResource(AsyncResource):
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
             f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/amend",
-            params=params, json=body,
+            params=params,
+            json=body,
+            extra_headers=extra_headers,
         )
         return AmendOrderV2Response.model_validate(data)
 
@@ -1188,6 +1381,7 @@ class AsyncOrdersResource(AsyncResource):
         *,
         request: DecreaseOrderV2Request,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> DecreaseOrderV2Response:
         """Decrease an event-market order (V2).
 
@@ -1202,28 +1396,30 @@ class AsyncOrdersResource(AsyncResource):
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post(
             f"/portfolio/events/orders/{_seg(order_id, name='order_id')}/decrease",
-            params=params, json=body,
+            params=params,
+            json=body,
+            extra_headers=extra_headers,
         )
         return DecreaseOrderV2Response.model_validate(data)
 
     async def batch_create_v2(
-        self, *, request: BatchCreateOrdersV2Request,
+        self, *, request: BatchCreateOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post("/portfolio/events/orders/batched", json=body)
+        data = await self._post(
+            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        )
         return BatchCreateOrdersV2Response.model_validate(data)
 
     async def batch_cancel_v2(
-        self, *, request: BatchCancelOrdersV2Request,
+        self, *, request: BatchCancelOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersV2Response:
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._delete_with_body(
-            "/portfolio/events/orders/batched", json=body,
+            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
         )
         if data is None:
-            raise KalshiError(
-                "Expected BatchCancelOrdersV2Response body, got 204 No Content."
-            )
+            raise KalshiError("Expected BatchCancelOrdersV2Response body, got 204 No Content.")
         return BatchCancelOrdersV2Response.model_validate(data)

@@ -61,10 +61,7 @@ def _build_create_market_body(
     )
     if request is None:
         if selected_markets is None:
-            raise TypeError(
-                "create_market() requires `selected_markets` "
-                "(or pass `request=...`)"
-            )
+            raise TypeError("create_market() requires `selected_markets` (or pass `request=...`)")
         request = CreateMarketInMultivariateEventCollectionRequest(
             selected_markets=list(selected_markets),
             with_market_payload=with_market_payload,
@@ -80,10 +77,7 @@ def _build_lookup_tickers_body(
     _check_request_exclusive(request, selected_markets=selected_markets)
     if request is None:
         if selected_markets is None:
-            raise TypeError(
-                "lookup_tickers() requires `selected_markets` "
-                "(or pass `request=...`)"
-            )
+            raise TypeError("lookup_tickers() requires `selected_markets` (or pass `request=...`)")
         request = LookupTickersForMarketInMultivariateEventCollectionRequest(
             selected_markets=list(selected_markets),
         )
@@ -114,18 +108,21 @@ class MultivariateCollectionsResource(SyncResource):
         series_ticker: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[MultivariateEventCollection]:
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
             series_ticker=series_ticker,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
         return self._list(
             "/multivariate_event_collections",
             MultivariateEventCollection,
             "multivariate_contracts",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -136,13 +133,15 @@ class MultivariateCollectionsResource(SyncResource):
         series_ticker: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MultivariateEventCollection]:
         _validate_max_pages(max_pages)
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
             series_ticker=series_ticker,
-            limit=limit, cursor=None,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
             "/multivariate_event_collections",
@@ -150,13 +149,17 @@ class MultivariateCollectionsResource(SyncResource):
             "multivariate_contracts",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get(self, collection_ticker: str) -> MultivariateEventCollection:
-        data = self._get(f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}")  # noqa: E501
-        return MultivariateEventCollection.model_validate(
-            data.get("multivariate_contract", data)
+    def get(
+        self, collection_ticker: str, *, extra_headers: dict[str, str] | None = None
+    ) -> MultivariateEventCollection:
+        data = self._get(
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
+            extra_headers=extra_headers,
         )
+        return MultivariateEventCollection.model_validate(data.get("multivariate_contract", data))
 
     @overload
     def create_market(
@@ -164,6 +167,7 @@ class MultivariateCollectionsResource(SyncResource):
         collection_ticker: str,
         *,
         request: CreateMarketInMultivariateEventCollectionRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
     @overload
     def create_market(
@@ -172,6 +176,7 @@ class MultivariateCollectionsResource(SyncResource):
         *,
         selected_markets: builtins.list[TickerPair],
         with_market_payload: bool | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
     def create_market(
         self,
@@ -180,6 +185,7 @@ class MultivariateCollectionsResource(SyncResource):
         request: CreateMarketInMultivariateEventCollectionRequest | None = None,
         selected_markets: builtins.list[TickerPair] | None = None,
         with_market_payload: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
         body = _build_create_market_body(
@@ -190,6 +196,7 @@ class MultivariateCollectionsResource(SyncResource):
         data = self._post(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
             json=body,
+            extra_headers=extra_headers,
         )
         return CreateMarketResponse.model_validate(data)
 
@@ -199,6 +206,7 @@ class MultivariateCollectionsResource(SyncResource):
         collection_ticker: str,
         *,
         request: LookupTickersForMarketInMultivariateEventCollectionRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
     @overload
     def lookup_tickers(
@@ -206,23 +214,25 @@ class MultivariateCollectionsResource(SyncResource):
         collection_ticker: str,
         *,
         selected_markets: builtins.list[TickerPair],
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
     def lookup_tickers(
         self,
         collection_ticker: str,
         *,
-        request: (
-            LookupTickersForMarketInMultivariateEventCollectionRequest | None
-        ) = None,
+        request: (LookupTickersForMarketInMultivariateEventCollectionRequest | None) = None,
         selected_markets: builtins.list[TickerPair] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse:
         self._require_auth()
         body = _build_lookup_tickers_body(
-            request, selected_markets=selected_markets,
+            request,
+            selected_markets=selected_markets,
         )
         data = self._put(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             json=body,
+            extra_headers=extra_headers,
         )
         return _parse_lookup_tickers_response(data)
 
@@ -231,11 +241,13 @@ class MultivariateCollectionsResource(SyncResource):
         collection_ticker: str,
         *,
         lookback_seconds: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LookupPoint]:
         params = _params(lookback_seconds=lookback_seconds)
         data = self._get(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("lookup_points", [])
         return [LookupPoint.model_validate(item) for item in raw]
@@ -252,18 +264,21 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         series_ticker: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[MultivariateEventCollection]:
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
             series_ticker=series_ticker,
-            limit=limit, cursor=cursor,
+            limit=limit,
+            cursor=cursor,
         )
         return await self._list(
             "/multivariate_event_collections",
             MultivariateEventCollection,
             "multivariate_contracts",
             params=params,
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -274,13 +289,15 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         series_ticker: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MultivariateEventCollection]:
         _validate_max_pages(max_pages)
         params = _list_collections_params(
             status=status,
             associated_event_ticker=associated_event_ticker,
             series_ticker=series_ticker,
-            limit=limit, cursor=None,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
             "/multivariate_event_collections",
@@ -288,13 +305,17 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
             "multivariate_contracts",
             params=params,
             max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get(self, collection_ticker: str) -> MultivariateEventCollection:
-        data = await self._get(f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}")  # noqa: E501
-        return MultivariateEventCollection.model_validate(
-            data.get("multivariate_contract", data)
+    async def get(
+        self, collection_ticker: str, *, extra_headers: dict[str, str] | None = None
+    ) -> MultivariateEventCollection:
+        data = await self._get(
+            f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
+            extra_headers=extra_headers,
         )
+        return MultivariateEventCollection.model_validate(data.get("multivariate_contract", data))
 
     @overload
     async def create_market(
@@ -302,6 +323,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         collection_ticker: str,
         *,
         request: CreateMarketInMultivariateEventCollectionRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
     @overload
     async def create_market(
@@ -310,6 +332,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         *,
         selected_markets: builtins.list[TickerPair],
         with_market_payload: bool | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
     async def create_market(
         self,
@@ -318,6 +341,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         request: CreateMarketInMultivariateEventCollectionRequest | None = None,
         selected_markets: builtins.list[TickerPair] | None = None,
         with_market_payload: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse:
         self._require_auth()
         body = _build_create_market_body(
@@ -328,6 +352,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         data = await self._post(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}",
             json=body,
+            extra_headers=extra_headers,
         )
         return CreateMarketResponse.model_validate(data)
 
@@ -337,6 +362,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         collection_ticker: str,
         *,
         request: LookupTickersForMarketInMultivariateEventCollectionRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
     @overload
     async def lookup_tickers(
@@ -344,23 +370,25 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         collection_ticker: str,
         *,
         selected_markets: builtins.list[TickerPair],
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
     async def lookup_tickers(
         self,
         collection_ticker: str,
         *,
-        request: (
-            LookupTickersForMarketInMultivariateEventCollectionRequest | None
-        ) = None,
+        request: (LookupTickersForMarketInMultivariateEventCollectionRequest | None) = None,
         selected_markets: builtins.list[TickerPair] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse:
         self._require_auth()
         body = _build_lookup_tickers_body(
-            request, selected_markets=selected_markets,
+            request,
+            selected_markets=selected_markets,
         )
         data = await self._put(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             json=body,
+            extra_headers=extra_headers,
         )
         return _parse_lookup_tickers_response(data)
 
@@ -369,11 +397,13 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         collection_ticker: str,
         *,
         lookback_seconds: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LookupPoint]:
         params = _params(lookback_seconds=lookback_seconds)
         data = await self._get(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("lookup_points", [])
         return [LookupPoint.model_validate(item) for item in raw]

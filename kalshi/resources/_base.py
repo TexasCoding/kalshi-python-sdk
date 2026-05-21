@@ -50,11 +50,8 @@ def _validate_limit(
     if value is None:
         return None
     if not (lo <= value <= hi):
-        raise ValueError(
-            f"{name} must be in [{lo}, {hi}], got {value}."
-        )
+        raise ValueError(f"{name} must be in [{lo}, {hi}], got {value}.")
     return value
-
 
 
 def _params(**kwargs: Any) -> dict[str, Any]:
@@ -96,9 +93,7 @@ def _validate_max_pages(max_pages: int | None) -> None:
     friendlier.
     """
     if max_pages is not None and max_pages <= 0:
-        raise ValueError(
-            f"max_pages must be positive or None, got {max_pages}"
-        )
+        raise ValueError(f"max_pages must be positive or None, got {max_pages}")
 
 
 def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
@@ -154,7 +149,10 @@ class SyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         response = self._transport.request(
-            "GET", path, params=params, extra_headers=extra_headers,
+            "GET",
+            path,
+            params=params,
+            extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
         return result
@@ -168,7 +166,11 @@ class SyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         response = self._transport.request(
-            "POST", path, params=params, json=json, extra_headers=extra_headers,
+            "POST",
+            path,
+            params=params,
+            json=json,
+            extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
         return result
@@ -188,7 +190,10 @@ class SyncResource:
         ``model_dump_json(...).encode()``.
         """
         response = self._transport.request(
-            "POST", path, params=params, content=content,
+            "POST",
+            path,
+            params=params,
+            content=content,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
@@ -204,7 +209,11 @@ class SyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = self._transport.request(
-            "PUT", path, params=params, json=json, extra_headers=extra_headers,
+            "PUT",
+            path,
+            params=params,
+            json=json,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -219,7 +228,10 @@ class SyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = self._transport.request(
-            "DELETE", path, params=params, extra_headers=extra_headers,
+            "DELETE",
+            path,
+            params=params,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -234,7 +246,10 @@ class SyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = self._transport.request(
-            "DELETE", path, json=json, extra_headers=extra_headers,
+            "DELETE",
+            path,
+            json=json,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -251,7 +266,10 @@ class SyncResource:
     ) -> dict[str, Any] | None:
         """DELETE with a pre-serialized JSON body (bytes). See :meth:`_post_json`."""
         response = self._transport.request(
-            "DELETE", path, params=params, content=content,
+            "DELETE",
+            path,
+            params=params,
+            content=content,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
@@ -268,6 +286,7 @@ class SyncResource:
         *,
         params: dict[str, Any] | None = None,
         cursor_key: str = "cursor",
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[T]:
         """Fetch a paginated list endpoint and return a Page[T].
 
@@ -276,7 +295,7 @@ class SyncResource:
         every Kalshi endpoint except ``GET /incentive_programs`` which
         uses ``"next_cursor"``.
         """
-        data = self._get(path, params=params)
+        data = self._get(path, params=params, extra_headers=extra_headers)
         # .get(key, []) misses explicit null; or [] coerces both.
         raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
@@ -292,6 +311,7 @@ class SyncResource:
         params: dict[str, Any] | None = None,
         max_pages: int | None = None,
         cursor_key: str = "cursor",
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[T]:
         """Auto-paginate through all pages, yielding items.
 
@@ -314,8 +334,12 @@ class SyncResource:
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
             page = self._list(
-                path, model_cls, items_key,
-                params=current_params, cursor_key=cursor_key,
+                path,
+                model_cls,
+                items_key,
+                params=current_params,
+                cursor_key=cursor_key,
+                extra_headers=extra_headers,
             )
             yield from page.items
             pages_fetched += 1
@@ -364,7 +388,10 @@ class AsyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         response = await self._transport.request(
-            "GET", path, params=params, extra_headers=extra_headers,
+            "GET",
+            path,
+            params=params,
+            extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
         return result
@@ -378,7 +405,11 @@ class AsyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         response = await self._transport.request(
-            "POST", path, params=params, json=json, extra_headers=extra_headers,
+            "POST",
+            path,
+            params=params,
+            json=json,
+            extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
         return result
@@ -393,7 +424,10 @@ class AsyncResource:
     ) -> dict[str, Any]:
         """Async :meth:`SyncResource._post_json`."""
         response = await self._transport.request(
-            "POST", path, params=params, content=content,
+            "POST",
+            path,
+            params=params,
+            content=content,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
@@ -409,7 +443,11 @@ class AsyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = await self._transport.request(
-            "PUT", path, params=params, json=json, extra_headers=extra_headers,
+            "PUT",
+            path,
+            params=params,
+            json=json,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -424,7 +462,10 @@ class AsyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = await self._transport.request(
-            "DELETE", path, params=params, extra_headers=extra_headers,
+            "DELETE",
+            path,
+            params=params,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -439,7 +480,10 @@ class AsyncResource:
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = await self._transport.request(
-            "DELETE", path, json=json, extra_headers=extra_headers,
+            "DELETE",
+            path,
+            json=json,
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
@@ -456,7 +500,10 @@ class AsyncResource:
     ) -> dict[str, Any] | None:
         """Async :meth:`SyncResource._delete_with_body_json`."""
         response = await self._transport.request(
-            "DELETE", path, params=params, content=content,
+            "DELETE",
+            path,
+            params=params,
+            content=content,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
@@ -473,8 +520,9 @@ class AsyncResource:
         *,
         params: dict[str, Any] | None = None,
         cursor_key: str = "cursor",
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[T]:
-        data = await self._get(path, params=params)
+        data = await self._get(path, params=params, extra_headers=extra_headers)
         # .get(key, []) misses explicit null; or [] coerces both.
         raw_items = data.get(items_key) or []
         items = [model_cls.model_validate(item) for item in raw_items]
@@ -490,6 +538,7 @@ class AsyncResource:
         params: dict[str, Any] | None = None,
         max_pages: int | None = None,
         cursor_key: str = "cursor",
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[T]:
         """Async counterpart of :meth:`SyncResource._list_all`.
 
@@ -500,8 +549,12 @@ class AsyncResource:
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
             page = await self._list(
-                path, model_cls, items_key,
-                params=current_params, cursor_key=cursor_key,
+                path,
+                model_cls,
+                items_key,
+                params=current_params,
+                cursor_key=cursor_key,
+                extra_headers=extra_headers,
             )
             for item in page.items:
                 yield item

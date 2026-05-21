@@ -39,6 +39,7 @@ class IncentiveProgramsResource(SyncResource):
         incentive_description: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[IncentiveProgram]:
         _validate_limit(limit, hi=10000)
         params = _params(
@@ -54,6 +55,7 @@ class IncentiveProgramsResource(SyncResource):
             "incentive_programs",
             params=params,
             cursor_key="next_cursor",
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -64,6 +66,7 @@ class IncentiveProgramsResource(SyncResource):
         incentive_description: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[IncentiveProgram]:
         _validate_max_pages(max_pages)
         _validate_limit(limit, hi=10000)
@@ -80,6 +83,7 @@ class IncentiveProgramsResource(SyncResource):
             params=params,
             max_pages=max_pages,
             cursor_key="next_cursor",
+            extra_headers=extra_headers,
         )
 
 
@@ -94,6 +98,7 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         incentive_description: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[IncentiveProgram]:
         _validate_limit(limit, hi=10000)
         params = _params(
@@ -109,6 +114,7 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             "incentive_programs",
             params=params,
             cursor_key="next_cursor",
+            extra_headers=extra_headers,
         )
 
     def list_all(
@@ -119,6 +125,7 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         incentive_description: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[IncentiveProgram]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
@@ -136,4 +143,5 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             params=params,
             max_pages=max_pages,
             cursor_key="next_cursor",
+            extra_headers=extra_headers,
         )

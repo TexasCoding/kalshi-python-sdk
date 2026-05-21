@@ -12,22 +12,30 @@ from kalshi.resources._base import AsyncResource, SyncResource
 class SearchResource(SyncResource):
     """Sync search/discovery API."""
 
-    def tags_by_categories(self) -> GetTagsForSeriesCategoriesResponse:
-        data = self._get("/search/tags_by_categories")
+    def tags_by_categories(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetTagsForSeriesCategoriesResponse:
+        data = self._get("/search/tags_by_categories", extra_headers=extra_headers)
         return GetTagsForSeriesCategoriesResponse.model_validate(data)
 
-    def filters_by_sport(self) -> GetFiltersBySportsResponse:
-        data = self._get("/search/filters_by_sport")
+    def filters_by_sport(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFiltersBySportsResponse:
+        data = self._get("/search/filters_by_sport", extra_headers=extra_headers)
         return GetFiltersBySportsResponse.model_validate(data)
 
 
 class AsyncSearchResource(AsyncResource):
     """Async search/discovery API."""
 
-    async def tags_by_categories(self) -> GetTagsForSeriesCategoriesResponse:
-        data = await self._get("/search/tags_by_categories")
+    async def tags_by_categories(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetTagsForSeriesCategoriesResponse:
+        data = await self._get("/search/tags_by_categories", extra_headers=extra_headers)
         return GetTagsForSeriesCategoriesResponse.model_validate(data)
 
-    async def filters_by_sport(self) -> GetFiltersBySportsResponse:
-        data = await self._get("/search/filters_by_sport")
+    async def filters_by_sport(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFiltersBySportsResponse:
+        data = await self._get("/search/filters_by_sport", extra_headers=extra_headers)
         return GetFiltersBySportsResponse.model_validate(data)

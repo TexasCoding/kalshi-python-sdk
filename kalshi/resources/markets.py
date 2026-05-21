@@ -123,13 +123,10 @@ def _bulk_candlesticks_params(
     if not market_tickers:
         raise ValueError("market_tickers must be a non-empty list or string")
     joined = _join_tickers(market_tickers)
-    ticker_count = (
-        sum(1 for t in joined.split(",") if t.strip()) if joined else 0
-    )
+    ticker_count = sum(1 for t in joined.split(",") if t.strip()) if joined else 0
     if ticker_count > _MAX_BULK:
         raise ValueError(
-            f"market_tickers accepts at most {_MAX_BULK} entries per spec "
-            f"(got {ticker_count})"
+            f"market_tickers accepts at most {_MAX_BULK} entries per spec (got {ticker_count})"
         )
     return _params(
         market_tickers=joined,
@@ -141,7 +138,8 @@ def _bulk_candlesticks_params(
 
 
 def _bulk_orderbooks_params(
-    *, tickers: builtins.list[str],
+    *,
+    tickers: builtins.list[str],
 ) -> dict[str, Any]:
     """Validate + build params for GET /markets/orderbooks (bulk).
 
@@ -152,8 +150,7 @@ def _bulk_orderbooks_params(
         raise ValueError("tickers must be a non-empty list")
     if len(tickers) > _MAX_BULK:
         raise ValueError(
-            f"tickers accepts at most {_MAX_BULK} entries per spec "
-            f"(got {len(tickers)})"
+            f"tickers accepts at most {_MAX_BULK} entries per spec (got {len(tickers)})"
         )
     return _params(tickers=tickers)
 
@@ -168,14 +165,10 @@ def _parse_orderbook(data: dict[str, Any], ticker: str) -> Orderbook:
     no_raw = ob.get("no_dollars") or ob.get("no", []) or []
 
     yes_levels = [
-        OrderbookLevel(price=pair[0], quantity=pair[1])
-        for pair in yes_raw
-        if len(pair) >= 2
+        OrderbookLevel(price=pair[0], quantity=pair[1]) for pair in yes_raw if len(pair) >= 2
     ]
     no_levels = [
-        OrderbookLevel(price=pair[0], quantity=pair[1])
-        for pair in no_raw
-        if len(pair) >= 2
+        OrderbookLevel(price=pair[0], quantity=pair[1]) for pair in no_raw if len(pair) >= 2
     ]
     return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
 
@@ -208,14 +201,10 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
     yes_raw = ob.get("yes_dollars") or ob.get("yes") or []
     no_raw = ob.get("no_dollars") or ob.get("no") or []
     yes_levels = [
-        OrderbookLevel(price=pair[0], quantity=pair[1])
-        for pair in yes_raw
-        if len(pair) >= 2
+        OrderbookLevel(price=pair[0], quantity=pair[1]) for pair in yes_raw if len(pair) >= 2
     ]
     no_levels = [
-        OrderbookLevel(price=pair[0], quantity=pair[1])
-        for pair in no_raw
-        if len(pair) >= 2
+        OrderbookLevel(price=pair[0], quantity=pair[1]) for pair in no_raw if len(pair) >= 2
     ]
     return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
 
@@ -240,18 +229,25 @@ class MarketsResource(SyncResource):
         max_settled_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Market]:
         params = _list_markets_params(
-            status=status, series_ticker=series_ticker,
-            event_ticker=event_ticker, tickers=tickers,
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
-            limit=limit, cursor=cursor,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return self._list("/markets", Market, "markets", params=params)
+        return self._list("/markets", Market, "markets", params=params, extra_headers=extra_headers)
 
     def list_all(
         self,
@@ -270,32 +266,49 @@ class MarketsResource(SyncResource):
         max_settled_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Market]:
         _validate_max_pages(max_pages)
         params = _list_markets_params(
-            status=status, series_ticker=series_ticker,
-            event_ticker=event_ticker, tickers=tickers,
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
-            limit=limit, cursor=None,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/markets", Market, "markets",
-            params=params, max_pages=max_pages,
+            "/markets",
+            Market,
+            "markets",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get(self, ticker: str) -> Market:
-        data = self._get(f"/markets/{_seg(ticker, name='ticker')}")
+    def get(self, ticker: str, *, extra_headers: dict[str, str] | None = None) -> Market:
+        data = self._get(f"/markets/{_seg(ticker, name='ticker')}", extra_headers=extra_headers)
         market = data.get("market", data)
         return Market.model_validate(market)
 
-    def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+    def orderbook(
+        self, ticker: str, *, depth: int | None = None, extra_headers: dict[str, str] | None = None
+    ) -> Orderbook:
         self._require_auth()
         params = _params(depth=depth)
-        data = self._get(f"/markets/{_seg(ticker, name='ticker')}/orderbook", params=params)
+        data = self._get(
+            f"/markets/{_seg(ticker, name='ticker')}/orderbook",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return _parse_orderbook(data, ticker)
 
     def candlesticks(
@@ -307,15 +320,18 @@ class MarketsResource(SyncResource):
         end_ts: int,
         period_interval: int,
         include_latest_before_start: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[Candlestick]:
         params = _candlesticks_params(
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
             include_latest_before_start=include_latest_before_start,
         )
         data = self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/markets/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("candlesticks", [])
         return [Candlestick.model_validate(c) for c in raw]
@@ -328,12 +344,18 @@ class MarketsResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _list_trades_params(
-            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
-            limit=limit, cursor=cursor,
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return self._list("/markets/trades", Trade, "trades", params=params)
+        return self._list(
+            "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
+        )
 
     def list_trades_all(
         self,
@@ -343,15 +365,23 @@ class MarketsResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Trade]:
         _validate_max_pages(max_pages)
         params = _list_trades_params(
-            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
-            limit=limit, cursor=None,
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/markets/trades", Trade, "trades",
-            params=params, max_pages=max_pages,
+            "/markets/trades",
+            Trade,
+            "trades",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     def bulk_candlesticks(
@@ -362,6 +392,7 @@ class MarketsResource(SyncResource):
         end_ts: int,
         period_interval: int,
         include_latest_before_start: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[MarketCandlesticks]:
         """Fetch candlesticks for up to 100 markets in a single call.
 
@@ -371,16 +402,17 @@ class MarketsResource(SyncResource):
         """
         params = _bulk_candlesticks_params(
             market_tickers=market_tickers,
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
             include_latest_before_start=include_latest_before_start,
         )
-        data = self._get("/markets/candlesticks", params=params)
+        data = self._get("/markets/candlesticks", params=params, extra_headers=extra_headers)
         raw = data.get("markets", [])
         return [MarketCandlesticks.model_validate(m) for m in raw]
 
     def bulk_orderbooks(
-        self, *, tickers: builtins.list[str],
+        self, *, tickers: builtins.list[str], extra_headers: dict[str, str] | None = None
     ) -> builtins.list[Orderbook]:
         """Fetch orderbooks for up to 100 tickers in a single call.
 
@@ -390,7 +422,7 @@ class MarketsResource(SyncResource):
         """
         self._require_auth()
         params = _bulk_orderbooks_params(tickers=tickers)
-        data = self._get("/markets/orderbooks", params=params)
+        data = self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
         raw = data.get("orderbooks", [])
         return [_orderbook_from_item(item) for item in raw]
 
@@ -415,18 +447,27 @@ class AsyncMarketsResource(AsyncResource):
         max_settled_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Market]:
         params = _list_markets_params(
-            status=status, series_ticker=series_ticker,
-            event_ticker=event_ticker, tickers=tickers,
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
-            limit=limit, cursor=cursor,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return await self._list("/markets", Market, "markets", params=params)
+        return await self._list(
+            "/markets", Market, "markets", params=params, extra_headers=extra_headers
+        )
 
     def list_all(
         self,
@@ -445,33 +486,52 @@ class AsyncMarketsResource(AsyncResource):
         max_settled_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Market]:
         """Non-async method that returns an async iterator for direct use with `async for`."""
         _validate_max_pages(max_pages)
         params = _list_markets_params(
-            status=status, series_ticker=series_ticker,
-            event_ticker=event_ticker, tickers=tickers,
+            status=status,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
+            tickers=tickers,
             mve_filter=mve_filter,
-            min_created_ts=min_created_ts, max_created_ts=max_created_ts,
+            min_created_ts=min_created_ts,
+            max_created_ts=max_created_ts,
             min_updated_ts=min_updated_ts,
-            min_close_ts=min_close_ts, max_close_ts=max_close_ts,
-            min_settled_ts=min_settled_ts, max_settled_ts=max_settled_ts,
-            limit=limit, cursor=None,
+            min_close_ts=min_close_ts,
+            max_close_ts=max_close_ts,
+            min_settled_ts=min_settled_ts,
+            max_settled_ts=max_settled_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/markets", Market, "markets",
-            params=params, max_pages=max_pages,
+            "/markets",
+            Market,
+            "markets",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get(self, ticker: str) -> Market:
-        data = await self._get(f"/markets/{_seg(ticker, name='ticker')}")
+    async def get(self, ticker: str, *, extra_headers: dict[str, str] | None = None) -> Market:
+        data = await self._get(
+            f"/markets/{_seg(ticker, name='ticker')}", extra_headers=extra_headers
+        )
         market = data.get("market", data)
         return Market.model_validate(market)
 
-    async def orderbook(self, ticker: str, *, depth: int | None = None) -> Orderbook:
+    async def orderbook(
+        self, ticker: str, *, depth: int | None = None, extra_headers: dict[str, str] | None = None
+    ) -> Orderbook:
         self._require_auth()
         params = _params(depth=depth)
-        data = await self._get(f"/markets/{_seg(ticker, name='ticker')}/orderbook", params=params)
+        data = await self._get(
+            f"/markets/{_seg(ticker, name='ticker')}/orderbook",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return _parse_orderbook(data, ticker)
 
     async def candlesticks(
@@ -483,15 +543,18 @@ class AsyncMarketsResource(AsyncResource):
         end_ts: int,
         period_interval: int,
         include_latest_before_start: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[Candlestick]:
         params = _candlesticks_params(
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
             include_latest_before_start=include_latest_before_start,
         )
         data = await self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/markets/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("candlesticks", [])
         return [Candlestick.model_validate(c) for c in raw]
@@ -504,12 +567,18 @@ class AsyncMarketsResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _list_trades_params(
-            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
-            limit=limit, cursor=cursor,
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
         )
-        return await self._list("/markets/trades", Trade, "trades", params=params)
+        return await self._list(
+            "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
+        )
 
     def list_trades_all(
         self,
@@ -519,16 +588,24 @@ class AsyncMarketsResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Trade]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
         params = _list_trades_params(
-            ticker=ticker, min_ts=min_ts, max_ts=max_ts,
-            limit=limit, cursor=None,
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
         )
         return self._list_all(
-            "/markets/trades", Trade, "trades",
-            params=params, max_pages=max_pages,
+            "/markets/trades",
+            Trade,
+            "trades",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     async def bulk_candlesticks(
@@ -539,6 +616,7 @@ class AsyncMarketsResource(AsyncResource):
         end_ts: int,
         period_interval: int,
         include_latest_before_start: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[MarketCandlesticks]:
         """Fetch candlesticks for up to 100 markets in a single call.
 
@@ -548,16 +626,17 @@ class AsyncMarketsResource(AsyncResource):
         """
         params = _bulk_candlesticks_params(
             market_tickers=market_tickers,
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
             include_latest_before_start=include_latest_before_start,
         )
-        data = await self._get("/markets/candlesticks", params=params)
+        data = await self._get("/markets/candlesticks", params=params, extra_headers=extra_headers)
         raw = data.get("markets", [])
         return [MarketCandlesticks.model_validate(m) for m in raw]
 
     async def bulk_orderbooks(
-        self, *, tickers: builtins.list[str],
+        self, *, tickers: builtins.list[str], extra_headers: dict[str, str] | None = None
     ) -> builtins.list[Orderbook]:
         """Fetch orderbooks for up to 100 tickers in a single call.
 
@@ -567,6 +646,6 @@ class AsyncMarketsResource(AsyncResource):
         """
         self._require_auth()
         params = _bulk_orderbooks_params(tickers=tickers)
-        data = await self._get("/markets/orderbooks", params=params)
+        data = await self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
         raw = data.get("orderbooks", [])
         return [_orderbook_from_item(item) for item in raw]

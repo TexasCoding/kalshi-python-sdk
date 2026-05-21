@@ -70,10 +70,12 @@ def _settlements_params(
 class PortfolioResource(SyncResource):
     """Sync portfolio API."""
 
-    def balance(self, *, subaccount: int | None = None) -> Balance:
+    def balance(
+        self, *, subaccount: int | None = None, extra_headers: dict[str, str] | None = None
+    ) -> Balance:
         self._require_auth()
         params = _params(subaccount=subaccount)
-        data = self._get("/portfolio/balance", params=params)
+        data = self._get("/portfolio/balance", params=params, extra_headers=extra_headers)
         return Balance.model_validate(data)
 
     def positions(
@@ -85,13 +87,18 @@ class PortfolioResource(SyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _positions_params(
-            limit=limit, cursor=cursor, count_filter=count_filter,
-            ticker=ticker, event_ticker=event_ticker, subaccount=subaccount,
+            limit=limit,
+            cursor=cursor,
+            count_filter=count_filter,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
         )
-        data = self._get("/portfolio/positions", params=params)
+        data = self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
 
     def settlements(
@@ -104,14 +111,25 @@ class PortfolioResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Settlement]:
         self._require_auth()
         params = _settlements_params(
-            limit=limit, cursor=cursor, ticker=ticker,
-            event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
             subaccount=subaccount,
         )
-        return self._list("/portfolio/settlements", Settlement, "settlements", params=params)
+        return self._list(
+            "/portfolio/settlements",
+            Settlement,
+            "settlements",
+            params=params,
+            extra_headers=extra_headers,
+        )
 
     def settlements_all(
         self,
@@ -123,27 +141,40 @@ class PortfolioResource(SyncResource):
         max_ts: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Settlement]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _settlements_params(
-            limit=limit, cursor=None, ticker=ticker,
-            event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit,
+            cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/settlements", Settlement, "settlements",
-            params=params, max_pages=max_pages,
+            "/portfolio/settlements",
+            Settlement,
+            "settlements",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def total_resting_order_value(self) -> TotalRestingOrderValue:
+    def total_resting_order_value(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> TotalRestingOrderValue:
         """Total value of resting orders in cents. FCM-members only.
 
         Non-FCM accounts receive 403; demo mirrors prod on this route
         per Path B audit (2026-04-18).
         """
         self._require_auth()
-        data = self._get("/portfolio/summary/total_resting_order_value")
+        data = self._get(
+            "/portfolio/summary/total_resting_order_value", extra_headers=extra_headers
+        )
         return TotalRestingOrderValue.model_validate(data)
 
     def deposits(
@@ -151,12 +182,13 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Deposit]:
         self._require_auth()
         _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return self._list(
-            "/portfolio/deposits", Deposit, "deposits", params=params,
+            "/portfolio/deposits", Deposit, "deposits", params=params, extra_headers=extra_headers
         )
 
     def deposits_all(
@@ -164,14 +196,19 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Deposit]:
         self._require_auth()
         _validate_max_pages(max_pages)
         _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
-            "/portfolio/deposits", Deposit, "deposits",
-            params=params, max_pages=max_pages,
+            "/portfolio/deposits",
+            Deposit,
+            "deposits",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     def withdrawals(
@@ -179,12 +216,17 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Withdrawal]:
         self._require_auth()
         _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return self._list(
-            "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
+            "/portfolio/withdrawals",
+            Withdrawal,
+            "withdrawals",
+            params=params,
+            extra_headers=extra_headers,
         )
 
     def withdrawals_all(
@@ -192,24 +234,31 @@ class PortfolioResource(SyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Withdrawal]:
         self._require_auth()
         _validate_max_pages(max_pages)
         _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
-            "/portfolio/withdrawals", Withdrawal, "withdrawals",
-            params=params, max_pages=max_pages,
+            "/portfolio/withdrawals",
+            Withdrawal,
+            "withdrawals",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
 
-    async def balance(self, *, subaccount: int | None = None) -> Balance:
+    async def balance(
+        self, *, subaccount: int | None = None, extra_headers: dict[str, str] | None = None
+    ) -> Balance:
         self._require_auth()
         params = _params(subaccount=subaccount)
-        data = await self._get("/portfolio/balance", params=params)
+        data = await self._get("/portfolio/balance", params=params, extra_headers=extra_headers)
         return Balance.model_validate(data)
 
     async def positions(
@@ -221,13 +270,18 @@ class AsyncPortfolioResource(AsyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
         params = _positions_params(
-            limit=limit, cursor=cursor, count_filter=count_filter,
-            ticker=ticker, event_ticker=event_ticker, subaccount=subaccount,
+            limit=limit,
+            cursor=cursor,
+            count_filter=count_filter,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            subaccount=subaccount,
         )
-        data = await self._get("/portfolio/positions", params=params)
+        data = await self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
 
     async def settlements(
@@ -240,15 +294,24 @@ class AsyncPortfolioResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Settlement]:
         self._require_auth()
         params = _settlements_params(
-            limit=limit, cursor=cursor, ticker=ticker,
-            event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
             subaccount=subaccount,
         )
         return await self._list(
-            "/portfolio/settlements", Settlement, "settlements", params=params
+            "/portfolio/settlements",
+            Settlement,
+            "settlements",
+            params=params,
+            extra_headers=extra_headers,
         )
 
     def settlements_all(
@@ -261,23 +324,36 @@ class AsyncPortfolioResource(AsyncResource):
         max_ts: int | None = None,
         subaccount: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Settlement]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _settlements_params(
-            limit=limit, cursor=None, ticker=ticker,
-            event_ticker=event_ticker, min_ts=min_ts, max_ts=max_ts,
+            limit=limit,
+            cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
             subaccount=subaccount,
         )
         return self._list_all(
-            "/portfolio/settlements", Settlement, "settlements",
-            params=params, max_pages=max_pages,
+            "/portfolio/settlements",
+            Settlement,
+            "settlements",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def total_resting_order_value(self) -> TotalRestingOrderValue:
+    async def total_resting_order_value(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> TotalRestingOrderValue:
         """Total value of resting orders in cents. FCM-members only."""
         self._require_auth()
-        data = await self._get("/portfolio/summary/total_resting_order_value")
+        data = await self._get(
+            "/portfolio/summary/total_resting_order_value", extra_headers=extra_headers
+        )
         return TotalRestingOrderValue.model_validate(data)
 
     async def deposits(
@@ -285,12 +361,13 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Deposit]:
         self._require_auth()
         _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return await self._list(
-            "/portfolio/deposits", Deposit, "deposits", params=params,
+            "/portfolio/deposits", Deposit, "deposits", params=params, extra_headers=extra_headers
         )
 
     def deposits_all(
@@ -298,6 +375,7 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Deposit]:
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
@@ -305,8 +383,12 @@ class AsyncPortfolioResource(AsyncResource):
         _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
-            "/portfolio/deposits", Deposit, "deposits",
-            params=params, max_pages=max_pages,
+            "/portfolio/deposits",
+            Deposit,
+            "deposits",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
     async def withdrawals(
@@ -314,12 +396,17 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Withdrawal]:
         self._require_auth()
         _validate_limit(limit, hi=500)
         params = _params(limit=limit, cursor=cursor)
         return await self._list(
-            "/portfolio/withdrawals", Withdrawal, "withdrawals", params=params,
+            "/portfolio/withdrawals",
+            Withdrawal,
+            "withdrawals",
+            params=params,
+            extra_headers=extra_headers,
         )
 
     def withdrawals_all(
@@ -327,6 +414,7 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Withdrawal]:
         """Returns an async iterator — use ``async for``."""
         self._require_auth()
@@ -334,6 +422,10 @@ class AsyncPortfolioResource(AsyncResource):
         _validate_limit(limit, hi=500)
         params = _params(limit=limit)
         return self._list_all(
-            "/portfolio/withdrawals", Withdrawal, "withdrawals",
-            params=params, max_pages=max_pages,
+            "/portfolio/withdrawals",
+            Withdrawal,
+            "withdrawals",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )

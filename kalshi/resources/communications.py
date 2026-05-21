@@ -128,16 +128,18 @@ def _build_create_rfq_body(
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
-        market_ticker=market_ticker, rest_remainder=rest_remainder,
-        contracts=contracts, target_cost=target_cost,
-        replace_existing=replace_existing, subtrader_id=subtrader_id,
+        market_ticker=market_ticker,
+        rest_remainder=rest_remainder,
+        contracts=contracts,
+        target_cost=target_cost,
+        replace_existing=replace_existing,
+        subtrader_id=subtrader_id,
         subaccount=subaccount,
     )
     if request is None:
         if market_ticker is None or rest_remainder is None:
             raise TypeError(
-                "create_rfq() requires `market_ticker` and `rest_remainder` "
-                "(or pass `request=...`)"
+                "create_rfq() requires `market_ticker` and `rest_remainder` (or pass `request=...`)"
             )
         request = CreateRFQRequest(
             market_ticker=market_ticker,
@@ -162,15 +164,16 @@ def _build_create_quote_body(
     post_only: bool | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
-        request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
-        rest_remainder=rest_remainder, subaccount=subaccount,
+        request,
+        rfq_id=rfq_id,
+        yes_bid=yes_bid,
+        no_bid=no_bid,
+        rest_remainder=rest_remainder,
+        subaccount=subaccount,
         post_only=post_only,
     )
     if request is None:
-        if (
-            rfq_id is None or yes_bid is None or no_bid is None
-            or rest_remainder is None
-        ):
+        if rfq_id is None or yes_bid is None or no_bid is None or rest_remainder is None:
             raise TypeError(
                 "create_quote() requires `rfq_id`, `yes_bid`, `no_bid`, and "
                 "`rest_remainder` (or pass `request=...`)"
@@ -194,10 +197,7 @@ def _build_accept_quote_body(
     _check_request_exclusive(request, accepted_side=accepted_side)
     if request is None:
         if accepted_side is None:
-            raise TypeError(
-                "accept_quote() requires `accepted_side` "
-                "(or pass `request=...`)"
-            )
+            raise TypeError("accept_quote() requires `accepted_side` (or pass `request=...`)")
         request = AcceptQuoteRequest(accepted_side=accepted_side)
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -205,9 +205,9 @@ def _build_accept_quote_body(
 class CommunicationsResource(SyncResource):
     """Sync communications / RFQ API."""
 
-    def get_id(self) -> GetCommunicationsIDResponse:
+    def get_id(self, *, extra_headers: dict[str, str] | None = None) -> GetCommunicationsIDResponse:
         self._require_auth()
-        data = self._get("/communications/id")
+        data = self._get("/communications/id", extra_headers=extra_headers)
         return GetCommunicationsIDResponse.model_validate(data)
 
     def list_rfqs(
@@ -221,15 +221,22 @@ class CommunicationsResource(SyncResource):
         status: str | None = None,
         creator_user_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
         params = _list_rfqs_params(
-            cursor=cursor, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, subaccount=subaccount,
-            status=status, creator_user_id=creator_user_id,
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
             user_filter=user_filter,
         )
-        return self._list("/communications/rfqs", RFQ, "rfqs", params=params)
+        return self._list(
+            "/communications/rfqs", RFQ, "rfqs", params=params, extra_headers=extra_headers
+        )
 
     def list_all_rfqs(
         self,
@@ -242,27 +249,42 @@ class CommunicationsResource(SyncResource):
         creator_user_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[RFQ]:
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_rfqs_params(
-            cursor=None, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, subaccount=subaccount,
-            status=status, creator_user_id=creator_user_id,
+            cursor=None,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
             user_filter=user_filter,
         )
         return self._list_all(
-            "/communications/rfqs", RFQ, "rfqs",
-            params=params, max_pages=max_pages,
+            "/communications/rfqs",
+            RFQ,
+            "rfqs",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get_rfq(self, rfq_id: str) -> GetRFQResponse:
+    def get_rfq(
+        self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQResponse:
         self._require_auth()
-        data = self._get(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
+        data = self._get(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
+        )
         return GetRFQResponse.model_validate(data)
 
     @overload
-    def create_rfq(self, *, request: CreateRFQRequest) -> CreateRFQResponse: ...
+    def create_rfq(
+        self, *, request: CreateRFQRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateRFQResponse: ...
     @overload
     def create_rfq(
         self,
@@ -274,6 +296,7 @@ class CommunicationsResource(SyncResource):
         replace_existing: bool | None = ...,
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     def create_rfq(
         self,
@@ -286,21 +309,27 @@ class CommunicationsResource(SyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
         body = _build_create_rfq_body(
             request,
-            market_ticker=market_ticker, rest_remainder=rest_remainder,
-            contracts=contracts, target_cost=target_cost,
-            replace_existing=replace_existing, subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            rest_remainder=rest_remainder,
+            contracts=contracts,
+            target_cost=target_cost,
+            replace_existing=replace_existing,
+            subtrader_id=subtrader_id,
             subaccount=subaccount,
         )
-        data = self._post("/communications/rfqs", json=body)
+        data = self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
 
-    def delete_rfq(self, rfq_id: str) -> None:
+    def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
-        self._delete(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
+        self._delete(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
+        )
 
     def list_quotes(
         self,
@@ -316,15 +345,21 @@ class CommunicationsResource(SyncResource):
         rfq_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
         rfq_user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Quote]:
         self._require_auth()
         _require_quote_filter(
-            quote_creator_user_id, rfq_creator_user_id,
-            user_filter, rfq_user_filter,
+            quote_creator_user_id,
+            rfq_creator_user_id,
+            user_filter,
+            rfq_user_filter,
         )
         params = _list_quotes_params(
-            cursor=cursor, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, status=status,
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -332,7 +367,9 @@ class CommunicationsResource(SyncResource):
             user_filter=user_filter,
             rfq_user_filter=rfq_user_filter,
         )
-        return self._list("/communications/quotes", Quote, "quotes", params=params)
+        return self._list(
+            "/communications/quotes", Quote, "quotes", params=params, extra_headers=extra_headers
+        )
 
     def list_all_quotes(
         self,
@@ -348,16 +385,22 @@ class CommunicationsResource(SyncResource):
         user_filter: UserFilterLiteral | None = None,
         rfq_user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Quote]:
         self._require_auth()
         _require_quote_filter(
-            quote_creator_user_id, rfq_creator_user_id,
-            user_filter, rfq_user_filter,
+            quote_creator_user_id,
+            rfq_creator_user_id,
+            user_filter,
+            rfq_user_filter,
         )
         _validate_max_pages(max_pages)
         params = _list_quotes_params(
-            cursor=None, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, status=status,
+            cursor=None,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -366,17 +409,27 @@ class CommunicationsResource(SyncResource):
             rfq_user_filter=rfq_user_filter,
         )
         return self._list_all(
-            "/communications/quotes", Quote, "quotes",
-            params=params, max_pages=max_pages,
+            "/communications/quotes",
+            Quote,
+            "quotes",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    def get_quote(self, quote_id: str) -> GetQuoteResponse:
+    def get_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
         self._require_auth()
-        data = self._get(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
+        data = self._get(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
+        )
         return GetQuoteResponse.model_validate(data)
 
     @overload
-    def create_quote(self, *, request: CreateQuoteRequest) -> CreateQuoteResponse: ...
+    def create_quote(
+        self, *, request: CreateQuoteRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateQuoteResponse: ...
     @overload
     def create_quote(
         self,
@@ -387,6 +440,7 @@ class CommunicationsResource(SyncResource):
         rest_remainder: bool,
         subaccount: int | None = ...,
         post_only: bool | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse: ...
     def create_quote(
         self,
@@ -398,27 +452,42 @@ class CommunicationsResource(SyncResource):
         rest_remainder: bool | None = None,
         subaccount: int | None = None,
         post_only: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
         body = _build_create_quote_body(
-            request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
-            rest_remainder=rest_remainder, subaccount=subaccount,
+            request,
+            rfq_id=rfq_id,
+            yes_bid=yes_bid,
+            no_bid=no_bid,
+            rest_remainder=rest_remainder,
+            subaccount=subaccount,
             post_only=post_only,
         )
-        data = self._post("/communications/quotes", json=body)
+        data = self._post("/communications/quotes", json=body, extra_headers=extra_headers)
         return CreateQuoteResponse.model_validate(data)
 
-    def delete_quote(self, quote_id: str) -> None:
+    def delete_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
-        self._delete(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
+        self._delete(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
+        )
 
     @overload
     def accept_quote(
-        self, quote_id: str, *, request: AcceptQuoteRequest,
+        self,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
     def accept_quote(
-        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+        self,
+        quote_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     def accept_quote(
         self,
@@ -426,23 +495,34 @@ class CommunicationsResource(SyncResource):
         *,
         request: AcceptQuoteRequest | None = None,
         accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_accept_quote_body(request, accepted_side=accepted_side)
-        self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept", json=body)
+        self._put(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
 
-    def confirm_quote(self, quote_id: str) -> None:
+    def confirm_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
-        self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm", json={})
+        self._put(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )
 
 
 class AsyncCommunicationsResource(AsyncResource):
     """Async communications / RFQ API."""
 
-    async def get_id(self) -> GetCommunicationsIDResponse:
+    async def get_id(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetCommunicationsIDResponse:
         self._require_auth()
-        data = await self._get("/communications/id")
+        data = await self._get("/communications/id", extra_headers=extra_headers)
         return GetCommunicationsIDResponse.model_validate(data)
 
     async def list_rfqs(
@@ -456,15 +536,22 @@ class AsyncCommunicationsResource(AsyncResource):
         status: str | None = None,
         creator_user_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[RFQ]:
         self._require_auth()
         params = _list_rfqs_params(
-            cursor=cursor, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, subaccount=subaccount,
-            status=status, creator_user_id=creator_user_id,
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
             user_filter=user_filter,
         )
-        return await self._list("/communications/rfqs", RFQ, "rfqs", params=params)
+        return await self._list(
+            "/communications/rfqs", RFQ, "rfqs", params=params, extra_headers=extra_headers
+        )
 
     def list_all_rfqs(
         self,
@@ -477,28 +564,43 @@ class AsyncCommunicationsResource(AsyncResource):
         creator_user_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[RFQ]:
         # Plain `def` so _require_auth + _validate_max_pages run at call time.
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_rfqs_params(
-            cursor=None, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, subaccount=subaccount,
-            status=status, creator_user_id=creator_user_id,
+            cursor=None,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
             user_filter=user_filter,
         )
         return self._list_all(
-            "/communications/rfqs", RFQ, "rfqs",
-            params=params, max_pages=max_pages,
+            "/communications/rfqs",
+            RFQ,
+            "rfqs",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get_rfq(self, rfq_id: str) -> GetRFQResponse:
+    async def get_rfq(
+        self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQResponse:
         self._require_auth()
-        data = await self._get(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
+        data = await self._get(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
+        )
         return GetRFQResponse.model_validate(data)
 
     @overload
-    async def create_rfq(self, *, request: CreateRFQRequest) -> CreateRFQResponse: ...
+    async def create_rfq(
+        self, *, request: CreateRFQRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateRFQResponse: ...
     @overload
     async def create_rfq(
         self,
@@ -510,6 +612,7 @@ class AsyncCommunicationsResource(AsyncResource):
         replace_existing: bool | None = ...,
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     async def create_rfq(
         self,
@@ -522,21 +625,27 @@ class AsyncCommunicationsResource(AsyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
         body = _build_create_rfq_body(
             request,
-            market_ticker=market_ticker, rest_remainder=rest_remainder,
-            contracts=contracts, target_cost=target_cost,
-            replace_existing=replace_existing, subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            rest_remainder=rest_remainder,
+            contracts=contracts,
+            target_cost=target_cost,
+            replace_existing=replace_existing,
+            subtrader_id=subtrader_id,
             subaccount=subaccount,
         )
-        data = await self._post("/communications/rfqs", json=body)
+        data = await self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
 
-    async def delete_rfq(self, rfq_id: str) -> None:
+    async def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
-        await self._delete(f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}")
+        await self._delete(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
+        )
 
     async def list_quotes(
         self,
@@ -552,15 +661,21 @@ class AsyncCommunicationsResource(AsyncResource):
         rfq_id: str | None = None,
         user_filter: UserFilterLiteral | None = None,
         rfq_user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Page[Quote]:
         self._require_auth()
         _require_quote_filter(
-            quote_creator_user_id, rfq_creator_user_id,
-            user_filter, rfq_user_filter,
+            quote_creator_user_id,
+            rfq_creator_user_id,
+            user_filter,
+            rfq_user_filter,
         )
         params = _list_quotes_params(
-            cursor=cursor, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, status=status,
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -569,7 +684,7 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_user_filter=rfq_user_filter,
         )
         return await self._list(
-            "/communications/quotes", Quote, "quotes", params=params,
+            "/communications/quotes", Quote, "quotes", params=params, extra_headers=extra_headers
         )
 
     def list_all_quotes(
@@ -586,16 +701,22 @@ class AsyncCommunicationsResource(AsyncResource):
         user_filter: UserFilterLiteral | None = None,
         rfq_user_filter: UserFilterLiteral | None = None,
         max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Quote]:
         self._require_auth()
         _require_quote_filter(
-            quote_creator_user_id, rfq_creator_user_id,
-            user_filter, rfq_user_filter,
+            quote_creator_user_id,
+            rfq_creator_user_id,
+            user_filter,
+            rfq_user_filter,
         )
         _validate_max_pages(max_pages)
         params = _list_quotes_params(
-            cursor=None, limit=limit, event_ticker=event_ticker,
-            market_ticker=market_ticker, status=status,
+            cursor=None,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
             rfq_creator_subtrader_id=rfq_creator_subtrader_id,
@@ -604,18 +725,26 @@ class AsyncCommunicationsResource(AsyncResource):
             rfq_user_filter=rfq_user_filter,
         )
         return self._list_all(
-            "/communications/quotes", Quote, "quotes",
-            params=params, max_pages=max_pages,
+            "/communications/quotes",
+            Quote,
+            "quotes",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
         )
 
-    async def get_quote(self, quote_id: str) -> GetQuoteResponse:
+    async def get_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
         self._require_auth()
-        data = await self._get(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
+        data = await self._get(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
+        )
         return GetQuoteResponse.model_validate(data)
 
     @overload
     async def create_quote(
-        self, *, request: CreateQuoteRequest,
+        self, *, request: CreateQuoteRequest, extra_headers: dict[str, str] | None = None
     ) -> CreateQuoteResponse: ...
     @overload
     async def create_quote(
@@ -627,6 +756,7 @@ class AsyncCommunicationsResource(AsyncResource):
         rest_remainder: bool,
         subaccount: int | None = ...,
         post_only: bool | None = ...,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse: ...
     async def create_quote(
         self,
@@ -638,27 +768,44 @@ class AsyncCommunicationsResource(AsyncResource):
         rest_remainder: bool | None = None,
         subaccount: int | None = None,
         post_only: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse:
         self._require_auth()
         body = _build_create_quote_body(
-            request, rfq_id=rfq_id, yes_bid=yes_bid, no_bid=no_bid,
-            rest_remainder=rest_remainder, subaccount=subaccount,
+            request,
+            rfq_id=rfq_id,
+            yes_bid=yes_bid,
+            no_bid=no_bid,
+            rest_remainder=rest_remainder,
+            subaccount=subaccount,
             post_only=post_only,
         )
-        data = await self._post("/communications/quotes", json=body)
+        data = await self._post("/communications/quotes", json=body, extra_headers=extra_headers)
         return CreateQuoteResponse.model_validate(data)
 
-    async def delete_quote(self, quote_id: str) -> None:
+    async def delete_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
         self._require_auth()
-        await self._delete(f"/communications/quotes/{_seg(quote_id, name='quote_id')}")
+        await self._delete(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
+        )
 
     @overload
     async def accept_quote(
-        self, quote_id: str, *, request: AcceptQuoteRequest,
+        self,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
     async def accept_quote(
-        self, quote_id: str, *, accepted_side: Literal["yes", "no"],
+        self,
+        quote_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     async def accept_quote(
         self,
@@ -666,12 +813,23 @@ class AsyncCommunicationsResource(AsyncResource):
         *,
         request: AcceptQuoteRequest | None = None,
         accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self._require_auth()
         body = _build_accept_quote_body(request, accepted_side=accepted_side)
-        await self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept", json=body)  # noqa: E501
+        await self._put(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
 
-    async def confirm_quote(self, quote_id: str) -> None:
+    async def confirm_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
-        await self._put(f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm", json={})  # noqa: E501
+        await self._put(
+            f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )

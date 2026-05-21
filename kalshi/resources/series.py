@@ -45,7 +45,10 @@ def _fee_changes_params(
 
 
 def _event_candlesticks_params(
-    *, start_ts: int, end_ts: int, period_interval: int,
+    *,
+    start_ts: int,
+    end_ts: int,
+    period_interval: int,
 ) -> dict[str, Any]:
     return _params(
         start_ts=start_ts,
@@ -80,14 +83,16 @@ class SeriesResource(SyncResource):
         include_product_metadata: bool | None = None,
         include_volume: bool | None = None,
         min_updated_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[Series]:
         params = _list_series_params(
-            category=category, tags=tags,
+            category=category,
+            tags=tags,
             include_product_metadata=include_product_metadata,
             include_volume=include_volume,
             min_updated_ts=min_updated_ts,
         )
-        data = self._get("/series", params=params)
+        data = self._get("/series", params=params, extra_headers=extra_headers)
         raw = data.get("series", [])
         return [Series.model_validate(item) for item in raw]
 
@@ -96,11 +101,16 @@ class SeriesResource(SyncResource):
         series_ticker: str,
         *,
         include_volume: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Series:
         params = _params(
             include_volume=_bool_param(include_volume),
         )
-        data = self._get(f"/series/{_seg(series_ticker, name='series_ticker')}", params=params)
+        data = self._get(
+            f"/series/{_seg(series_ticker, name='series_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return Series.model_validate(data.get("series", data))
 
     def fee_changes(
@@ -108,11 +118,13 @@ class SeriesResource(SyncResource):
         *,
         series_ticker: str | None = None,
         show_historical: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[SeriesFeeChange]:
         params = _fee_changes_params(
-            series_ticker=series_ticker, show_historical=show_historical,
+            series_ticker=series_ticker,
+            show_historical=show_historical,
         )
-        data = self._get("/series/fee_changes", params=params)
+        data = self._get("/series/fee_changes", params=params, extra_headers=extra_headers)
         raw = data.get("series_fee_change_arr", [])
         return [SeriesFeeChange.model_validate(item) for item in raw]
 
@@ -124,14 +136,17 @@ class SeriesResource(SyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> EventCandlesticks:
         params = _event_candlesticks_params(
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
         )
         data = self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         return EventCandlesticks.model_validate(data)
 
@@ -144,16 +159,19 @@ class SeriesResource(SyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[ForecastPercentilesPoint]:
         self._require_auth()
         params = _forecast_history_params(
             percentiles=percentiles,
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
         )
         data = self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/forecast_percentile_history",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("forecast_history", [])
         return [ForecastPercentilesPoint.model_validate(item) for item in raw]
@@ -170,14 +188,16 @@ class AsyncSeriesResource(AsyncResource):
         include_product_metadata: bool | None = None,
         include_volume: bool | None = None,
         min_updated_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[Series]:
         params = _list_series_params(
-            category=category, tags=tags,
+            category=category,
+            tags=tags,
             include_product_metadata=include_product_metadata,
             include_volume=include_volume,
             min_updated_ts=min_updated_ts,
         )
-        data = await self._get("/series", params=params)
+        data = await self._get("/series", params=params, extra_headers=extra_headers)
         raw = data.get("series", [])
         return [Series.model_validate(item) for item in raw]
 
@@ -186,11 +206,16 @@ class AsyncSeriesResource(AsyncResource):
         series_ticker: str,
         *,
         include_volume: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Series:
         params = _params(
             include_volume=_bool_param(include_volume),
         )
-        data = await self._get(f"/series/{_seg(series_ticker, name='series_ticker')}", params=params)  # noqa: E501
+        data = await self._get(
+            f"/series/{_seg(series_ticker, name='series_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
         return Series.model_validate(data.get("series", data))
 
     async def fee_changes(
@@ -198,11 +223,13 @@ class AsyncSeriesResource(AsyncResource):
         *,
         series_ticker: str | None = None,
         show_historical: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[SeriesFeeChange]:
         params = _fee_changes_params(
-            series_ticker=series_ticker, show_historical=show_historical,
+            series_ticker=series_ticker,
+            show_historical=show_historical,
         )
-        data = await self._get("/series/fee_changes", params=params)
+        data = await self._get("/series/fee_changes", params=params, extra_headers=extra_headers)
         raw = data.get("series_fee_change_arr", [])
         return [SeriesFeeChange.model_validate(item) for item in raw]
 
@@ -214,14 +241,17 @@ class AsyncSeriesResource(AsyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> EventCandlesticks:
         params = _event_candlesticks_params(
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
         )
         data = await self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/candlesticks",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         return EventCandlesticks.model_validate(data)
 
@@ -234,16 +264,19 @@ class AsyncSeriesResource(AsyncResource):
         start_ts: int,
         end_ts: int,
         period_interval: int,
+        extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[ForecastPercentilesPoint]:
         self._require_auth()
         params = _forecast_history_params(
             percentiles=percentiles,
-            start_ts=start_ts, end_ts=end_ts,
+            start_ts=start_ts,
+            end_ts=end_ts,
             period_interval=period_interval,
         )
         data = await self._get(
             f"/series/{_seg(series_ticker, name='series_ticker')}/events/{_seg(ticker, name='ticker')}/forecast_percentile_history",  # noqa: E501
             params=params,
+            extra_headers=extra_headers,
         )
         raw = data.get("forecast_history", [])
         return [ForecastPercentilesPoint.model_validate(item) for item in raw]
