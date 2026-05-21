@@ -44,6 +44,10 @@ with KalshiClient(key_id="...", private_key_path="...", config=config) as client
 | `ws_json_loads` | `None` | Optional callable for parsing WS frames (e.g. `orjson.loads`). |
 | `ws_json_dumps` | `None` | Optional callable for serializing outbound WS commands. |
 | `limits` | `None` | Connection-pool limits passed to `httpx`. When `None`, the underlying `httpx.Client` uses its own pool defaults. Pass an `httpx.Limits(...)` to tune. See [Performance](websockets.md#performance) for WS sizing guidance. |
+| `total_timeout` | `None` | Hard cap on cumulative time spent inside a single request including retries (seconds). \`None\` disables the wall-clock limit (legacy behaviour: retry until \`max_retries\` is exhausted). |
+| `ws_ping_interval` | `20.0` | Interval in seconds between WebSocket keepalive ping frames. |
+| `ws_close_timeout` | `5.0` | Time in seconds to wait for a graceful WebSocket close handshake before forcing the connection down. |
+| `allow_unknown_host` | `False` | Allow signing requests to hosts not in the known Kalshi endpoint list. Set \`True\` (or env var \`KALSHI_ALLOW_UNKNOWN_HOST=1\`) for mock servers, proxies, or alternate regions. Without this, unknown hosts raise \`ValueError\`. |
 
 See [Retries & idempotency](retries.md) for what `max_retries`,
 `retry_base_delay`, `retry_max_delay` do at runtime.
