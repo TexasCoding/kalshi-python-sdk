@@ -229,7 +229,13 @@ class MessageDispatcher:
                     "Failed to parse %s message: %s",
                     msg_type, type(exc).__name__,
                 )
-                return
+                # #241: re-raise so `_process_frame` can roll back the seq
+                # watermark for sequenced channels (order_group_updates,
+                # orderbook_*). Without this, a malformed sequenced frame
+                # silently advances the watermark and the next legitimate
+                # frame's gap is missed. The recv-loop's existing
+                # malformed-frame handler catches and continues the loop.
+                raise
 
         # Route to subscription queue
         sid = data.get("sid")

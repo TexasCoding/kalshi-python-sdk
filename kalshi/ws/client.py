@@ -314,28 +314,29 @@ class KalshiWebSocket:
             # Only meaningful once we know we'll dispatch (and might roll back).
             tracked = True
 
-        # Check for orderbook messages — validate ONCE for the local
-        # manager, then hand the typed message off to dispatch via
-        # pre_validated so the dispatcher routes the same instance to
-        # the queue without re-running Pydantic.
+        # Pre-validate orderbook frames (so the manager applies typed data),
+        # then dispatch. Both steps must roll the seq watermark back if they
+        # fail — otherwise a malformed frame on a sequenced channel silently
+        # advances the watermark and the next legitimate frame's gap is
+        # missed, leaving the local orderbook desynced from the server (#241).
         pre_validated: BaseModel | None = None
-        if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
-            snapshot = OrderbookSnapshotMessage.model_validate(data)
-            # #199: mutate in place — skip the O(n log n) sort + 2N
-            # OrderbookLevel allocation that the public ``apply_snapshot``
-            # wrapper performs. Consumers materialize via ``get(ticker)``
-            # on demand.
-            # Record per-sid ticker ownership so all-markets subscriptions
-            # can be torn down on gap recovery / unsubscribe (#189, #206).
-            self._orderbook_mgr._apply_snapshot_inplace(snapshot, sid=snapshot.sid)
-            pre_validated = snapshot
-        elif msg_type == "orderbook_delta" and self._orderbook_mgr:
-            delta = OrderbookDeltaMessage.model_validate(data)
-            # #199: in-place mutation only — see snapshot branch above.
-            self._orderbook_mgr._apply_delta_inplace(delta)
-            pre_validated = delta
-
         try:
+            if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
+                snapshot = OrderbookSnapshotMessage.model_validate(data)
+                # #199: mutate in place — skip the O(n log n) sort + 2N
+                # OrderbookLevel allocation that the public ``apply_snapshot``
+                # wrapper performs. Consumers materialize via ``get(ticker)``
+                # on demand.
+                # Record per-sid ticker ownership so all-markets subscriptions
+                # can be torn down on gap recovery / unsubscribe (#189, #206).
+                self._orderbook_mgr._apply_snapshot_inplace(snapshot, sid=snapshot.sid)
+                pre_validated = snapshot
+            elif msg_type == "orderbook_delta" and self._orderbook_mgr:
+                delta = OrderbookDeltaMessage.model_validate(data)
+                # #199: in-place mutation only — see snapshot branch above.
+                self._orderbook_mgr._apply_delta_inplace(delta)
+                pre_validated = delta
+
             await self._dispatcher.dispatch(data, pre_validated=pre_validated)
         except KalshiBackpressureError as exc:
             # Dispatch failed -> the consumer never saw this message. Roll
@@ -353,6 +354,17 @@ class KalshiWebSocket:
                 affected = self._sub_mgr.get_subscription_by_sid(sid)
                 if affected is not None:
                     await self._sub_mgr.broadcast_error(affected.client_id, exc)
+            raise
+        except Exception:
+            # #241: ValidationError, KeyError, or any programming bug between
+            # the seq advance and dispatch leaves the watermark over-advanced
+            # past a frame that was NEVER applied locally and NEVER delivered
+            # to the consumer. Roll back so the dropped seq surfaces as a
+            # forward gap on the next legitimate frame (gap handler then
+            # drives a real resubscribe + snapshot). Re-raise so the
+            # recv-loop's existing malformed-frame handler logs + continues.
+            if tracked and sid is not None and self._seq_tracker:
+                self._seq_tracker.rollback(sid, prev_seq)
             raise
 
     async def _handle_reconnect(self) -> None:
