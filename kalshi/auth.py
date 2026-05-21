@@ -296,26 +296,33 @@ class KalshiAuth:
     def _get_sign_executor(self) -> ThreadPoolExecutor:
         """Return the dedicated sign-offload executor, creating it on first use.
 
-        Thread-safe lazy init: the lock guards the assignment, and the
-        double-checked pattern keeps the fast path lock-free after first use.
+        Thread-safe lazy init: the lock guards both the ``_closed`` recheck
+        and the assignment, so a concurrent :meth:`close` cannot interleave
+        between "saw open" and "constructed pool" and leave a fresh executor
+        dangling on a closed auth (#267).
 
         Raises ``RuntimeError`` after :meth:`close` so a closed auth does
         not silently respawn the executor (which would defeat the point of
         ``close()`` — the old executor's threads stay shut down but a new
         ThreadPoolExecutor would be allocated on the next async sign).
         """
-        if self._closed:
-            raise RuntimeError(
-                "KalshiAuth has been closed; create a new instance to sign further requests."
-            )
-        if self._sign_executor is None:
-            with self._sign_executor_lock:
-                if self._sign_executor is None:
-                    self._sign_executor = ThreadPoolExecutor(
-                        max_workers=2,
-                        thread_name_prefix="kalshi-sign",
-                    )
-        return self._sign_executor
+        # Fast path: already constructed and not closed. ``_closed`` is only
+        # ever flipped True under the lock, so reading it lock-free here is
+        # safe — a stale False just falls through to the locked recheck.
+        executor = self._sign_executor
+        if executor is not None and not self._closed:
+            return executor
+        with self._sign_executor_lock:
+            if self._closed:
+                raise RuntimeError(
+                    "KalshiAuth has been closed; create a new instance to sign further requests."
+                )
+            if self._sign_executor is None:
+                self._sign_executor = ThreadPoolExecutor(
+                    max_workers=2,
+                    thread_name_prefix="kalshi-sign",
+                )
+            return self._sign_executor
 
     async def sign_request_async(
         self, method: str, path: str, timestamp_ms: int | None = None
