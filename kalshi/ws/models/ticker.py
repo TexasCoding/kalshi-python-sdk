@@ -1,4 +1,5 @@
 """Ticker channel message models."""
+
 from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
@@ -36,8 +37,8 @@ class TickerPayload(BaseModel):
     open_interest: FixedPointCount = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
     )
-    dollar_volume: str
-    dollar_open_interest: str
+    dollar_volume: DollarDecimal
+    dollar_open_interest: DollarDecimal
     yes_bid_size: FixedPointCount = Field(
         validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
     )

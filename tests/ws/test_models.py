@@ -205,6 +205,42 @@ class TestTickerModel:
         msg = TickerMessage.model_validate(raw)
         assert msg.msg.market_ticker == "T"
 
+    def test_dollar_volume_and_open_interest_decimalized(self) -> None:
+        """#258: dollar_volume/dollar_open_interest must coerce to Decimal (not str)."""
+        raw = {
+            "type": "ticker",
+            "sid": 1,
+            "msg": ticker_payload_dict(
+                market_ticker="T",
+                market_id="x",
+                dollar_volume="123456.7890",
+                dollar_open_interest="42.50",
+            ),
+        }
+        msg = TickerMessage.model_validate(raw)
+        assert isinstance(msg.msg.dollar_volume, Decimal)
+        assert isinstance(msg.msg.dollar_open_interest, Decimal)
+        assert msg.msg.dollar_volume == Decimal("123456.7890")
+        assert msg.msg.dollar_open_interest == Decimal("42.50")
+        # Arithmetic without manual Decimal(...) wrapping (#258 motivation).
+        total = msg.msg.dollar_volume + msg.msg.dollar_open_interest
+        assert total == Decimal("123499.2890")
+
+    def test_dollar_fields_reject_bool(self) -> None:
+        """#258: DollarDecimal coercion rejects bool (an int subclass)."""
+        with pytest.raises(TypeError, match="bool"):
+            TickerMessage.model_validate(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T",
+                        market_id="x",
+                        dollar_volume=True,
+                    ),
+                }
+            )
+
 
 # ---------- Trade ----------
 
@@ -458,6 +494,40 @@ class TestOrderGroupModel:
         msg = OrderGroupMessage.model_validate(raw)
         assert msg.msg.event_type == "triggered"
         assert msg.msg.contracts_limit is None
+
+    def test_contracts_limit_decimalized_via_fp_alias(self) -> None:
+        """#258: contracts_limit/_fp coerces to Decimal (was raw str pre-#258)."""
+        raw = {
+            "type": "order_group_updates",
+            "sid": 6,
+            "seq": 12,
+            "msg": {
+                "event_type": "limit_updated",
+                "order_group_id": "og-004",
+                "contracts_limit_fp": "250.50",
+                "ts_ms": 1700000000000,
+            },
+        }
+        msg = OrderGroupMessage.model_validate(raw)
+        assert isinstance(msg.msg.contracts_limit, Decimal)
+        assert msg.msg.contracts_limit == Decimal("250.50")
+        assert msg.msg.contracts_limit * 2 == Decimal("501.00")
+
+    def test_contracts_limit_rejects_bool(self) -> None:
+        """#258: FixedPointCount coercion rejects bool (an int subclass)."""
+        raw = {
+            "type": "order_group_updates",
+            "sid": 6,
+            "seq": 13,
+            "msg": {
+                "event_type": "created",
+                "order_group_id": "og-005",
+                "contracts_limit": True,
+                "ts_ms": 1700000000000,
+            },
+        }
+        with pytest.raises(TypeError, match="bool"):
+            OrderGroupMessage.model_validate(raw)
 
 
 # ---------- MarketLifecycle ----------
@@ -980,9 +1050,7 @@ class TestWsPayloadDecimalCoercion:
             {
                 "type": "market_positions",
                 "sid": 1,
-                "msg": market_positions_payload_dict(
-                    position_fp="100", volume_fp="200"
-                ),
+                "msg": market_positions_payload_dict(position_fp="100", volume_fp="200"),
             }
         )
         assert isinstance(msg.msg.position, Decimal)
@@ -1189,6 +1257,8 @@ class TestOrderbookDeltaPayloadSideLiteral:
                     "side": "yes ",
                 }
             )
+
+
 # ---------- P2#3: populate_by_name across every WS payload model ----------
 
 _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
@@ -1201,8 +1271,8 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
             "yes_ask": Decimal("0.51"),
             "volume": Decimal("100.00"),
             "open_interest": Decimal("200.00"),
-            "dollar_volume": "50.00",
-            "dollar_open_interest": "100.00",
+            "dollar_volume": Decimal("50.00"),
+            "dollar_open_interest": Decimal("100.00"),
             "yes_bid_size": Decimal("10.00"),
             "yes_ask_size": Decimal("10.00"),
             "last_trade_size": Decimal("1.00"),
@@ -1288,7 +1358,7 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
         {
             "event_type": "created",
             "order_group_id": "og-1",
-            "contracts_limit": "10.00",
+            "contracts_limit": Decimal("10.00"),
             "ts_ms": 1_700_000_000_000,
         },
     ),
