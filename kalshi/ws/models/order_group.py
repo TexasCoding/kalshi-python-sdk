@@ -15,7 +15,7 @@ class OrderGroupPayload(BaseModel):
     )  # _fp format
     # v0.14+ backfill (#162). Matching engine timestamp in Unix ms.
     ts_ms: int
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class OrderGroupMessage(BaseModel):
@@ -25,4 +25,4 @@ class OrderGroupMessage(BaseModel):
     sid: int
     seq: int  # Required — one of few channels with required seq
     msg: OrderGroupPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

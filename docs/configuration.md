@@ -40,7 +40,7 @@ with KalshiClient(key_id="...", private_key_path="...", config=config) as client
 | `ws_base_url` | `wss://api.elections.kalshi.com/trade-api/ws/v2` | WebSocket base URL. |
 | `ws_max_retries` | `10` | Maximum reconnect attempts before the WS gives up. |
 | `http2` | `False` | Enable HTTP/2 (requires `httpx[http2]` install extra). |
-| `limits` | `httpx.Limits()` defaults | Connection-pool limits passed straight to `httpx`. |
+| `limits` | `None` | Connection-pool limits passed to `httpx`. When `None`, the underlying `httpx.Client` uses its own pool defaults. Pass an `httpx.Limits(...)` to tune. See [Performance](websockets.md#performance) for WS sizing guidance. |
 
 See [Retries & idempotency](retries.md) for what `max_retries`,
 `retry_base_delay`, `retry_max_delay` do at runtime.

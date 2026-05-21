@@ -33,7 +33,7 @@ class TradePayload(BaseModel):
     taker_outcome_side: SideLiteral
     taker_book_side: BookSideLiteral
     ts_ms: int
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class TradeMessage(BaseModel):
@@ -43,4 +43,4 @@ class TradeMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: TradePayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

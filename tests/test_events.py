@@ -152,6 +152,32 @@ class TestEventsGet:
         assert event.markets[0].yes_bid == Decimal("0.45")
 
     @respx.mock
+    def test_get_with_default_does_not_send_with_nested_markets_param(
+        self, events: EventsResource
+    ) -> None:
+        """Default `with_nested_markets=None` MUST NOT emit the query param (#222)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/EVT-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": event_dict(event_ticker="EVT-1", title="T", series_ticker="S")},
+            )
+        )
+        events.get("EVT-1")
+        assert "with_nested_markets" not in route.calls[0].request.url.params
+
+    @respx.mock
+    def test_get_with_explicit_false_still_serializes(self, events: EventsResource) -> None:
+        """Explicit `with_nested_markets=False` MUST still emit `?with_nested_markets=false`."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/EVT-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": event_dict(event_ticker="EVT-1", title="T", series_ticker="S")},
+            )
+        )
+        events.get("EVT-1", with_nested_markets=False)
+        assert route.calls[0].request.url.params["with_nested_markets"] == "false"
+
+    @respx.mock
     def test_not_found(self, events: EventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/FAKE").mock(
             return_value=httpx.Response(404, json={"message": "event not found"})

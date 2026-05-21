@@ -6,7 +6,6 @@ repo_name: TexasCoding/kalshi-python-sdk
 edit_uri: edit/main/docs/
 
 not_in_nav: |
-  /AUDIT-resource-params.md
   /RELEASING.md
 
 theme:

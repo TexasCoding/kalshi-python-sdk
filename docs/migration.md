@@ -329,8 +329,8 @@ hardening.
 
 ## From `kalshi_python_async`
 
-If you're coming from `kalshi_python_async` (the predecessor community
-client referenced in the project README), this page summarizes the
+If you're coming from the predecessor community client `kalshi_python_async`,
+this page summarizes the
 v1 SDK differences you'll hit. **If you don't recognize that name, you can
 skip this page** — there's nothing here that applies to a greenfield
 project on `kalshi-sdk`.

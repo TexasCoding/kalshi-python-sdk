@@ -13,7 +13,7 @@ class SelectedMarket(BaseModel):
     event_ticker: str | None = None
     market_ticker: str | None = None
     side: str | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MultivariatePayload(BaseModel):
@@ -23,7 +23,7 @@ class MultivariatePayload(BaseModel):
     event_ticker: str
     market_ticker: str
     selected_markets: NullableList[SelectedMarket]
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MultivariateMessage(BaseModel):
@@ -33,7 +33,7 @@ class MultivariateMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MultivariatePayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MultivariateLifecycleMessage(BaseModel):
@@ -43,4 +43,4 @@ class MultivariateLifecycleMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketLifecyclePayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

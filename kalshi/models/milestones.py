@@ -9,10 +9,9 @@ subaccount timestamps which are Unix ints).
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from kalshi.types import NullableList
 
@@ -23,8 +22,8 @@ class Milestone(BaseModel):
     id: str
     category: str
     type: str
-    start_date: datetime
-    end_date: datetime | None = None
+    start_date: AwareDatetime
+    end_date: AwareDatetime | None = None
     # Spec marks these required but Kalshi has historically returned JSON null
     # for required list fields (see v0.9.0 fix for Series.tags). NullableList
     # coerces None -> [] so demo/prod inconsistencies don't break parsing.
@@ -35,7 +34,7 @@ class Milestone(BaseModel):
     source_ids: dict[str, str] | None = None
     details: dict[str, Any]
     primary_event_tickers: NullableList[str]
-    last_updated_ts: datetime
+    last_updated_ts: AwareDatetime
 
     model_config = {"extra": "allow"}
 

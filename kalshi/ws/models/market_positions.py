@@ -34,7 +34,7 @@ class MarketPositionsPayload(BaseModel):
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
     subaccount: int | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MarketPositionsMessage(BaseModel):
@@ -44,4 +44,4 @@ class MarketPositionsMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: MarketPositionsPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

@@ -54,7 +54,7 @@ class TickerPayload(BaseModel):
         validation_alias=AliasChoices("price_dollars", "price"),
     )
     ts_ms: int
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class TickerMessage(BaseModel):
@@ -64,4 +64,4 @@ class TickerMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: TickerPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

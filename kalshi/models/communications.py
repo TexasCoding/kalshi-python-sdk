@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -39,7 +38,7 @@ class RFQ(BaseModel):
         validation_alias=AliasChoices("contracts_fp", "contracts"),
     )
     status: str
-    created_ts: datetime
+    created_ts: AwareDatetime
     target_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
@@ -49,8 +48,8 @@ class RFQ(BaseModel):
     rest_remainder: bool | None = None
     cancellation_reason: str | None = None
     creator_user_id: str | None = None
-    cancelled_ts: datetime | None = None
-    updated_ts: datetime | None = None
+    cancelled_ts: AwareDatetime | None = None
+    updated_ts: AwareDatetime | None = None
 
     # v3.18.0 backfill (#161).
     creator_subaccount: int | None = None
@@ -75,14 +74,14 @@ class Quote(BaseModel):
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
     rfq_creator_id: str
-    created_ts: datetime
-    updated_ts: datetime
+    created_ts: AwareDatetime
+    updated_ts: AwareDatetime
     status: str
     accepted_side: Literal["yes", "no"] | None = None
-    accepted_ts: datetime | None = None
-    confirmed_ts: datetime | None = None
-    executed_ts: datetime | None = None
-    cancelled_ts: datetime | None = None
+    accepted_ts: AwareDatetime | None = None
+    confirmed_ts: AwareDatetime | None = None
+    executed_ts: AwareDatetime | None = None
+    cancelled_ts: AwareDatetime | None = None
     rest_remainder: bool | None = None
     cancellation_reason: str | None = None
     creator_user_id: str | None = None

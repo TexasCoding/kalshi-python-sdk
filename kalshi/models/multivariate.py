@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from kalshi.models.markets import Market
 from kalshi.types import NullableList
@@ -40,8 +39,8 @@ class MultivariateEventCollection(BaseModel):
     series_ticker: str
     title: str
     description: str
-    open_date: datetime
-    close_date: datetime
+    open_date: AwareDatetime
+    close_date: AwareDatetime
     associated_events: NullableList[AssociatedEvent]
     # Deprecated fields — still returned by API
     associated_event_tickers: NullableList[str]
@@ -143,6 +142,6 @@ class LookupPoint(BaseModel):
     event_ticker: str
     market_ticker: str
     selected_markets: NullableList[TickerPair]
-    last_queried_ts: datetime
+    last_queried_ts: AwareDatetime
 
     model_config = {"extra": "allow"}

@@ -46,6 +46,29 @@ The Kalshi API returns prices as JSON strings with a `_dollars` suffix
 (`yes_bid_dollars: "0.5600"`). The SDK maps these to short field names
 (`yes_bid: Decimal("0.5600")`). Both directions round-trip.
 
+## Datetime semantics
+
+REST response models type every server-emitted timestamp as
+`pydantic.AwareDatetime` — Pydantic v2's tz-aware-only variant of
+`datetime`. Kalshi's wire format is always RFC3339 with `Z` (UTC), so
+live parsing is unaffected. The win is at construction time: tests and
+fixtures that build a model directly **must** pass a tz-aware value, or
+the model raises `ValidationError`. This catches naive `datetime.now()`
+slipping into trading code, where tz arithmetic bugs would otherwise
+corrupt expiration / settlement calculations.
+
+```python
+from datetime import datetime, UTC
+
+Order(... created_time=datetime.now(UTC))                  # OK
+Order(... created_time=datetime(2026, 1, 1, tzinfo=UTC))   # OK
+Order(... created_time=datetime.now())                     # ValidationError — naive
+```
+
+WebSocket payload timestamps (`kalshi.ws.models.*`) currently keep the
+bare `datetime` annotation; the AwareDatetime upgrade for WS models is a
+separate, future change.
+
 ## Cents vs dollars
 
 A few fields are **integer cents**, not dollars:

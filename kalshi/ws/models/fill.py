@@ -41,7 +41,7 @@ class FillPayload(BaseModel):
     outcome_side: SideLiteral
     book_side: BookSideLiteral
     ts_ms: int
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class FillMessage(BaseModel):
@@ -51,4 +51,4 @@ class FillMessage(BaseModel):
     sid: int
     seq: int | None = None
     msg: FillPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

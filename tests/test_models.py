@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import ClassVar
 
@@ -1299,3 +1299,50 @@ class TestBatchCancelOrdersRequestOrder:
                 order_id="x",
                 bogus=5,  # type: ignore[call-arg]
             )
+
+
+# ---------- P2#4: AwareDatetime on REST response models ----------
+
+class TestAwareDatetimeRejectsNaive:
+    """REST models reject naive datetimes at construction (#221 P2.4)."""
+
+    @pytest.mark.parametrize(
+        ("model_cls", "ts_field", "fixture_builder"),
+        [
+            (Order, "created_time", order_dict),
+            (Market, "created_time", market_dict),
+            (Settlement, "settled_time", settlement_dict),
+        ],
+        ids=["Order", "Market", "Settlement"],
+    )
+    def test_aware_datetime_rejects_naive_datetime(
+        self, model_cls: type, ts_field: str, fixture_builder
+    ) -> None:
+        from pydantic import ValidationError
+
+        # Override the timestamp field with a naive datetime.
+        naive = datetime(2026, 1, 1, 12, 0, 0)  # intentional naive for the negative test
+        wire = fixture_builder(**{ts_field: naive})
+        with pytest.raises(ValidationError):
+            model_cls.model_validate(wire)
+
+    @pytest.mark.parametrize(
+        ("model_cls", "ts_field", "fixture_builder"),
+        [
+            (Order, "created_time", order_dict),
+            (Market, "created_time", market_dict),
+            (Settlement, "settled_time", settlement_dict),
+        ],
+        ids=["Order", "Market", "Settlement"],
+    )
+    def test_aware_datetime_accepts_rfc3339_with_z(
+        self, model_cls: type, ts_field: str, fixture_builder
+    ) -> None:
+        """Wire format (RFC3339 with Z suffix) still parses cleanly."""
+        wire = fixture_builder(**{ts_field: "2026-01-01T12:00:00Z"})
+        obj = model_cls.model_validate(wire)
+        ts = getattr(obj, ts_field)
+        assert ts is not None
+        assert ts.tzinfo is not None
+        # UTC conversion round-trips cleanly.
+        assert ts.astimezone(UTC).isoformat().startswith("2026-01-01T12:00:00")

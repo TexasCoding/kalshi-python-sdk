@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.models.orders import BookSideLiteral, SideLiteral
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -19,9 +18,9 @@ MveHistoricalFilterLiteral = Literal["exclude"]
 class HistoricalCutoff(BaseModel):
     """Timestamps defining the boundary between live and historical data."""
 
-    market_settled_ts: datetime
-    trades_created_ts: datetime
-    orders_updated_ts: datetime
+    market_settled_ts: AwareDatetime
+    trades_created_ts: AwareDatetime
+    orders_updated_ts: AwareDatetime
 
     model_config = {"extra": "allow"}
 
@@ -41,7 +40,7 @@ class Trade(BaseModel):
         validation_alias=AliasChoices("no_price_dollars", "no_price"),
     )
     taker_side: str
-    created_time: datetime
+    created_time: AwareDatetime
 
     # v3.18.0 backfill (#160). Mirrors Order.outcome_side / book_side from #159
     # — canonical direction encoding superseding the deprecated `taker_side`.

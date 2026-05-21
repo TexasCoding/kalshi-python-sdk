@@ -8,10 +8,9 @@ dollars by dividing by 10 000). Fractional values come through
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from kalshi.types import FixedPointCount, NullableList
 
@@ -29,8 +28,8 @@ class IncentiveProgram(BaseModel):
     market_id: str
     market_ticker: str
     incentive_type: str  # "liquidity" | "volume"
-    start_date: datetime
-    end_date: datetime
+    start_date: AwareDatetime
+    end_date: AwareDatetime
     # Spec: integer (int64), centi-cents. Caller divides by 10000 for dollars.
     period_reward: int
     paid_out: bool

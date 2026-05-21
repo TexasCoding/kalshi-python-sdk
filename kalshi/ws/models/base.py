@@ -8,7 +8,7 @@ class SubscriptionInfo(BaseModel):
     """Subscription confirmation payload."""
     channel: str
     sid: int
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class ErrorPayload(BaseModel):
@@ -17,7 +17,7 @@ class ErrorPayload(BaseModel):
     msg: str
     market_ticker: str | None = None
     market_id: str | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class BaseMessage(BaseModel):
@@ -26,7 +26,7 @@ class BaseMessage(BaseModel):
     type: str
     sid: int | None = None
     seq: int | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class SubscribedMessage(BaseModel):
@@ -34,7 +34,7 @@ class SubscribedMessage(BaseModel):
     id: int = 0
     type: str = "subscribed"
     msg: SubscriptionInfo
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class UnsubscribedMessage(BaseModel):
@@ -43,7 +43,7 @@ class UnsubscribedMessage(BaseModel):
     sid: int
     seq: int
     type: str = "unsubscribed"
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class OkMessage(BaseModel):
@@ -53,7 +53,7 @@ class OkMessage(BaseModel):
     seq: int | None = None
     type: str = "ok"
     msg: dict[str, object] | list[object] | None = None
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class ErrorMessage(BaseModel):
@@ -61,4 +61,4 @@ class ErrorMessage(BaseModel):
     id: int = 0
     type: str = "error"
     msg: ErrorPayload
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}

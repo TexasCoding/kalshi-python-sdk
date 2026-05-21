@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 from kalshi.types import NullableList
 
@@ -14,7 +12,7 @@ class ExchangeStatus(BaseModel):
 
     exchange_active: bool
     trading_active: bool
-    exchange_estimated_resume_time: datetime | None = None
+    exchange_estimated_resume_time: AwareDatetime | None = None
 
     model_config = {"extra": "allow"}
 
@@ -31,8 +29,8 @@ class DailySchedule(BaseModel):
 class WeeklySchedule(BaseModel):
     """Weekly trading hours with per-day sessions."""
 
-    start_time: datetime
-    end_time: datetime
+    start_time: AwareDatetime
+    end_time: AwareDatetime
     monday: NullableList[DailySchedule]
     tuesday: NullableList[DailySchedule]
     wednesday: NullableList[DailySchedule]
@@ -47,8 +45,8 @@ class WeeklySchedule(BaseModel):
 class MaintenanceWindow(BaseModel):
     """A scheduled maintenance window."""
 
-    start_datetime: datetime
-    end_datetime: datetime
+    start_datetime: AwareDatetime
+    end_datetime: AwareDatetime
 
     model_config = {"extra": "allow"}
 
@@ -67,7 +65,7 @@ class Announcement(BaseModel):
 
     type: str  # "info" | "warning" | "error"
     message: str
-    delivery_time: datetime
+    delivery_time: AwareDatetime
     status: str  # "active" | "inactive"
 
     model_config = {"extra": "allow"}
@@ -81,6 +79,6 @@ class UserDataTimestamp(BaseModel):
     a short delay; ``as_of_time`` is the upper bound on that lag.
     """
 
-    as_of_time: datetime
+    as_of_time: AwareDatetime
 
     model_config = {"extra": "allow"}
