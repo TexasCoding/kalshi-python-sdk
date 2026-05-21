@@ -233,10 +233,10 @@ class TestAsyncTransportRetry:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_429_retry_after_http_date_falls_back_to_backoff(
+    async def test_429_retry_after_http_date_parsed_and_capped(
         self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Async: HTTP-date unparseable; transport retries via computed backoff."""
+        """Async: HTTP-date Retry-After parsed via email.utils, capped at retry_max_delay."""
         sleeps: list[float] = []
 
         async def fake_sleep(d: float) -> None:
@@ -257,8 +257,9 @@ class TestAsyncTransportRetry:
         assert resp.status_code == 200
         assert route.call_count == 2
         assert len(sleeps) == 1
-        assert 0.0 <= sleeps[0] <= 0.01, (
-            f"Expected backoff sleep in [0, 0.01], got {sleeps[0]!r}"
+        # Date is far in the future; delta is huge, capped at retry_max_delay=0.1.
+        assert sleeps[0] == 0.1, (
+            f"Expected sleep clamped to retry_max_delay=0.1, got {sleeps[0]!r}"
         )
 
     @respx.mock
