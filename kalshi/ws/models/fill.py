@@ -4,7 +4,7 @@ from __future__ import annotations
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.models.orders import BookSideLiteral, SideLiteral
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class FillPayload(BaseModel):
@@ -24,15 +24,15 @@ class FillPayload(BaseModel):
     yes_price: DollarDecimal = Field(
         validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
     )
-    count: str = Field(
+    count: FixedPointCount = Field(
         validation_alias=AliasChoices("count_fp", "count"),
-    )  # _fp format
+    )
     fee_cost: DollarDecimal
     action: str  # buy/sell
     ts: int
-    post_position: str = Field(
+    post_position: FixedPointCount = Field(
         validation_alias=AliasChoices("post_position_fp", "post_position"),
-    )  # _fp format
+    )
     purchased_side: str
     client_order_id: str | None = None
     subaccount: int | None = None

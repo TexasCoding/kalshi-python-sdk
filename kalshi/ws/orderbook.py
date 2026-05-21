@@ -76,8 +76,8 @@ class OrderbookManager:
     def apply_snapshot(self, msg: OrderbookSnapshotMessage) -> Orderbook:
         """Initialize (or reset) a book from a full snapshot."""
         ticker = msg.msg.market_ticker
-        yes_levels = {Decimal(p): Decimal(q) for p, q in msg.msg.yes}
-        no_levels = {Decimal(p): Decimal(q) for p, q in msg.msg.no}
+        yes_levels = dict(msg.msg.yes)
+        no_levels = dict(msg.msg.no)
         state = _BookState(ticker=ticker, yes=yes_levels, no=no_levels)
         self._books[ticker] = state
         logger.debug(

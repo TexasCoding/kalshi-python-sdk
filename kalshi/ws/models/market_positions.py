@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class MarketPositionsPayload(BaseModel):
@@ -15,9 +15,9 @@ class MarketPositionsPayload(BaseModel):
 
     user_id: str
     market_ticker: str
-    position: str = Field(
+    position: FixedPointCount = Field(
         validation_alias=AliasChoices("position_fp", "position"),
-    )  # _fp format
+    )
     position_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("position_cost_dollars", "position_cost"),
     )
@@ -30,9 +30,9 @@ class MarketPositionsPayload(BaseModel):
     position_fee_cost: DollarDecimal = Field(
         validation_alias=AliasChoices("position_fee_cost_dollars", "position_fee_cost"),
     )
-    volume: str = Field(
+    volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
-    )  # _fp format
+    )
     subaccount: int | None = None
     model_config = {"extra": "allow"}
 

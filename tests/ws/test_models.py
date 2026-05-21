@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
+from kalshi.models.orders import Fill, Order
 from kalshi.ws.models.base import (
     BaseMessage,
     ErrorMessage,
@@ -21,7 +23,7 @@ from kalshi.ws.models.communications import (
     QuoteExecutedPayload,
     RfqCreatedPayload,
 )
-from kalshi.ws.models.fill import FillMessage
+from kalshi.ws.models.fill import FillMessage, FillPayload
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
 from kalshi.ws.models.multivariate import (
@@ -35,7 +37,7 @@ from kalshi.ws.models.orderbook_delta import (
 )
 from kalshi.ws.models.ticker import TickerMessage
 from kalshi.ws.models.trade import TradeMessage
-from kalshi.ws.models.user_orders import UserOrdersMessage
+from kalshi.ws.models.user_orders import UserOrdersMessage, UserOrdersPayload
 from tests._model_fixtures import (
     fill_payload_dict,
     market_positions_payload_dict,
@@ -97,7 +99,7 @@ class TestOrderbookModels:
         assert msg.seq == 1
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert len(msg.msg.yes) == 2
-        assert msg.msg.yes[0] == ("0.50", "100.00")
+        assert msg.msg.yes[0] == (Decimal("0.50"), Decimal("100.00"))
 
     def test_parse_delta(self) -> None:
         raw = {
@@ -175,7 +177,7 @@ class TestTickerModel:
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
         assert msg.msg.yes_bid == Decimal("0.55")
         assert msg.msg.yes_ask == Decimal("0.60")
-        assert msg.msg.volume == "1000"
+        assert msg.msg.volume == Decimal("1000")
 
     def test_ticker_no_seq(self) -> None:
         raw = {
@@ -227,7 +229,7 @@ class TestTradeModel:
         assert msg.sid == 2
         assert msg.msg.trade_id == "trade-001"
         assert msg.msg.yes_price == Decimal("0.55")
-        assert msg.msg.count == "10"
+        assert msg.msg.count == Decimal("10")
 
     def test_trade_no_seq(self) -> None:
         raw = {
@@ -322,7 +324,7 @@ class TestMarketPositionsModel:
         msg = MarketPositionsMessage.model_validate(raw)
         assert msg.type == "market_positions"
         assert msg.msg.market_ticker == "ECON-GDP-25Q1"
-        assert msg.msg.position == "100"
+        assert msg.msg.position == Decimal("100")
         assert msg.msg.realized_pnl == Decimal("10.50")
 
     def test_market_positions_no_seq(self) -> None:
@@ -379,7 +381,7 @@ class TestUserOrdersModel:
         assert msg.msg.status == "resting"
         assert msg.msg.is_yes is True
         assert msg.msg.yes_price == Decimal("0.55")
-        assert msg.msg.fill_count == "3"
+        assert msg.msg.fill_count == Decimal("3")
 
     def test_user_orders_no_seq(self) -> None:
         raw = {
@@ -403,7 +405,7 @@ class TestUserOrdersModel:
         }
         msg = UserOrdersMessage.model_validate(raw)
         assert msg.msg.status == "canceled"
-        assert msg.msg.remaining_count == "0"
+        assert msg.msg.remaining_count == Decimal("0")
 
 
 # ---------- OrderGroup ----------
@@ -657,7 +659,7 @@ class TestCommunicationsModel:
             }
         )
         assert payload.id == "rfq-001"
-        assert payload.contracts == "50"
+        assert payload.contracts == Decimal("50")
 
     def test_quote_accepted_payload_model(self) -> None:
         payload = QuoteAcceptedPayload.model_validate(
@@ -689,7 +691,7 @@ class TestCommunicationsModel:
             }
         )
         assert payload.order_id == "ord-001"
-        assert payload.executed_ts == "2026-04-19T18:43:37Z"
+        assert payload.executed_ts == datetime(2026, 4, 19, 18, 43, 37, tzinfo=UTC)
 
 
 # ---------- v0.14+ backfill (#162): one (de)serialization test per payload ----------
@@ -902,3 +904,228 @@ class TestWsV0140Backfill:
         assert payload.yes_contracts_offered == Decimal("5.00")
         assert payload.no_contracts_offered == Decimal("3.00")
         assert payload.rfq_target_cost == Decimal("1.5000")
+
+
+# ---------- #198: count/size/volume/timestamp type coercion ----------
+
+
+class TestWsPayloadDecimalCoercion:
+    """Counts/sizes/volumes parse as Decimal (FixedPointCount), not str.
+
+    The wire format is unchanged — values still arrive as JSON strings — but
+    the Pydantic BeforeValidator coerces them into Decimal so consumers
+    don't have to manually wrap. Regression guard for #198.
+    """
+
+    def test_ticker_volume_parses_as_decimal_not_str(self) -> None:
+        msg = TickerMessage.model_validate(
+            {
+                "type": "ticker",
+                "sid": 1,
+                "msg": ticker_payload_dict(
+                    volume_fp="1000",
+                    open_interest_fp="500",
+                    yes_bid_size_fp="40",
+                    yes_ask_size_fp="60",
+                    last_trade_size_fp="7",
+                ),
+            }
+        )
+        assert isinstance(msg.msg.volume, Decimal)
+        assert isinstance(msg.msg.open_interest, Decimal)
+        assert isinstance(msg.msg.yes_bid_size, Decimal)
+        assert isinstance(msg.msg.yes_ask_size, Decimal)
+        assert isinstance(msg.msg.last_trade_size, Decimal)
+        assert msg.msg.volume == Decimal("1000")
+
+    def test_trade_count_parses_as_decimal(self) -> None:
+        msg = TradeMessage.model_validate(
+            {"type": "trade", "sid": 1, "msg": trade_payload_dict(count_fp="10")}
+        )
+        assert isinstance(msg.msg.count, Decimal)
+        assert msg.msg.count == Decimal("10")
+
+    def test_fill_count_post_position_parse_as_decimal(self) -> None:
+        msg = FillMessage.model_validate(
+            {
+                "type": "fill",
+                "sid": 1,
+                "msg": fill_payload_dict(count_fp="5", post_position_fp="12"),
+            }
+        )
+        assert isinstance(msg.msg.count, Decimal)
+        assert isinstance(msg.msg.post_position, Decimal)
+        assert msg.msg.count == Decimal("5")
+        assert msg.msg.post_position == Decimal("12")
+
+    def test_user_orders_counts_parse_as_decimal(self) -> None:
+        msg = UserOrdersMessage.model_validate(
+            {
+                "type": "user_orders",
+                "sid": 1,
+                "msg": user_orders_payload_dict(
+                    fill_count_fp="3",
+                    remaining_count_fp="7",
+                    initial_count_fp="10",
+                ),
+            }
+        )
+        assert isinstance(msg.msg.fill_count, Decimal)
+        assert isinstance(msg.msg.remaining_count, Decimal)
+        assert isinstance(msg.msg.initial_count, Decimal)
+        assert msg.msg.fill_count + msg.msg.remaining_count == msg.msg.initial_count
+
+    def test_market_positions_position_volume_parse_as_decimal(self) -> None:
+        msg = MarketPositionsMessage.model_validate(
+            {
+                "type": "market_positions",
+                "sid": 1,
+                "msg": market_positions_payload_dict(
+                    position_fp="100", volume_fp="200"
+                ),
+            }
+        )
+        assert isinstance(msg.msg.position, Decimal)
+        assert isinstance(msg.msg.volume, Decimal)
+        assert msg.msg.position == Decimal("100")
+        assert msg.msg.volume == Decimal("200")
+
+    def test_orderbook_snapshot_yes_no_parse_as_decimal_tuples(self) -> None:
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "x",
+                    "yes": [["0.50", "100.00"], ["0.55", "200.00"]],
+                    "no": [["0.45", "150.00"]],
+                },
+            }
+        )
+        assert msg.msg.yes[0] == (Decimal("0.50"), Decimal("100.00"))
+        assert isinstance(msg.msg.yes[0][0], Decimal)
+        assert isinstance(msg.msg.yes[0][1], Decimal)
+        assert isinstance(msg.msg.no[0][0], Decimal)
+        assert isinstance(msg.msg.no[0][1], Decimal)
+
+    def test_rfq_created_contracts_parses_as_decimal(self) -> None:
+        payload = RfqCreatedPayload.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "u1",
+                "market_ticker": "T",
+                "created_ts": "2026-01-01T00:00:00Z",
+                "contracts_fp": "50",
+            }
+        )
+        assert isinstance(payload.contracts, Decimal)
+        assert payload.contracts == Decimal("50")
+
+    def test_quote_accepted_contracts_accepted_parses_as_decimal(self) -> None:
+        payload = QuoteAcceptedPayload.model_validate(
+            {
+                "quote_id": "q-1",
+                "rfq_id": "rfq-1",
+                "quote_creator_id": "u2",
+                "market_ticker": "T",
+                "yes_bid_dollars": "0.55",
+                "no_bid_dollars": "0.45",
+                "contracts_accepted_fp": "10",
+            }
+        )
+        assert isinstance(payload.contracts_accepted, Decimal)
+        assert payload.contracts_accepted == Decimal("10")
+
+
+class TestWsPayloadDatetimeCoercion:
+    """RFC3339 timestamps parse into tz-aware datetime, matching REST. Regression guard for #198."""
+
+    def test_user_orders_timestamps_parse_as_datetime(self) -> None:
+        msg = UserOrdersMessage.model_validate(
+            {
+                "type": "user_orders",
+                "sid": 1,
+                "msg": user_orders_payload_dict(
+                    created_time="2026-01-01T00:00:00Z",
+                    last_update_time="2026-01-02T00:00:00Z",
+                    expiration_time="2026-01-03T00:00:00Z",
+                ),
+            }
+        )
+        assert isinstance(msg.msg.created_time, datetime)
+        assert msg.msg.created_time == datetime(2026, 1, 1, tzinfo=UTC)
+        assert isinstance(msg.msg.last_update_time, datetime)
+        assert isinstance(msg.msg.expiration_time, datetime)
+
+    def test_communications_timestamps_parse_as_datetime(self) -> None:
+        rfq_created = RfqCreatedPayload.model_validate(
+            {
+                "id": "rfq-1",
+                "creator_id": "u1",
+                "market_ticker": "T",
+                "created_ts": "2026-04-19T18:43:37Z",
+            }
+        )
+        assert isinstance(rfq_created.created_ts, datetime)
+
+        quote_created = QuoteCreatedPayload.model_validate(
+            {
+                "quote_id": "q-1",
+                "rfq_id": "rfq-1",
+                "quote_creator_id": "u2",
+                "market_ticker": "T",
+                "yes_bid_dollars": "0.55",
+                "no_bid_dollars": "0.45",
+                "created_ts": "2026-04-19T18:43:37Z",
+            }
+        )
+        assert isinstance(quote_created.created_ts, datetime)
+
+        quote_executed = QuoteExecutedPayload.model_validate(
+            {
+                "quote_id": "q-1",
+                "rfq_id": "rfq-1",
+                "order_id": "o1",
+                "quote_creator_id": "u2",
+                "rfq_creator_id": "u1",
+                "client_order_id": "c1",
+                "market_ticker": "T",
+                "executed_ts": "2026-04-19T18:43:37Z",
+            }
+        )
+        assert isinstance(quote_executed.executed_ts, datetime)
+
+
+@pytest.mark.parametrize(
+    "rest_field, ws_field",
+    [
+        # FixedPointCount symmetry on count fields
+        (Fill.model_fields["count"].annotation, FillPayload.model_fields["count"].annotation),
+        (
+            Order.model_fields["initial_count"].annotation,
+            UserOrdersPayload.model_fields["initial_count"].annotation,
+        ),
+        (
+            Order.model_fields["remaining_count"].annotation,
+            UserOrdersPayload.model_fields["remaining_count"].annotation,
+        ),
+        (
+            Order.model_fields["fill_count"].annotation,
+            UserOrdersPayload.model_fields["fill_count"].annotation,
+        ),
+        # DollarDecimal symmetry on price fields
+        (
+            Order.model_fields["yes_price"].annotation,
+            UserOrdersPayload.model_fields["yes_price"].annotation,
+        ),
+        (
+            Fill.model_fields["yes_price"].annotation,
+            FillPayload.model_fields["yes_price"].annotation,
+        ),
+    ],
+)
+def test_rest_ws_field_type_symmetry(rest_field: object, ws_field: object) -> None:
+    """REST and WS payloads MUST agree on the annotation for shared logical fields (#198)."""
+    assert rest_field == ws_field

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class TickerPayload(BaseModel):
@@ -30,23 +30,23 @@ class TickerPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("no_ask_dollars", "no_ask"),
     )
-    volume: str = Field(
+    volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
-    )  # _fp format
-    open_interest: str = Field(
+    )
+    open_interest: FixedPointCount = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
-    )  # _fp format
+    )
     dollar_volume: str
     dollar_open_interest: str
-    yes_bid_size: str = Field(
+    yes_bid_size: FixedPointCount = Field(
         validation_alias=AliasChoices("yes_bid_size_fp", "yes_bid_size"),
-    )  # _fp format
-    yes_ask_size: str = Field(
+    )
+    yes_ask_size: FixedPointCount = Field(
         validation_alias=AliasChoices("yes_ask_size_fp", "yes_ask_size"),
-    )  # _fp format
-    last_trade_size: str = Field(
+    )
+    last_trade_size: FixedPointCount = Field(
         validation_alias=AliasChoices("last_trade_size_fp", "last_trade_size"),
-    )  # _fp format
+    )
     ts: int
     # v0.14+ backfill (#162). Spec promotes ts_ms (Unix ms) as the primary
     # timestamp; ts (seconds) stays for compat. Do NOT auto-convert.

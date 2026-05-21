@@ -1,6 +1,8 @@
 """Communications channel message models (RFQ and quote notifications)."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -12,25 +14,17 @@ class RfqCreatedPayload(BaseModel):
     Wire format per AsyncAPI spec: ``created_ts`` is an RFC3339 date-time
     string; ``target_cost_dollars`` is a dollar string; ``contracts_fp`` is a
     2-decimal fixed-point count string.
-
-    TODO(v0.15.1): ``created_ts`` is spec-aligned but lacks live capture.
-    The v0.14.0 ``user_orders`` capture showed demo emitting
-    ``created_ts_ms`` as integer milliseconds instead of the spec's ISO
-    string. If Communications follows the same pattern, ``created_ts: str``
-    will reject frames that previously parsed as ``int``. Capture a live
-    frame on demo when the channel is active and confirm or adjust.
-    ``extra="allow"`` provides a soft landing for unexpected extras.
     """
 
     id: str
     creator_id: str
     market_ticker: str
-    created_ts: str
+    created_ts: datetime
     event_ticker: str | None = None
-    contracts: str | None = Field(
+    contracts: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_fp", "contracts"),
-    )  # _fp format
+    )
     target_cost: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
@@ -48,13 +42,12 @@ class RfqDeletedPayload(BaseModel):
     """RFQ deleted notification payload.
 
     ``deleted_ts`` is an RFC3339 date-time string per AsyncAPI spec.
-    Same ``created_ts_ms``-precedent caveat as :class:`RfqCreatedPayload`.
     """
 
     id: str
     creator_id: str
     market_ticker: str
-    deleted_ts: str
+    deleted_ts: datetime
 
     # v0.14+ backfill (#162). Same RFQ context as RfqCreatedPayload —
     # surfaced again on delete for clients that subscribed mid-RFQ.
@@ -83,7 +76,7 @@ class QuoteCreatedPayload(BaseModel):
     no_bid: DollarDecimal = Field(
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
-    created_ts: str
+    created_ts: datetime
 
     # v0.14+ backfill (#162). Event linkage + RFQ offer/cost context echoed
     # on the quote so subscribers don't need to look up the parent RFQ.
@@ -117,10 +110,10 @@ class QuoteAcceptedPayload(BaseModel):
         validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
     )
     accepted_side: str | None = None
-    contracts_accepted: str | None = Field(
+    contracts_accepted: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("contracts_accepted_fp", "contracts_accepted"),
-    )  # _fp format
+    )
 
     # v0.14+ backfill (#162). Mirrors QuoteCreatedPayload — same RFQ context
     # echoed on accept.
@@ -150,7 +143,7 @@ class QuoteExecutedPayload(BaseModel):
     order_id: str
     client_order_id: str
     market_ticker: str
-    executed_ts: str
+    executed_ts: datetime
     model_config = {"extra": "allow"}
 
 
