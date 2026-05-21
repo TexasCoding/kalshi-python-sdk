@@ -26,7 +26,8 @@ dependencies = [
 [project.optional-dependencies]
 pandas = ["pandas>=2,<4"]
 polars = ["polars>=1,<2"]
-all = ["pandas>=2,<4", "polars>=1,<2"]
+http2 = ["h2>=4,<5"]
+all = ["pandas>=2,<4", "polars>=1,<2", "h2>=4,<5"]
 
 [project.urls]
 Homepage = "https://github.com/TexasCoding/kalshi-python-sdk"

@@ -80,9 +80,10 @@ This catches plaintext config slip-ups before any request is sent.
 KalshiConfig(extra_headers={"User-Agent": "acme-trader/2.1 (+ops@acme.co)"})
 ```
 
-`extra_headers` is merged into every request after the SDK's own headers, so
-you can override anything the SDK sets (rarely a good idea outside
-User-Agent).
+`extra_headers` is set at the `httpx.Client` level and is **overridden** by the
+SDK's per-request `KALSHI-ACCESS-*` headers, so it cannot be used to forge or
+replace auth headers. It can only override client-level defaults that the SDK
+doesn't re-set on every request — `User-Agent` is the realistic use case.
 
 ## HTTP/2
 
@@ -90,9 +91,12 @@ User-Agent).
 KalshiConfig(http2=True)
 ```
 
-Requires `pip install 'httpx[http2]'` — the SDK doesn't pin h2 as a hard
-dependency. Once enabled, the same setting flows into the WebSocket client too
-(WebSocket runs on top of an HTTP/1.1 upgrade today; this only affects REST).
+Requires the `h2` package — install via `pip install 'kalshi-sdk[http2]'` (or
+`pip install 'kalshi-sdk[all]'`). `KalshiConfig` validates this at construction
+time and raises `ValueError` immediately if `h2` is missing, rather than
+deferring the failure to the first request. Once enabled, the same setting
+flows into the WebSocket client too (WebSocket runs on top of an HTTP/1.1
+upgrade today; this only affects REST).
 
 ## Connection-pool limits
 

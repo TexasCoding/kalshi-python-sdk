@@ -11,6 +11,7 @@ Covers two gaps flagged by Wave 5 audit (issue #99):
 from __future__ import annotations
 
 import httpx
+import pytest
 import respx
 
 from kalshi._base_client import SyncTransport
@@ -261,3 +262,59 @@ class TestWsExtraConfigFields:
         cfg = KalshiConfig(ws_json_loads=json.loads, ws_json_dumps=json.dumps)
         assert cfg.ws_json_loads is json.loads
         assert cfg.ws_json_dumps is json.dumps
+class TestHttp2ImportCheck:
+    """P1.1: ``http2=True`` must fail-fast at construction if ``h2`` is missing,
+    instead of deferring an opaque ImportError to the first request.
+    """
+
+    def test_http2_True_with_h2_missing_raises_at_construction(  # noqa: N802
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import importlib.util as _ilu
+
+        real_find_spec = _ilu.find_spec
+
+        def fake_find_spec(name: str, *args: object, **kwargs: object) -> object:
+            if name == "h2":
+                return None
+            return real_find_spec(name, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(_ilu, "find_spec", fake_find_spec)
+        with pytest.raises(ValueError, match=r"http2=True requires the 'h2' package"):
+            KalshiConfig(http2=True)
+
+    def test_http2_True_with_h2_installed_succeeds(  # noqa: N802
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import importlib.machinery
+        import importlib.util as _ilu
+
+        real_find_spec = _ilu.find_spec
+        sentinel = importlib.machinery.ModuleSpec("h2", loader=None)
+
+        def fake_find_spec(name: str, *args: object, **kwargs: object) -> object:
+            if name == "h2":
+                return sentinel
+            return real_find_spec(name, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(_ilu, "find_spec", fake_find_spec)
+        # Should NOT raise.
+        config = KalshiConfig(http2=True)
+        assert config.http2 is True
+
+    def test_http2_False_does_not_check_h2(  # noqa: N802
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Default http2=False must never touch find_spec — no startup cost."""
+        called: list[str] = []
+        import importlib.util as _ilu
+
+        real_find_spec = _ilu.find_spec
+
+        def tracking_find_spec(name: str, *args: object, **kwargs: object) -> object:
+            called.append(name)
+            return real_find_spec(name, *args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(_ilu, "find_spec", tracking_find_spec)
+        KalshiConfig()
+        assert "h2" not in called

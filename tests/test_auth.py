@@ -482,3 +482,176 @@ class TestTryFromEnv:
         monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         auth = KalshiAuth.try_from_env()
         assert auth is None
+
+
+class TestPassphraseSupport:
+    """#217: KalshiAuth loaders accept ``password=`` so callers don't have to
+    write plaintext keys to disk just to use this SDK.
+    """
+
+    @staticmethod
+    def _encrypted_pem(key: rsa.RSAPrivateKey, passphrase: bytes) -> bytes:
+        return key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(passphrase),
+        )
+
+    def test_from_pem_with_passphrase_succeeds(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"correct-horse")
+        auth = KalshiAuth.from_pem("key", encrypted, password="correct-horse")
+        assert auth.key_id == "key"
+        # Sanity-check signing still works post-load.
+        headers = auth.sign_request("GET", "/trade-api/v2/markets", timestamp_ms=1000)
+        assert headers["KALSHI-ACCESS-KEY"] == "key"
+
+    def test_from_pem_with_passphrase_bytes_succeeds(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"correct-horse")
+        auth = KalshiAuth.from_pem("key", encrypted, password=b"correct-horse")
+        assert auth.key_id == "key"
+
+    def test_from_pem_with_wrong_passphrase_raises_KalshiAuthError(  # noqa: N802
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"correct-horse")
+        with pytest.raises(KalshiAuthError, match=r"Invalid PEM private key"):
+            KalshiAuth.from_pem("key", encrypted, password="wrong")
+
+    def test_from_pem_encrypted_without_password_points_at_password_kwarg(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"pw")
+        with pytest.raises(KalshiAuthError) as exc_info:
+            KalshiAuth.from_pem("key", encrypted)
+        msg = str(exc_info.value)
+        # New message mentions both the password= kwarg and the legacy openssl recipe.
+        assert "password=" in msg
+        assert "KALSHI_PRIVATE_KEY_PASSPHRASE" in msg
+        assert "openssl pkey" in msg
+
+    def test_from_pem_with_callable_passphrase_invoked(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"sekrit")
+        calls = {"n": 0}
+
+        def supply_pw() -> bytes:
+            calls["n"] += 1
+            return b"sekrit"
+
+        auth = KalshiAuth.from_pem("k", encrypted, password=supply_pw)
+        assert auth.key_id == "k"
+        assert calls["n"] == 1, "callable passphrase must be invoked exactly once"
+
+    def test_from_key_path_with_passphrase_succeeds(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"pw")
+        with tempfile.NamedTemporaryFile(suffix=".pem", delete=False) as f:
+            f.write(encrypted)
+            f.flush()
+            path = f.name
+        try:
+            auth = KalshiAuth.from_key_path("k", path, password="pw")
+            assert auth.key_id == "k"
+        finally:
+            os.unlink(path)
+
+    def test_from_env_picks_up_KALSHI_PRIVATE_KEY_PASSPHRASE(  # noqa: N802
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        rsa_private_key: rsa.RSAPrivateKey,
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"envpw")
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-encrypted")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", encrypted.decode("utf-8"))
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PASSPHRASE", "envpw")
+        auth = KalshiAuth.from_env()
+        assert auth.key_id == "env-encrypted"
+
+    def test_from_env_explicit_password_beats_env_passphrase(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        rsa_private_key: rsa.RSAPrivateKey,
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"realpw")
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-encrypted")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", encrypted.decode("utf-8"))
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PASSPHRASE", "wrong-pw-in-env")
+        # Explicit kwarg overrides the env var: load must succeed with realpw.
+        auth = KalshiAuth.from_env(password="realpw")
+        assert auth.key_id == "env-encrypted"
+
+    def test_try_from_env_picks_up_KALSHI_PRIVATE_KEY_PASSPHRASE(  # noqa: N802
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        rsa_private_key: rsa.RSAPrivateKey,
+    ) -> None:
+        encrypted = self._encrypted_pem(rsa_private_key, b"envpw")
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-encrypted")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", encrypted.decode("utf-8"))
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY_PASSPHRASE", "envpw")
+        auth = KalshiAuth.try_from_env()
+        assert auth is not None
+        assert auth.key_id == "env-encrypted"
+
+
+class TestTrailingSlashCanonicalization:
+    """P1.6: the transport canonicalizes trailing slashes BEFORE both signing
+    and the httpx call, so a future ``/markets/`` couldn't desync wire-path and
+    signed-path.
+    """
+
+    def test_trailing_slash_path_canonicalized(
+        self,
+        rsa_private_key: rsa.RSAPrivateKey,
+        test_auth: KalshiAuth,
+    ) -> None:
+        import httpx
+        import respx
+
+        from kalshi._base_client import SyncTransport
+        from kalshi.config import KalshiConfig
+
+        config = KalshiConfig(base_url="https://test.kalshi.com/trade-api/v2", timeout=5.0)
+        transport = SyncTransport(test_auth, config)
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json={})
+
+        with respx.mock:
+            # Match the canonicalized (no-trailing-slash) URL — if the transport
+            # forwarded "/markets/" to httpx, respx would 404 this request.
+            respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+                side_effect=handler
+            )
+            resp = transport.request("GET", "/markets/")
+        assert resp.status_code == 200
+        sent = captured[0]
+        # Wire URL was canonicalized to the no-slash form.
+        assert sent.url.path == "/trade-api/v2/markets"
+        # Signed path agrees with the wire path: re-derive the expected message
+        # from the timestamp header and check the signature verifies against
+        # the canonical (no-slash) form.
+        ts = sent.headers["KALSHI-ACCESS-TIMESTAMP"]
+        sig = base64.b64decode(sent.headers["KALSHI-ACCESS-SIGNATURE"])
+        canonical = f"{ts}GET/trade-api/v2/markets".encode()
+        rsa_private_key.public_key().verify(
+            sig,
+            canonical,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.DIGEST_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
+        transport.close()

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from datetime import UTC
 
 import httpx
 import pytest
@@ -146,12 +147,38 @@ class TestErrorMapping:
         assert isinstance(err, KalshiRateLimitError)
         assert err.retry_after == 0.0
 
-    def test_429_retry_after_http_date_falls_back(self) -> None:
-        """HTTP-date format isn't parsed; should fall through to backoff."""
+    def test_429_retry_after_http_date_parsed(self) -> None:
+        """RFC 7231: Retry-After may be an HTTP-date; parsed into delta-seconds."""
+        # 5 days in the future, formatted as RFC 1123.
+        import email.utils as _eu
+        from datetime import datetime, timedelta
+
+        future = datetime.now(tz=UTC) + timedelta(days=5)
+        http_date = _eu.format_datetime(future, usegmt=True)
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": http_date}
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        # ~5 days ≈ 432000s; allow generous slack for the parse round-trip.
+        assert err.retry_after is not None
+        assert 4 * 86400 < err.retry_after < 6 * 86400
+
+    def test_429_retry_after_past_http_date_clamped_to_zero(self) -> None:
+        """A Retry-After date already in the past clamps to 0, not negative."""
         resp = httpx.Response(
             429,
             json={"message": "slow"},
-            headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+            headers={"Retry-After": "Wed, 21 Oct 1999 07:28:00 GMT"},
+        )
+        err = _map_error(resp)
+        assert isinstance(err, KalshiRateLimitError)
+        assert err.retry_after == 0.0
+
+    def test_429_retry_after_garbage_falls_back(self) -> None:
+        """Neither delta-seconds nor a parseable HTTP-date — None, computed backoff."""
+        resp = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "not a date"}
         )
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
@@ -301,17 +328,25 @@ class TestSyncTransportRetry:
         )
 
     @respx.mock
-    def test_429_retry_after_http_date_falls_back_to_backoff(
+    def test_retry_after_http_date_parsed_and_capped(
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """HTTP-date Retry-After unparseable; transport still retries via backoff."""
+        """HTTP-date Retry-After is parsed into delta-seconds and capped at retry_max_delay."""
+        import email.utils as _eu
+        from datetime import datetime, timedelta
+
         sleeps: list[float] = []
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        # 30 days from now: parsed delta is much larger than retry_max_delay=0.1s,
+        # so the transport must cap. This documents that the date branch flows
+        # through the same min(delta, retry_max_delay) path as numeric input.
+        future = datetime.now(tz=UTC) + timedelta(days=30)
+        http_date = _eu.format_datetime(future, usegmt=True)
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             side_effect=[
                 httpx.Response(
                     429,
-                    headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+                    headers={"Retry-After": http_date},
                     json={"message": "rl"},
                 ),
                 httpx.Response(200, json={"markets": []}),
@@ -320,11 +355,33 @@ class TestSyncTransportRetry:
         resp = transport.request("GET", "/markets")
         assert resp.status_code == 200
         assert route.call_count == 2
-        # Backoff is Full Jitter: uniform(0, min(base*2**0, max)) = uniform(0, 0.01).
-        assert len(sleeps) == 1
-        assert 0.0 <= sleeps[0] <= 0.01, (
-            f"Expected backoff sleep in [0, 0.01], got {sleeps[0]!r}"
+        assert sleeps == [0.1], (
+            f"Expected one sleep of 0.1s (capped from parsed HTTP-date), got {sleeps!r}"
         )
+
+    @respx.mock
+    def test_429_retry_after_unparseable_falls_back_to_backoff(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Retry-After that is neither delta-seconds nor an HTTP-date uses computed backoff."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(
+                    429,
+                    headers={"Retry-After": "totally bogus"},
+                    json={"message": "rl"},
+                ),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        assert route.call_count == 2
+        # Full Jitter backoff: uniform(0, min(0.01, 0.1)) = uniform(0, 0.01).
+        assert len(sleeps) == 1
+        assert 0.0 <= sleeps[0] <= 0.01
 
     @respx.mock
     def test_get_retries_on_timeout(
@@ -1172,3 +1229,81 @@ class TestCloseOwnership:
         # No auth → ownership flag is moot but should be False (nothing to own).
         assert client._auth_owned is False
         client.close()
+
+
+class TestExtraHeadersPerRequest:
+    """P1.2: SyncTransport.request accepts per-call ``extra_headers`` that
+    layer on top of config-level ``extra_headers`` but never override the
+    signed ``KALSHI-ACCESS-*`` headers.
+    """
+
+    @respx.mock
+    def test_extra_headers_per_request_overrides_config(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            extra_headers={"X-Request-ID": "config-default", "X-App": "shared"},
+        )
+        transport = SyncTransport(test_auth, config)
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json={})
+
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=handler
+        )
+        resp = transport.request(
+            "GET",
+            "/markets",
+            extra_headers={"X-Request-ID": "per-call-override"},
+        )
+        assert resp.status_code == 200
+        assert route.called
+        sent = captured[0]
+        # Per-call beat config default.
+        assert sent.headers["X-Request-ID"] == "per-call-override"
+        # Config default still present where per-call didn't override.
+        assert sent.headers["X-App"] == "shared"
+        transport.close()
+
+    @respx.mock
+    def test_extra_headers_cannot_forge_KALSHI_ACCESS_headers(  # noqa: N802
+        self, test_auth: KalshiAuth
+    ) -> None:
+        """Per-call extra_headers MUST NOT override the SDK's signed auth headers."""
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+        )
+        transport = SyncTransport(test_auth, config)
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(200, json={})
+
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(side_effect=handler)
+        resp = transport.request(
+            "GET",
+            "/markets",
+            extra_headers={
+                "KALSHI-ACCESS-KEY": "attacker-key",
+                "KALSHI-ACCESS-SIGNATURE": "AAAAAA==",
+                "KALSHI-ACCESS-TIMESTAMP": "1",
+                "X-Trace": "ok",
+            },
+        )
+        assert resp.status_code == 200
+        sent = captured[0]
+        # The signed key (from test_auth fixture) wins, not the forged one.
+        assert sent.headers["KALSHI-ACCESS-KEY"] == "test-key-id"
+        # Signature/timestamp were re-signed by the SDK, not "AAAAAA=="/"1".
+        assert sent.headers["KALSHI-ACCESS-SIGNATURE"] != "AAAAAA=="
+        assert sent.headers["KALSHI-ACCESS-TIMESTAMP"] != "1"
+        # Non-auth headers still pass through.
+        assert sent.headers["X-Trace"] == "ok"
+        transport.close()

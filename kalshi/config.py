@@ -88,6 +88,14 @@ class KalshiConfig:
                 f"KalshiConfig.base_url must include the /trade-api/v2 path "
                 f"component, got base_url={self.base_url!r}"
             )
+        if self.http2:
+            import importlib.util
+
+            if importlib.util.find_spec("h2") is None:
+                raise ValueError(
+                    "http2=True requires the 'h2' package — install with "
+                    "`pip install kalshi-sdk[http2]`"
+                )
 
     @staticmethod
     def _validate_url(url: str, field_name: str, *, secure: str, plaintext: str) -> None:
