@@ -965,36 +965,39 @@ class TestBatchCancelWireShapeAsync:
         ]
 
 
-class TestAsyncBatchCancelRoutesThroughDeleteWithBody:
-    """Regression for issue #47: async batch_cancel must route through the
-    shared ``AsyncResource._delete_with_body`` helper so any future
-    retry / error-mapping behavior added to the helper applies to the
+class TestAsyncBatchCancelRoutesThroughDeleteWithBodyJson:
+    """Regression for issue #47 / #223: async batch_cancel must route through
+    the shared ``AsyncResource._delete_with_body_json`` bytes helper so any
+    future retry / error-mapping behavior added to the helper applies to the
     async path. Sync and async paths must stay symmetric.
     """
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_batch_cancel_uses_delete_with_body_helper(
-        self, orders: AsyncOrdersResource
+    async def test_batch_cancel_uses_delete_with_body_json_helper(
+        self, orders: AsyncOrdersResource,
     ) -> None:
         respx.delete("https://test.kalshi.com/trade-api/v2/portfolio/orders/batched").mock(
             return_value=httpx.Response(200, json={"orders": []})
         )
 
-        # AsyncMock + wraps forwards every call to the real async method,
-        # so the respx mock above still resolves and the helper's
-        # status-code branching runs end-to-end; the spy only records.
         with patch.object(
             orders,
-            "_delete_with_body",
-            wraps=orders._delete_with_body,
+            "_delete_with_body_json",
+            wraps=orders._delete_with_body_json,
             new_callable=AsyncMock,
         ) as spy:
             await orders.batch_cancel(["ord-1", "ord-2"])
-            spy.assert_called_once_with(
-                "/portfolio/orders/batched",
-                json={"orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]},
-            )
+            spy.assert_called_once()
+            args, kwargs = spy.call_args
+            assert args == ("/portfolio/orders/batched",)
+            # Bytes path: caller passes pre-serialized JSON via ``content=``,
+            # NOT a dict via ``json=`` (P4.2).
+            assert "json" not in kwargs
+            assert isinstance(kwargs["content"], bytes)
+            assert json.loads(kwargs["content"]) == {
+                "orders": [{"order_id": "ord-1"}, {"order_id": "ord-2"}]
+            }
 
 
 class TestAmendWireShapeAsync:

@@ -71,6 +71,9 @@ class KalshiAuth:
         # await-latency rather than inline CPU. (#178)
         self._sign_executor: ThreadPoolExecutor | None = None
         self._sign_executor_lock = threading.Lock()
+        # Set in close(); checked by _get_sign_executor so async signs after
+        # close() raise instead of silently respawning the executor.
+        self._closed: bool = False
 
     @classmethod
     def from_key_path(
@@ -278,7 +281,17 @@ class KalshiAuth:
 
         Thread-safe lazy init: the lock guards the assignment, and the
         double-checked pattern keeps the fast path lock-free after first use.
+
+        Raises ``RuntimeError`` after :meth:`close` so a closed auth does
+        not silently respawn the executor (which would defeat the point of
+        ``close()`` — the old executor's threads stay shut down but a new
+        ThreadPoolExecutor would be allocated on the next async sign).
         """
+        if self._closed:
+            raise RuntimeError(
+                "KalshiAuth has been closed; create a new instance to "
+                "sign further requests."
+            )
         if self._sign_executor is None:
             with self._sign_executor_lock:
                 if self._sign_executor is None:
@@ -312,14 +325,20 @@ class KalshiAuth:
         )
 
     def close(self) -> None:
-        """Shut down the sign-offload executor if one was created.
+        """Shut down the sign-offload executor and mark this auth closed.
 
         Idempotent. Safe to call without an executor having been initialised.
         Long-lived clients ordinarily rely on interpreter-shutdown cleanup
         (atexit-joined executor threads); this hook is for tests and other
         callers that want deterministic teardown.
+
+        Terminal: a subsequent :meth:`sign_request_async` raises
+        ``RuntimeError`` rather than silently respawning a fresh executor.
+        The synchronous :meth:`sign_request` is unaffected — it never used
+        the executor — but callers should treat the instance as retired.
         """
         with self._sign_executor_lock:
+            self._closed = True
             if self._sign_executor is not None:
                 self._sign_executor.shutdown(wait=False)
                 self._sign_executor = None

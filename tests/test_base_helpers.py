@@ -170,14 +170,40 @@ class TestSyncListAllCursorLoopDetection:
         assert route.call_count == 2
 
     @respx.mock
-    def test_multi_page_loop_raises(
+    def test_list_all_cursor_loop_detection_uses_last_cursor_only_o1(
         self, test_auth: KalshiAuth, test_config: KalshiConfig
     ) -> None:
-        """A → B → A revisit also trips detection."""
+        """P4.1: cursor guard is O(1) — only the previous page's cursor is
+        compared. A non-adjacent revisit (A → B → A) must NOT trip the guard;
+        the realistic server-pagination-bug shape is the *immediate* replay
+        captured by ``test_repeated_cursor_raises``. The old set-based
+        guard would have raised here and consumed unbounded memory on a
+        well-behaved server that legitimately reused cursor tokens across
+        non-adjacent pages."""
         responses = [
             httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
             httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "B"}),
             httpx.Response(200, json={"items": [{"id": "3"}], "cursor": "A"}),
+            httpx.Response(200, json={"items": [{"id": "4"}], "cursor": ""}),
+        ]
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            side_effect=responses
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+
+        collected = list(resource._list_all("/things", _Item, "items"))
+        assert [item.id for item in collected] == ["1", "2", "3", "4"]
+
+    @respx.mock
+    def test_list_all_cursor_loop_detection_catches_adjacent_replay(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """P4.1: adjacent replay (A → A) still trips. Mirrors
+        ``test_repeated_cursor_raises`` with an explicit name pinned to
+        the O(1) regression boundary."""
+        responses = [
+            httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
+            httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "A"}),
         ]
         respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
             side_effect=responses

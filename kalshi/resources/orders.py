@@ -124,7 +124,13 @@ def _build_create_order_body(
 def _build_batch_create_body(
     request: BatchCreateOrdersRequest | None,
     orders: Sequence[CreateOrderRequest] | None,
-) -> dict[str, Any]:
+) -> bytes:
+    """Serialize the batch-create body directly to JSON bytes.
+
+    Skips the intermediate ``model_dump(mode="json")`` dict-walk: with up
+    to 100 orders x ~10 Decimal fields, the dict version pays the
+    serializer cost twice (once here, once in httpx's json encoder).
+    """
     _check_request_exclusive(request, orders=orders)
     if request is None:
         if orders is None:
@@ -132,13 +138,15 @@ def _build_batch_create_body(
                 "batch_create() requires `orders` (or pass `request=...`)"
             )
         request = BatchCreateOrdersRequest(orders=list(orders))
-    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+    return request.model_dump_json(exclude_none=True, by_alias=True).encode()
 
 
 def _build_batch_cancel_body(
     request: BatchCancelOrdersRequest | None,
     orders: Sequence[BatchCancelOrdersRequestOrder | str] | None,
-) -> dict[str, Any]:
+) -> bytes:
+    """Serialize the batch-cancel body directly to JSON bytes. See
+    :func:`_build_batch_create_body` for the perf rationale."""
     _check_request_exclusive(request, orders=orders)
     if request is None:
         if orders is None:
@@ -152,7 +160,7 @@ def _build_batch_cancel_body(
             for o in orders
         ]
         request = BatchCancelOrdersRequest(orders=normalized)
-    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+    return request.model_dump_json(exclude_none=True, by_alias=True).encode()
 
 
 def _build_amend_body(
@@ -475,7 +483,7 @@ class OrdersResource(SyncResource):
         """
         self._require_auth()
         body = _build_batch_create_body(request, orders)
-        data = self._post("/portfolio/orders/batched", json=body)
+        data = self._post_json("/portfolio/orders/batched", content=body)
         return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
@@ -513,7 +521,7 @@ class OrdersResource(SyncResource):
         """
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        data = self._delete_with_body("/portfolio/orders/batched", json=body)
+        data = self._delete_with_body_json("/portfolio/orders/batched", content=body)
         if data is None:
             raise KalshiError(
                 "Expected BatchCancelOrdersResponse body, got 204 No Content."
@@ -929,7 +937,7 @@ class AsyncOrdersResource(AsyncResource):
         """Place a batch of orders. See :meth:`OrdersResource.batch_create`."""
         self._require_auth()
         body = _build_batch_create_body(request, orders)
-        data = await self._post("/portfolio/orders/batched", json=body)
+        data = await self._post_json("/portfolio/orders/batched", content=body)
         return BatchCreateOrdersResponse.model_validate(data)
 
     @overload
@@ -952,7 +960,7 @@ class AsyncOrdersResource(AsyncResource):
         """Batch-cancel orders. See :meth:`OrdersResource.batch_cancel`."""
         self._require_auth()
         body = _build_batch_cancel_body(request, orders)
-        data = await self._delete_with_body("/portfolio/orders/batched", json=body)
+        data = await self._delete_with_body_json("/portfolio/orders/batched", content=body)
         if data is None:
             raise KalshiError(
                 "Expected BatchCancelOrdersResponse body, got 204 No Content."

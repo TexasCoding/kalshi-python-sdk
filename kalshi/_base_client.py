@@ -178,6 +178,8 @@ class SyncTransport:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Make an authenticated HTTP request with retry logic.
@@ -187,6 +189,8 @@ class SyncTransport:
         client-default one), but the ``KALSHI-ACCESS-*`` auth headers always
         win — callers cannot forge them via ``extra_headers``.
         """
+        if json is not None and content is not None:
+            raise TypeError("request() accepts `json=` or `content=`, not both.")
         # P1.6: canonicalize trailing slash BEFORE both signing and httpx call
         # so the wire path and the signed payload stay byte-identical. Root "/"
         # is preserved.
@@ -200,11 +204,18 @@ class SyncTransport:
         total_timeout = self._config.total_timeout
         config_extra = self._config.extra_headers or {}
         per_call_extra = extra_headers or {}
+        body_headers = headers or {}
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
-            # Order matters: config defaults < per-request overrides < signed auth.
-            merged_headers = {**config_extra, **per_call_extra, **auth_headers}
+            # Order matters: config defaults < per-request overrides
+            #               < body-helper headers < signed auth.
+            merged_headers = {
+                **config_extra,
+                **per_call_extra,
+                **body_headers,
+                **auth_headers,
+            }
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -220,6 +231,7 @@ class SyncTransport:
                     url=path,
                     params=params,
                     json=json,
+                    content=content,
                     headers=merged_headers,
                 )
             except httpx.PoolTimeout as e:
@@ -349,6 +361,8 @@ class AsyncTransport:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Make an authenticated async HTTP request with retry logic.
@@ -356,6 +370,9 @@ class AsyncTransport:
         See :meth:`SyncTransport.request` for ``extra_headers`` semantics.
         """
         import asyncio
+
+        if json is not None and content is not None:
+            raise TypeError("request() accepts `json=` or `content=`, not both.")
 
         # P1.6: canonicalize trailing slash BEFORE both signing and httpx call.
         if path != "/" and path.endswith("/"):
@@ -368,13 +385,19 @@ class AsyncTransport:
         total_timeout = self._config.total_timeout
         config_extra = self._config.extra_headers or {}
         per_call_extra = extra_headers or {}
+        body_headers = headers or {}
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
                 auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
             else:
                 auth_headers = {}
-            merged_headers = {**config_extra, **per_call_extra, **auth_headers}
+            merged_headers = {
+                **config_extra,
+                **per_call_extra,
+                **body_headers,
+                **auth_headers,
+            }
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
@@ -390,6 +413,7 @@ class AsyncTransport:
                     url=path,
                     params=params,
                     json=json,
+                    content=content,
                     headers=merged_headers,
                 )
             except httpx.PoolTimeout as e:
