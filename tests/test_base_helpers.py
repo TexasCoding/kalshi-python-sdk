@@ -65,6 +65,23 @@ class TestJoinTickersValidation:
         with pytest.raises(TypeError, match=r"argument of type 'int' is not iterable"):
             _join_tickers((1, "A"))  # type: ignore[arg-type]
 
+    def test_max_items_rejects_oversize_list(self) -> None:
+        with pytest.raises(ValueError, match=r"too many tickers: 11 > spec max 10"):
+            _join_tickers([f"T{i}" for i in range(11)], max_items=10)
+
+    def test_max_items_allows_exact_boundary(self) -> None:
+        joined = _join_tickers([f"T{i}" for i in range(10)], max_items=10)
+        assert joined is not None and joined.count(",") == 9
+
+    def test_max_items_skipped_for_prejoined_string(self) -> None:
+        # Pre-joined strings are caller-owned wire format — cap does not apply.
+        joined = _join_tickers(",".join(f"T{i}" for i in range(20)), max_items=10)
+        assert joined is not None and joined.count(",") == 19
+
+    def test_max_items_default_unbounded(self) -> None:
+        joined = _join_tickers([f"T{i}" for i in range(50)])
+        assert joined is not None and joined.count(",") == 49
+
 
 class TestSyncListNullItemsCoercion:
     @respx.mock
@@ -151,14 +168,10 @@ class TestAsyncListNullItemsCoercion:
 
 class TestSyncListAllCursorLoopDetection:
     @respx.mock
-    def test_repeated_cursor_raises(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig
-    ) -> None:
+    def test_repeated_cursor_raises(self, test_auth: KalshiAuth, test_config: KalshiConfig) -> None:
         """Server that returns the same cursor twice must bail fast on the 2nd request."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            return_value=httpx.Response(
-                200, json={"items": [{"id": "x"}], "cursor": "loop"}
-            )
+            return_value=httpx.Response(200, json={"items": [{"id": "x"}], "cursor": "loop"})
         )
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
@@ -186,9 +199,7 @@ class TestSyncListAllCursorLoopDetection:
             httpx.Response(200, json={"items": [{"id": "3"}], "cursor": "A"}),
             httpx.Response(200, json={"items": [{"id": "4"}], "cursor": ""}),
         ]
-        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            side_effect=responses
-        )
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responses)
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
         collected = list(resource._list_all("/things", _Item, "items"))
@@ -205,9 +216,7 @@ class TestSyncListAllCursorLoopDetection:
             httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
             httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "A"}),
         ]
-        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            side_effect=responses
-        )
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responses)
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
         with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'A'"):
@@ -222,9 +231,7 @@ class TestSyncListAllCursorLoopDetection:
             httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
             httpx.Response(200, json={"items": [{"id": "2"}], "cursor": ""}),
         ]
-        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            side_effect=responses
-        )
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responses)
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
         collected = list(resource._list_all("/things", _Item, "items"))
@@ -238,9 +245,7 @@ class TestAsyncListAllCursorLoopDetection:
         self, test_auth: KalshiAuth, test_config: KalshiConfig
     ) -> None:
         route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            return_value=httpx.Response(
-                200, json={"items": [{"id": "x"}], "cursor": "loop"}
-            )
+            return_value=httpx.Response(200, json={"items": [{"id": "x"}], "cursor": "loop"})
         )
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
 
@@ -263,7 +268,8 @@ def _fresh_cursor_side_effect() -> Any:
         counter["n"] += 1
         n = counter["n"]
         return httpx.Response(
-            200, json={"items": [{"id": f"item-{n}"}], "cursor": f"cur-{n}"},
+            200,
+            json={"items": [{"id": f"item-{n}"}], "cursor": f"cur-{n}"},
         )
 
     return _make_response
@@ -281,9 +287,7 @@ class TestSyncListAllMaxPagesCap:
         )
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
-        collected = list(
-            resource._list_all("/things", _Item, "items", max_pages=1)
-        )
+        collected = list(resource._list_all("/things", _Item, "items", max_pages=1))
 
         assert route.call_count == 1
         assert [item.id for item in collected] == ["item-1"]
@@ -297,9 +301,7 @@ class TestSyncListAllMaxPagesCap:
         )
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
-        collected = list(
-            resource._list_all("/things", _Item, "items", max_pages=3)
-        )
+        collected = list(resource._list_all("/things", _Item, "items", max_pages=3))
 
         assert route.call_count == 3
         assert [item.id for item in collected] == ["item-1", "item-2", "item-3"]
@@ -310,9 +312,7 @@ class TestSyncListAllMaxPagesCap:
     ) -> None:
         """Regression guard (F-Q-17): empty-string cursor terminates _list_all."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            return_value=httpx.Response(
-                200, json={"items": [{"id": "a"}], "cursor": ""}
-            )
+            return_value=httpx.Response(200, json={"items": [{"id": "a"}], "cursor": ""})
         )
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
@@ -336,9 +336,7 @@ class TestAsyncListAllMaxPagesCap:
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
 
         collected: list[_Item] = []
-        async for item in resource._list_all(
-            "/things", _Item, "items", max_pages=1
-        ):
+        async for item in resource._list_all("/things", _Item, "items", max_pages=1):
             collected.append(item)
 
         assert route.call_count == 1
@@ -355,9 +353,7 @@ class TestAsyncListAllMaxPagesCap:
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
 
         collected: list[_Item] = []
-        async for item in resource._list_all(
-            "/things", _Item, "items", max_pages=3
-        ):
+        async for item in resource._list_all("/things", _Item, "items", max_pages=3):
             collected.append(item)
 
         assert route.call_count == 3
@@ -370,9 +366,7 @@ class TestAsyncListAllMaxPagesCap:
     ) -> None:
         """Async regression guard (F-Q-17): empty-string cursor terminates."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
-            return_value=httpx.Response(
-                200, json={"items": [{"id": "a"}], "cursor": ""}
-            )
+            return_value=httpx.Response(200, json={"items": [{"id": "a"}], "cursor": ""})
         )
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
 
@@ -413,35 +407,47 @@ class TestMaxPagesEagerValidation:
     """
 
     def test_sync_milestones_list_all_validates_eagerly(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         from kalshi.resources.milestones import MilestonesResource
+
         resource = MilestonesResource(SyncTransport(test_auth, test_config))
         with pytest.raises(ValueError, match=r"max_pages must be positive"):
             resource.list_all(limit=10, max_pages=0)
 
     def test_sync_subaccounts_list_all_transfers_validates_eagerly(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         from kalshi.resources.subaccounts import SubaccountsResource
+
         resource = SubaccountsResource(SyncTransport(test_auth, test_config))
         with pytest.raises(ValueError, match=r"max_pages must be positive"):
             resource.list_all_transfers(max_pages=0)
 
     @pytest.mark.asyncio
     async def test_async_subaccounts_list_all_transfers_validates_eagerly(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         from kalshi.resources.subaccounts import AsyncSubaccountsResource
+
         resource = AsyncSubaccountsResource(AsyncTransport(test_auth, test_config))
         with pytest.raises(ValueError, match=r"max_pages must be positive"):
             resource.list_all_transfers(max_pages=0)
 
     @pytest.mark.asyncio
     async def test_async_communications_list_all_rfqs_validates_eagerly(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         from kalshi.resources.communications import AsyncCommunicationsResource
+
         resource = AsyncCommunicationsResource(AsyncTransport(test_auth, test_config))
         with pytest.raises(ValueError, match=r"max_pages must be positive"):
             resource.list_all_rfqs(max_pages=0)
@@ -455,7 +461,9 @@ class TestMaxPagesNoneIsUnbounded:
 
     @respx.mock
     def test_sync_iterates_past_1000_pages(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         # 1010 just exceeds the old 1000 cap — proves the cap is gone without
         # making the test 100x slower than a normal pagination test.
@@ -467,7 +475,8 @@ class TestMaxPagesNoneIsUnbounded:
             n = call_counter["n"]
             cursor = str(n) if n < total else ""
             return httpx.Response(
-                200, json={"items": [{"id": f"i{n}"}], "cursor": cursor},
+                200,
+                json={"items": [{"id": f"i{n}"}], "cursor": cursor},
             )
 
         respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responder)
@@ -478,7 +487,9 @@ class TestMaxPagesNoneIsUnbounded:
     @respx.mock
     @pytest.mark.asyncio
     async def test_async_iterates_past_1000_pages(
-        self, test_auth: KalshiAuth, test_config: KalshiConfig,
+        self,
+        test_auth: KalshiAuth,
+        test_config: KalshiConfig,
     ) -> None:
         # Async counterpart — same 1010-page proof, prevents the regression
         # from silently re-appearing in only one of the two code paths.
@@ -490,7 +501,8 @@ class TestMaxPagesNoneIsUnbounded:
             n = call_counter["n"]
             cursor = str(n) if n < total else ""
             return httpx.Response(
-                200, json={"items": [{"id": f"i{n}"}], "cursor": cursor},
+                200,
+                json={"items": [{"id": f"i{n}"}], "cursor": cursor},
             )
 
         respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responder)

@@ -17,7 +17,7 @@ from typing import Any
 
 from kalshi.models.common import Page
 from kalshi.models.orders import Order, OrderStatusLiteral
-from kalshi.models.portfolio import PositionsResponse, SettlementStatusLiteral
+from kalshi.models.portfolio import MarketPosition, PositionsResponse, SettlementStatusLiteral
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
@@ -165,6 +165,44 @@ class FcmResource(SyncResource):
         data = self._get("/fcm/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
 
+    def positions_all(
+        self,
+        *,
+        subtrader_id: str,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        count_filter: str | None = None,
+        settlement_status: SettlementStatusLiteral | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[MarketPosition]:
+        """Auto-paginate ``/fcm/positions``, yielding each ``MarketPosition``.
+
+        Mirrors :meth:`PortfolioResource.positions_all`. ``event_positions``
+        from the response envelope are intentionally not yielded; see that
+        docstring for the rationale.
+        """
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fcm_positions_params(
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            count_filter=count_filter,
+            settlement_status=settlement_status,
+            limit=limit,
+            cursor=None,
+        )
+        return self._list_all(
+            "/fcm/positions",
+            MarketPosition,
+            "market_positions",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncFcmResource(AsyncResource):
     """Async FCM API."""
@@ -256,3 +294,36 @@ class AsyncFcmResource(AsyncResource):
         )
         data = await self._get("/fcm/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
+
+    def positions_all(
+        self,
+        *,
+        subtrader_id: str,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        count_filter: str | None = None,
+        settlement_status: SettlementStatusLiteral | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[MarketPosition]:
+        """Async counterpart of :meth:`FcmResource.positions_all`. Use ``async for``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fcm_positions_params(
+            subtrader_id=subtrader_id,
+            ticker=ticker,
+            event_ticker=event_ticker,
+            count_filter=count_filter,
+            settlement_status=settlement_status,
+            limit=limit,
+            cursor=None,
+        )
+        return self._list_all(
+            "/fcm/positions",
+            MarketPosition,
+            "market_positions",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )

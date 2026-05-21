@@ -272,6 +272,70 @@ class TestPortfolioPositions:
         assert params["subaccount"] == "7"
 
 
+class TestPortfolioPositionsAll:
+    @respx.mock
+    def test_positions_all_paginates(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [
+                            market_position_dict(ticker="A"),
+                            market_position_dict(ticker="B"),
+                        ],
+                        "event_positions": [],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="C")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker for p in portfolio.positions_all()]
+        assert tickers == ["A", "B", "C"]
+
+    @respx.mock
+    def test_positions_all_forwards_filters_and_omits_cursor(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        list(
+            portfolio.positions_all(
+                limit=100,
+                count_filter="position",
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                subaccount=3,
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "100"
+        assert params["count_filter"] == "position"
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert params["subaccount"] == "3"
+        assert "cursor" not in params
+
+    def test_positions_all_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_portfolio.positions_all())
+
+    def test_positions_all_rejects_zero_max_pages(self, portfolio: PortfolioResource) -> None:
+        with pytest.raises(ValueError, match="max_pages must be positive"):
+            list(portfolio.positions_all(max_pages=0))
+
+
 class TestPortfolioSettlements:
     @respx.mock
     def test_returns_settlements(self, portfolio: PortfolioResource) -> None:
@@ -1030,3 +1094,39 @@ class TestAsyncPortfolioDepositsAuth:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_async_portfolio.deposits_all()
+
+
+class TestAsyncPortfolioPositionsAll:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_positions_all_paginates(self, async_portfolio: AsyncPortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="A")],
+                        "event_positions": [],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="B")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker async for p in async_portfolio.positions_all()]
+        assert tickers == ["A", "B"]
+
+    @pytest.mark.asyncio
+    async def test_positions_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            async for _ in unauth_async_portfolio.positions_all():
+                pass

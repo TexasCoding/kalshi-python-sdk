@@ -6,6 +6,8 @@ import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, overload
 
+from typing_extensions import deprecated
+
 from kalshi.models.common import Page
 from kalshi.models.multivariate import (
     CreateMarketInMultivariateEventCollectionRequest,
@@ -28,6 +30,28 @@ from kalshi.resources._base import (
 )
 
 # Shared param + body builders (issue #46).
+
+# Spec /multivariate_event_collections/{ticker}/lookup (GET):
+# lookback_seconds enum is {10, 60, 300, 3600}.
+_VALID_LOOKBACK_SECONDS: frozenset[int] = frozenset({10, 60, 300, 3600})
+
+# Spec marks these endpoints as deprecated (`deprecated: true`) with the
+# message reproduced below. Applied to both sync and async classes via
+# `typing_extensions.deprecated`, which emits DeprecationWarning on call
+# and is recognised by type checkers (PEP 702).
+_DEPRECATION_MSG = "This endpoint predates RFQs and should not be used for new integrations."
+
+
+def _validate_lookback_seconds(value: int) -> int:
+    """Reject ``lookback_seconds`` outside the spec enum {10, 60, 300, 3600}.
+
+    Server returns 400 for anything else; failing client-side saves the
+    round trip and surfaces a more actionable error (mirrors the limit
+    bounds check added in #229).
+    """
+    if value not in _VALID_LOOKBACK_SECONDS:
+        raise ValueError(f"lookback_seconds must be one of {{10, 60, 300, 3600}}, got {value}.")
+    return value
 
 
 def _list_collections_params(
@@ -178,6 +202,7 @@ class MultivariateCollectionsResource(SyncResource):
         with_market_payload: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
+    @deprecated(_DEPRECATION_MSG)
     def create_market(
         self,
         collection_ticker: str,
@@ -216,6 +241,7 @@ class MultivariateCollectionsResource(SyncResource):
         selected_markets: builtins.list[TickerPair],
         extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
+    @deprecated(_DEPRECATION_MSG)
     def lookup_tickers(
         self,
         collection_ticker: str,
@@ -236,6 +262,7 @@ class MultivariateCollectionsResource(SyncResource):
         )
         return _parse_lookup_tickers_response(data)
 
+    @deprecated(_DEPRECATION_MSG)
     def lookup_history(
         self,
         collection_ticker: str,
@@ -243,7 +270,7 @@ class MultivariateCollectionsResource(SyncResource):
         lookback_seconds: int,
         extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LookupPoint]:
-        params = _params(lookback_seconds=lookback_seconds)
+        params = _params(lookback_seconds=_validate_lookback_seconds(lookback_seconds))
         data = self._get(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,
@@ -334,6 +361,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         with_market_payload: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarketResponse: ...
+    @deprecated(_DEPRECATION_MSG)
     async def create_market(
         self,
         collection_ticker: str,
@@ -372,6 +400,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         selected_markets: builtins.list[TickerPair],
         extra_headers: dict[str, str] | None = None,
     ) -> LookupTickersResponse: ...
+    @deprecated(_DEPRECATION_MSG)
     async def lookup_tickers(
         self,
         collection_ticker: str,
@@ -392,6 +421,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         )
         return _parse_lookup_tickers_response(data)
 
+    @deprecated(_DEPRECATION_MSG)
     async def lookup_history(
         self,
         collection_ticker: str,
@@ -399,7 +429,7 @@ class AsyncMultivariateCollectionsResource(AsyncResource):
         lookback_seconds: int,
         extra_headers: dict[str, str] | None = None,
     ) -> builtins.list[LookupPoint]:
-        params = _params(lookback_seconds=lookback_seconds)
+        params = _params(lookback_seconds=_validate_lookback_seconds(lookback_seconds))
         data = await self._get(
             f"/multivariate_event_collections/{_seg(collection_ticker, name='collection_ticker')}/lookup",  # noqa: E501
             params=params,

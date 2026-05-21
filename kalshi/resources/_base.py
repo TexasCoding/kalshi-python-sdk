@@ -96,14 +96,23 @@ def _validate_max_pages(max_pages: int | None) -> None:
         raise ValueError(f"max_pages must be positive or None, got {max_pages}")
 
 
-def _join_tickers(value: list[str] | tuple[str, ...] | str | None) -> str | None:
-    """Serialize the `tickers` query param (spec: comma-joined string, not explode:true).
+def _join_tickers(
+    value: list[str] | tuple[str, ...] | str | None,
+    *,
+    max_items: int | None = None,
+) -> str | None:
+    """Serialize a comma-joined ticker query param (spec: not explode:true).
 
-    List/tuple elements must be non-empty and comma-free; pre-joined strings pass through.
+    List/tuple elements must be non-empty and comma-free; pre-joined strings
+    pass through. ``max_items`` (when set) caps the list length per spec —
+    e.g. ``MultipleEventTickerQuery`` declares a max of 10. Pre-joined string
+    inputs skip the cap (caller already opted into wire-format ownership).
     """
     if not value:
         return None
     if isinstance(value, (list, tuple)):
+        if max_items is not None and len(value) > max_items:
+            raise ValueError(f"too many tickers: {len(value)} > spec max {max_items}")
         for i, elem in enumerate(value):
             if not elem:
                 raise ValueError(

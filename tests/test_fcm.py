@@ -11,7 +11,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.fcm import AsyncFcmResource, FcmResource
-from tests._model_fixtures import order_dict
+from tests._model_fixtures import market_position_dict, order_dict
 
 
 @pytest.fixture
@@ -151,6 +151,64 @@ class TestPositions:
             unauth_fcm.positions(subtrader_id="sub-1")
 
 
+class TestPositionsAll:
+    @respx.mock
+    def test_positions_all_paginates(self, fcm: FcmResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/fcm/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [
+                            market_position_dict(ticker="A"),
+                            market_position_dict(ticker="B"),
+                        ],
+                        "event_positions": [],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="C")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker for p in fcm.positions_all(subtrader_id="sub-1")]
+        assert tickers == ["A", "B", "C"]
+
+    @respx.mock
+    def test_positions_all_forwards_filters(self, fcm: FcmResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/fcm/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        list(
+            fcm.positions_all(
+                subtrader_id="sub-1",
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+                count_filter="position",
+                settlement_status="unsettled",
+                limit=50,
+            )
+        )
+        url = route.calls.last.request.url
+        assert url.params["subtrader_id"] == "sub-1"
+        assert url.params["ticker"] == "MKT-A"
+        assert url.params["event_ticker"] == "EVT-X"
+        assert url.params["settlement_status"] == "unsettled"
+        assert "cursor" not in url.params
+
+    def test_positions_all_requires_auth(self, unauth_fcm: FcmResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_fcm.positions_all(subtrader_id="sub-1"))
+
+
 class TestAsyncFcm:
     @respx.mock
     @pytest.mark.asyncio
@@ -172,3 +230,31 @@ class TestAsyncFcm:
         )
         result = await async_fcm.positions(subtrader_id="sub-1")
         assert result.market_positions == []
+
+
+class TestAsyncFcmPositionsAll:
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_positions_all_paginates(self, async_fcm: AsyncFcmResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/fcm/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="A")],
+                        "event_positions": [],
+                        "cursor": "next",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="B")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker async for p in async_fcm.positions_all(subtrader_id="sub-1")]
+        assert tickers == ["A", "B"]
