@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 
 class KalshiError(Exception):
     """Base exception for all Kalshi SDK errors."""
@@ -23,7 +25,9 @@ class AuthRequiredError(KalshiAuthError):
             message
             or "This endpoint requires authentication. "
             "Provide key_id + private_key_path when constructing the client, "
-            "or set KALSHI_KEY_ID + KALSHI_PRIVATE_KEY environment variables.",
+            "or set KALSHI_KEY_ID + (KALSHI_PRIVATE_KEY_PATH or KALSHI_PRIVATE_KEY) "
+            "environment variables. See "
+            "https://texascoding.github.io/kalshi-python-sdk/authentication/",
             status_code=None,
         )
 
@@ -58,6 +62,26 @@ class KalshiRateLimitError(KalshiError):
         super().__init__(message, status_code)
 
 
+class KalshiConflictError(KalshiError):
+    """409 Conflict (e.g., duplicate ``client_order_id``)."""
+
+
+class KalshiTimeoutError(KalshiError):
+    """Request timed out. The server may or may not have processed it.
+
+    On POST endpoints like order create, query the server using
+    ``client_order_id`` to determine whether the request committed.
+    """
+
+
+class KalshiPoolExhaustedError(KalshiError):
+    """Connection pool exhausted; request never reached the wire.
+
+    Safe to retry regardless of HTTP method. Raise
+    ``KalshiConfig.limits.max_connections`` if this fires under normal load.
+    """
+
+
 class KalshiServerError(KalshiError):
     """Server-side error (5xx)."""
 
@@ -76,6 +100,23 @@ class KalshiConnectionError(KalshiWebSocketError):
 class KalshiSequenceGapError(KalshiWebSocketError):
     """Sequence gap detected that could not be resolved via resync."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        channel: str | None = None,
+        sid: int | None = None,
+        client_id: int | None = None,
+        last_seq: int | None = None,
+        next_seq: int | None = None,
+    ) -> None:
+        self.channel = channel
+        self.sid = sid
+        self.client_id = client_id
+        self.last_seq = last_seq
+        self.next_seq = next_seq
+        super().__init__(message)
+
 
 class KalshiBackpressureError(KalshiWebSocketError):
     """Message queue overflow with ERROR strategy."""
@@ -84,6 +125,17 @@ class KalshiBackpressureError(KalshiWebSocketError):
 class KalshiSubscriptionError(KalshiWebSocketError):
     """Subscribe/unsubscribe request rejected by server."""
 
-    def __init__(self, message: str, error_code: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        error_code: int | None = None,
+        *,
+        channel: str | None = None,
+        client_id: int | None = None,
+        op: Literal["subscribe", "unsubscribe", "update_subscription"] | None = None,
+    ) -> None:
         self.error_code = error_code
+        self.channel = channel
+        self.client_id = client_id
+        self.op = op
         super().__init__(message)

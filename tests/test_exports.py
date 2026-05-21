@@ -37,3 +37,30 @@ def test_from_kalshi_import_star_exposes_all_models() -> None:
     for name in kalshi.models.__all__:
         assert name in namespace, f"`from kalshi import *` did not bind {name}"
         assert namespace[name] is getattr(kalshi, name)
+
+
+def test_KalshiConflictError_importable_from_kalshi() -> None:
+    from kalshi import KalshiConflictError, KalshiError
+
+    assert issubclass(KalshiConflictError, KalshiError)
+
+
+def test_KalshiTimeoutError_importable_from_kalshi() -> None:
+    from kalshi import KalshiError, KalshiTimeoutError
+
+    assert issubclass(KalshiTimeoutError, KalshiError)
+
+
+def test_KalshiPoolExhaustedError_importable_from_kalshi() -> None:
+    from kalshi import KalshiError, KalshiPoolExhaustedError
+
+    assert issubclass(KalshiPoolExhaustedError, KalshiError)
+
+
+def test_new_exceptions_in_kalshi_all() -> None:
+    for name in (
+        "KalshiConflictError",
+        "KalshiTimeoutError",
+        "KalshiPoolExhaustedError",
+    ):
+        assert name in kalshi.__all__, f"{name} missing from kalshi.__all__"
