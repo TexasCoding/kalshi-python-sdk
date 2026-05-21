@@ -9,11 +9,14 @@ authors = [{ name = "Texas Coding" }]
 keywords = ["kalshi", "prediction-markets", "trading", "api", "sdk"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
     "Typing :: Typed",
 ]
 dependencies = [

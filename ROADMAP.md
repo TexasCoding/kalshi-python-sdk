@@ -11,10 +11,6 @@ See `CHANGELOG.md` for full release history.
   `orders.batch_create`/`batch_cancel` now return typed responses (#194).
   Tier 2 + polish bundles all landed across waves W2 + W3.
 
-- **Unreleased (post-v2.2.0)** — WS reliability + auth polish batch.
-  Shipped under v2.3.0 below.
-
-
 - **v2.2.0 (2026-05-19)** — response-side spec drift hardening (`#157`).
   65 new optional fields backfilled across 16 REST + WS response models
   for OpenAPI v3.18.0 / AsyncAPI v0.14 (`Market`, `Order`, `Fill`,
