@@ -462,14 +462,21 @@ class TestMessageDispatcher:
         raw = json.dumps({"type": "unsubscribed", "msg": {"sid": 999}})
         await dispatcher.dispatch(json.loads(raw))  # should not crash
 
-    async def test_dispatch_message_without_sid(self) -> None:
-        """Messages without sid are logged but don't crash."""
+    async def test_dispatch_malformed_message_raises_for_seq_rollback(self) -> None:
+        """#241: dispatch must propagate ValidationError so `_process_frame`
+        can roll back the seq watermark for sequenced channels. Previously
+        the dispatcher swallowed the error and returned, which silently
+        advanced the watermark past a never-delivered frame.
+        """
+        from pydantic import ValidationError
         mgr = FakeSubManager()
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        # ticker requires `sid`; omitting it triggers ValidationError.
         raw = json.dumps(
             {"type": "ticker", "msg": ticker_payload_dict(market_ticker="T", market_id="x")}
         )
-        await dispatcher.dispatch(json.loads(raw))  # should not crash
+        with pytest.raises(ValidationError):
+            await dispatcher.dispatch(json.loads(raw))
 
 
 @pytest.mark.asyncio

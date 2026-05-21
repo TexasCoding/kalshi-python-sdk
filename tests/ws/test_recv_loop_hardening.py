@@ -163,15 +163,17 @@ class TestUnsubscribeSentinel:
 
 @pytest.mark.asyncio
 class TestPauseDoesNotDropFrames:
-    async def test_inflight_frame_dispatched_when_recv_task_cancelled(
+    async def test_inflight_frame_dispatched_when_pause_requested(
         self,
         fake_ws,
         test_auth,  # type: ignore[no-untyped-def]
     ) -> None:
-        """F-P-04: a frame mid-dispatch when the recv task is cancelled must
-        still be delivered. We monkey-patch the dispatcher's dispatch() with
-        a barrier so we can force cancellation precisely while it's running.
-        Without the asyncio.shield in _process_frame, the frame is lost.
+        """F-P-04: a frame mid-dispatch when pause is requested must still
+        be delivered. Pre-#245 this was enforced by an ``asyncio.shield``
+        wrapping every frame; post-#245 the recv loop only sets
+        ``_pause_granted`` at the top-of-loop checkpoint, so
+        ``_pause_recv_loop`` cooperatively waits for the in-flight frame
+        to finish before returning — no shield, no per-frame Task.
         """
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
@@ -207,14 +209,19 @@ class TestPauseDoesNotDropFrames:
             )
             await asyncio.wait_for(dispatch_started.wait(), timeout=2.0)
 
-            # Now request a pause (cancellation). The shield must keep the
-            # dispatch alive.
+            # Now request a pause cooperatively. ``_pause_recv_loop`` must
+            # block until the recv loop reaches its safe checkpoint, which
+            # cannot happen until ``slow_dispatch`` returns.
             pause_task = asyncio.create_task(session._pause_recv_loop())
-            # Give the cancel a chance to propagate
+            # Give the pause request a chance to propagate.
             await asyncio.sleep(0.05)
+            assert not pause_task.done(), (
+                "#245: pause must wait for the in-flight frame to finish "
+                "dispatching before being granted"
+            )
 
-            # Release the dispatch barrier — shielded coroutine runs to
-            # completion and puts the message on the queue.
+            # Release the dispatch barrier — process_frame returns, recv
+            # loop reaches the safe checkpoint, pause is granted.
             allow_dispatch_finish.set()
             await asyncio.wait_for(pause_task, timeout=2.0)
 

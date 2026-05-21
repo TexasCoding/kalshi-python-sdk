@@ -161,9 +161,14 @@ class TestOrderbookManager:
 
     def test_returned_book_is_snapshot_not_live_view(self) -> None:
         """Regression for #85: a book handed to a consumer must not mutate
-        when subsequent deltas are applied. Pin both the identity invariant
-        (each call returns a distinct ``Orderbook``) and the value invariant
-        (the previously-returned book's state is preserved verbatim).
+        when subsequent deltas are applied.
+
+        Post-#244 the materialized view is cached on ``_BookState`` and
+        only rebuilt when ``_apply_*_inplace`` invalidates it. The
+        mutation-safety invariant is preserved at the *value* level:
+        previously-handed-out books are immutable snapshots whose lists
+        the manager never touches. Identity between concurrent reads is
+        now a side-effect of caching, not a contract.
         """
         mgr = OrderbookManager()
         snap_book = mgr.apply_snapshot(make_snapshot(yes=[["0.50", "100"]]))
@@ -173,18 +178,23 @@ class TestOrderbookManager:
         delta_book = mgr.apply_delta(make_delta(price="0.50", delta="50", side="yes"))
         assert delta_book is not None
 
-        # Distinct instances.
+        # Different snapshot generations -> different instances.
         assert snap_book is not delta_book
         # The first-handed-out book is frozen at its emission-time state.
         assert snap_book.yes[0].quantity == Decimal("100")
         assert delta_book.yes[0].quantity == Decimal("150")
 
-        # And ``get()`` is also a snapshot, not a live view.
+        # ``get()`` returns the current cached view (== delta_book here),
+        # but a *subsequent* delta must not mutate it in place.
         get_book = mgr.get("T")
         assert get_book is not None
-        assert get_book is not delta_book
         mgr.apply_delta(make_delta(price="0.50", delta="25", side="yes"))
         assert get_book.yes[0].quantity == Decimal("150")  # unchanged
+        # And the next get re-materializes with the new state.
+        fresh = mgr.get("T")
+        assert fresh is not None
+        assert fresh is not get_book
+        assert fresh.yes[0].quantity == Decimal("175")
 
     def test_apply_delta_is_constant_time_in_book_depth(self) -> None:
         """Regression for #87: apply_delta must touch at most a constant
