@@ -80,7 +80,7 @@ class TestCreateOrderWireShape:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        client.orders.create(ticker="MKT", side="yes", yes_price=0.5)
+        client.orders.create(ticker="MKT", side="yes", action="buy", count=1, yes_price=0.5)
 
         body = json.loads(route.calls[0].request.content)
         assert "type" not in body
@@ -96,7 +96,7 @@ class TestCreateOrderWireShape:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        client.orders.create(ticker="MKT", side="yes", yes_price=0.5, count=3)
+        client.orders.create(ticker="MKT", side="yes", action="buy", yes_price=0.5, count=3)
 
         body = json.loads(route.calls[0].request.content)
         assert "count_fp" in body
@@ -117,6 +117,8 @@ class TestCreateOrderWireShape:
         client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             time_in_force="fill_or_kill",
         )
@@ -138,6 +140,8 @@ class TestCreateOrderWireShape:
         client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             post_only=True,
             reduce_only=False,
@@ -159,7 +163,7 @@ class TestCreateOrderWireShape:
             return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER})
         )
 
-        client.orders.create(ticker="MKT", side="yes", yes_price=0.5, buy_max_cost=500)
+        client.orders.create(ticker="MKT", side="yes", action="buy", count=1, yes_price=0.5, buy_max_cost=500)
 
         body = json.loads(route.calls[0].request.content)
         assert body["buy_max_cost"] == 500
@@ -179,6 +183,8 @@ class TestCreateOrderWireShape:
         client.orders.create(
             ticker="MKT",
             side="yes",
+            action="buy",
+            count=1,
             yes_price=0.5,
             subaccount=2,
             order_group_id="grp-x",
@@ -201,6 +207,74 @@ class TestCreateOrderWireShape:
                 type="market",  # type: ignore[call-arg]
             )
 
+    def test_missing_count_and_action_raises_before_http(
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: kwarg-form create() with missing ``count`` / ``action`` must raise
+        ``TypeError`` BEFORE any HTTP request is dispatched. Pre-#242 the SDK
+        silently defaulted to count=1, action="buy" — converting a missing-arg
+        bug into a real 1-contract BUY fill (money risk)."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        with pytest.raises(TypeError, match=r"count.*action"):
+            client.orders.create(ticker="X", side="yes")
+        with pytest.raises(TypeError, match=r"count.*action"):
+            client.orders.create(ticker="X", side="yes", action="buy")
+        with pytest.raises(TypeError, match=r"count.*action"):
+            client.orders.create(ticker="X", side="yes", count=10)
+
+        assert route.call_count == 0
+
+    def test_explicit_count_action_kwargs_still_work(
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: regression — explicit ``count`` + ``action`` kwargs still build
+        and dispatch normally."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(ticker="X", side="yes", count=10, action="buy", yes_price="0.5")
+
+        assert route.call_count == 1
+        body = json.loads(route.calls[0].request.content)
+        assert body["count_fp"] == "10"
+        assert body["action"] == "buy"
+        assert body["yes_price_dollars"] == "0.5"
+
+    def test_request_overload_unaffected_by_242(
+        self,
+        client: KalshiClient,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        """#242: the ``request=CreateOrderRequest(...)`` path is unaffected by
+        the kwarg-overload guard — the model itself now declares count/action
+        required, so a fully-populated request still dispatches."""
+        route = respx_mock.post(
+            "https://demo-api.kalshi.co/trade-api/v2/portfolio/orders"
+        ).mock(return_value=httpx.Response(200, json={"order": _MINIMAL_ORDER}))
+
+        client.orders.create(
+            request=CreateOrderRequest(
+                ticker="X",
+                side="yes",
+                count=Decimal("10"),
+                action="buy",
+                yes_price=Decimal("0.5"),
+            )
+        )
+
+        assert route.call_count == 1
+        body = json.loads(route.calls[0].request.content)
+        assert body["count_fp"] == "10"
+        assert body["action"] == "buy"
+
 
 class TestOrdersCreate:
     @respx.mock
@@ -220,7 +294,7 @@ class TestOrdersCreate:
                 },
             )
         )
-        order = orders.create(ticker="TEST-MKT", side="yes", count=10, yes_price=0.65)
+        order = orders.create(ticker="TEST-MKT", side="yes", action="buy", count=10, yes_price=0.65)
         assert order.order_id == "ord-123"
         assert order.yes_price == Decimal("0.6500")
         assert order.count == 10
@@ -235,7 +309,7 @@ class TestOrdersCreate:
                 },
             )
         )
-        order = orders.create(ticker="TEST-MKT", side="yes")
+        order = orders.create(ticker="TEST-MKT", side="yes", action="buy", count=1)
         assert order.order_id == "ord-456"
 
     @respx.mock
@@ -245,7 +319,7 @@ class TestOrdersCreate:
                 200, json={"order": order_dict(order_id="ord-789", ticker="T")}
             )
         )
-        orders.create(ticker="T", side="yes", yes_price=0.65)
+        orders.create(ticker="T", side="yes", action="buy", count=1, yes_price=0.65)
 
         import json
 
@@ -260,7 +334,7 @@ class TestOrdersCreate:
             return_value=httpx.Response(400, json={"message": "invalid ticker"})
         )
         with pytest.raises(KalshiValidationError):
-            orders.create(ticker="INVALID", side="yes")
+            orders.create(ticker="INVALID", side="yes", action="buy", count=1)
 
 
 class TestOrdersGet:
@@ -435,8 +509,8 @@ class TestOrdersBatch:
             )
         )
         reqs = [
-            CreateOrderRequest(ticker="A", side="yes", action="buy"),
-            CreateOrderRequest(ticker="B", side="no", action="buy"),
+            CreateOrderRequest(ticker="A", side="yes", action="buy", count=1),
+            CreateOrderRequest(ticker="B", side="no", action="buy", count=1),
         ]
         from kalshi.models.orders import BatchCreateOrdersResponse
 
@@ -476,7 +550,7 @@ class TestOrdersBatch:
             )
         )
         result = orders.batch_create(
-            [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+            [CreateOrderRequest(ticker="A", side="yes", action="buy", count=1)]
         )
         assert len(result.orders) == 2
         assert result.orders[0].order is not None
@@ -1206,8 +1280,8 @@ class TestBatchCreateWireShape:
 
         orders.batch_create(
             [
-                CreateOrderRequest(ticker="A", side="yes", action="buy"),
-                CreateOrderRequest(ticker="B", side="no", action="buy"),
+                CreateOrderRequest(ticker="A", side="yes", action="buy", count=1),
+                CreateOrderRequest(ticker="B", side="no", action="buy", count=1),
             ]
         )
 
@@ -1238,7 +1312,7 @@ class TestBatchCreateUsesBytesPath:
             orders._transport, "request", wraps=orders._transport.request,
         ) as spy:
             orders.batch_create(
-                [CreateOrderRequest(ticker="A", side="yes", action="buy")]
+                [CreateOrderRequest(ticker="A", side="yes", action="buy", count=1)]
             )
             spy.assert_called_once()
             args, kwargs = spy.call_args

@@ -39,10 +39,14 @@ class TestOrderCountMigration:
         req = CreateOrderRequest(ticker="ECON-GDP", side="yes", count=Decimal("10"), action="buy")
         assert isinstance(req.count, Decimal)
 
-    def test_create_order_count_default(self) -> None:
-        req = CreateOrderRequest(ticker="ECON-GDP", side="yes", action="buy")
-        assert req.count == Decimal("1")
-        assert isinstance(req.count, Decimal)
+    def test_create_order_count_no_default(self) -> None:
+        # #242: `count` no longer defaults to Decimal("1") — it is required.
+        # A missing-arg bug would otherwise silently become a 1-contract BUY.
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(ticker="ECON-GDP", side="yes", action="buy")
 
     def test_create_order_count_serializes(self) -> None:
         req = CreateOrderRequest(ticker="ECON-GDP", side="yes", count=Decimal("10"), action="buy")

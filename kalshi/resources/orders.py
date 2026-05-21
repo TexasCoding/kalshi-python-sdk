@@ -95,15 +95,19 @@ def _build_create_order_body(
         exchange_index=exchange_index,
     )
     if request is None:
-        if ticker is None or side is None:
+        if ticker is None or side is None or count is None or action is None:
             raise TypeError(
-                "create() requires `ticker` and `side` (or pass `request=...`)"
+                "create() requires `ticker`, `side`, `count`, and `action` "
+                "(or pass `request=...`). Pre-#242 the SDK silently defaulted "
+                "missing `count` to 1 contract and missing `action` to \"buy\" — "
+                "that has been removed: a missing arg would otherwise translate "
+                "into a real 1-contract BUY on the wire."
             )
         request = CreateOrderRequest(
             ticker=ticker,
             side=side,
-            action=action if action is not None else "buy",
-            count=to_decimal(count if count is not None else 1),
+            action=action,
+            count=to_decimal(count),
             yes_price=to_decimal(yes_price) if yes_price is not None else None,
             no_price=to_decimal(no_price) if no_price is not None else None,
             client_order_id=client_order_id,
@@ -371,6 +375,13 @@ class OrdersResource(SyncResource):
         v0.8.0 removed the ``type`` kwarg: the field was never defined in
         the OpenAPI spec. Callers passing ``type="limit"`` now get a
         ``TypeError``.
+
+        #242 (v2.5): on the kwarg path, ``count`` and ``action`` are now
+        REQUIRED — passing neither raises ``TypeError`` before any HTTP
+        request. Previously the SDK silently defaulted to ``count=1`` and
+        ``action="buy"``, which converted a missing-arg bug into a real
+        1-contract BUY fill. The ``request=CreateOrderRequest(...)``
+        overload is unaffected (the model itself now declares them required).
 
         v1.1 (#56): pass a pre-built ``request=CreateOrderRequest(...)`` instead
         of individual kwargs. Mutually exclusive with the kwarg form.
@@ -833,6 +844,13 @@ class AsyncOrdersResource(AsyncResource):
         v0.8.0 removed the ``type`` kwarg: the field was never defined in
         the OpenAPI spec. Callers passing ``type="limit"`` now get a
         ``TypeError``.
+
+        #242 (v2.5): on the kwarg path, ``count`` and ``action`` are now
+        REQUIRED — passing neither raises ``TypeError`` before any HTTP
+        request. Previously the SDK silently defaulted to ``count=1`` and
+        ``action="buy"``, which converted a missing-arg bug into a real
+        1-contract BUY fill. The ``request=CreateOrderRequest(...)``
+        overload is unaffected (the model itself now declares them required).
 
         v1.1 (#56): pass a pre-built ``request=CreateOrderRequest(...)`` instead
         of individual kwargs. Mutually exclusive with the kwarg form.

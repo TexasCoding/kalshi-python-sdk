@@ -221,6 +221,7 @@ class TestDollarsAliasFields:
             ticker="T",
             side="yes",
             action="buy",
+            count=1,
             yes_price=Decimal("0.65"),
         )
         data = req.model_dump(mode="json", exclude_none=True, by_alias=True)
@@ -741,6 +742,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             time_in_force="fill_or_kill",
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -753,6 +755,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             post_only=True,
             reduce_only=False,
         )
@@ -767,6 +770,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             self_trade_prevention_type="maker",
             order_group_id="grp-123",
         )
@@ -781,6 +785,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             cancel_order_on_pause=True,
             subaccount=5,
         )
@@ -796,6 +801,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             buy_max_cost=500,
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -819,6 +825,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost="5.5",  # type: ignore[arg-type]
             )
 
@@ -837,6 +844,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=Decimal("500"),  # type: ignore[arg-type]
             )
         with pytest.raises(ValidationError):
@@ -844,6 +852,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=Decimal("5.00"),  # type: ignore[arg-type]
             )
 
@@ -858,6 +867,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 buy_max_cost=5.0,  # type: ignore[arg-type]
             )
 
@@ -869,6 +879,7 @@ class TestCreateOrderRequestExtended:
             ticker="MKT",
             side="yes",
             action="buy",
+            count=1,
             buy_max_cost="500",  # type: ignore[arg-type]
         )
         body = req.model_dump(exclude_none=True, by_alias=True)
@@ -877,7 +888,7 @@ class TestCreateOrderRequestExtended:
     def test_omits_none_fields_from_wire(self) -> None:
         from kalshi.models.orders import CreateOrderRequest
 
-        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy")
+        req = CreateOrderRequest(ticker="MKT", side="yes", action="buy", count=1)
         body = req.model_dump(exclude_none=True, by_alias=True)
         # Core fields present
         assert body["ticker"] == "MKT"
@@ -898,6 +909,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 type="limit",  # type: ignore[call-arg]
             )
 
@@ -911,6 +923,7 @@ class TestCreateOrderRequestExtended:
                 ticker="MKT",
                 side="yes",
                 action="buy",
+                count=1,
                 bogus_field="x",  # type: ignore[call-arg]
             )
 
@@ -1092,8 +1105,8 @@ class TestBatchCreateOrdersRequest:
         )
 
         orders = [
-            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy"),
-            CreateOrderRequest(ticker="MKT-B", side="no", action="sell"),
+            CreateOrderRequest(ticker="MKT-A", side="yes", action="buy", count=1),
+            CreateOrderRequest(ticker="MKT-B", side="no", action="sell", count=1),
         ]
         req = BatchCreateOrdersRequest(orders=orders)
         body = req.model_dump(exclude_none=True, by_alias=True)
