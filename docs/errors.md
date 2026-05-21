@@ -193,4 +193,6 @@ re-established at all.
 
 ::: kalshi.errors.KalshiBackpressureError
 
+::: kalshi.errors.KalshiOrderbookUnavailableError
+
 ::: kalshi.errors.KalshiSubscriptionError

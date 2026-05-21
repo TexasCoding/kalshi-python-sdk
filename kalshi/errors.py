@@ -132,6 +132,28 @@ class KalshiBackpressureError(KalshiWebSocketError):
     """Message queue overflow with ERROR strategy."""
 
 
+class KalshiOrderbookUnavailableError(KalshiWebSocketError):
+    """Local orderbook is empty between teardown and resync snapshot.
+
+    Raised by :class:`KalshiWebSocket.orderbook` when the underlying
+    delta stream yields an item but the orderbook manager has no book
+    for the requested ticker. This can happen between a gap-triggered
+    ``remove_by_sid`` and the resync snapshot landing — the iterator
+    previously yielded an empty :class:`Orderbook`, which is
+    indistinguishable from a real market with zero liquidity and could
+    cause a strategy to place orders against an empty book.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        ticker: str | None = None,
+    ) -> None:
+        self.ticker = ticker
+        super().__init__(message)
+
+
 class KalshiSubscriptionError(KalshiWebSocketError):
     """Subscribe/unsubscribe request rejected by server."""
 

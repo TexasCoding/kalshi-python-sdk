@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiSubscriptionError
+from kalshi.errors import KalshiOrderbookUnavailableError, KalshiSubscriptionError
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.client import KalshiWebSocket
@@ -214,3 +214,56 @@ class TestIssue254ResubscribeOneStashDrain:
         # broadcast_error fired; drain did NOT happen (we early-returned
         # after broadcast_error). Stash remains for the next cycle to handle.
         assert stub.broadcast_called
+
+
+@pytest.mark.asyncio
+class TestIssue257OrderbookUnavailable:
+    """#257: ``_OrderbookIterator`` raises ``KalshiOrderbookUnavailableError``
+    instead of yielding an empty :class:`Orderbook` when the manager has no
+    book for the ticker (e.g. between gap teardown and resync snapshot)."""
+
+    async def test_raises_when_manager_has_no_book(self) -> None:
+        from kalshi.ws.client import _OrderbookIterator
+        from kalshi.ws.orderbook import OrderbookManager
+
+        mgr = OrderbookManager()
+
+        async def _stream() -> object:
+            # First yield: a placeholder; the iterator only checks the manager.
+            yield {"type": "orderbook_delta"}
+            yield {"type": "orderbook_delta"}
+
+        it = _OrderbookIterator(_stream(), mgr, "MISSING")
+        with pytest.raises(KalshiOrderbookUnavailableError) as excinfo:
+            await it.__anext__()
+        assert excinfo.value.ticker == "MISSING"
+        assert "MISSING" in str(excinfo.value)
+
+    async def test_yields_book_when_present(self) -> None:
+        """Sanity check: when the book is populated the iterator still works."""
+        from kalshi.ws.client import _OrderbookIterator
+        from kalshi.ws.models.orderbook_delta import OrderbookSnapshotMessage
+        from kalshi.ws.orderbook import OrderbookManager
+
+        mgr = OrderbookManager()
+        snap = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "OK",
+                    "market_id": "m",
+                    "yes": [["0.50", "100"]],
+                    "no": [],
+                },
+            }
+        )
+        mgr._apply_snapshot_inplace(snap, sid=1)
+
+        async def _stream() -> object:
+            yield {"type": "orderbook_snapshot"}
+
+        it = _OrderbookIterator(_stream(), mgr, "OK")
+        book = await it.__anext__()
+        assert book.ticker == "OK"

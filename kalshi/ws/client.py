@@ -17,6 +17,7 @@ from kalshi.config import KalshiConfig
 from kalshi.errors import (
     KalshiBackpressureError,
     KalshiConnectionError,
+    KalshiOrderbookUnavailableError,
     KalshiSequenceGapError,
     KalshiSubscriptionError,
 )
@@ -929,8 +930,21 @@ class _OrderbookIterator:
         await self._stream.__anext__()
         book = self._mgr.get(self._ticker)
         if book is None:
-            # This shouldn't happen after snapshot, but handle gracefully
-            return Orderbook(ticker=self._ticker)
+            # #257: between a gap-triggered ``remove_by_sid`` and the
+            # resync snapshot landing in the manager, the underlying
+            # stream can yield a frame while ``get(ticker)`` is still
+            # None. Previously this iterator masked the gap by yielding
+            # a fresh empty :class:`Orderbook` — indistinguishable from
+            # a real market with zero liquidity. A strategy reading
+            # bid/ask off the empty book might place orders against
+            # nothing. Surface the absence as a typed error so callers
+            # can halt (or wait for the next snapshot) explicitly.
+            raise KalshiOrderbookUnavailableError(
+                f"Local orderbook for {self._ticker!r} is unavailable "
+                "(snapshot torn down, resync snapshot not yet applied). "
+                "Halt or wait for the next snapshot before reading bid/ask.",
+                ticker=self._ticker,
+            )
         return book
 
 
