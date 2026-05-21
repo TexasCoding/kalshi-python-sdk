@@ -90,6 +90,11 @@ class KalshiWebSocket:
         self._running = False
         self._subscribe_lock = asyncio.Lock()
         self._pending_callbacks: list[tuple[str, Callable[..., Awaitable[None]]]] = []
+        # #209: pluggable JSON loader (None -> stdlib json.loads). Resolved
+        # once here so the recv hot path doesn't keep dereferencing config.
+        self._json_loads: Callable[[bytes | str], Any] = (
+            config.ws_json_loads if config.ws_json_loads is not None else json.loads
+        )
 
     def connect(self) -> _WebSocketSession:
         """Return an async context manager for the WebSocket session."""
@@ -105,7 +110,7 @@ class KalshiWebSocket:
         )
         await self._connection.connect()
 
-        self._sub_mgr = SubscriptionManager(self._connection)
+        self._sub_mgr = SubscriptionManager(self._connection, json_loads=self._json_loads)
         self._seq_tracker = SequenceTracker(on_gap=self._handle_seq_gap)
         self._orderbook_mgr = OrderbookManager()
         self._dispatcher = MessageDispatcher(
@@ -138,10 +143,9 @@ class KalshiWebSocket:
         """Put a shutdown sentinel on every active subscription queue.
 
         Iterator consumers see the sentinel and exit their ``async for``
-        loops. ``MessageQueue.put_sentinel`` is idempotent — calling
-        twice puts two sentinels in the queue, the iterator reads the
-        first and raises ``StopAsyncIteration`` without ever touching
-        the second.
+        loops. ``MessageQueue.put_sentinel`` is idempotent — once the
+        queue is closed, subsequent calls are no-ops (no extra sentinel
+        appended, no eviction of an in-flight item).
 
         Used by ``_stop()`` (post-cancel cleanup), the cooperative
         shutdown branch of ``run_forever(stop_event=...)`` (#177), and
@@ -283,7 +287,7 @@ class KalshiWebSocket:
         desynced-and-still-consumed.
         """
         assert self._dispatcher is not None
-        data = json.loads(raw)
+        data = self._json_loads(raw)
         sid = data.get("sid")
         seq = data.get("seq")
         msg_type = data.get("type", "")
@@ -317,13 +321,18 @@ class KalshiWebSocket:
         pre_validated: BaseModel | None = None
         if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
             snapshot = OrderbookSnapshotMessage.model_validate(data)
+            # #199: mutate in place — skip the O(n log n) sort + 2N
+            # OrderbookLevel allocation that the public ``apply_snapshot``
+            # wrapper performs. Consumers materialize via ``get(ticker)``
+            # on demand.
             # Record per-sid ticker ownership so all-markets subscriptions
             # can be torn down on gap recovery / unsubscribe (#189, #206).
-            self._orderbook_mgr.apply_snapshot(snapshot, sid=snapshot.sid)
+            self._orderbook_mgr._apply_snapshot_inplace(snapshot, sid=snapshot.sid)
             pre_validated = snapshot
         elif msg_type == "orderbook_delta" and self._orderbook_mgr:
             delta = OrderbookDeltaMessage.model_validate(data)
-            self._orderbook_mgr.apply_delta(delta)
+            # #199: in-place mutation only — see snapshot branch above.
+            self._orderbook_mgr._apply_delta_inplace(delta)
             pre_validated = delta
 
         try:

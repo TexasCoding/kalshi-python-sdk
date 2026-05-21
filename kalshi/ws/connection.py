@@ -64,6 +64,11 @@ class ConnectionManager:
         self._on_state_change = on_state_change
         self._ws: ClientConnection | None = None
         self._state = ConnectionState.DISCONNECTED
+        # #209: pluggable JSON dumper for outbound frames. Resolved once at
+        # init so the send hot path doesn't keep dereferencing config.
+        self._json_dumps: Callable[[Any], bytes | str] = (
+            config.ws_json_dumps if config.ws_json_dumps is not None else json.dumps
+        )
 
     @property
     def state(self) -> ConnectionState:
@@ -107,6 +112,22 @@ class ConnectionManager:
         ws_path = urlparse(self._config.ws_base_url).path
         return await self._auth.sign_request_async("GET", ws_path)
 
+    async def _open_socket(self) -> ClientConnection:
+        """Open the websocket. Single source of truth for connect args.
+
+        Both ``connect`` and ``reconnect`` route through this so the
+        ping/close timeouts and auth-header build stay in lockstep
+        (#208).
+        """
+        headers = await self._build_auth_headers()
+        return await connect(
+            self._config.ws_base_url,
+            additional_headers=headers,
+            ping_interval=self._config.ws_ping_interval,
+            ping_timeout=self._heartbeat_timeout,
+            close_timeout=self._config.ws_close_timeout,
+        )
+
     async def connect(self) -> None:
         """Establish a WebSocket connection with RSA-PSS auth headers.
 
@@ -117,14 +138,7 @@ class ConnectionManager:
         """
         await self._set_state(ConnectionState.CONNECTING)
         try:
-            headers = await self._build_auth_headers()
-            self._ws = await connect(
-                self._config.ws_base_url,
-                additional_headers=headers,
-                ping_interval=20,
-                ping_timeout=self._heartbeat_timeout,
-                close_timeout=5.0,
-            )
+            self._ws = await self._open_socket()
             await self._set_state(ConnectionState.CONNECTED)
         except Exception as e:
             await self._set_state(ConnectionState.CLOSED)
@@ -139,11 +153,9 @@ class ConnectionManager:
             ) from e
 
     async def reconnect(self) -> None:
-        """Reconnect with exponential backoff and jitter.
+        """Reconnect with AWS Full Jitter backoff (matches REST transport).
 
-        Uses the same backoff pattern as the REST transport:
-            delay = retry_base_delay * (2 ** attempt) + random.uniform(0, 0.5)
-            delay = min(delay, retry_max_delay)
+            delay = random.uniform(0, min(retry_max_delay, retry_base_delay * 2 ** attempt))
 
         Transitions: -> RECONNECTING -> CONNECTING -> CONNECTED
                      or -> CLOSED (if max retries exceeded)
@@ -159,10 +171,18 @@ class ConnectionManager:
 
         await self._set_state(ConnectionState.RECONNECTING)
         for attempt in range(self._config.ws_max_retries):
-            delay = self._config.retry_base_delay * (
-                2**attempt
-            ) + random.uniform(0, 0.5)
-            delay = min(delay, self._config.retry_max_delay)
+            # #221 P2.1: match REST transport's AWS Full Jitter formula.
+            # The previous ``base * 2**attempt + uniform(0, 0.5)`` reduced
+            # to a flat 0.5s jitter window once the exponential pinned the
+            # delay at ``retry_max_delay`` — thundering-herd risk on a
+            # global Kalshi WS outage.
+            delay = random.uniform(
+                0,
+                min(
+                    self._config.retry_max_delay,
+                    self._config.retry_base_delay * (2**attempt),
+                ),
+            )
             logger.warning(
                 "Reconnecting in %.1fs (attempt %d/%d)",
                 delay,
@@ -172,14 +192,7 @@ class ConnectionManager:
             await asyncio.sleep(delay)
             try:
                 await self._set_state(ConnectionState.CONNECTING)
-                headers = await self._build_auth_headers()
-                self._ws = await connect(
-                    self._config.ws_base_url,
-                    additional_headers=headers,
-                    ping_interval=20,
-                    ping_timeout=self._heartbeat_timeout,
-                    close_timeout=5.0,
-                )
+                self._ws = await self._open_socket()
                 await self._set_state(ConnectionState.CONNECTED)
                 return
             except Exception:
@@ -212,7 +225,7 @@ class ConnectionManager:
         """
         if self._ws is None:
             raise KalshiConnectionError("Not connected")
-        await self._ws.send(json.dumps(msg))
+        await self._ws.send(self._json_dumps(msg))
 
     async def recv(self) -> str:
         """Receive a raw string message from the WebSocket.

@@ -494,3 +494,42 @@ class TestErrorCallback:
             # Deterministic wait: the callback signals us; we don't sleep blindly.
             await asyncio.wait_for(got_one.wait(), timeout=2.0)
             assert len(errors) == 1
+
+
+# ---------------------------------------------------------------------------
+# #209 — pluggable JSON loader
+# ---------------------------------------------------------------------------
+
+
+class TestPluggableJsonLoads:
+    async def test_custom_json_loads_called_for_recv_frames(
+        self, fake_ws: Any, test_auth: Any
+    ) -> None:
+        """#209: ws_json_loads is used for incoming WS frames in the recv loop."""
+        import json as _json
+
+        calls: list[Any] = []
+
+        def my_loads(raw: bytes | str) -> Any:
+            calls.append(raw)
+            return _json.loads(raw)
+
+        config = KalshiConfig(
+            ws_base_url=fake_ws.url, timeout=5.0, ws_json_loads=my_loads
+        )
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": 1,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T1", market_id="x", yes_bid_dollars="55"
+                    ),
+                }
+            )
+            await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+        # At minimum the ticker frame was parsed by our loader. The recv loop
+        # parses every frame off the socket — assert non-empty.
+        assert calls, "ws_json_loads was never invoked on recv frames"

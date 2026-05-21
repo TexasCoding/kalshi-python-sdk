@@ -1,6 +1,8 @@
 """Orderbook delta and snapshot message models."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -45,7 +47,7 @@ class OrderbookDeltaPayload(BaseModel):
     delta: FixedPointCount = Field(
         validation_alias=AliasChoices("delta_fp", "delta"),
     )
-    side: str
+    side: Literal["yes", "no"]
     client_order_id: str | None = None
     subaccount: int | None = None
     ts: str | None = None
