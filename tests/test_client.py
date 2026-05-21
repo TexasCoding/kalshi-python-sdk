@@ -134,12 +134,33 @@ class TestErrorMapping:
     # transport never calls time.sleep with a non-positive or non-finite
     # delay (busy-loop or ValueError crash respectively).
 
-    def test_429_retry_after_negative_falls_back(self) -> None:
-        """Negative Retry-After is rejected so backoff isn't bypassed."""
+    def test_429_retry_after_negative_clamps_to_zero(self) -> None:
+        """#267 item 2: negative Retry-After delta-seconds clamps to 0.0 so it
+        matches the HTTP-date branch's past-date behavior. ``time.sleep(0.0)``
+        is safe; the busy-loop concern (#96) only applies to unbounded
+        negative loops, not a single 0-second retry."""
         resp = httpx.Response(429, json={"message": "slow"}, headers={"Retry-After": "-1"})
         err = _map_error(resp)
         assert isinstance(err, KalshiRateLimitError)
-        assert err.retry_after is None
+        assert err.retry_after == 0.0
+
+    def test_429_retry_after_negative_and_past_date_agree(self) -> None:
+        """#267 item 2: ``Retry-After: -5`` and a past HTTP-date produce the
+        same ``retry_after`` value. Pre-fix the former returned None (computed
+        backoff) while the latter clamped to 0.0 — silently divergent."""
+        neg = httpx.Response(
+            429, json={"message": "slow"}, headers={"Retry-After": "-5"}
+        )
+        past = httpx.Response(
+            429,
+            json={"message": "slow"},
+            headers={"Retry-After": "Wed, 21 Oct 1999 07:28:00 GMT"},
+        )
+        neg_err = _map_error(neg)
+        past_err = _map_error(past)
+        assert isinstance(neg_err, KalshiRateLimitError)
+        assert isinstance(past_err, KalshiRateLimitError)
+        assert neg_err.retry_after == past_err.retry_after == 0.0
 
     def test_429_retry_after_nan_falls_back(self) -> None:
         """NaN Retry-After is rejected so time.sleep never raises ValueError."""
