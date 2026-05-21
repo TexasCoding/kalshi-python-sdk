@@ -25,6 +25,9 @@ KalshiError                          # base, .status_code: int | None
 ├── KalshiNotFoundError              # 404
 ├── KalshiValidationError            # 400 (carries .details: dict[str, str])
 ├── KalshiRateLimitError             # 429 (carries .retry_after: float | None)
+├── KalshiConflictError              # 409 (e.g., duplicate client_order_id)
+├── KalshiTimeoutError                # request timed out; commit-status unknown on POST
+├── KalshiPoolExhaustedError         # local pool full; request never sent
 ├── KalshiServerError                # 5xx
 └── KalshiWebSocketError             # base for WS errors
     ├── KalshiConnectionError        # handshake / reconnect failure
@@ -44,6 +47,7 @@ leave it `None`.
 | `400` | `KalshiValidationError` | `.details` is populated from `body["details"]` or `body["errors"]` when present and dict-shaped. |
 | `401` / `403` | `KalshiAuthError` | Bad signature, expired key, missing scope. |
 | `404` | `KalshiNotFoundError` | Unknown ticker, missing order, etc. |
+| `409` | `KalshiConflictError` | Duplicate `client_order_id` or other state conflict. |
 | `429` | `KalshiRateLimitError` | `.retry_after` parsed from the `Retry-After` header if it's a non-negative finite numeric (HTTP-date form falls back to computed backoff). |
 | `5xx` | `KalshiServerError` | All server-side failures. |
 | anything else | `KalshiError` | Catch-all, with `status_code` set. |
@@ -80,15 +84,17 @@ passed via `request=Model(...)` fail at `Model(...)` construction.
 Non-HTTP failures are wrapped to a typed exception with the original as
 `__cause__`:
 
-- **Timeouts** on retryable methods (`GET`, `HEAD`, `OPTIONS`) retry; once
-  retries are exhausted, the last `httpx.TimeoutException` is re-raised wrapped
-  in `KalshiError`. Timeouts on `POST` / `DELETE` raise `KalshiError`
-  immediately, no retry.
+- **Timeouts** raise `KalshiTimeoutError`. On retryable verbs (`GET`, `HEAD`,
+  `OPTIONS`), the transport retries first and only raises once retries are
+  exhausted. On `POST` / `DELETE` the timeout is raised immediately — the
+  server may or may not have processed the request. For order create, query
+  with `client_order_id` to determine whether the request committed.
+- **Connection pool exhaustion** raises `KalshiPoolExhaustedError`. The request
+  never reached the wire, so it's safe to retry regardless of HTTP method.
+  Persistent pool exhaustion means you should raise
+  `KalshiConfig.limits.max_connections`.
 - **Connection failures** (DNS, TLS, RST) raise `KalshiError` immediately on
   any verb, no retry.
-
-There is no `KalshiTimeoutError` class. Inspect `e.__cause__` if you need to
-distinguish.
 
 ## Catching everything from the SDK
 
@@ -115,8 +121,14 @@ WebSocket failures are a separate sub-hierarchy under
   reconnect attempt. Also surfaces from `ConnectionManager.send()` / `recv()`
   if you call them without being connected.
 - **`KalshiSubscriptionError`** — server rejected a `subscribe` /
-  `unsubscribe` / `update_subscription` command. Carries an optional
-  `error_code` field with the server's machine-readable code.
+  `unsubscribe` / `update_subscription` command. Carries:
+    - `error_code: int | None` — the server's machine-readable code (also
+      accepted positionally for back-compat).
+    - `channel: str | None` — the channel name involved.
+    - `client_id: int | None` — the durable client-side id used for the
+      command.
+    - `op: Literal["subscribe", "unsubscribe", "update_subscription"] | None`
+      — which operation was rejected.
 - **`KalshiBackpressureError`** — raised from `MessageQueue.put()` when the
   queue is full and the overflow strategy is `ERROR`. The receive loop treats
   this as **fatal**: it broadcasts sentinels to every active iterator and
@@ -124,7 +136,12 @@ WebSocket failures are a separate sub-hierarchy under
 - **`KalshiSequenceGapError`** — exposed for callers wiring their own resync
   logic on top of the SDK's primitives. The built-in receive loop **does not
   raise** this — it recovers from gaps silently (drops the message, clears
-  local orderbook state, waits for the next snapshot).
+  local orderbook state, waits for the next snapshot). Carries:
+    - `channel: str | None` — the channel where the gap appeared.
+    - `sid: int | None` — server-side subscription id.
+    - `client_id: int | None` — durable client-side id.
+    - `last_seq: int | None` — last in-order sequence successfully consumed.
+    - `next_seq: int | None` — sequence number observed that exposed the gap.
 
 A subscription's iterator continues to yield across reconnects — the SDK
 re-issues the subscribe and patches the new server-side `sid` into the durable
@@ -150,6 +167,12 @@ re-established at all.
 ::: kalshi.errors.KalshiValidationError
 
 ::: kalshi.errors.KalshiRateLimitError
+
+::: kalshi.errors.KalshiConflictError
+
+::: kalshi.errors.KalshiTimeoutError
+
+::: kalshi.errors.KalshiPoolExhaustedError
 
 ::: kalshi.errors.KalshiServerError
 

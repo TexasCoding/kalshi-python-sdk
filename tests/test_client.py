@@ -705,9 +705,58 @@ class TestAuthRequiredError:
         err = AuthRequiredError()
         assert "authentication" in str(err).lower()
 
+    def test_default_message_mentions_both_env_vars(self) -> None:
+        err = AuthRequiredError()
+        assert "KALSHI_PRIVATE_KEY_PATH" in str(err)
+        assert "KALSHI_PRIVATE_KEY" in str(err)
+
     def test_custom_message(self) -> None:
         err = AuthRequiredError("custom msg")
         assert str(err) == "custom msg"
+
+
+class TestKalshiSequenceGapError:
+    def test_default_kwargs_are_none(self) -> None:
+        from kalshi.errors import KalshiSequenceGapError
+
+        err = KalshiSequenceGapError("gap")
+        assert err.channel is None
+        assert err.sid is None
+        assert err.client_id is None
+        assert err.last_seq is None
+        assert err.next_seq is None
+
+    def test_carries_channel_sid_seq(self) -> None:
+        from kalshi.errors import KalshiSequenceGapError
+
+        err = KalshiSequenceGapError(
+            "gap",
+            channel="orderbook_delta",
+            sid=5,
+            last_seq=42,
+            next_seq=44,
+        )
+        assert err.channel == "orderbook_delta"
+        assert err.sid == 5
+        assert err.last_seq == 42
+        assert err.next_seq == 44
+
+
+class TestKalshiSubscriptionError:
+    def test_positional_preserved(self) -> None:
+        from kalshi.errors import KalshiSubscriptionError
+
+        err = KalshiSubscriptionError("sub failed", 1234)
+        assert err.error_code == 1234
+
+    def test_carries_channel_op(self) -> None:
+        from kalshi.errors import KalshiSubscriptionError
+
+        err = KalshiSubscriptionError(
+            "sub failed", channel="ticker", op="subscribe"
+        )
+        assert err.channel == "ticker"
+        assert err.op == "subscribe"
 
 
 class TestUnauthenticatedResourceGuards:
