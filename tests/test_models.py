@@ -79,8 +79,9 @@ class TestDollarDecimalField:
 
     def test_market_model_dump_serializes(self) -> None:
         m = Market.model_validate(market_dict(ticker="T", yes_ask_dollars="0.72"))
-        data = m.model_dump()
-        assert data["yes_ask"] == "0.72"
+        # mode='python' preserves Decimal; mode='json' produces wire string.
+        assert m.model_dump()["yes_ask"] == Decimal("0.72")
+        assert m.model_dump(mode="json")["yes_ask"] == "0.72"
 
     def test_order_decimal_fields(self) -> None:
         o = Order.model_validate(
@@ -222,7 +223,7 @@ class TestDollarsAliasFields:
             action="buy",
             yes_price=Decimal("0.65"),
         )
-        data = req.model_dump(exclude_none=True, by_alias=True)
+        data = req.model_dump(mode="json", exclude_none=True, by_alias=True)
         assert "yes_price_dollars" in data
         assert data["yes_price_dollars"] == "0.65"
         assert "yes_price" not in data
