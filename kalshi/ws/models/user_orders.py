@@ -1,9 +1,7 @@
 """User orders channel message models."""
 from __future__ import annotations
 
-from datetime import datetime
-
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.models.orders import (
     BookSideLiteral,
@@ -55,10 +53,10 @@ class UserOrdersPayload(BaseModel):
         validation_alias=AliasChoices("maker_fees_dollars", "maker_fees"),
     )
     client_order_id: str
-    created_time: datetime
+    created_time: AwareDatetime
     order_group_id: str | None = None
-    last_update_time: datetime | None = None
-    expiration_time: datetime | None = None
+    last_update_time: AwareDatetime | None = None
+    expiration_time: AwareDatetime | None = None
     subaccount_number: int | None = None
     # v0.14+ backfill (#162). outcome_side/book_side/self_trade_prevention_type
     # mirror Order from #159. *_ts_ms (Unix ms) supersede the *_time RFC3339

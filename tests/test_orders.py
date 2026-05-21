@@ -9,6 +9,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
@@ -1924,3 +1925,41 @@ class TestLimitValidation:
     ) -> None:
         with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
             orders.fills(limit=10_000)
+
+
+class TestCreateOrderRequestLiteralEnforcement:
+    """#270 Item 2: V1 CreateOrderRequest narrows enum-style fields to Literals.
+
+    Before this change V1 callers could pass ``side="foo"`` and only fail server-
+    side. V2 already enforces literals at construction; aligning V1 closes the
+    deprecation-window inconsistency.
+    """
+
+    def test_rejects_invalid_side(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(ticker="T", side="foo", action="buy", count=Decimal("1"))  # type: ignore[arg-type]
+
+    def test_rejects_invalid_action(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(ticker="T", side="yes", action="trade", count=Decimal("1"))  # type: ignore[arg-type]
+
+    def test_rejects_invalid_time_in_force(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="T", side="yes", action="buy", count=Decimal("1"),
+                time_in_force="forever",  # type: ignore[arg-type]
+            )
+
+    def test_rejects_invalid_self_trade_prevention_type(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderRequest(
+                ticker="T", side="yes", action="buy", count=Decimal("1"),
+                self_trade_prevention_type="never",  # type: ignore[arg-type]
+            )
+
+    def test_accepts_valid_v1_yes_no_side(self) -> None:
+        # V1 uses yes/no (NOT bid/ask like V2)
+        req = CreateOrderRequest(ticker="T", side="no", action="sell", count=Decimal("1"))
+        assert req.side == "no"
+        assert req.action == "sell"
+

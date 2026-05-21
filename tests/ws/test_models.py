@@ -1459,3 +1459,43 @@ class TestMarketLifecycleFloorStrikeDecimal:
         }
         with pytest.raises(TypeError, match="bool"):
             MarketLifecycleMessage.model_validate(raw)
+
+
+class TestWsPayloadsRejectNaiveDatetime:
+    """#270 Item 1: WS payloads with datetime fields must reject naive RFC3339 strings.
+
+    REST models standardised on AwareDatetime in #234. WS payloads must match —
+    a naive datetime string (no offset) must raise ValidationError, not silently
+    parse into a tz-unaware datetime that breaks arithmetic against tz-aware peers.
+    """
+
+    def test_user_orders_payload_rejects_naive_created_time(self) -> None:
+        payload = user_orders_payload_dict(created_time="2026-01-01T00:00:00")
+        with pytest.raises(ValidationError, match="timezone"):
+            UserOrdersPayload.model_validate(payload)
+
+    def test_rfq_created_payload_rejects_naive_created_ts(self) -> None:
+        with pytest.raises(ValidationError, match="timezone"):
+            RfqCreatedPayload.model_validate(
+                {
+                    "id": "rfq-001",
+                    "creator_id": "u-1",
+                    "market_ticker": "T",
+                    "created_ts": "2026-01-01T00:00:00",
+                }
+            )
+
+    def test_quote_executed_payload_rejects_naive_executed_ts(self) -> None:
+        with pytest.raises(ValidationError, match="timezone"):
+            QuoteExecutedPayload.model_validate(
+                {
+                    "quote_id": "q-001",
+                    "rfq_id": "rfq-001",
+                    "quote_creator_id": "u-2",
+                    "rfq_creator_id": "u-1",
+                    "order_id": "ord-001",
+                    "client_order_id": "cli-001",
+                    "market_ticker": "T",
+                    "executed_ts": "2026-04-19T18:43:37",
+                }
+            )

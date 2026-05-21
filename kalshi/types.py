@@ -18,19 +18,28 @@ def _coerce_decimal(value: Any) -> Decimal:
     differ only in their canonical wire name and intent; the decimal coercion is the same.
     Going through ``str(value)`` for ``int`` / ``float`` avoids the binary-float
     representation drift (``Decimal(0.65) == Decimal('0.65000000000000002...')``).
+
+    Non-finite values (``NaN``, ``Infinity``, ``-Infinity``) are rejected after coercion.
+    ``f"{Decimal('NaN'):f}"`` returns the literal string ``"NaN"``; without this guard
+    a caller doing arithmetic that produces NaN and then constructing a Dollar/FP-typed
+    request would ship the string ``"NaN"`` straight to a real-money endpoint.
     """
-    if isinstance(value, Decimal):
-        return value
     if isinstance(value, bool):
         raise TypeError(
             "Cannot convert bool to Decimal — bool is an int subclass, "
             "so this is almost always a typo (did you mean count=1?)."
         )
-    if isinstance(value, (int, float)):
-        return Decimal(str(value))
-    if isinstance(value, str):
-        return Decimal(value)
-    raise TypeError(f"Cannot convert {type(value).__name__} to Decimal")
+    if isinstance(value, Decimal):
+        result = value
+    elif isinstance(value, (int, float)):
+        result = Decimal(str(value))
+    elif isinstance(value, str):
+        result = Decimal(value)
+    else:
+        raise TypeError(f"Cannot convert {type(value).__name__} to Decimal")
+    if not result.is_finite():
+        raise ValueError("Decimal must be finite (got NaN/Infinity)")
+    return result
 
 
 def _decimal_to_str(value: Decimal) -> str:
@@ -115,4 +124,17 @@ NullableList = Annotated[list[T], BeforeValidator(_none_to_empty_list)]
 Use on response-model fields (extra='allow') whose spec says 'array' but where
 the live API has been observed to return null. Do NOT use on request bodies —
 those should enforce strict validation.
+"""
+
+# Internal type aid — not re-exported via kalshi.__init__. The bare int
+# wire shape is preserved; this alias only documents intent and gives mypy/IDE
+# a greppable name when balance/deposit/withdrawal timestamps are read
+# alongside the AwareDatetime peers on MarketPosition/Settlement.
+UnixSecondsTimestamp = Annotated[int, "Unix epoch seconds (int64) per OpenAPI spec"]
+"""Server-side ``format: int64`` Unix-seconds timestamp.
+
+Same wire shape as plain ``int``; the alias exists to make it obvious at the
+field site that the value is *seconds* (not milliseconds, not a datetime).
+Callers wanting a :class:`datetime.datetime` can use
+``datetime.fromtimestamp(value, tz=timezone.utc)``.
 """

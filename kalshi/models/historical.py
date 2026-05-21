@@ -26,7 +26,14 @@ class HistoricalCutoff(BaseModel):
 
 
 class Trade(BaseModel):
-    """A public trade on the exchange."""
+    """A public trade on the exchange.
+
+    ``count`` is typed ``FixedPointCount | None`` without ``default=None``
+    because the OpenAPI spec (``Trade.required``) marks ``count_fp`` as a
+    **required** response key. The ``| None`` admits server-side ``null``
+    on rare degenerate trades while a missing key still raises
+    ValidationError — schema regression, not a default.
+    """
 
     trade_id: str
     ticker: str
