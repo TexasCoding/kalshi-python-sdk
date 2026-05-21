@@ -6,6 +6,7 @@ import urllib.parse
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, TypeVar
 
+import httpx
 from pydantic import BaseModel
 
 from kalshi._base_client import AsyncTransport, SyncTransport
@@ -134,9 +135,28 @@ class SyncResource:
         if not self._transport.is_authenticated:
             raise AuthRequiredError()
 
-    def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = self._transport.request("GET", path, params=params)
-        result: dict[str, Any] = response.json()
+    def _load_json(self, response: httpx.Response) -> Any:
+        """Parse a response body, honoring ``config.rest_json_loads`` if set.
+
+        Falls back to ``response.json()`` (stdlib) when no custom loader is
+        configured. Custom loaders receive ``response.content`` (bytes).
+        """
+        loader = self._transport._config.rest_json_loads
+        if loader is None:
+            return response.json()
+        return loader(response.content)
+
+    def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        response = self._transport.request(
+            "GET", path, params=params, extra_headers=extra_headers,
+        )
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _post(
@@ -145,9 +165,12 @@ class SyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        response = self._transport.request("POST", path, params=params, json=json)
-        result: dict[str, Any] = response.json()
+        response = self._transport.request(
+            "POST", path, params=params, json=json, extra_headers=extra_headers,
+        )
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _post_json(
@@ -156,6 +179,7 @@ class SyncResource:
         *,
         content: bytes,
         params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """POST a pre-serialized JSON body (bytes).
 
@@ -166,8 +190,9 @@ class SyncResource:
         response = self._transport.request(
             "POST", path, params=params, content=content,
             headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
         )
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _put(
@@ -176,29 +201,44 @@ class SyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = self._transport.request("PUT", path, params=params, json=json)
+        response = self._transport.request(
+            "PUT", path, params=params, json=json, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _delete(
-        self, path: str, *, params: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = self._transport.request("DELETE", path, params=params)
+        response = self._transport.request(
+            "DELETE", path, params=params, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _delete_with_body(
-        self, path: str, *, json: dict[str, Any]
+        self,
+        path: str,
+        *,
+        json: dict[str, Any],
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = self._transport.request("DELETE", path, json=json)
+        response = self._transport.request(
+            "DELETE", path, json=json, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _delete_with_body_json(
@@ -207,15 +247,17 @@ class SyncResource:
         *,
         content: bytes,
         params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """DELETE with a pre-serialized JSON body (bytes). See :meth:`_post_json`."""
         response = self._transport.request(
             "DELETE", path, params=params, content=content,
             headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     def _list(
@@ -303,9 +345,28 @@ class AsyncResource:
         if not self._transport.is_authenticated:
             raise AuthRequiredError()
 
-    async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = await self._transport.request("GET", path, params=params)
-        result: dict[str, Any] = response.json()
+    def _load_json(self, response: httpx.Response) -> Any:
+        """Parse a response body, honoring ``config.rest_json_loads`` if set.
+
+        Falls back to ``response.json()`` (stdlib) when no custom loader is
+        configured. Custom loaders receive ``response.content`` (bytes).
+        """
+        loader = self._transport._config.rest_json_loads
+        if loader is None:
+            return response.json()
+        return loader(response.content)
+
+    async def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        response = await self._transport.request(
+            "GET", path, params=params, extra_headers=extra_headers,
+        )
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _post(
@@ -314,11 +375,12 @@ class AsyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         response = await self._transport.request(
-            "POST", path, params=params, json=json,
+            "POST", path, params=params, json=json, extra_headers=extra_headers,
         )
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _post_json(
@@ -327,13 +389,15 @@ class AsyncResource:
         *,
         content: bytes,
         params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Async :meth:`SyncResource._post_json`."""
         response = await self._transport.request(
             "POST", path, params=params, content=content,
             headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
         )
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _put(
@@ -342,29 +406,44 @@ class AsyncResource:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = await self._transport.request("PUT", path, params=params, json=json)
+        response = await self._transport.request(
+            "PUT", path, params=params, json=json, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _delete(
-        self, path: str, *, params: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = await self._transport.request("DELETE", path, params=params)
+        response = await self._transport.request(
+            "DELETE", path, params=params, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _delete_with_body(
-        self, path: str, *, json: dict[str, Any]
+        self,
+        path: str,
+        *,
+        json: dict[str, Any],
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
-        response = await self._transport.request("DELETE", path, json=json)
+        response = await self._transport.request(
+            "DELETE", path, json=json, extra_headers=extra_headers,
+        )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _delete_with_body_json(
@@ -373,15 +452,17 @@ class AsyncResource:
         *,
         content: bytes,
         params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         """Async :meth:`SyncResource._delete_with_body_json`."""
         response = await self._transport.request(
             "DELETE", path, params=params, content=content,
             headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
         )
         if response.status_code == 204:
             return None
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._load_json(response)
         return result
 
     async def _list(

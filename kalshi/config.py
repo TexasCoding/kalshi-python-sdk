@@ -48,6 +48,11 @@ class KalshiConfig:
         ws_ping_interval: Interval (s) between WS keepalive pings. Default 20.
         ws_close_timeout: Time (s) to wait for graceful WS close handshake.
             Default 5.
+        rest_json_loads: Optional callable used to parse REST response
+            bodies. ``None`` falls back to :func:`httpx.Response.json`
+            (stdlib :func:`json.loads`). Set to e.g. ``orjson.loads`` for
+            ~2-3x faster parsing on list endpoints (``markets.list_all``,
+            ``trades.list_all``, ``fcm.orders``).
         ws_json_loads: Optional callable used to parse WS frames. ``None``
             falls back to :func:`json.loads`. Set to e.g. ``orjson.loads``
             for ~2-3x faster recv-loop parsing on high-volume streams.
@@ -68,6 +73,7 @@ class KalshiConfig:
     limits: httpx.Limits | None = None
     ws_ping_interval: float = 20.0
     ws_close_timeout: float = 5.0
+    rest_json_loads: Callable[[bytes], Any] | None = None
     ws_json_loads: Callable[[bytes | str], Any] | None = None
     ws_json_dumps: Callable[[Any], bytes | str] | None = None
     allow_unknown_host: bool = False
