@@ -158,6 +158,14 @@ finally:
     client.close()
 ```
 
+`AsyncKalshiClient` follows the same shape — prefer `async with` so the
+async `close()` chains the executor teardown on exit:
+
+```python
+async with AsyncKalshiClient.from_env() as client:
+    ...
+```
+
 ## Reference
 
 ::: kalshi.config.KalshiConfig
