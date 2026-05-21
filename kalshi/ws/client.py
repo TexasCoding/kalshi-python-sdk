@@ -16,6 +16,8 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
     KalshiBackpressureError,
+    KalshiConnectionError,
+    KalshiSequenceGapError,
     KalshiSubscriptionError,
 )
 from kalshi.models.markets import Orderbook
@@ -44,6 +46,14 @@ _StateChangeCb = Callable[[ConnectionState, ConnectionState], Awaitable[None]]
 _CallbackDecorator = Callable[
     [Callable[..., Awaitable[None]]], Callable[..., Awaitable[None]]
 ]
+
+# #197: close codes that signal a permanent server-side rejection. Reconnect
+# will fail every attempt for these (auth/protocol/policy/payload violations),
+# so fast-fail instead of burning the 10-retry budget. App-specific 4xxx
+# codes (notably 4001 = auth) are included wholesale per the Kalshi docs.
+_PERMANENT_CLOSE_CODES: frozenset[int] = frozenset(
+    {1002, 1003, 1007, 1008, 1009, 1010}
+) | frozenset(range(4000, 5000))
 
 
 class KalshiWebSocket:
@@ -102,6 +112,7 @@ class KalshiWebSocket:
             sub_mgr=self._sub_mgr,
             on_error=self._on_error,
             seq_tracker=self._seq_tracker,
+            orderbook_mgr=self._orderbook_mgr,
         )
         self._running = True
 
@@ -171,7 +182,29 @@ class KalshiWebSocket:
                 # F-P-04: cancellation while awaiting recv = no frame read,
                 # no data lost. Safe to exit.
                 break
-            except ConnectionClosed:
+            except ConnectionClosed as e:
+                # #197: classify the close code. The server returns codes
+                # in the 4xxx range for app-specific failures (4001 auth,
+                # ...) and RFC 6455 reserves 1002/3/7-10 for protocol
+                # violations. None of these will recover on retry — fail
+                # fast instead of burning the 10-retry budget under load.
+                code = None
+                rcvd = getattr(e, "rcvd", None)
+                sent = getattr(e, "sent", None)
+                if rcvd is not None:
+                    code = rcvd.code
+                if code is None and sent is not None:
+                    code = sent.code
+                if code in _PERMANENT_CLOSE_CODES:
+                    reason = (rcvd.reason if rcvd is not None else "") or ""
+                    logger.error(
+                        "WS closed with permanent code %d (%s); not reconnecting",
+                        code, reason or "<no reason>",
+                    )
+                    await self._broadcast_sentinels()
+                    raise KalshiConnectionError(
+                        f"WebSocket closed with permanent code {code}: {reason}"
+                    ) from e
                 if not self._running:
                     break
                 await self._handle_reconnect()
@@ -284,7 +317,9 @@ class KalshiWebSocket:
         pre_validated: BaseModel | None = None
         if msg_type == "orderbook_snapshot" and self._orderbook_mgr:
             snapshot = OrderbookSnapshotMessage.model_validate(data)
-            self._orderbook_mgr.apply_snapshot(snapshot)
+            # Record per-sid ticker ownership so all-markets subscriptions
+            # can be torn down on gap recovery / unsubscribe (#189, #206).
+            self._orderbook_mgr.apply_snapshot(snapshot, sid=snapshot.sid)
             pre_validated = snapshot
         elif msg_type == "orderbook_delta" and self._orderbook_mgr:
             delta = OrderbookDeltaMessage.model_validate(data)
@@ -293,14 +328,22 @@ class KalshiWebSocket:
 
         try:
             await self._dispatcher.dispatch(data, pre_validated=pre_validated)
-        except KalshiBackpressureError:
+        except KalshiBackpressureError as exc:
             # Dispatch failed -> the consumer never saw this message. Roll
             # the seq watermark back so the dropped seq is treated as a
-            # future gap (not silently as already-seen). Re-raise so the
-            # recv loop's existing handler broadcasts sentinels and tears
-            # the loop down.
+            # future gap (not silently as already-seen). Surface the error
+            # to the affected sub's iterator (#207) so the consumer can
+            # halt rather than see an indistinguishable-from-close
+            # ``StopAsyncIteration``. Re-raise so the recv loop's existing
+            # handler broadcasts sentinels to the OTHER subs and tears the
+            # loop down — the affected queue's error sentinel was put
+            # first, so it surfaces before the close sentinel.
             if tracked and sid is not None and self._seq_tracker:
                 self._seq_tracker.rollback(sid, prev_seq)
+            if sid is not None and self._sub_mgr is not None:
+                affected = self._sub_mgr.get_subscription_by_sid(sid)
+                if affected is not None:
+                    await self._sub_mgr.broadcast_error(affected.client_id, exc)
             raise
 
     async def _handle_reconnect(self) -> None:
@@ -378,29 +421,72 @@ class KalshiWebSocket:
                     )
 
     async def _handle_seq_gap(self, gap: SequenceGap) -> None:
-        """Handle a sequence gap by logging and triggering resync.
+        """Handle a sequence gap or reset by driving a real resubscribe.
 
-        A single ``orderbook_delta`` subscription can cover multiple tickers
-        under one sid. The gap envelope doesn't identify which ticker
-        missed an update, so we clear EVERY ticker on the affected
-        subscription — clearing only ``tickers[0]`` would leave the other
-        books silently diverged from server truth.
+        Replaces the previous clear-and-pray behavior (#189). Works for
+        any sequenced channel — orderbook_delta covers the canonical
+        case, order_group_updates also reaches this path (#205).
+
+        Steps:
+
+        1. Tear down per-sid local state (orderbook books seeded by this
+           sid via :meth:`OrderbookManager.remove_by_sid`; seq watermark
+           via :meth:`SequenceTracker.reset`). All-markets orderbook
+           subscriptions are handled correctly because the manager
+           tracks ticker ownership by sid, not by the caller's params.
+        2. Drive :meth:`SubscriptionManager.resubscribe_one`. The server
+           assigns a new sid; for orderbook subs the resubscribe forces
+           ``send_initial_snapshot=True`` so the book repopulates.
+        3. If the resubscribe fails, surface ``KalshiSequenceGapError``
+           to the consumer iterator via
+           :meth:`SubscriptionManager.broadcast_error` (#207-style) so
+           safety-critical strategies can halt rather than consume from
+           a permanently-empty local book.
         """
         logger.warning(
-            "Sequence gap on sid %d: expected %d, got %d. Triggering resync.",
-            gap.sid, gap.expected, gap.received,
+            "Sequence %s on sid %d: expected %d, got %d. Triggering resync.",
+            gap.kind, gap.sid, gap.expected, gap.received,
         )
-        if self._sub_mgr:
-            sub = self._sub_mgr.get_subscription_by_sid(gap.sid)
-            if sub and sub.channel == "orderbook_delta":
-                # Clear orderbook state for ALL tickers in the sub and reset
-                # sequence tracking so the next snapshot rebootstraps cleanly.
-                tickers = sub.params.get("market_tickers", [])
-                if self._orderbook_mgr:
-                    for ticker in tickers:
-                        self._orderbook_mgr.remove(ticker)
-                if self._seq_tracker:
-                    self._seq_tracker.reset(gap.sid)
+        if self._sub_mgr is None:
+            return
+        sub = self._sub_mgr.get_subscription_by_sid(gap.sid)
+        if sub is None:
+            return
+
+        # 1. Tear down per-sid local state.
+        if self._orderbook_mgr is not None:
+            cleared = self._orderbook_mgr.remove_by_sid(gap.sid)
+            if cleared:
+                logger.warning(
+                    "Cleared %d orderbook entries for sid %d on %s",
+                    len(cleared), gap.sid, gap.kind,
+                )
+        if self._seq_tracker is not None:
+            self._seq_tracker.reset(gap.sid)
+
+        client_id = sub.client_id
+        channel = sub.channel
+
+        # 2. Drive a real resubscribe so the server emits a fresh snapshot
+        # (and a new sid). Surface failures to the consumer iterator.
+        try:
+            await self._sub_mgr.resubscribe_one(client_id)
+        except KalshiSubscriptionError as e:
+            logger.error(
+                "Resubscribe after gap failed for client_id=%d channel=%s",
+                client_id, channel, exc_info=True,
+            )
+            await self._sub_mgr.broadcast_error(
+                client_id,
+                KalshiSequenceGapError(
+                    f"Resubscribe failed for {channel} after {gap.kind}: {e}",
+                    channel=channel,
+                    sid=gap.sid,
+                    client_id=client_id,
+                    last_seq=gap.expected - 1,
+                    next_seq=gap.received,
+                ),
+            )
 
     # ------------------------------------------------------------------
     # Internal subscribe helper
@@ -556,6 +642,40 @@ class KalshiWebSocket:
         return await self._do_subscribe(
             channel, params=params, overflow=overflow, maxsize=maxsize,
         )
+
+    # ------------------------------------------------------------------
+    # Unsubscribe
+    # ------------------------------------------------------------------
+
+    async def unsubscribe(self, client_id: int) -> None:
+        """Tear down a subscription and its associated local state (#206).
+
+        Removes any local :class:`OrderbookManager` books seeded by the
+        sub's current ``server_sid`` (works for both explicit-tickers
+        and all-markets orderbook subscriptions via the manager's per-sid
+        index), then delegates to
+        :meth:`SubscriptionManager.unsubscribe` to send the wire command,
+        push the consumer-iterator sentinel, and drop the bookkeeping.
+        Resets the seq watermark too so any sid reuse after server-side
+        renumber doesn't replay against a stale floor.
+        """
+        if self._sub_mgr is None:
+            return
+        sub = self._sub_mgr.get_subscription(client_id)
+        if sub is None:
+            return
+        old_sid = sub.server_sid
+        if old_sid is not None:
+            if self._orderbook_mgr is not None:
+                cleared = self._orderbook_mgr.remove_by_sid(old_sid)
+                if cleared:
+                    logger.debug(
+                        "Cleared %d orderbook entries for sid %d on unsubscribe",
+                        len(cleared), old_sid,
+                    )
+            if self._seq_tracker is not None:
+                self._seq_tracker.reset(old_sid)
+        await self._sub_mgr.unsubscribe(client_id)
 
     # ------------------------------------------------------------------
     # Callback API

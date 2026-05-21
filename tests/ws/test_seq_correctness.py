@@ -15,6 +15,7 @@ import asyncio
 import pytest
 
 from kalshi.config import KalshiConfig
+from kalshi.errors import KalshiBackpressureError
 from kalshi.ws.client import KalshiWebSocket
 from kalshi.ws.sequence import SequenceTracker
 
@@ -122,8 +123,11 @@ class TestBackpressureDoesNotAdvanceSeq:
                 "dropped message; orderbook is now silently desynced."
             )
 
-            # Drain the iterator so the session can shut down cleanly.
+            # #207: iterator now raises KalshiBackpressureError after the
+            # snapshot lands. Previously the iterator exited silently with
+            # StopAsyncIteration — indistinguishable from a clean shutdown.
             collected: list[object] = []
-            async for msg in stream:
-                collected.append(msg)
+            with pytest.raises(KalshiBackpressureError):
+                async for msg in stream:
+                    collected.append(msg)
             assert len(collected) == 1  # only the snapshot landed

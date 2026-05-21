@@ -53,25 +53,62 @@ class TestSubscription:
         result = sub.to_subscribe_params()
         assert result == {"channels": ["fill"]}
 
-    def test_to_subscribe_params_all_keys(self) -> None:
+    def test_to_subscribe_params_orderbook_keys(self) -> None:
         queue: MessageQueue[object] = MessageQueue(maxsize=10)
         params = {
             "market_ticker": "T1",
             "market_tickers": ["T1", "T2"],
             "market_id": "id1",
             "market_ids": ["id1", "id2"],
-            "shard_factor": 2,
-            "shard_key": "k",
             "send_initial_snapshot": True,
-            "skip_ticker_ack": True,
         }
         sub = Subscription(client_id=1, channel="orderbook_delta", params=params, queue=queue)
         result = sub.to_subscribe_params()
         assert result["channels"] == ["orderbook_delta"]
         assert result["market_ticker"] == "T1"
         assert result["market_tickers"] == ["T1", "T2"]
-        assert result["shard_factor"] == 2
         assert result["send_initial_snapshot"] is True
+
+    def test_to_subscribe_params_rejects_unknown_key(self) -> None:
+        """#195: typos / shard params on a non-sharded channel must fail loudly."""
+        queue: MessageQueue[object] = MessageQueue(maxsize=10)
+        sub = Subscription(
+            client_id=1, channel="orderbook_delta",
+            params={"tickerz": ["T1"]}, queue=queue,
+        )
+        with pytest.raises(KalshiSubscriptionError) as excinfo:
+            sub.to_subscribe_params()
+        assert excinfo.value.channel == "orderbook_delta"
+        assert excinfo.value.op == "subscribe"
+
+    def test_to_subscribe_params_rejects_shard_on_orderbook(self) -> None:
+        """shard_factor/shard_key are communications-only; reject on orderbook_delta."""
+        queue: MessageQueue[object] = MessageQueue(maxsize=10)
+        sub = Subscription(
+            client_id=1, channel="orderbook_delta",
+            params={"shard_factor": 2}, queue=queue,
+        )
+        with pytest.raises(KalshiSubscriptionError):
+            sub.to_subscribe_params()
+
+    def test_to_subscribe_params_communications_shard_keys(self) -> None:
+        queue: MessageQueue[object] = MessageQueue(maxsize=10)
+        sub = Subscription(
+            client_id=1, channel="communications",
+            params={"shard_factor": 2, "shard_key": 1}, queue=queue,
+        )
+        result = sub.to_subscribe_params()
+        assert result == {"channels": ["communications"], "shard_factor": 2, "shard_key": 1}
+
+    def test_to_subscribe_params_unmodeled_channel_falls_back(self) -> None:
+        """Generic subscribe escape hatch: unmodeled channels accept any forward key."""
+        queue: MessageQueue[object] = MessageQueue(maxsize=10)
+        sub = Subscription(
+            client_id=1, channel="root",
+            params={"skip_ticker_ack": True}, queue=queue,
+        )
+        result = sub.to_subscribe_params()
+        assert result == {"channels": ["root"], "skip_ticker_ack": True}
 
     def test_initial_server_sid_is_none(self) -> None:
         queue: MessageQueue[object] = MessageQueue(maxsize=10)

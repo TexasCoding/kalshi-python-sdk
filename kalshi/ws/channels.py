@@ -16,7 +16,9 @@ from kalshi.ws.connection import ConnectionManager
 
 logger = logging.getLogger("kalshi.ws")
 
-# Keys forwarded from user params to the subscribe command.
+# Keys accepted (and forwarded) on the subscribe command across every channel.
+# Used both as a fallback allow-set for channels not in ``_CHANNEL_PARAMS``
+# and as the forwarding set in ``to_subscribe_params``.
 _SUBSCRIBE_FORWARD_KEYS = (
     "market_ticker",
     "market_tickers",
@@ -27,6 +29,31 @@ _SUBSCRIBE_FORWARD_KEYS = (
     "send_initial_snapshot",
     "skip_ticker_ack",
 )
+
+# Per-channel allow-set used by ``Subscription.to_subscribe_params`` to reject
+# unknown keys at submission (#195). Each set is the union of params the typed
+# subscribe helper accepts plus any AsyncAPI-documented extras for that
+# channel. Channels not listed here fall back to ``_SUBSCRIBE_FORWARD_KEYS``
+# (the public ``subscribe(channel=...)`` escape hatch for ``root`` and
+# ``control_frames`` and any future server-added channel).
+_CHANNEL_PARAMS: dict[str, frozenset[str]] = {
+    "ticker": frozenset({"market_ticker", "market_tickers", "market_id", "market_ids"}),
+    "trade": frozenset({"market_ticker", "market_tickers", "market_id", "market_ids"}),
+    "orderbook_delta": frozenset({
+        "market_ticker", "market_tickers", "market_id", "market_ids",
+        "send_initial_snapshot",
+    }),
+    "fill": frozenset(),
+    "market_positions": frozenset(),
+    "user_orders": frozenset(),
+    "order_group_updates": frozenset(),
+    "market_lifecycle_v2": frozenset({
+        "market_ticker", "market_tickers", "market_id", "market_ids",
+    }),
+    "multivariate": frozenset(),
+    "multivariate_market_lifecycle": frozenset(),
+    "communications": frozenset({"shard_factor", "shard_key"}),
+}
 
 
 class Subscription:
@@ -46,7 +73,29 @@ class Subscription:
         self.server_sid: int | None = None
 
     def to_subscribe_params(self) -> dict[str, Any]:
-        """Build the params dict for the subscribe command."""
+        """Build the params dict for the subscribe command.
+
+        Validates ``self.params`` against the channel's allow-set (#195).
+        Unknown keys raise :class:`KalshiSubscriptionError` so typos like
+        ``tickerz`` or ``send_snapshot`` fail loudly at submit time rather
+        than being silently dropped on the wire — the dropped key would
+        previously cause the consumer to subscribe to a much broader
+        stream than intended, or to never receive the requested snapshot.
+        """
+        allowed = _CHANNEL_PARAMS.get(self.channel)
+        if allowed is None:
+            # Unmodeled channel (e.g. the generic ``subscribe(channel=...)``
+            # escape hatch for ``root`` / ``control_frames``). Fall back to
+            # the union of forwarded keys so users can still drive those
+            # channels without us hardcoding every server-side parameter.
+            allowed = frozenset(_SUBSCRIBE_FORWARD_KEYS)
+        for key in self.params:
+            if key not in allowed:
+                raise KalshiSubscriptionError(
+                    f"Unknown param key {key!r} for channel {self.channel!r}",
+                    channel=self.channel,
+                    op="subscribe",
+                )
         result: dict[str, Any] = {"channels": [self.channel]}
         for key in _SUBSCRIBE_FORWARD_KEYS:
             if key in self.params:
@@ -100,7 +149,13 @@ class SubscriptionManager:
         return mid
 
     async def _wait_for_response(
-        self, msg_id: int, timeout: float = 5.0
+        self,
+        msg_id: int,
+        timeout: float = 5.0,
+        *,
+        channel: str | None = None,
+        client_id: int | None = None,
+        op: str | None = None,
     ) -> dict[str, Any]:
         """Read frames until we get the response matching our command id.
 
@@ -114,13 +169,20 @@ class SubscriptionManager:
         between ``_sid_to_client.clear()`` and the new sid mapping are
         silently dropped — a real signal-loss bug under high-volume
         reconnect bursts.
+
+        ``channel`` / ``client_id`` / ``op`` are populated on the
+        ``KalshiSubscriptionError`` so callers can write op-specific
+        recovery handlers without parsing the error string (#213).
         """
         deadline = asyncio.get_running_loop().time() + timeout
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 raise KalshiSubscriptionError(
-                    f"Timed out waiting for response to command {msg_id}"
+                    f"Timed out waiting for response to command {msg_id}",
+                    channel=channel,
+                    client_id=client_id,
+                    op=op,  # type: ignore[arg-type]
                 )
             try:
                 raw = await asyncio.wait_for(
@@ -213,12 +275,17 @@ class SubscriptionManager:
         await self._connection.send(cmd)
 
         # Read frames until we get our subscribe ack (by matching id)
-        data = await self._wait_for_response(msg_id)
+        data = await self._wait_for_response(
+            msg_id, channel=channel, client_id=client_id, op="subscribe",
+        )
         if data.get("type") == "error":
             error_msg = data.get("msg", {})
             raise KalshiSubscriptionError(
                 str(error_msg.get("msg", "Subscribe failed")),
                 error_code=error_msg.get("code"),
+                channel=channel,
+                client_id=client_id,
+                op="subscribe",
             )
 
         server_sid = data.get("msg", {}).get("sid")
@@ -245,7 +312,9 @@ class SubscriptionManager:
         cmd = {"id": msg_id, "cmd": "unsubscribe", "params": {"sids": [sub.server_sid]}}
         await self._connection.send(cmd)
 
-        await self._wait_for_response(msg_id)
+        await self._wait_for_response(
+            msg_id, channel=sub.channel, client_id=client_id, op="unsubscribe",
+        )
         # F-P-08: push sentinel before deleting so any held iterator exits
         # cleanly via StopAsyncIteration instead of hanging on queue.get().
         await sub.queue.put_sentinel()
@@ -267,7 +336,12 @@ class SubscriptionManager:
         """Add or remove markets from an existing subscription."""
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
-            raise KalshiSubscriptionError("Subscription not found or not active")
+            raise KalshiSubscriptionError(
+                "Subscription not found or not active",
+                channel=sub.channel if sub else None,
+                client_id=client_id,
+                op="update_subscription",
+            )
 
         msg_id = self._get_msg_id()
         params: dict[str, Any] = {"sids": [sub.server_sid], "action": action}
@@ -280,7 +354,9 @@ class SubscriptionManager:
 
         cmd = {"id": msg_id, "cmd": "update_subscription", "params": params}
         await self._connection.send(cmd)
-        await self._wait_for_response(msg_id)
+        await self._wait_for_response(
+            msg_id, channel=sub.channel, client_id=client_id, op="update_subscription",
+        )
         logger.debug("Updated subscription client_id=%d action=%s", client_id, action)
 
     async def resubscribe_all(self) -> None:
@@ -326,12 +402,18 @@ class SubscriptionManager:
                     cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
                     await self._connection.send(cmd)
 
-                    data = await self._wait_for_response(msg_id)
+                    data = await self._wait_for_response(
+                        msg_id, channel=sub.channel,
+                        client_id=client_id, op="subscribe",
+                    )
                     if data.get("type") == "error":
                         error_msg = data.get("msg", {})
                         raise KalshiSubscriptionError(
                             str(error_msg.get("msg", "Resubscribe failed")),
                             error_code=error_msg.get("code"),
+                            channel=sub.channel,
+                            client_id=client_id,
+                            op="subscribe",
                         )
                     new_sid = data.get("msg", {}).get("sid")
                     if new_sid is not None:
@@ -359,6 +441,107 @@ class SubscriptionManager:
                     self._subscriptions.pop(client_id, None)
         finally:
             self._stashing = False
+
+    async def resubscribe_one(self, client_id: int) -> int | None:
+        """Tear down and re-establish a single subscription.
+
+        Used by the gap-recovery path so a single bad-seq frame on one
+        sid doesn't require dropping every other live subscription.
+        Sends an unsubscribe for the current ``server_sid`` and then a
+        subscribe with the same channel/params. Orderbook subs are
+        forced to request a fresh snapshot via
+        ``send_initial_snapshot=True``.
+
+        Returns the new ``server_sid`` (or ``None`` if the server didn't
+        echo one). The old sid mapping is cleared before the new sid is
+        installed so stale in-flight frames cannot mis-route through the
+        old client_id.
+
+        Raises :class:`KalshiSubscriptionError` if either the
+        unsubscribe or subscribe is rejected; callers are responsible
+        for surfacing the failure to the consumer (typically via
+        :meth:`broadcast_error`). The resubscribe-window stash (#176)
+        is enabled around the unsubscribe+subscribe pair so frames the
+        server emits between the two acks are captured for later
+        replay.
+        """
+        sub = self._subscriptions.get(client_id)
+        if sub is None:
+            return None
+        old_sid = sub.server_sid
+
+        # Enable the stash so data frames arriving between unsubscribe-ack
+        # and subscribe-ack survive the sid handoff (#176).
+        prev_stashing = self._stashing
+        self._stashing = True
+        try:
+            if old_sid is not None:
+                # Best-effort unsubscribe. Server may have already torn down
+                # the sid (the very gap that triggered resubscribe may be
+                # part of a server-initiated reset); ignore unsubscribe
+                # failures so the fresh subscribe still has a chance.
+                try:
+                    msg_id = self._get_msg_id()
+                    cmd = {
+                        "id": msg_id, "cmd": "unsubscribe",
+                        "params": {"sids": [old_sid]},
+                    }
+                    await self._connection.send(cmd)
+                    await self._wait_for_response(
+                        msg_id, channel=sub.channel,
+                        client_id=client_id, op="unsubscribe",
+                    )
+                except KalshiSubscriptionError:
+                    logger.debug(
+                        "Unsubscribe during resubscribe_one failed for "
+                        "client_id=%d sid=%d; continuing with fresh subscribe",
+                        client_id, old_sid, exc_info=True,
+                    )
+                self._sid_to_client.pop(old_sid, None)
+                sub.server_sid = None
+
+            msg_id = self._get_msg_id()
+            params = sub.to_subscribe_params()
+            if sub.channel == "orderbook_delta":
+                params["send_initial_snapshot"] = True
+            cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
+            await self._connection.send(cmd)
+            data = await self._wait_for_response(
+                msg_id, channel=sub.channel,
+                client_id=client_id, op="subscribe",
+            )
+            if data.get("type") == "error":
+                error_msg = data.get("msg", {})
+                raise KalshiSubscriptionError(
+                    str(error_msg.get("msg", "Resubscribe failed")),
+                    error_code=error_msg.get("code"),
+                    channel=sub.channel,
+                    client_id=client_id,
+                    op="subscribe",
+                )
+            new_sid = data.get("msg", {}).get("sid")
+            if isinstance(new_sid, int):
+                sub.server_sid = new_sid
+                self._sid_to_client[new_sid] = client_id
+            return new_sid if isinstance(new_sid, int) else None
+        finally:
+            self._stashing = prev_stashing
+
+    async def broadcast_error(
+        self, client_id: int, exc: BaseException
+    ) -> None:
+        """Surface ``exc`` to the subscription's iterator (#207, #189).
+
+        Puts an error sentinel on the queue so any active ``async for``
+        on the subscription raises ``exc`` rather than seeing a silent
+        ``StopAsyncIteration``. Subsequent puts on the queue become
+        no-ops (the queue is now closed). Safe to call for unknown
+        ``client_id`` — it becomes a no-op.
+        """
+        sub = self._subscriptions.get(client_id)
+        if sub is None:
+            return
+        await sub.queue.put_error(exc)
 
     def take_stash(self) -> dict[int, collections.deque[str]]:
         """Return and clear the resubscribe-window stash atomically (#176).

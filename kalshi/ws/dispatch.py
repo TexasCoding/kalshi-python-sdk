@@ -19,6 +19,7 @@ from kalshi.ws.models.orderbook_delta import OrderbookDeltaMessage, OrderbookSna
 from kalshi.ws.models.ticker import TickerMessage
 from kalshi.ws.models.trade import TradeMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
+from kalshi.ws.orderbook import OrderbookManager
 from kalshi.ws.sequence import SequenceTracker
 
 logger = logging.getLogger("kalshi.ws")
@@ -51,10 +52,12 @@ class MessageDispatcher:
         sub_mgr: SubscriptionManager,
         on_error: Callable[[ErrorMessage], Awaitable[None]] | None = None,
         seq_tracker: SequenceTracker | None = None,
+        orderbook_mgr: OrderbookManager | None = None,
     ) -> None:
         self._sub_mgr = sub_mgr
         self._on_error = on_error
         self._seq_tracker = seq_tracker
+        self._orderbook_mgr = orderbook_mgr
         self._callbacks: dict[str, Callable[[Any], Awaitable[None]]] = {}
 
     def register_callback(
@@ -106,6 +109,12 @@ class MessageDispatcher:
         client_id = self._sub_mgr._sid_to_client.pop(sid, None)
         if self._seq_tracker is not None:
             self._seq_tracker.reset(sid)
+        # #206: server-initiated unsubscribe must also tear down local
+        # orderbook state seeded by this sid; otherwise stale books are
+        # served by ``OrderbookManager.get`` indefinitely after the
+        # server reaps the sub.
+        if self._orderbook_mgr is not None:
+            self._orderbook_mgr.remove_by_sid(sid)
 
         if client_id is None:
             logger.debug(
