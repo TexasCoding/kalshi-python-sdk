@@ -194,3 +194,37 @@ class TestHttpClientTuning:
             assert transport._config.limits is limits
         finally:
             transport.close()
+
+
+class TestBaseUrlPathValidation:
+    """#202: base_url MUST include the /trade-api/v2 path component."""
+
+    def test_base_url_without_trade_api_v2_raises(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError, match="/trade-api/v2"):
+            KalshiConfig(base_url="https://demo-api.kalshi.co/")
+        with pytest.raises(ValueError, match="/trade-api/v2"):
+            KalshiConfig(base_url="https://demo-api.kalshi.co/v1")
+        with pytest.raises(ValueError, match="/trade-api/v2"):
+            KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api")
+
+    def test_base_url_with_trade_api_v2_accepted(self) -> None:
+        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2")
+        assert config.base_url == "https://demo-api.kalshi.co/trade-api/v2"
+
+    def test_base_url_with_trailing_slash_accepted(self) -> None:
+        # Trailing slash is stripped before path validation.
+        config = KalshiConfig(base_url="https://demo-api.kalshi.co/trade-api/v2/")
+        assert config.base_url == "https://demo-api.kalshi.co/trade-api/v2"
+
+
+class TestTotalTimeoutField:
+    """#193: total_timeout field exists, defaults to None (legacy)."""
+
+    def test_total_timeout_field_exists_and_defaults_None(self) -> None:  # noqa: N802
+        assert KalshiConfig().total_timeout is None
+
+    def test_total_timeout_can_be_set(self) -> None:
+        config = KalshiConfig(total_timeout=30.0)
+        assert config.total_timeout == 30.0

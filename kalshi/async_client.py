@@ -65,6 +65,9 @@ class AsyncKalshiClient:
         # Reject empty strings that look like misconfigured credentials
         if key_id is not None and not key_id.strip():
             raise ValueError("key_id must not be empty. Omit it for unauthenticated access.")
+        # #210: only shut down auth on close() when WE built it. If the
+        # caller passed in their own KalshiAuth, they keep ownership.
+        self._auth_owned: bool = auth is None
         self._auth: KalshiAuth | None
         if auth is not None:
             self._auth = auth
@@ -166,12 +169,15 @@ class AsyncKalshiClient:
         auth = KalshiAuth.try_from_env()
         demo = os.environ.get("KALSHI_DEMO", "").lower() == "true"
         base_url = os.environ.get("KALSHI_API_BASE_URL")
-        return cls(auth=auth, demo=demo, base_url=base_url, **kwargs)  # type: ignore[arg-type]
+        client = cls(auth=auth, demo=demo, base_url=base_url, **kwargs)  # type: ignore[arg-type]
+        # from_env constructs auth locally — caller never owned it.
+        client._auth_owned = auth is not None
+        return client
 
     async def close(self) -> None:
         """Close the underlying async HTTP connection pool."""
         await self._transport.close()
-        if self._auth is not None:
+        if self._auth is not None and self._auth_owned:
             self._auth.close()
 
     async def __aenter__(self) -> AsyncKalshiClient:

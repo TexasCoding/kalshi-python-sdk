@@ -36,6 +36,10 @@ class KalshiConfig:
         max_retries: Max retry attempts for transient errors. Defaults to 3.
         retry_base_delay: Base delay in seconds for exponential backoff. Defaults to 0.5.
         retry_max_delay: Maximum delay in seconds for backoff. Defaults to 30.
+        total_timeout: Hard cap on cumulative time spent inside a single
+            request including retries, in seconds. ``None`` disables (legacy
+            behaviour: retry until ``max_retries`` exhausted regardless of
+            wall-clock).
         http2: Enable HTTP/2 for REST requests. Off by default for compat.
             Requires the ``h2`` package (install ``httpx[http2]`` or ``h2``).
         limits: Custom ``httpx.Limits`` for connection pool tuning. ``None``
@@ -47,6 +51,7 @@ class KalshiConfig:
     max_retries: int = DEFAULT_MAX_RETRIES
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
+    total_timeout: float | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
     ws_base_url: str = PRODUCTION_WS_URL  # trailing slash is stripped automatically
     ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
@@ -61,6 +66,14 @@ class KalshiConfig:
             object.__setattr__(self, "ws_base_url", self.ws_base_url.rstrip("/"))
         KalshiConfig._validate_url(self.base_url, "base_url", secure="https", plaintext="http")
         KalshiConfig._validate_url(self.ws_base_url, "ws_base_url", secure="wss", plaintext="ws")
+        # #202: prevent silently calling /trade-api or /v1 by enforcing the
+        # v2 path component. Trailing slashes are already stripped above.
+        base_path = urlparse(self.base_url).path
+        if base_path != "/trade-api/v2":
+            raise ValueError(
+                f"KalshiConfig.base_url must include the /trade-api/v2 path "
+                f"component, got base_url={self.base_url!r}"
+            )
 
     @staticmethod
     def _validate_url(url: str, field_name: str, *, secure: str, plaintext: str) -> None:
