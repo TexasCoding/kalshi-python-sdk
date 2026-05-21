@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 
 from kalshi.testing._fixtures import (
+    ResponseHeaderFilter,
+    _coerce_header_filter,
     fingerprint,
     load_pairs,
     record_pair,
@@ -52,6 +54,14 @@ class RecordingTransport(httpx.BaseTransport):
     `httpx.HTTPTransport`) so real network calls go through, while every
     request/response pair is buffered in memory and flushed to disk on
     ``close()`` — see #105 for the prior O(N²) per-request rewrite this fixes.
+
+    ``response_header_filter`` controls which response headers are persisted.
+    The default predicate drops ``Set-Cookie``, ``Authorization``, and any
+    header matching ``(?i)^x-kalshi-.*-(id|key|account|user).*$`` so common
+    credential/identity leaks don't end up in checked-in fixtures. Supply a
+    callable ``(name, value) -> bool`` (return True to drop) or an iterable
+    of header names to deny — pass ``lambda _n, _v: False`` to keep every
+    header verbatim.
     """
 
     def __init__(
@@ -59,10 +69,12 @@ class RecordingTransport(httpx.BaseTransport):
         dir_path: str | Path,
         *,
         real_transport: httpx.BaseTransport | None = None,
+        response_header_filter: ResponseHeaderFilter = None,
     ) -> None:
         self._dir = Path(dir_path)
         self._real = real_transport if real_transport is not None else httpx.HTTPTransport()
         self._buffer = _RecorderBuffer(self._dir)
+        self._drop_header = _coerce_header_filter(response_header_filter)
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         response = self._real.handle_request(request)
@@ -71,7 +83,9 @@ class RecordingTransport(httpx.BaseTransport):
         method, path, _query = fingerprint(request)
         # Append to in-memory buffer; flushed to disk on close().
         # Recordings are expected to run sequentially (see module docstring).
-        self._buffer.append(method, path, record_pair(request, response))
+        self._buffer.append(
+            method, path, record_pair(request, response, drop_header=self._drop_header)
+        )
         return response
 
     def close(self) -> None:
@@ -89,18 +103,22 @@ class AsyncRecordingTransport(httpx.AsyncBaseTransport):
         dir_path: str | Path,
         *,
         real_transport: httpx.AsyncBaseTransport | None = None,
+        response_header_filter: ResponseHeaderFilter = None,
     ) -> None:
         self._dir = Path(dir_path)
         self._real = (
             real_transport if real_transport is not None else httpx.AsyncHTTPTransport()
         )
         self._buffer = _RecorderBuffer(self._dir)
+        self._drop_header = _coerce_header_filter(response_header_filter)
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         response = await self._real.handle_async_request(request)
         await response.aread()
         method, path, _query = fingerprint(request)
-        self._buffer.append(method, path, record_pair(request, response))
+        self._buffer.append(
+            method, path, record_pair(request, response, drop_header=self._drop_header)
+        )
         return response
 
     async def aclose(self) -> None:

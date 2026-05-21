@@ -539,3 +539,122 @@ def test_record_non_json_binary_body_persists_as_text(tmp_path: Path) -> None:
     replay = ReplayTransport(fixtures_dir)
     with KalshiClient(transport=replay, max_retries=0) as client, pytest.raises(KalshiServerError):
         client.exchange.status()
+
+
+class TestResponseHeaderFilter:
+    """P1.5: RecordingTransport response_header_filter parameter."""
+
+    def test_default_filter_drops_set_cookie(self, tmp_path: Path) -> None:
+        """Default filter scrubs Set-Cookie / Authorization / X-Kalshi-* identity headers."""
+        stub = _make_stub_transport(
+            {
+                ("GET", "/trade-api/v2/markets"): httpx.Response(
+                    200,
+                    headers=[
+                        ("Content-Type", "application/json"),
+                        ("Set-Cookie", "session=abcd; HttpOnly"),
+                        ("Authorization", "Bearer should-not-be-recorded"),
+                        ("X-Kalshi-User-Id", "uid-42"),
+                        ("X-Kalshi-Trace-Account-Hash", "acc-99"),
+                        ("X-Kalshi-Trace-Latency-Ms", "12"),  # NOT scrubbed by default
+                        ("X-RateLimit-Remaining", "499"),  # NOT scrubbed by default
+                    ],
+                    content=b'{"markets": []}',
+                )
+            }
+        )
+        rec = RecordingTransport(tmp_path, real_transport=stub)
+        try:
+            with KalshiClient(transport=rec) as client:
+                client.markets.list()
+        finally:
+            rec.close()
+        # Read back the persisted fixture and check header set.
+        fixture_file = tmp_path / fixture_filename("GET", "/trade-api/v2/markets")
+        data = json.loads(fixture_file.read_text())
+        # httpx normalises response header names to lowercase.
+        headers = {k.lower(): v for k, v in data[0]["response"]["headers"]}
+        # Defaults dropped (matched case-insensitively by the predicate):
+        assert "set-cookie" not in headers
+        assert "authorization" not in headers
+        assert "x-kalshi-user-id" not in headers
+        assert "x-kalshi-trace-account-hash" not in headers
+        # Defaults preserved:
+        assert headers.get("content-type") == "application/json"
+        assert headers.get("x-ratelimit-remaining") == "499"
+        # X-Kalshi-Request-Id also matches the default regex (the *-id suffix),
+        # so request IDs are scrubbed too. Latency-Ms doesn't match any suffix
+        # token and is preserved.
+        assert headers.get("x-kalshi-request-id") is None
+        assert headers.get("x-kalshi-trace-latency-ms") == "12"
+
+    def test_custom_filter_callable_invoked(self, tmp_path: Path) -> None:
+        """User-supplied predicate sees (name, value) and decides drop/keep."""
+        calls: list[tuple[str, str]] = []
+
+        def drop_secret_headers(name: str, value: str) -> bool:
+            calls.append((name, value))
+            return name.lower() == "x-secret"
+
+        stub = _make_stub_transport(
+            {
+                ("GET", "/trade-api/v2/markets"): httpx.Response(
+                    200,
+                    headers=[
+                        ("Content-Type", "application/json"),
+                        ("X-Secret", "topsecret"),
+                        ("Set-Cookie", "should-be-kept-when-filter-is-overridden"),
+                    ],
+                    content=b'{"markets": []}',
+                )
+            }
+        )
+        rec = RecordingTransport(
+            tmp_path, real_transport=stub, response_header_filter=drop_secret_headers
+        )
+        try:
+            with KalshiClient(transport=rec) as client:
+                client.markets.list()
+        finally:
+            rec.close()
+        # Predicate was called for every response header.
+        # Predicate was called for every response header (httpx lowercases).
+        seen_names = {name.lower() for name, _ in calls}
+        assert "x-secret" in seen_names
+        assert "set-cookie" in seen_names
+        fixture_file = tmp_path / fixture_filename("GET", "/trade-api/v2/markets")
+        data = json.loads(fixture_file.read_text())
+        headers = {k.lower(): v for k, v in data[0]["response"]["headers"]}
+        # Custom filter dropped X-Secret …
+        assert "x-secret" not in headers
+        # … and the default Set-Cookie scrubbing did NOT apply (user took over).
+        assert headers.get("set-cookie") == "should-be-kept-when-filter-is-overridden"
+
+    def test_iterable_deny_list_drops_matching_headers(self, tmp_path: Path) -> None:
+        """Iterable[str] denylist is matched case-insensitively."""
+        stub = _make_stub_transport(
+            {
+                ("GET", "/trade-api/v2/markets"): httpx.Response(
+                    200,
+                    headers=[
+                        ("Content-Type", "application/json"),
+                        ("X-Trace-ID", "abc"),
+                        ("X-Keep-Me", "yes"),
+                    ],
+                    content=b'{"markets": []}',
+                )
+            }
+        )
+        rec = RecordingTransport(
+            tmp_path, real_transport=stub, response_header_filter=["x-trace-id"]
+        )
+        try:
+            with KalshiClient(transport=rec) as client:
+                client.markets.list()
+        finally:
+            rec.close()
+        fixture_file = tmp_path / fixture_filename("GET", "/trade-api/v2/markets")
+        data = json.loads(fixture_file.read_text())
+        headers = {k.lower(): v for k, v in data[0]["response"]["headers"]}
+        assert "x-trace-id" not in headers
+        assert headers.get("x-keep-me") == "yes"

@@ -3,7 +3,8 @@
 Kalshi uses RSA-PSS request signing. You'll need:
 
 - A **key ID** (string, identifies the key on Kalshi's side).
-- A **private key** — RSA, **PEM-encoded, PKCS#8, unencrypted**.
+- A **private key** — RSA, PEM-encoded, PKCS#8. May be unencrypted or
+  encrypted; encrypted keys require a passphrase (see below).
 
 Generate the pair in your [Kalshi account settings](https://kalshi.com/account/profile)
 and download the PEM file. The signing scheme used internally is
@@ -175,13 +176,68 @@ load, check:
 - **Must be PKCS#8** (`-----BEGIN PRIVATE KEY-----`). Legacy PKCS#1
   (`-----BEGIN RSA PRIVATE KEY-----`) is supported by the underlying
   `cryptography` library on a best-effort basis.
-- **Must be unencrypted.** Passphrase-protected keys raise `KalshiAuthError`
-  with a hint. Strip the passphrase with `openssl pkey`:
+- **Passphrase-protected keys are supported via `password=`** — see below. If
+  you load an encrypted PEM without supplying a password, `KalshiAuth` raises
+  `KalshiAuthError` with a hint pointing at the `password=` parameter and the
+  `KALSHI_PRIVATE_KEY_PASSPHRASE` env var.
 
-    ```bash
-    openssl pkey -in encrypted.pem -out unencrypted.pem
-    ```
+### Passphrase-protected keys
 
+Encrypted PEMs are a recommended practice for trading keys: you keep the key
+at-rest encrypted on disk or in a secret manager. The SDK accepts a
+`password=` keyword on every loader so you don't have to write a plaintext key
+to disk:
+
+```python
+from kalshi import KalshiAuth, KalshiClient
+
+# Inline literal (don't hard-code in real code — pull from a secret manager).
+auth = KalshiAuth.from_key_path(
+    "your-key-id",
+    "~/.kalshi/encrypted_key.pem",
+    password="hunter2",
+)
+
+# Deferred fetch: pass a zero-arg callable. The SDK invokes it during load,
+# so the secret never sits in the calling frame longer than necessary.
+auth = KalshiAuth.from_pem(
+    "your-key-id",
+    pem_string,
+    password=lambda: secret_manager.get("kalshi/passphrase"),
+)
+
+# Bytes are accepted too.
+auth = KalshiAuth.from_pem("your-key-id", pem, password=b"hunter2")
+```
+
+For env-driven flows, set `KALSHI_PRIVATE_KEY_PASSPHRASE` alongside
+`KALSHI_PRIVATE_KEY` / `KALSHI_PRIVATE_KEY_PATH`:
+
+```bash
+export KALSHI_KEY_ID="..."
+export KALSHI_PRIVATE_KEY_PATH="~/.kalshi/encrypted_key.pem"
+export KALSHI_PRIVATE_KEY_PASSPHRASE="hunter2"
+```
+
+```python
+from kalshi import KalshiClient
+
+with KalshiClient.from_env() as client:
+    ...
+```
+
+An explicit `password=` argument always wins over
+`KALSHI_PRIVATE_KEY_PASSPHRASE` when both are supplied. A wrong passphrase
+raises `KalshiAuthError` ("Invalid PEM private key…"); a missing passphrase
+for an encrypted PEM raises `KalshiAuthError` pointing at the `password=`
+parameter.
+
+If you'd rather store the key unencrypted, you can still strip the passphrase
+with `openssl pkey`:
+
+```bash
+openssl pkey -in encrypted.pem -out unencrypted.pem
+```
 ### Manual signing
 
 `KalshiAuth.sign_request(method, path, timestamp_ms=None)` is part of the

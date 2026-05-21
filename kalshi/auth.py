@@ -20,6 +20,7 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -72,10 +73,20 @@ class KalshiAuth:
         self._sign_executor_lock = threading.Lock()
 
     @classmethod
-    def from_key_path(cls, key_id: str, key_path: str | Path) -> KalshiAuth:
+    def from_key_path(
+        cls,
+        key_id: str,
+        key_path: str | Path,
+        *,
+        password: bytes | str | Callable[[], bytes | str] | None = None,
+    ) -> KalshiAuth:
         """Load auth from a PEM private key file.
 
         Supports ~ expansion (e.g., ~/kalshi.pem).
+
+        ``password`` accepts ``str`` / ``bytes`` / a zero-arg callable that
+        returns either (the callable form lets you defer fetching the secret
+        from a vault until load-time).
         """
         expanded = Path(key_path).expanduser()
         if not expanded.exists():
@@ -84,24 +95,44 @@ class KalshiAuth:
             pem_data = expanded.read_bytes()
         except PermissionError as e:
             raise KalshiAuthError(f"Permission denied reading private key: {expanded}") from e
-        return cls.from_pem(key_id, pem_data)
+        return cls.from_pem(key_id, pem_data, password=password)
 
     @classmethod
-    def from_pem(cls, key_id: str, pem_data: str | bytes) -> KalshiAuth:
-        """Load auth from PEM-encoded private key content."""
+    def from_pem(
+        cls,
+        key_id: str,
+        pem_data: str | bytes,
+        *,
+        password: bytes | str | Callable[[], bytes | str] | None = None,
+    ) -> KalshiAuth:
+        """Load auth from PEM-encoded private key content.
+
+        ``password`` accepts ``str`` / ``bytes`` / a zero-arg callable that
+        returns either; pass ``None`` (default) for an unencrypted PEM.
+        """
         if isinstance(pem_data, str):
             pem_data = pem_data.encode("utf-8")
+        pw_bytes: bytes | None = None
+        if password is not None:
+            raw = password() if callable(password) else password
+            pw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
         try:
-            private_key = serialization.load_pem_private_key(pem_data, password=None)
+            private_key = serialization.load_pem_private_key(pem_data, password=pw_bytes)
         except TypeError as e:
+            # cryptography raises TypeError when the PEM is encrypted and
+            # ``password=None``, or when an unencrypted PEM is given a password.
             raise KalshiAuthError(
-                "Passphrase-protected private keys are not supported. "
-                "Remove the passphrase with: openssl pkey -in key.pem -out key_nopass.pem"
+                "Passphrase-protected private key requires a password. "
+                "Pass `password=` to KalshiAuth.from_pem / from_key_path / from_env, "
+                "set the KALSHI_PRIVATE_KEY_PASSPHRASE environment variable, or "
+                "strip the passphrase with: openssl pkey -in key.pem -out key_nopass.pem"
             ) from e
         except (ValueError, UnsupportedAlgorithm) as e:
+            # Wrong password and malformed PEM both surface here as ValueError.
             raise KalshiAuthError(
                 f"Invalid PEM private key: {e}. Ensure the key is an RSA private key "
-                "in PKCS8 PEM format (-----BEGIN PRIVATE KEY-----)."
+                "in PKCS8 PEM format (-----BEGIN PRIVATE KEY-----) and that "
+                "the supplied `password=` (if any) is correct."
             ) from e
         if not isinstance(private_key, rsa.RSAPrivateKey):
             raise KalshiAuthError(
@@ -111,12 +142,20 @@ class KalshiAuth:
         return cls(key_id, private_key)
 
     @classmethod
-    def from_env(cls) -> KalshiAuth:
+    def from_env(
+        cls,
+        *,
+        password: bytes | str | Callable[[], bytes | str] | None = None,
+    ) -> KalshiAuth:
         """Load auth from environment variables.
 
         Reads:
             KALSHI_KEY_ID (required)
             KALSHI_PRIVATE_KEY (PEM string) or KALSHI_PRIVATE_KEY_PATH (file path)
+            KALSHI_PRIVATE_KEY_PASSPHRASE (optional; used when the PEM is encrypted)
+
+        The explicit ``password=`` keyword overrides
+        ``KALSHI_PRIVATE_KEY_PASSPHRASE`` when both are supplied.
         """
         key_id = os.environ.get("KALSHI_KEY_ID")
         if not key_id:
@@ -125,13 +164,17 @@ class KalshiAuth:
                 "Set it to your Kalshi API key ID."
             )
 
+        resolved_password = (
+            password if password is not None else os.environ.get("KALSHI_PRIVATE_KEY_PASSPHRASE")
+        )
+
         pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
         if pem_string:
-            return cls.from_pem(key_id, pem_string)
+            return cls.from_pem(key_id, pem_string, password=resolved_password)
 
         key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
         if key_path:
-            return cls.from_key_path(key_id, key_path)
+            return cls.from_key_path(key_id, key_path, password=resolved_password)
 
         raise KalshiAuthError(
             "Neither KALSHI_PRIVATE_KEY nor KALSHI_PRIVATE_KEY_PATH is set. "
@@ -139,7 +182,11 @@ class KalshiAuth:
         )
 
     @classmethod
-    def try_from_env(cls) -> KalshiAuth | None:
+    def try_from_env(
+        cls,
+        *,
+        password: bytes | str | Callable[[], bytes | str] | None = None,
+    ) -> KalshiAuth | None:
         """Load auth from environment variables, returning None if not configured.
 
         Returns None if KALSHI_KEY_ID is not set, or if neither
@@ -148,18 +195,25 @@ class KalshiAuth:
         Note: Does not raise on *missing* variables, but may still raise
         KalshiAuthError if variables are set with invalid data (e.g.,
         malformed PEM content or nonexistent key file path).
+
+        See :meth:`from_env` for the ``password`` /
+        ``KALSHI_PRIVATE_KEY_PASSPHRASE`` semantics.
         """
         key_id = os.environ.get("KALSHI_KEY_ID")
         if not key_id:
             return None
 
+        resolved_password = (
+            password if password is not None else os.environ.get("KALSHI_PRIVATE_KEY_PASSPHRASE")
+        )
+
         pem_string = os.environ.get("KALSHI_PRIVATE_KEY")
         if pem_string:
-            return cls.from_pem(key_id, pem_string)
+            return cls.from_pem(key_id, pem_string, password=resolved_password)
 
         key_path = os.environ.get("KALSHI_PRIVATE_KEY_PATH")
         if key_path:
-            return cls.from_key_path(key_id, key_path)
+            return cls.from_key_path(key_id, key_path, password=resolved_password)
 
         logger.warning(
             "KALSHI_KEY_ID is set but neither KALSHI_PRIVATE_KEY nor "

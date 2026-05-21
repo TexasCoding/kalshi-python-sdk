@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
@@ -24,6 +25,38 @@ from urllib.parse import parse_qsl, urlsplit
 import httpx
 
 _SANITIZE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+# P1.5 default response-header scrubbing: drop credentials and
+# routing/billing identifiers that the live API echoes back. Names matched
+# case-insensitively. Anything advertising a session/account/user/key
+# correlation is filtered so recorded fixtures can be checked into VCS
+# without leaking the recording account's identity.
+_DEFAULT_SCRUB_NAMES = frozenset({"set-cookie", "authorization"})
+_DEFAULT_SCRUB_RE = re.compile(r"(?i)^x-kalshi-.*-(id|key|account|user).*$")
+
+ResponseHeaderFilter = Callable[[str, str], bool] | Iterable[str] | None
+
+
+def _default_response_header_drop(name: str, _value: str) -> bool:
+    """Default predicate: True means drop the header from recorded fixtures."""
+    lower = name.lower()
+    if lower in _DEFAULT_SCRUB_NAMES:
+        return True
+    return bool(_DEFAULT_SCRUB_RE.match(name))
+
+
+def _coerce_header_filter(
+    response_header_filter: ResponseHeaderFilter,
+) -> Callable[[str, str], bool]:
+    """Normalize the user-facing filter parameter into a (name, value) -> drop predicate."""
+    if response_header_filter is None:
+        return _default_response_header_drop
+    if callable(response_header_filter):
+        # Callable: user supplies the drop predicate directly.
+        return response_header_filter
+    # Iterable[str]: case-insensitive deny-list of header names.
+    deny: frozenset[str] = frozenset(name.lower() for name in response_header_filter)
+    return lambda name, _value: name.lower() in deny
 
 
 def fingerprint(request: httpx.Request) -> tuple[str, str, tuple[tuple[str, str], ...]]:
@@ -55,7 +88,11 @@ def _request_to_dict(request: httpx.Request) -> dict[str, Any]:
     }
 
 
-def _response_to_dict(response: httpx.Response) -> dict[str, Any]:
+def _response_to_dict(
+    response: httpx.Response,
+    *,
+    drop_header: Callable[[str, str], bool] | None = None,
+) -> dict[str, Any]:
     # Try to store JSON bodies as objects for readability; fall back to text.
     body_bytes = response.content
     body: Any
@@ -65,19 +102,26 @@ def _response_to_dict(response: httpx.Response) -> dict[str, Any]:
     except (ValueError, UnicodeDecodeError):
         body = body_bytes.decode("latin-1")
         body_kind = "text"
+    predicate = drop_header or _default_response_header_drop
+    headers = [(k, v) for k, v in response.headers.items() if not predicate(k, v)]
     return {
         "status_code": response.status_code,
-        "headers": [(k, v) for k, v in response.headers.items()],
+        "headers": headers,
         "body_kind": body_kind,
         "body": body,
     }
 
 
-def record_pair(request: httpx.Request, response: httpx.Response) -> dict[str, Any]:
+def record_pair(
+    request: httpx.Request,
+    response: httpx.Response,
+    *,
+    drop_header: Callable[[str, str], bool] | None = None,
+) -> dict[str, Any]:
     """Build a serializable pair from a real request/response round-trip."""
     return {
         "request": _request_to_dict(request),
-        "response": _response_to_dict(response),
+        "response": _response_to_dict(response, drop_header=drop_header),
     }
 
 

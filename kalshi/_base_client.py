@@ -6,10 +6,12 @@ and dispatch to whichever transport the client was constructed with.
 
 from __future__ import annotations
 
+import email.utils
 import logging
 import math
 import random
 import time
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -90,7 +92,26 @@ def _map_error(response: httpx.Response) -> KalshiError:
                 if retry_after_val < 0 or not math.isfinite(retry_after_val):
                     retry_after_val = None
             except ValueError:
-                retry_after_val = None  # HTTP-date format, fall back to computed backoff
+                # RFC 7231 §7.1.3: Retry-After may also be an HTTP-date.
+                try:
+                    dt = email.utils.parsedate_to_datetime(retry_after)
+                except (TypeError, ValueError):
+                    dt = None
+                if dt is None:
+                    logger.debug(
+                        "Retry-After %r is neither delta-seconds nor HTTP-date; "
+                        "falling back to computed backoff",
+                        retry_after,
+                    )
+                else:
+                    # RFC 5322 dates without a tz are interpreted as UTC by
+                    # parsedate_to_datetime; ensure aware before subtracting.
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=UTC)
+                    delta = (dt - datetime.now(tz=UTC)).total_seconds()
+                    # Clamp negatives (date in the past) to 0 — retry immediately.
+                    # The transport caller caps at config.retry_max_delay.
+                    retry_after_val = max(0.0, delta)
         return KalshiRateLimitError(
             message=message, status_code=status, retry_after=retry_after_val
         )
@@ -157,17 +178,33 @@ class SyncTransport:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Make an authenticated HTTP request with retry logic."""
+        """Make an authenticated HTTP request with retry logic.
+
+        ``extra_headers`` are merged per-request on top of
+        ``config.extra_headers`` (so a per-call ``X-Request-ID`` overrides a
+        client-default one), but the ``KALSHI-ACCESS-*`` auth headers always
+        win — callers cannot forge them via ``extra_headers``.
+        """
+        # P1.6: canonicalize trailing slash BEFORE both signing and httpx call
+        # so the wire path and the signed payload stay byte-identical. Root "/"
+        # is preserved.
+        if path != "/" and path.endswith("/"):
+            path = path.rstrip("/") or "/"
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
+        config_extra = self._config.extra_headers or {}
+        per_call_extra = extra_headers or {}
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
+            # Order matters: config defaults < per-request overrides < signed auth.
+            merged_headers = {**config_extra, **per_call_extra, **auth_headers}
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
@@ -183,7 +220,7 @@ class SyncTransport:
                     url=path,
                     params=params,
                     json=json,
-                    headers=auth_headers,
+                    headers=merged_headers,
                 )
             except httpx.PoolTimeout as e:
                 # #204: pool exhaustion never reached the wire — safe to retry
@@ -312,22 +349,32 @@ class AsyncTransport:
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> httpx.Response:
-        """Make an authenticated async HTTP request with retry logic."""
+        """Make an authenticated async HTTP request with retry logic.
+
+        See :meth:`SyncTransport.request` for ``extra_headers`` semantics.
+        """
         import asyncio
 
+        # P1.6: canonicalize trailing slash BEFORE both signing and httpx call.
+        if path != "/" and path.endswith("/"):
+            path = path.rstrip("/") or "/"
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
         # #193: wall-clock budget across the whole request including retries.
         start = time.monotonic()
         total_timeout = self._config.total_timeout
+        config_extra = self._config.extra_headers or {}
+        per_call_extra = extra_headers or {}
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
                 auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
             else:
                 auth_headers = {}
+            merged_headers = {**config_extra, **per_call_extra, **auth_headers}
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
@@ -343,7 +390,7 @@ class AsyncTransport:
                     url=path,
                     params=params,
                     json=json,
-                    headers=auth_headers,
+                    headers=merged_headers,
                 )
             except httpx.PoolTimeout as e:
                 # #204: pool exhaustion never reached the wire — safe to retry

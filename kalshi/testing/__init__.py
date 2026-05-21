@@ -10,11 +10,20 @@ so signature drift between record and replay does not cause misses.
 
 .. warning::
 
-    Recorded fixtures contain the full response body returned by Kalshi. If you
-    record against an account with real funds you will write balances, positions,
-    order history, and any PII the API returns to disk. **Always ``.gitignore``
-    the fixture directory unless you have manually scrubbed the JSON, and prefer
-    recording against the demo environment whenever possible.**
+    Recorded fixtures contain the full response **body** AND response
+    **headers** returned by Kalshi. If you record against an account with
+    real funds you will write balances, positions, order history, and any
+    PII the API returns to disk; response headers may carry rate-limit
+    counters, request IDs, and server timestamps.
+
+    :class:`RecordingTransport` (and the async variant) scrub a small set
+    of high-risk response headers by default — ``Set-Cookie``,
+    ``Authorization``, and anything matching
+    ``(?i)^x-kalshi-.*-(id|key|account|user).*$`` — but **do not assume the
+    default is sufficient for your environment**. Always ``.gitignore`` the
+    fixture directory unless you have manually scrubbed the JSON, prefer
+    recording against the demo environment whenever possible, and pass
+    ``response_header_filter=`` to extend the deny-list.
 
 Usage::
 
