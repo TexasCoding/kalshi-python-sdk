@@ -681,6 +681,13 @@ class KalshiWebSocket:
     async def subscribe_orderbook_delta(
         self, *, tickers: list[str] | None = None, maxsize: int = 1000,
     ) -> AsyncIterator[OrderbookSnapshotMessage | OrderbookDeltaMessage]:
+        """Subscribe to ``orderbook_delta`` for the given tickers.
+
+        Note: ``OrderbookSnapshotMessage.msg.yes`` and ``.no`` are live dicts
+        owned by the :class:`OrderbookManager` after this dispatch — they
+        mutate on every delta. Use :meth:`orderbook` if you need an immutable
+        snapshot view.
+        """
         params: dict[str, Any] = {"send_initial_snapshot": True}
         if tickers:
             params["market_tickers"] = tickers

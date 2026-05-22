@@ -362,3 +362,146 @@ class TestOrderbookManagerInplace:
         assert book.ticker == "T"
         assert len(book.yes) == 1
         assert len(book.no) == 1
+
+class TestSnapshotIdentityAdoption:
+    """Regression for #296: ``_apply_snapshot_inplace`` must adopt the
+    validator-built ``dict[Decimal, Decimal]`` by identity (no rebuild).
+
+    The CHANGELOG v2.5.0 #263 claim is "snapshot apply collapses to a single
+    dict walk"; if a future refactor reintroduces a ``dict(...)`` copy, this
+    test fails immediately rather than silently regressing recv-loop perf.
+    """
+
+    def test_snapshot_adopts_validated_dicts_by_identity(self) -> None:
+        mgr = OrderbookManager()
+        # Build with Decimal-keyed dicts directly so the validator's
+        # identity fast-path engages (see ``_levels_to_dict``).
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        no_in: dict[Decimal, Decimal] = {Decimal("0.45"): Decimal("150.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": no_in,
+                },
+            }
+        )
+        # We don't assert state.yes is yes_in (Pydantic may copy the input during
+        # field binding), but we DO assert state.yes is msg.msg.yes: the SDK must
+        # adopt the already-validated dict without adding another dict() copy.
+        mgr._apply_snapshot_inplace(msg)
+        state = mgr._books["T"]
+        assert state.yes is msg.msg.yes
+        assert state.no is msg.msg.no
+
+    def test_delta_mutates_in_place_and_invalidates_cache(self) -> None:
+        mgr = OrderbookManager()
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": {},
+                },
+            }
+        )
+        mgr._apply_snapshot_inplace(msg)
+        state = mgr._books["T"]
+        adopted_yes = state.yes
+        # Materialize once to populate the #244 cache.
+        cached = state.to_orderbook()
+        assert state._cached is cached
+
+        applied = mgr._apply_delta_inplace(
+            make_delta(price="0.50", delta="25", side="yes")
+        )
+        assert applied is True
+        # In-place mutation: the dict instance is unchanged, the value moved.
+        assert state.yes is adopted_yes
+        assert state.yes[Decimal("0.50")] == Decimal("125.00")
+        # The cache was invalidated so the next read re-materializes.
+        assert state._cached is None
+
+    def test_subscriber_held_snapshot_dict_mutates_on_delta(self) -> None:
+        """Documents the live-dict contract for raw ``subscribe_orderbook_delta`` consumers."""
+        mgr = OrderbookManager()
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        no_in: dict[Decimal, Decimal] = {Decimal("0.45"): Decimal("150.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": no_in,
+                },
+            }
+        )
+        mgr._apply_snapshot_inplace(msg)
+        # A raw subscriber who stored ``msg.msg.yes`` after receiving the snapshot
+        # frame is holding the live ``_BookState`` dict; the next delta mutates it.
+        held_yes = msg.msg.yes
+        applied = mgr._apply_delta_inplace(
+            make_delta(price="0.60", delta="25", side="yes")
+        )
+        assert applied is True
+        assert Decimal("0.60") in held_yes
+        assert held_yes[Decimal("0.60")] == Decimal("25.00")
+        assert held_yes is mgr._books["T"].yes
+
+    def test_public_apply_snapshot_does_not_alias_input_msg(self) -> None:
+        """Public apply_snapshot must defensively copy so the caller's msg is not aliased."""
+        snapshot_payload = {
+            "type": "orderbook_snapshot",
+            "sid": 7,
+            "seq": 1,
+            "msg": {
+                "market_ticker": "PUB-T",
+                "market_id": "id",
+                "yes": {Decimal("0.30"): Decimal("5")},
+                "no": {Decimal("0.70"): Decimal("3")},
+            },
+        }
+        msg = OrderbookSnapshotMessage.model_validate(snapshot_payload)
+        held_yes = msg.msg.yes
+
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(msg)
+
+        # Public path: state must NOT share identity with the caller's msg.
+        state = mgr._books["PUB-T"]
+        assert state.yes is not held_yes
+        assert state.no is not msg.msg.no
+        assert state.yes == {Decimal("0.30"): Decimal("5")}
+
+        # A subsequent delta mutates state but leaves the caller's msg dict untouched.
+        delta = OrderbookDeltaMessage.model_validate({
+            "type": "orderbook_delta",
+            "sid": 7,
+            "seq": 2,
+            "msg": {
+                "market_ticker": "PUB-T",
+                "market_id": "id",
+                "price": Decimal("0.30"),
+                "delta": Decimal("4"),
+                "side": "yes",
+            },
+        })
+        mgr.apply_delta(delta)
+        assert state.yes[Decimal("0.30")] == Decimal("9")
+        # Caller's held reference is untouched — the public-API safety contract.
+        assert held_yes[Decimal("0.30")] == Decimal("5")
+
