@@ -561,3 +561,23 @@ class TestIssue323SuccessBodyCap:
             content=b"{}",
         )
         _enforce_response_body_cap(garbage)  # must not raise; small body, garbage header
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_323_success_body_capped_async(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """Async parity for #323: AsyncResource._load_json refuses oversized 2xx bodies."""
+        from kalshi._base_client import MAX_RESPONSE_BODY_BYTES
+
+        oversize = MAX_RESPONSE_BODY_BYTES + 1
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-length": str(oversize)},
+                content=b'{"items": []}',
+            )
+        )
+        resource = AsyncResource(AsyncTransport(test_auth, test_config))
+        with pytest.raises(KalshiError, match=r"max_response_bytes"):
+            await resource._get("/things")

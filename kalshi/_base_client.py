@@ -121,18 +121,7 @@ def _map_error(response: httpx.Response) -> KalshiError:
 
 
 def _parse_retry_after(response: httpx.Response) -> float | None:
-    """Parse the RFC 7231 §7.1.3 Retry-After header to seconds.
-
-    Accepts either ``delta-seconds`` (numeric) or ``HTTP-date`` form.
-    Negative deltas and past HTTP-dates both clamp to ``0.0`` so the two
-    forms agree (#267). Returns ``None`` when the header is absent or
-    unparseable; non-finite numeric values (NaN/inf) also return ``None``
-    so they never survive the transport caller's ``min()`` cap.
-
-    Extracted from the 429 branch so 503/504/408 — which RFC 7231 also
-    permits Retry-After on — honor the server hint instead of falling
-    back to computed backoff (#322).
-    """
+    """Parse RFC 7231 §7.1.3 Retry-After to seconds; ``None`` if absent/unparseable (#267, #322)."""
     raw = response.headers.get("Retry-After")
     if not raw:
         return None

@@ -15,22 +15,7 @@ from kalshi.models.common import Page
 
 
 def _enforce_response_body_cap(response: httpx.Response) -> None:
-    """Raise ``KalshiError`` when a 2xx body exceeds ``MAX_RESPONSE_BODY_BYTES``.
-
-    Mirrors the ``_map_error`` Content-Length guard on the success path (#323).
-    ``response.json()`` and any caller-supplied ``rest_json_loads`` materialise
-    the entire body into a Python object graph (typically 5-10x wire size); a
-    compromised reverse proxy, hijacked DNS entry, or backend regression
-    streaming an oversize payload could OOM a serverless function before parse
-    completes. We check ``Content-Length`` up front so well-behaved servers
-    advertising an oversized body short-circuit before httpx finishes reading.
-    For chunked transfers (no ``Content-Length``), we re-check
-    ``len(response.content)`` post-buffer — httpx has loaded it into memory
-    by the time ``_load_json`` runs, but we still refuse to parse so the dict
-    explosion never lands. ``Transfer-Encoding: chunked`` from a malicious
-    proxy that streams unbounded bytes is bounded by httpx's own read limits;
-    this cap is the second line of defence.
-    """
+    """Raise ``KalshiError`` when a 2xx body exceeds ``MAX_RESPONSE_BODY_BYTES`` (#323)."""
     content_length = response.headers.get("content-length")
     if content_length:
         try:
@@ -43,9 +28,10 @@ def _enforce_response_body_cap(response: httpx.Response) -> None:
         except ValueError:
             # Malformed Content-Length — fall through to the post-buffer check.
             pass
-    if len(response.content) > MAX_RESPONSE_BODY_BYTES:
+    body_len = len(response.content)
+    if body_len > MAX_RESPONSE_BODY_BYTES:
         raise KalshiError(
-            f"Response body is {len(response.content)} bytes, exceeds "
+            f"Response body is {body_len} bytes, exceeds "
             f"max_response_bytes={MAX_RESPONSE_BODY_BYTES}",
             status_code=response.status_code,
         )
