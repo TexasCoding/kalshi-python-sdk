@@ -337,10 +337,38 @@ class KalshiWebSocket:
                 break
             except (KalshiBackpressureError, KalshiSubscriptionError):
                 # #83: consumer-visible problem. Broadcast sentinels so
-                # iterators see the failure and the loop exits cleanly
-                # rather than spinning on the same error.
-                logger.error("Fatal WS error in recv loop", exc_info=True)
+                # iterators see the failure rather than spinning on the
+                # same error. #332: also tear the session down — close the
+                # WS connection and clear ``_running`` + manager refs so a
+                # subsequent ``subscribe_*`` on this instance does not
+                # resurrect a recv loop on top of orphaned server-side
+                # subscriptions (the queues here are now closed; new
+                # frames would silently drop or mis-route). Mirrors the
+                # #297 reset done by ``_stop()``; we skip the recv-task
+                # await because we ARE the recv task.
+                logger.error(
+                    "Fatal WS error in recv loop; tearing down session",
+                    exc_info=True,
+                )
                 await self._broadcast_sentinels()
+                self._running = False
+                if self._connection is not None:
+                    with contextlib.suppress(Exception):
+                        await self._connection.close()
+                self._connection = None
+                self._sub_mgr = None
+                self._seq_tracker = None
+                self._orderbook_mgr = None
+                self._dispatcher = None
+                self._pause_pending = False
+                # #332: wake any subscriber blocked on ``_pause_granted.wait()``;
+                # ``Event.clear()`` does NOT unblock existing waiters, so a
+                # pending ``_pause_recv_loop`` would deadlock here. ``set()``
+                # releases the waiter; the post-pause guard in
+                # ``_do_subscribe`` re-checks ``_running`` so the woken
+                # subscriber sees the torn-down session and raises.
+                self._pause_granted.set()
+                self._resume_signal.set()
                 break
             except (json.JSONDecodeError, ValidationError, KeyError):
                 # #83: genuinely-non-fatal per-message errors. #241: when
@@ -650,10 +678,40 @@ class KalshiWebSocket:
         """Pause recv_loop, subscribe, resume recv_loop, return queue.
 
         Serialized with asyncio.Lock to prevent concurrent subscribe races.
+
+        #332: when the recv loop has torn itself down on a fatal error
+        (``KalshiBackpressureError`` / ``KalshiSubscriptionError``), the
+        managers are cleared. Fail fast with a clear error instead of
+        letting the assert below fire (or — worse — resurrecting a recv
+        loop on top of orphaned server-side subscriptions).
         """
-        assert self._sub_mgr is not None
+        if not self._running or self._sub_mgr is None or self._connection is None:
+            raise RuntimeError(
+                "KalshiWebSocket session is not active. The recv loop tore "
+                "down after a fatal error (e.g. KalshiBackpressureError); "
+                "exit the current `async with ws.connect()` block and start "
+                "a fresh session before subscribing again."
+            )
         async with self._subscribe_lock:
             await self._pause_recv_loop()
+            # #332: ``_pause_recv_loop`` can return because the recv loop
+            # tore the session down on backpressure (inline teardown sets
+            # ``_pause_granted`` to release any waiter — ``Event.clear()``
+            # alone does NOT unblock a coroutine already in ``.wait()``).
+            # Re-check before proceeding so a woken-up subscriber doesn't
+            # poke a dead session.
+            if (
+                not self._running
+                or self._sub_mgr is None
+                or self._connection is None
+            ):
+                raise RuntimeError(
+                    "KalshiWebSocket session is not active. The recv loop "
+                    "tore down after a fatal error (e.g. "
+                    "KalshiBackpressureError); exit the current `async with "
+                    "ws.connect()` block and start a fresh session before "
+                    "subscribing again."
+                )
             try:
                 sub = await self._sub_mgr.subscribe(
                     channel, params=params, overflow=overflow, maxsize=maxsize,
@@ -949,6 +1007,9 @@ class KalshiWebSocket:
                             self._recv_task.result()
                     finally:
                         await self._broadcast_sentinels()
+                # NOTE: _recv_task is intentionally NOT reset to None here —
+                # session lifecycle state is owned by ``_stop()`` (called from
+                # ``__aexit__``), which performs the full reset atomically.
             elif self._recv_task in done:
                 # Server-side close / crash without stop event firing. The
                 # recv loop's error paths broadcast sentinels themselves;

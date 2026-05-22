@@ -766,3 +766,161 @@ class TestIssue315ZombieSubscriptionCleanup:
 
         assert 11 not in mgr._subscriptions
         assert 999 not in mgr._sid_to_client
+
+# ---------------------------------------------------------------------------
+# #332 — KalshiBackpressureError tears down the session cleanly
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestIssue332BackpressureTeardown:
+    async def test_issue_332_backpressure_closes_ws_cleanly(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#332: when the recv loop hits ``KalshiBackpressureError`` it must
+        tear the session down — close the WS, flip ``_running=False``, and
+        clear the manager refs. Without this, a subsequent ``subscribe_*``
+        on the same instance resurrects a recv loop on top of orphaned
+        server-side subscriptions whose queues are already closed.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_orderbook_delta(tickers=["T1"], maxsize=1)
+            assert session._sub_mgr is not None
+            sid = next(
+                iter(session._sub_mgr.active_subscriptions.values())
+            ).server_sid
+            assert sid is not None
+
+            # Fill the queue with the snapshot.
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": sid,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
+            await asyncio.sleep(0.1)
+
+            # Overflow: the recv loop's queue.put raises KalshiBackpressureError.
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": sid,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price": "0.51",
+                        "delta": "10",
+                        "side": "yes",
+                    },
+                }
+            )
+
+            recv_task = session._recv_task
+            assert recv_task is not None
+            await asyncio.wait_for(recv_task, timeout=2.0)
+
+            # #332: session is fully torn down inside the recv loop.
+            assert session._running is False
+            assert session._connection is None
+            assert session._sub_mgr is None
+            assert session._seq_tracker is None
+            assert session._orderbook_mgr is None
+            assert session._dispatcher is None
+
+    async def test_issue_332_next_subscribe_after_backpressure_starts_fresh(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#332: after the recv loop tears down on backpressure, a follow-up
+        ``subscribe_*`` on the SAME ``_WebSocketSession`` must fail fast
+        with a clear ``RuntimeError`` rather than resurrecting a recv loop
+        on top of orphaned server-side subscriptions. The user is expected
+        to exit the ``async with`` block and start a fresh session for
+        recovery — which is also exercised here.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_orderbook_delta(tickers=["T1"], maxsize=1)
+            assert session._sub_mgr is not None
+            sid = next(
+                iter(session._sub_mgr.active_subscriptions.values())
+            ).server_sid
+            assert sid is not None
+
+            # Snapshot fills the maxsize=1 queue, delta overflows.
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_snapshot",
+                    "sid": sid,
+                    "seq": 1,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "yes": [["0.50", "100"]],
+                        "no": [],
+                    },
+                }
+            )
+            await asyncio.sleep(0.1)
+            await fake_ws.send_to_all(
+                {
+                    "type": "orderbook_delta",
+                    "sid": sid,
+                    "seq": 2,
+                    "msg": {
+                        "market_ticker": "T1",
+                        "market_id": "x",
+                        "price": "0.51",
+                        "delta": "10",
+                        "side": "yes",
+                    },
+                }
+            )
+            recv_task = session._recv_task
+            assert recv_task is not None
+            await asyncio.wait_for(recv_task, timeout=2.0)
+
+            # Subscribing again on the torn-down session must NOT silently
+            # restart the recv loop. It must raise a clear error.
+            with pytest.raises(RuntimeError, match="not active"):
+                await session.subscribe_ticker(tickers=["T2"])
+
+        # And after exiting the failed session, the same KalshiWebSocket
+        # instance can be reused for a clean fresh session (#297 invariant
+        # holds even though we tore down from the recv loop, not _stop).
+        assert ws._connection is None
+        assert ws._running is False
+        assert ws._sub_mgr is None
+
+        async with ws.connect() as session2:
+            assert session2._connection is not None
+            stream = await session2.subscribe_ticker(tickers=["T2"])
+            assert session2._sub_mgr is not None
+            sid2 = next(
+                iter(session2._sub_mgr.active_subscriptions.values())
+            ).server_sid
+            await fake_ws.send_to_all(
+                {
+                    "type": "ticker",
+                    "sid": sid2,
+                    "msg": ticker_payload_dict(
+                        market_ticker="T2", market_id="x", yes_bid_dollars="55"
+                    ),
+                }
+            )
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert msg.msg.market_ticker == "T2"
