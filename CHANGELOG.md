@@ -17,7 +17,10 @@ clean, **2876 unit tests passing** (≈100 new regression tests added).
 ### Breaking changes
 
 Five behavioral fences; all surface bugs that were silently wrong or invariants
-the SDK now enforces.
+the SDK now enforces. Per project policy (established by v2.0–v2.6),
+bug-surfacing behavioral fences ship in minor releases; intentional public-API
+removals or renames are reserved for major releases — that's why the three
+breaking renames (`#348`, `#349`, `#351`) are deferred to v3.0.0.
 
 - **`AmendOrderRequest.side` / `.action` narrowed to `Literal`** (`#312`).
   Mirrors the v2.5 `#270` narrowing on `CreateOrderRequest`. Previously any
