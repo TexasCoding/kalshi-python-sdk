@@ -1362,9 +1362,8 @@ class TestExtraHeadersPerRequest:
             timeout=5.0,
         )
         transport = SyncTransport(test_auth, config)
-        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
-            return_value=httpx.Response(200, json={})
-        )
+        # No respx route: ValueError fires before any request is sent.
+        # @respx.mock decorator still sandboxes any accidental real call.
         with pytest.raises(ValueError, match="KALSHI-ACCESS-"):
             transport.request(
                 "GET",

@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from kalshi._constants import AUTH_HEADER_PREFIX
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
@@ -161,26 +162,22 @@ def _would_exceed_budget(start: float, delay: float, total_timeout: float | None
     return (time.monotonic() - start) + delay > total_timeout
 
 
-_AUTH_HEADER_PREFIX = "kalshi-access-"
 
-
-def _assert_no_auth_headers(h: dict[str, str] | None) -> dict[str, str] | None:
+def _assert_no_auth_headers(h: dict[str, str] | None) -> None:
     """Reject caller-supplied ``KALSHI-ACCESS-*`` keys (case-insensitive).
 
     #298: auth headers are SDK-managed (RSA-PSS signed per attempt) and
-    must not be set via ``extra_headers``. Returns ``h`` unchanged if no
-    leak is found.
+    must not be set via ``extra_headers``. No-op if no leak is found.
     """
     if not h:
-        return h
-    leaked = [k for k in h if k.lower().startswith(_AUTH_HEADER_PREFIX)]
+        return
+    leaked = [k for k in h if k.lower().startswith(AUTH_HEADER_PREFIX)]
     if leaked:
         raise ValueError(
             f"extra_headers must not include KALSHI-ACCESS-* keys "
             f"(got: {sorted(leaked)!r}). These are reserved for "
             f"SDK-managed RSA-PSS signing and cannot be overridden."
         )
-    return h
 
 
 def _ci_merge(*layers: dict[str, str] | None) -> dict[str, str]:

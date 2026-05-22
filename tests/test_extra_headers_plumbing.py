@@ -261,7 +261,7 @@ class TestHeaderCollision298:
         from kalshi import AsyncKalshiClient
         from kalshi.models.orders import BatchCancelOrdersV2Request
 
-        with _respx.mock(assert_all_called=False) as router:
+        with _respx.mock() as router:
             route = router.delete(
                 f"{MOCK_BASE}/portfolio/events/orders/batched"
             ).mock(return_value=httpx.Response(200, json={"orders": []}))

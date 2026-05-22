@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from kalshi._constants import AUTH_HEADER_PREFIX
+
 PRODUCTION_BASE_URL = "https://api.elections.kalshi.com/trade-api/v2"
 DEMO_BASE_URL = "https://demo-api.kalshi.co/trade-api/v2"
 
@@ -137,11 +139,11 @@ class KalshiConfig:
         # bypasses the per-request _assert_no_auth_headers check, so a caller
         # could still seed KALSHI-ACCESS-* on the httpx.Client default headers
         # and forge the auth surface. Validate at construction. The prefix
-        # check is inlined (rather than importing kalshi._base_client) because
-        # _base_client imports KalshiConfig — avoiding a circular import.
+        # lives in kalshi._constants (no imports from either file) to avoid
+        # the circular hazard with kalshi._base_client.
         if self.extra_headers:
             leaked = sorted(
-                k for k in self.extra_headers if k.lower().startswith("kalshi-access-")
+                k for k in self.extra_headers if k.lower().startswith(AUTH_HEADER_PREFIX)
             )
             if leaked:
                 raise ValueError(
