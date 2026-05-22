@@ -2,6 +2,209 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.7.0 — 2026-05-22
+
+Post-v2.6 independent multi-LLM reviewer audit closure. **47 issues filed
+(`#311`–`#357`) by a 9-reviewer parallel pass** combining 7 internal specialist
+agents (security/auth, HTTP transport, WebSocket, models/contracts, sync/async
+parity, performance, resources/API) with **fresh-eyes external LLM reviews via
+the Codex CLI (GPT-5) and Gemini CLI**. 44 issues closed in this release across
+4 sequential waves (W0 docs, W1 HIGH integrity, W2 MEDIUM correctness, W3 LOW
+polish/perf/deps); 17 PRs merged. 3 breaking-rename issues (`#348`, `#349`,
+`#351`) deferred to **v3.0.0** milestone. Main is mypy `--strict` clean, ruff
+clean, **2876 unit tests passing** (≈100 new regression tests added).
+
+### Breaking changes
+
+Five behavioral fences; all surface bugs that were silently wrong or invariants
+the SDK now enforces.
+
+- **`AmendOrderRequest.side` / `.action` narrowed to `Literal`** (`#312`).
+  Mirrors the v2.5 `#270` narrowing on `CreateOrderRequest`. Previously any
+  string passed validation and the server rejected with a 400; now invalid
+  values raise `pydantic.ValidationError` at construction.
+- **`KalshiConfig.extra_headers` immutable post-construction** (`#313`). The
+  `#298` `KALSHI-ACCESS-*` fence ran once at construction; post-construction
+  mutation of `extra_headers` could reopen the auth-header forge surface.
+  `extra_headers` is now stored as `MappingProxyType` over a defensive copy
+  — `config.extra_headers["k"] = "v"` raises `TypeError`. Construction-time
+  fence unchanged.
+- **`CommunicationsResource.list_rfqs` / `list_quotes` `status` kwarg
+  narrowed to `Literal`** (`#324`). New `RfqStatusLiteral` / `QuoteStatusLiteral`
+  match the spec's closed set; arbitrary `str` is rejected by mypy at the
+  call site. Consistent with the existing `OrdersResource.list(status=...)`
+  pattern.
+- **`to_decimal()` rejects `NaN` / `Infinity`** (`#325`). The public helper
+  promised safety in its docstring but accepted any `Decimal`. Now raises
+  `ValueError` on non-finite inputs, matching the `_coerce_decimal` validator.
+- **`DollarDecimal` request-side fields reject negative prices and
+  sub-tick precision** (`#343`). `CreateOrderRequest`,
+  `AmendOrderRequest`, `CreateOrderV2Request`, `AmendOrderV2Request` now
+  reject negative `yes_price` / `no_price` and sub-$0.0001-tick precision
+  at construction. Response-side `DollarDecimal` is unchanged (servers may
+  emit any value).
+
+### Critical (HIGH-severity money/auth/data-integrity fixes)
+
+- **`KalshiClient.from_env` preserves caller ownership of `KalshiAuth`**
+  (`#311`). The `from_env` classmethod (sync and async) overwrote `_auth_owned`
+  from the input kwarg instead of recomputing from what `__init__` actually
+  did. Two real bugs: (a) `from_env(key_id=..., private_key=...)` with no env
+  vars set leaked the sign `ThreadPoolExecutor` because the SDK-built auth
+  was flagged "not owned"; (b) `from_env(auth=my_auth)` with env vars set
+  caused `client.close()` to close the caller's still-referenced auth,
+  raising `RuntimeError("KalshiAuth has been closed")` on the next
+  `sign_request`. The fix recomputes ownership from `__init__`'s invariant.
+- **WS `_wait_for_response` wraps `TimeoutError` as `KalshiSubscriptionError`**
+  (`#314`). `asyncio.wait_for` raises bare `TimeoutError` on timeout, which
+  escaped `subscribe()` / `unsubscribe()` unhandled because only
+  `ConnectionClosed` was caught. Now wrapped with `channel` / `client_id` /
+  `op` context so consumers branching on SDK exceptions actually see the
+  expected type.
+- **WS zombie-subscription cleanup on gap-recovery failure** (`#315`).
+  `broadcast_error` never popped the dead `Subscription`. A failed
+  `resubscribe_one` in `_handle_seq_gap` (and the `KalshiBackpressureError`
+  path) left a zombie sub whose closed queue persisted; the next reconnect's
+  `resubscribe_all` resurrected it on the server — silent data loss + a
+  server-quota leak. `broadcast_error` now pops `_subscriptions` and
+  `_sid_to_client` so reconnects can't resurrect dead subs.
+
+### High-impact correctness
+
+- **`from_env` lazy `try_from_env()` evaluation** (`#316`). The classmethod
+  eagerly evaluated `KalshiAuth.try_from_env()` even when the caller passed
+  `auth=` / `key_id` / `private_key` / `private_key_path`. A malformed
+  `KALSHI_PRIVATE_KEY` in the process env then raised on every CI worker
+  that bypassed env. Now gated on `caller_supplied_auth`.
+- **`sign_request` strips URL fragment** (`#317`). `path.split("?")[0]`
+  stripped query strings but not `#fragment`. httpx drops fragments before
+  sending, producing a guaranteed signature mismatch (401) on any path
+  containing `#`. Now strips both.
+- **`Retry-After` honored across 408 / 429 / 503 / 504** (`#322`). Previously
+  only 429 parsed `Retry-After`. Per RFC 7231 §7.1.3 the header applies to
+  all four. `_parse_retry_after` extracted; `retry_after` lifted to
+  `KalshiError` base class so `KalshiServerError` and `KalshiTimeoutError`
+  also surface the hint.
+- **`Retry-After` path applies jitter** (`#321`). Synchronized clients
+  hitting the same 429/503 window would stampede the rate limit at the
+  exact server-suggested moment. Full Jitter is now added on top of the
+  server floor, capped at `retry_max_delay`. Preserves RFC compliance
+  (`Retry-After` is a "no sooner than" hint).
+- **Response body size cap on success path** (`#323`). The `#203` 16 KB
+  cap applied only to error responses; the success path was unbounded.
+  New `_enforce_response_body_cap` enforces the same protection on
+  non-streaming success bodies via a Content-Length pre-check plus a
+  post-buffer guard.
+- **V1 order request models gain `ge=0` parity** (`#326`). `subaccount`,
+  `exchange_index`, `subaccount_number` on `CreateOrderRequest`,
+  `AmendOrderRequest`, `BatchCancelOrderRequest`, and related V1 + group
+  models now reject negative integers (matching V2 and the `#295` sweep).
+- **`Page._columns` handles `None`-first nullable nested columns** (`#328`).
+  Detection inspected only `cols[0]`; a `None`-first nullable nested
+  `BaseModel` column skipped the `model_dump` pass and broke
+  `to_dataframe` / `to_polars` for nullable-Struct schemas.
+- **WS `OrderbookDeltaPayload.ts` typed as `AwareDatetime`** (`#331`).
+  Missed by the v2.5 `#270` WS datetime sweep. Tightening across
+  `orderbook_delta`, `user_orders`, and `communications` payloads.
+- **WS backpressure error closes connection cleanly** (`#332`).
+  `KalshiBackpressureError` in the recv loop previously broadcast sentinels
+  and broke, but left the WS open and `_running=True`. The next
+  `subscribe_*` restarted the recv loop on top of orphan server-side subs.
+  Now closes the connection and clears `_running` / manager refs so the
+  next session starts fresh.
+
+### Performance
+
+- **Orderbook materialization via `model_construct`** (`#327`).
+  `_BookState.to_orderbook` previously re-validated every price level through
+  Pydantic on each `apply_delta`. Data is SDK-canonical after the snapshot
+  validation; switched to `model_construct` to skip the redundant pass.
+- **Zero-delta orderbook updates preserve cache** (`#347`). A no-op delta
+  (quantity unchanged) used to invalidate the memoized `Orderbook` view,
+  defeating the `#244` cache. Now skipped when the price-level dict is
+  unchanged.
+- **Public `apply_snapshot` single-copy** (`#344`). The public path
+  allocated `yes` / `no` dicts twice — once via identity in
+  `_apply_snapshot_inplace`, then again via `dict(msg.msg.yes)` to copy
+  defensively. The bypass path (recv hot loop, `#296`) keeps identity
+  adoption; the public path now copies once.
+- **V2 batch endpoints use bytes-fast-path** (`#329`). `batch_create_v2` /
+  `batch_cancel_v2` paid the dict-walk serializer twice; the v2.4 `#223`
+  fast-path was never extended. Now serialize via `model_dump_json` once
+  and send the bytes.
+- **RSA-PSS / MGF1 / SHA256 config cached** (`#345`). Previously
+  allocated per signature. Hoisted to module-level constants — measurable
+  on the auth hot path.
+- **`SequenceTracker.track` sync fast-path** (`#330`). New public
+  `track_sync` lets the recv hot loop skip the per-frame coroutine-object
+  allocation; the async wrapper remains for callers that need to await on
+  the gap path.
+- **WS recv `asyncio.timeout` swap** (`#356`). Replaced `asyncio.wait_for`
+  in the recv hot path with `async with asyncio.timeout(...)` (Python 3.11+)
+  — fewer TimerHandle allocations per frame.
+- **`method.upper()` hoisted out of retry loop** (`#342`). Computed once
+  per request instead of once per retry attempt.
+
+### Polish
+
+- **`AsyncTransport.close()` cancellation-safe** (`#333`). Sets `_closed`
+  after `aclose()` returns, not before — cancellation between the two no
+  longer leaks the httpx pool. Mirrors the v2.6 `#301` sync fix.
+- **`_delete_with_body(params=...)` symmetry** (`#340`). The body-only
+  variant gains the `params` kwarg that `_delete_with_body_json` already
+  accepted.
+- **Pagination cycle detector catches non-adjacent loops** (`#352`). The
+  prior detector only caught adjacent cursor repeats; an `A→B→A→B` loop
+  from a load-balanced pod-state drift now raises before exhausting
+  `max_pages`. Memory-bounded at 1024 seen cursors.
+- **WS `_handle_orphan_subscribed` correlation** (`#354`). Server
+  `unsubscribed` acks for sids the client never owned no longer clobber
+  unrelated state.
+- **WS `ConnectionManager.reconnect` exc_info on failure** (`#355`). Per-
+  attempt failures now log with `exc_info=True` at DEBUG so root cause
+  (auth / TLS / DNS) survives to max-retry.
+- **WS `_stop()` teardown order** (`#357`). Closes the connection FIRST,
+  then broadcasts sentinels — late in-flight frames no longer land on
+  closed queues. `close()` wrapped in `try/finally` so sentinels always
+  fire even if `close()` raises.
+- **`KalshiConfig.extra_headers` doubled-pipeline removed** (`#341`).
+  Previously attached to `httpx.Client(headers=...)` defaults AND merged
+  per-request via `_ci_merge`. Now `_ci_merge` is the single source of
+  truth; the `#298` precedence contract (config defaults < per-call
+  extras < signed auth) is structurally enforced.
+- **`orders.create()` overload tightening** (`#350`). The `**kwargs`
+  overload statically required `action` and `count` since v2.5 `#242`;
+  the type signature is now updated to match runtime so mypy catches
+  omissions at the call site.
+- **Documentation drift sweep** (`#318`, `#319`, `#320`, `#334`, `#336`,
+  `#337`, `#338`, `#339`). Three live-data endpoint paths and the
+  `batch()` return shape corrected; `positions_all()` "does not exist"
+  claim dropped (it shipped in v2.5 `#269`); `structured_targets.get()`
+  404 mapping corrected (raises `KalshiNotFoundError`, not `None`);
+  sync/async docstring drift normalized across `orders`, `markets`,
+  `portfolio`, `communications`; `CreateOrderV2Request` docstring
+  corrected (`DollarDecimal`, not the nonexistent `FixedPointDollars`);
+  `LiveDataResource.get_typed` clarified as the legacy URL form.
+- **`KalshiAuth.from_pem` OpenSSH-format error** (`#335`). Detecting an
+  `-----BEGIN OPENSSH PRIVATE KEY-----` header now raises a targeted
+  `KalshiAuthError` with the exact `ssh-keygen -p -m PKCS8 -f <path>`
+  conversion command instead of the generic PEM parse failure.
+
+### Additive
+
+- **`kalshi.OrderPrice`** — public type alias for the request-side
+  bounded `DollarDecimal` used by order-request models (`#343`).
+- **`kalshi.RfqStatusLiteral`, `kalshi.QuoteStatusLiteral`** — public
+  Literal aliases for communications status filtering (`#324`).
+- **`SequenceTracker.track_sync`** — public sync entry point for the WS
+  recv hot path (`#330`).
+
+### Dependencies
+
+- **`pydantic>=2.4`** (`#346`). Bumped from `>=2.0` to ensure the
+  `StrictInt` / `_coerce_decimal` invariants the SDK relies on get the
+  2.4+ semantics. Pydantic 2.0–2.3 also shipped JSON-parser bugs.
+
 ## 2.6.0 — 2026-05-22
 
 Post-v2.5 independent reviewer audit closure (`#273` follow-on). 7 issues
