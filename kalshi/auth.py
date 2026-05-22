@@ -119,6 +119,15 @@ class KalshiAuth:
         """
         if isinstance(pem_data, str):
             pem_data = pem_data.encode("utf-8")
+        if pem_data.lstrip().startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----"):
+            raise KalshiAuthError(
+                "OpenSSH private-key format detected (-----BEGIN OPENSSH PRIVATE KEY-----); "
+                "Kalshi requires PKCS8 PEM. Convert in place with: "
+                "ssh-keygen -p -m PKCS8 -f <path> "
+                "(you will be prompted for the current passphrase, if any, and a new one), "
+                "or generate a fresh PKCS8 key with: "
+                "openssl genpkey -algorithm RSA -out <path> -pkeyopt rsa_keygen_bits:2048"
+            )
         pw_bytes: bytes | None = None
         if password is not None:
             raw = password() if callable(password) else password
