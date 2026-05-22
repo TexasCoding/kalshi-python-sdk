@@ -67,7 +67,7 @@ for ep in resp.event_positions:
 !!! note "`positions()` does not return Page[T]"
     It returns `PositionsResponse` — two parallel lists (`market_positions`
     and `event_positions`) plus its own `cursor` and `has_next`. Use
-    `positions_all()` (sync and async, shipped in v2.4) to auto-paginate
+    `positions_all()` (sync and async, shipped in v2.5.0) to auto-paginate
     over `market_positions` as an iterator of `MarketPosition`:
 
     ```python
