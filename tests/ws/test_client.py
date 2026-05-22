@@ -924,3 +924,121 @@ class TestIssue332BackpressureTeardown:
             )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.market_ticker == "T2"
+
+
+@pytest.mark.asyncio
+class TestIssue356RecvHotLoopTimeout:
+    async def test_issue_356_recv_loop_uses_asyncio_timeout_not_wait_for(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#356: per-frame ``asyncio.wait_for`` is replaced by
+        ``async with asyncio.timeout(...)`` in the recv hot loop. Verify
+        the loop still drains frames correctly under the new construct.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            # Send a few frames in quick succession — the timeout-context
+            # path must drain them all without TimeoutError leaking out.
+            for i in range(5):
+                await fake_ws.send_to_all(
+                    {
+                        "type": "ticker",
+                        "sid": 1,
+                        "msg": ticker_payload_dict(
+                            market_ticker="T1",
+                            market_id="x",
+                            yes_bid_dollars=str(50 + i),
+                        ),
+                    }
+                )
+            received: list[Any] = []
+            for _ in range(5):
+                received.append(
+                    await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+                )
+            assert len(received) == 5
+
+    async def test_issue_356_recv_loop_source_uses_asyncio_timeout(self) -> None:
+        """#356 guard: ensure the source actually calls ``asyncio.timeout``
+        and no longer wraps recv() in ``asyncio.wait_for``. Lock the
+        intent in source so a future revert can't regress silently.
+        """
+        import inspect
+
+        src = inspect.getsource(KalshiWebSocket._recv_loop)
+        assert "asyncio.timeout(_RECV_POLL_S)" in src, (
+            "_recv_loop must use asyncio.timeout for the per-frame poll"
+        )
+        assert "wait_for(self._connection.recv()" not in src, (
+            "_recv_loop must NOT wrap recv() in asyncio.wait_for"
+        )
+
+
+@pytest.mark.asyncio
+class TestIssue357StopOrdering:
+    async def test_issue_357_stop_closes_connection_before_sentinels(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#357: ``_stop()`` must close the WS connection BEFORE broadcasting
+        queue sentinels. Verified by recording the order in which
+        ``ConnectionManager.close`` and ``MessageQueue.put_sentinel``
+        run during teardown.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+
+        order: list[str] = []
+        async with ws.connect() as session:
+            stream = await session.subscribe_ticker(tickers=["T1"])
+            assert ws._connection is not None
+            assert ws._sub_mgr is not None
+
+            real_close = ws._connection.close
+
+            async def tracking_close() -> None:
+                order.append("close")
+                await real_close()
+
+            ws._connection.close = tracking_close  # type: ignore[method-assign]
+
+            for sub in ws._sub_mgr.active_subscriptions.values():
+                real_sentinel = sub.queue.put_sentinel
+
+                async def tracking_sentinel(
+                    _real: Any = real_sentinel,
+                ) -> None:
+                    order.append("sentinel")
+                    await _real()
+
+                sub.queue.put_sentinel = tracking_sentinel  # type: ignore[method-assign]
+
+            # Drain the iterator so its task completes before teardown
+            # races; one quick read is enough.
+            assert stream is not None
+
+        # On _stop teardown: close MUST run before any sentinel.
+        assert order, "Expected at least close + sentinel to run during _stop"
+        assert order[0] == "close", (
+            f"_stop must close connection before broadcasting sentinels, got {order!r}"
+        )
+
+    async def test_issue_357_stop_source_close_precedes_broadcast(self) -> None:
+        """#357 source-level guard: ``_stop()`` calls ``_connection.close``
+        before ``_broadcast_sentinels`` (so a future reorder cannot regress
+        the runtime ordering silently)."""
+        import inspect
+
+        src = inspect.getsource(KalshiWebSocket._stop)
+        close_idx = src.find("self._connection.close()")
+        broadcast_idx = src.find("self._broadcast_sentinels()")
+        assert close_idx != -1, "_stop must close the connection"
+        assert broadcast_idx != -1, "_stop must broadcast sentinels"
+        assert close_idx < broadcast_idx, (
+            "_stop must close the connection BEFORE broadcasting sentinels (#357)"
+        )

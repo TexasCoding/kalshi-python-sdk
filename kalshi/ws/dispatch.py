@@ -59,6 +59,14 @@ class MessageDispatcher:
         self._seq_tracker = seq_tracker
         self._orderbook_mgr = orderbook_mgr
         self._callbacks: dict[str, Callable[[Any], Awaitable[None]]] = {}
+        # #354: sids the client never owned but proactively unsubscribed
+        # (orphan subscribe acks). When the server's ``unsubscribed`` ack
+        # for one of these arrives, ``_handle_server_unsubscribe`` MUST
+        # short-circuit instead of running full teardown — otherwise a
+        # sid that the server has already reused for a freshly-completed
+        # subscribe would have its seq watermark and orderbook state
+        # clobbered by the late orphan ack.
+        self._pending_orphan_unsub: set[int] = set()
 
     def register_callback(
         self, channel: str, callback: Callable[[Any], Awaitable[None]]
@@ -106,6 +114,21 @@ class MessageDispatcher:
             logger.debug("server unsubscribed envelope without sid: %s", data)
             return
 
+        # #354: correlate orphan-unsubscribe acks. If we proactively sent
+        # an unsubscribe for a sid the client never owned (orphan
+        # subscribe ack), the corresponding ``unsubscribed`` ack lands
+        # here. Short-circuit unconditionally: even when the server has
+        # since reused the sid for a freshly-completed legitimate
+        # subscribe (now in ``_sid_to_client``), this ack is for the
+        # ORPHAN, not the new owner. Running the teardown below would
+        # clobber the new sub's seq watermark and orderbook books.
+        if sid in self._pending_orphan_unsub:
+            self._pending_orphan_unsub.discard(sid)
+            logger.debug(
+                "server unsubscribed: orphan-correlation ack for sid %d", sid,
+            )
+            return
+
         client_id = self._sub_mgr._sid_to_client.pop(sid, None)
         if self._seq_tracker is not None:
             self._seq_tracker.reset(sid)
@@ -116,19 +139,21 @@ class MessageDispatcher:
         if self._orderbook_mgr is not None:
             self._orderbook_mgr.remove_by_sid(sid)
 
-        if client_id is None:
-            logger.debug(
-                "server unsubscribed for unknown sid %d (already reaped)", sid
-            )
-            return
-
-        sub = self._sub_mgr._subscriptions.pop(client_id, None)
+        sub = (
+            self._sub_mgr._subscriptions.pop(client_id, None)
+            if client_id is not None
+            else None
+        )
         if sub is not None:
             # Wake any held iterator so async-for exits cleanly.
             await sub.queue.put_sentinel()
             logger.info(
                 "Server-initiated unsubscribe: channel=%s sid=%d client_id=%d",
                 sub.channel, sid, client_id,
+            )
+        elif client_id is None:
+            logger.debug(
+                "server unsubscribed for unknown sid %d (already reaped)", sid,
             )
 
     async def _handle_orphan_subscribed(self, data: dict[str, Any]) -> None:
@@ -164,6 +189,11 @@ class MessageDispatcher:
             # A normal subscribe completed and installed the mapping
             # before this handler ran — nothing to do.
             return
+        # #354: mark the sid as orphan-unsubscribed BEFORE sending so the
+        # eventual ``unsubscribed`` ack short-circuits in
+        # ``_handle_server_unsubscribe`` rather than clobbering a sid the
+        # server may have reused.
+        self._pending_orphan_unsub.add(sid)
         logger.warning(
             "Orphan subscribed ack for sid=%d (no client mapping); "
             "sending unsubscribe to release server-side state.",

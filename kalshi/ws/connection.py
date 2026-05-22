@@ -170,6 +170,10 @@ class ConnectionManager:
             self._ws = None
 
         await self._set_state(ConnectionState.RECONNECTING)
+        # #355: capture the last failure so the final raise can chain it
+        # via ``from`` and operators can see the real root cause (auth,
+        # TLS, DNS) instead of a bare "max retries exceeded".
+        last_exc: BaseException | None = None
         for attempt in range(self._config.ws_max_retries):
             # #221 P2.1: match REST transport's AWS Full Jitter formula.
             # The previous ``base * 2**attempt + uniform(0, 0.5)`` reduced
@@ -195,13 +199,25 @@ class ConnectionManager:
                 self._ws = await self._open_socket()
                 await self._set_state(ConnectionState.CONNECTED)
                 return
-            except Exception:
-                logger.debug("Reconnect attempt %d failed", attempt + 1)
+            except Exception as exc:
+                # #355: keep DEBUG level so happy-path retries stay quiet,
+                # but include ``exc_info`` so the underlying failure (auth,
+                # TLS, DNS) is visible when DEBUG logging is enabled. The
+                # final raise below chains the last failure via ``from``
+                # so it surfaces on the traceback even at default log
+                # levels — matches the REST transport's pattern.
+                last_exc = exc
+                logger.debug(
+                    "Reconnect attempt %d/%d failed",
+                    attempt + 1,
+                    self._config.ws_max_retries,
+                    exc_info=True,
+                )
                 continue
         await self._set_state(ConnectionState.CLOSED)
         raise KalshiConnectionError(
             f"Max reconnect attempts ({self._config.ws_max_retries}) exceeded"
-        )
+        ) from last_exc
 
     async def close(self) -> None:
         """Gracefully close the WebSocket connection with code 1000.
