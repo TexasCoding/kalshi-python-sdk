@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, BaseModel, BeforeValidator, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, BeforeValidator, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, _coerce_decimal
 
@@ -107,7 +107,7 @@ class OrderbookDeltaPayload(BaseModel):
     side: Literal["yes", "no"]
     client_order_id: str | None = None
     subaccount: int | None = None
-    ts: str | None = None
+    ts: AwareDatetime | None = None
     # v0.14+ backfill (#162). ts_ms (Unix ms) supersedes ts (RFC3339).
     ts_ms: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
@@ -116,7 +116,7 @@ class OrderbookDeltaPayload(BaseModel):
 class OrderbookSnapshotMessage(BaseModel):
     """Full orderbook snapshot, sent on initial subscribe."""
 
-    type: str = "orderbook_snapshot"
+    type: Literal["orderbook_snapshot"] = "orderbook_snapshot"
     sid: int
     seq: int
     msg: OrderbookSnapshotPayload
@@ -126,7 +126,7 @@ class OrderbookSnapshotMessage(BaseModel):
 class OrderbookDeltaMessage(BaseModel):
     """Incremental orderbook update."""
 
-    type: str = "orderbook_delta"
+    type: Literal["orderbook_delta"] = "orderbook_delta"
     sid: int
     seq: int
     msg: OrderbookDeltaPayload

@@ -1,6 +1,8 @@
 """User orders channel message models."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.models.orders import (
@@ -73,7 +75,7 @@ class UserOrdersPayload(BaseModel):
 class UserOrdersMessage(BaseModel):
     """User orders update message. NO required seq."""
 
-    type: str = "user_order"
+    type: Literal["user_order"] = "user_order"
     sid: int
     seq: int | None = None
     msg: UserOrdersPayload

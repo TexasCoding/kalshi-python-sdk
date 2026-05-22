@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -49,7 +49,7 @@ class MarketLifecyclePayload(BaseModel):
 class MarketLifecycleMessage(BaseModel):
     """Market lifecycle v2 update message. NO required seq."""
 
-    type: str = "market_lifecycle_v2"
+    type: Literal["market_lifecycle_v2"] = "market_lifecycle_v2"
     sid: int
     seq: int | None = None
     msg: MarketLifecyclePayload

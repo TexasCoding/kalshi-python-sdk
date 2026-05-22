@@ -1,6 +1,8 @@
 """Communications channel message models (RFQ and quote notifications)."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -152,7 +154,7 @@ class CommunicationsMessage(BaseModel):
     (RfqCreatedPayload, QuoteCreatedPayload, etc.) to validate msg contents.
     """
 
-    type: str = "communications"
+    type: Literal["communications"] = "communications"
     sid: int
     seq: int | None = None
     msg: dict[str, object]
