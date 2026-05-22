@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_validator, model_validator
 
-from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
+from kalshi.types import DollarDecimal, FixedPointCount, OrderPrice, StrictInt
 
 # Literal aliases for fixed-enum kwargs on order resource methods and the
 # matching V1 / V2 request models.
@@ -175,11 +175,11 @@ class CreateOrderRequest(BaseModel):
     side: SideLiteral
     action: ActionLiteral
     count: FixedPointCount = Field(serialization_alias="count_fp")
-    yes_price: DollarDecimal | None = Field(
+    yes_price: OrderPrice | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",
     )
-    no_price: DollarDecimal | None = Field(
+    no_price: OrderPrice | None = Field(
         default=None,
         serialization_alias="no_price_dollars",
     )
@@ -253,11 +253,11 @@ class AmendOrderRequest(BaseModel):
     ticker: str
     side: SideLiteral
     action: ActionLiteral
-    yes_price: DollarDecimal | None = Field(
+    yes_price: OrderPrice | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",
     )
-    no_price: DollarDecimal | None = Field(
+    no_price: OrderPrice | None = Field(
         default=None,
         serialization_alias="no_price_dollars",
     )
@@ -473,7 +473,7 @@ class CreateOrderV2Request(BaseModel):
     client_order_id: str
     side: BookSideLiteral
     count: FixedPointCount
-    price: DollarDecimal
+    price: OrderPrice
     time_in_force: TimeInForceLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral
     expiration_time: StrictInt | None = None
@@ -557,7 +557,7 @@ class AmendOrderV2Request(BaseModel):
 
     ticker: str
     side: BookSideLiteral
-    price: DollarDecimal
+    price: OrderPrice
     count: FixedPointCount
     client_order_id: str | None = None
     updated_client_order_id: str | None = None

@@ -129,3 +129,32 @@ class TestCoerceDecimalRejectsNonFinite:
                 count=Decimal("1"), yes_price=Decimal("NaN"),
             )
 
+
+
+class TestIssue325ToDecimalRejectsNanInf:
+    """#325: ``to_decimal`` accepted NaN/Infinity while ``_coerce_decimal`` rejected them.
+
+    The public helper is documented as the safe constructor; users following the
+    pattern of pre-coercing with ``to_decimal`` and then handing the result to
+    code paths that bypass pydantic re-validation (direct Decimal arithmetic,
+    hand-built dict + ``model_dump_json``) would otherwise ship the literal
+    string ``"NaN"`` to a real-money endpoint.
+    """
+
+    def test_issue_325_to_decimal_rejects_nan_inf(self) -> None:
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(Decimal("NaN"))
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(Decimal("Infinity"))
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(Decimal("-Infinity"))
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal("NaN")
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(float("nan"))
+        with pytest.raises(ValueError, match="finite"):
+            to_decimal(float("inf"))
+
+    def test_to_decimal_preserves_finite_decimal_identity(self) -> None:
+        d = Decimal("0.65")
+        assert to_decimal(d) is d

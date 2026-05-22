@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from kalshi.models.communications import RFQ, Quote
 from kalshi.models.events import Event, EventMetadata
@@ -1820,3 +1820,168 @@ class TestIssue326V1SubaccountGeZero:
         # Zero (primary subaccount / first shard) remains valid.
         instance = model_cls(**{**other_kwargs, field_name: 0})
         assert getattr(instance, field_name) == 0
+
+
+class TestIssue328PageColumnsNoneFirstNested:
+    """#328: ``Page._columns`` peeked only ``col[0]`` to decide the dump branch.
+
+    An ``Optional[NestedModel]`` field whose first row is ``None`` (common
+    across nullable struct columns on Market / Event / Series / Settlement)
+    skipped the per-cell ``model_dump`` pass — the second row's populated
+    nested model leaked out as a raw ``BaseModel`` instance, breaking the
+    polars ``Struct`` dtype the docstring promises (#264).
+    """
+
+    def test_issue_328_page_columns_handles_none_first_nested(self) -> None:
+        from kalshi.models.common import Page
+
+        class _Inner(BaseModel):
+            label: str
+
+        class _Row(BaseModel):
+            ticker: str
+            inner: _Inner | None = None
+
+        page: Page[_Row] = Page(
+            items=[
+                _Row(ticker="A", inner=None),
+                _Row(ticker="B", inner=_Inner(label="x")),
+            ],
+            cursor=None,
+        )
+
+        cols = page._columns()
+        assert cols["ticker"] == ["A", "B"]
+        # Pre-fix: cols["inner"] == [None, _Inner(label="x")] (raw BaseModel leaks)
+        # Post-fix: the populated row dumps to a dict; the None row stays None.
+        assert cols["inner"][0] is None
+        assert cols["inner"][1] == {"label": "x"}
+
+    def test_issue_328_page_to_polars_yields_struct_for_none_first_nested(self) -> None:
+        pl = pytest.importorskip("polars")
+
+        from kalshi.models.common import Page
+
+        class _Inner(BaseModel):
+            label: str
+
+        class _Row(BaseModel):
+            ticker: str
+            inner: _Inner | None = None
+
+        page: Page[_Row] = Page(
+            items=[
+                _Row(ticker="A", inner=None),
+                _Row(ticker="B", inner=_Inner(label="x")),
+            ],
+            cursor=None,
+        )
+
+        df = page.to_polars()
+        assert isinstance(df["inner"].dtype, pl.Struct)
+
+
+class TestIssue343DollarDecimalRequestBounds:
+    """#343: request-side ``DollarDecimal`` fields lacked sign and tick bounds.
+
+    The shared :data:`DollarDecimal` alias is intentionally permissive for
+    response-side PnL/fee/settlement fields where negatives and arbitrary
+    precision are legitimate. Request-side price fields, however, are bounded
+    by Kalshi's order contract: non-negative and aligned to the $0.0001 tick.
+    The :data:`OrderPrice` alias applied on CreateOrderRequest / AmendOrderRequest
+    / CreateOrderV2Request / AmendOrderV2Request enforces both at construction.
+    """
+
+    def test_issue_343_dollar_decimal_request_rejects_negative_and_invalid_tick(self) -> None:
+        from kalshi.models.orders import (
+            AmendOrderRequest,
+            AmendOrderV2Request,
+            CreateOrderRequest,
+            CreateOrderV2Request,
+        )
+
+        # V1 CreateOrderRequest: yes_price / no_price negative -> ValidationError
+        with pytest.raises(ValidationError, match="non-negative"):
+            CreateOrderRequest(
+                ticker="T", side="yes", action="buy",
+                count=Decimal("1"), yes_price=Decimal("-0.65"),
+            )
+        with pytest.raises(ValidationError, match="non-negative"):
+            CreateOrderRequest(
+                ticker="T", side="no", action="buy",
+                count=Decimal("1"), no_price=Decimal("-0.01"),
+            )
+
+        # Sub-tick precision -> ValidationError
+        with pytest.raises(ValidationError, match=r"\$0\.0001 tick"):
+            CreateOrderRequest(
+                ticker="T", side="yes", action="buy",
+                count=Decimal("1"), yes_price=Decimal("0.12345"),
+            )
+
+        # V1 AmendOrderRequest mirrors V1 Create.
+        with pytest.raises(ValidationError, match="non-negative"):
+            AmendOrderRequest(
+                ticker="T", side="yes", action="buy",
+                yes_price=Decimal("-0.5"),
+            )
+        with pytest.raises(ValidationError, match=r"\$0\.0001 tick"):
+            AmendOrderRequest(
+                ticker="T", side="no", action="sell",
+                no_price=Decimal("0.99999"),
+            )
+
+        # V2 CreateOrderV2Request.
+        with pytest.raises(ValidationError, match="non-negative"):
+            CreateOrderV2Request(
+                ticker="T", client_order_id="c1", side="bid",
+                count=Decimal("1"), price=Decimal("-0.5"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+            )
+        with pytest.raises(ValidationError, match=r"\$0\.0001 tick"):
+            CreateOrderV2Request(
+                ticker="T", client_order_id="c1", side="bid",
+                count=Decimal("1"), price=Decimal("0.55555"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+            )
+
+        # V2 AmendOrderV2Request.
+        with pytest.raises(ValidationError, match="non-negative"):
+            AmendOrderV2Request(
+                ticker="T", side="ask",
+                price=Decimal("-0.01"), count=Decimal("1"),
+            )
+        with pytest.raises(ValidationError, match=r"\$0\.0001 tick"):
+            AmendOrderV2Request(
+                ticker="T", side="ask",
+                price=Decimal("0.12345"), count=Decimal("1"),
+            )
+
+    def test_issue_343_accepts_zero_and_tick_aligned_prices(self) -> None:
+        from kalshi.models.orders import CreateOrderRequest
+
+        # Zero is non-negative; round-tick four-decimal value is aligned.
+        req = CreateOrderRequest(
+            ticker="T", side="yes", action="buy",
+            count=Decimal("1"), yes_price=Decimal("0"),
+        )
+        assert req.yes_price == Decimal("0")
+
+        req = CreateOrderRequest(
+            ticker="T", side="yes", action="buy",
+            count=Decimal("1"), yes_price=Decimal("0.5600"),
+        )
+        assert req.yes_price == Decimal("0.5600")
+
+    def test_issue_343_response_dollar_decimal_unchanged(self) -> None:
+        # Response-side averages (V2) keep bare DollarDecimal — negatives must
+        # remain legal for PnL/fee/settlement parity. Pin the contract.
+        from kalshi.models.orders import CreateOrderV2Response
+
+        resp = CreateOrderV2Response.model_validate({
+            "order_id": "o", "fill_count": "1", "remaining_count": "0",
+            "ts_ms": 0, "average_fill_price": "-0.0001",
+        })
+        assert resp.average_fill_price == Decimal("-0.0001")
