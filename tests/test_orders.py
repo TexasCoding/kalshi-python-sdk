@@ -2034,3 +2034,51 @@ class TestCreateOrderRequestLiteralEnforcement:
         assert req.side == "no"
         assert req.action == "sell"
 
+
+
+# ── Issue #351: deprecated forwarders for fills on OrdersResource ────────────
+
+
+class TestIssue351OrdersFillsDeprecated:
+    @respx.mock
+    def test_issue_351_orders_fills_emits_deprecation_warning(
+        self, orders: OrdersResource
+    ) -> None:
+        """Old location still works and emits exactly one DeprecationWarning per call."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5", count_fp="5"
+                        )
+                    ],
+                    "cursor": "",
+                },
+            )
+        )
+        with pytest.warns(DeprecationWarning, match=r"OrdersResource\.fills") as record:
+            page = orders.fills()
+        assert len(page) == 1
+        assert page.items[0].trade_id == "t1"
+        assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+
+    @respx.mock
+    def test_issue_351_orders_fills_all_emits_deprecation_warning(
+        self, orders: OrdersResource
+    ) -> None:
+        """Iterator forwarder still works and emits exactly one DeprecationWarning per call."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [fill_dict(trade_id="a", yes_price_dollars="0.5")],
+                    "cursor": "",
+                },
+            )
+        )
+        with pytest.warns(DeprecationWarning, match=r"OrdersResource\.fills_all") as record:
+            ids = [f.trade_id for f in orders.fills_all()]
+        assert ids == ["a"]
+        assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1

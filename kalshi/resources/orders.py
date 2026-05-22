@@ -7,6 +7,8 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
 from typing import Any, overload
 
+from typing_extensions import deprecated
+
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
@@ -582,6 +584,9 @@ class OrdersResource(SyncResource):
             raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
+    @deprecated(
+        "OrdersResource.fills is deprecated; use client.portfolio.fills instead."
+    )
     def fills(
         self,
         *,
@@ -594,6 +599,12 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List trade fills.
+
+        .. deprecated:: 3.0.0
+            Use :meth:`PortfolioResource.fills` instead. This forwarder
+            remains for one release and will be removed in a future version.
+        """
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -604,10 +615,15 @@ class OrdersResource(SyncResource):
             cursor=cursor,
             subaccount=subaccount,
         )
+        # NOTE: still hits /portfolio/fills directly — the canonical
+        # implementation now lives on PortfolioResource (issue #351).
         return self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
 
+    @deprecated(
+        "OrdersResource.fills_all is deprecated; use client.portfolio.fills_all instead."
+    )
     def fills_all(
         self,
         *,
@@ -620,6 +636,12 @@ class OrdersResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
+        """Auto-paginate trade fills.
+
+        .. deprecated:: 3.0.0
+            Use :meth:`PortfolioResource.fills_all` instead. This forwarder
+            remains for one release and will be removed in a future version.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -631,6 +653,8 @@ class OrdersResource(SyncResource):
             cursor=None,
             subaccount=subaccount,
         )
+        # NOTE: still hits /portfolio/fills directly — the canonical
+        # implementation now lives on PortfolioResource (issue #351).
         return self._list_all(
             "/portfolio/fills",
             Fill,
@@ -1125,6 +1149,9 @@ class AsyncOrdersResource(AsyncResource):
             raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
+    @deprecated(
+        "AsyncOrdersResource.fills is deprecated; use client.portfolio.fills instead."
+    )
     async def fills(
         self,
         *,
@@ -1137,6 +1164,12 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List trade fills (async).
+
+        .. deprecated:: 3.0.0
+            Use :meth:`AsyncPortfolioResource.fills` instead. This forwarder
+            remains for one release and will be removed in a future version.
+        """
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -1147,10 +1180,15 @@ class AsyncOrdersResource(AsyncResource):
             cursor=cursor,
             subaccount=subaccount,
         )
+        # NOTE: still hits /portfolio/fills directly — the canonical
+        # implementation now lives on AsyncPortfolioResource (issue #351).
         return await self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
 
+    @deprecated(
+        "AsyncOrdersResource.fills_all is deprecated; use client.portfolio.fills_all instead."
+    )
     def fills_all(
         self,
         *,
@@ -1163,7 +1201,12 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
-        """Returns an async iterator — use ``async for``."""
+        """Auto-paginate trade fills (async). Use ``async for``.
+
+        .. deprecated:: 3.0.0
+            Use :meth:`AsyncPortfolioResource.fills_all` instead. This forwarder
+            remains for one release and will be removed in a future version.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -1175,6 +1218,8 @@ class AsyncOrdersResource(AsyncResource):
             cursor=None,
             subaccount=subaccount,
         )
+        # NOTE: still hits /portfolio/fills directly — the canonical
+        # implementation now lives on AsyncPortfolioResource (issue #351).
         return self._list_all(
             "/portfolio/fills",
             Fill,

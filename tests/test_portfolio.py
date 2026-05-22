@@ -15,6 +15,7 @@ from kalshi.errors import AuthRequiredError, KalshiAuthError
 from kalshi.resources.portfolio import AsyncPortfolioResource, PortfolioResource
 from tests._model_fixtures import (
     event_position_dict,
+    fill_dict,
     market_position_dict,
     settlement_dict,
 )
@@ -1130,3 +1131,161 @@ class TestAsyncPortfolioPositionsAll:
         with pytest.raises(AuthRequiredError):
             async for _ in unauth_async_portfolio.positions_all():
                 pass
+
+
+# ── Issue #351: fills moved from OrdersResource to PortfolioResource ─────────
+
+
+class TestPortfolioFills:
+    @respx.mock
+    def test_issue_351_fills_on_portfolio_resource_works(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        """New location: client.portfolio.fills() hits /portfolio/fills and parses Page[Fill]."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5000", count_fp="5"
+                        )
+                    ],
+                    "cursor": "",
+                },
+            )
+        )
+        page = portfolio.fills()
+        assert len(page) == 1
+        assert page.items[0].trade_id == "t1"
+        assert page.items[0].yes_price == Decimal("0.5000")
+
+    @respx.mock
+    def test_fills_cursor_and_filter_parity(self, portfolio: PortfolioResource) -> None:
+        """ticker / min_ts / max_ts / cursor reach the wire identically to old shape."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        portfolio.fills(
+            ticker="MKT-A",
+            order_id="ord-1",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
+
+class TestPortfolioFillsAll:
+    @respx.mock
+    def test_issue_351_fills_all_on_portfolio_resource_works(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        """New location: client.portfolio.fills_all() auto-paginates."""
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [fill_dict(trade_id="a", yes_price_dollars="0.50")],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [fill_dict(trade_id="b", yes_price_dollars="0.60")],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [f.trade_id for f in portfolio.fills_all()]
+        assert ids == ["a", "b"]
+
+
+class TestAsyncPortfolioFills:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_351_fills_on_portfolio_resource_works(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5000", count_fp="5"
+                        )
+                    ],
+                    "cursor": "",
+                },
+            )
+        )
+        page = await async_portfolio.fills()
+        assert len(page) == 1
+        assert page.items[0].trade_id == "t1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fills_cursor_and_filter_parity(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        await async_portfolio.fills(
+            ticker="MKT-A",
+            order_id="ord-1",
+            min_ts=1700000000,
+            max_ts=1700099999,
+            limit=50,
+            cursor="abc",
+            subaccount=7,
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["ticker"] == "MKT-A"
+        assert params["order_id"] == "ord-1"
+        assert params["min_ts"] == "1700000000"
+        assert params["max_ts"] == "1700099999"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["subaccount"] == "7"
+
+
+class TestAsyncPortfolioFillsAll:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_351_fills_all_on_portfolio_resource_works(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [fill_dict(trade_id="a", yes_price_dollars="0.50")],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [fill_dict(trade_id="b", yes_price_dollars="0.60")],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [f.trade_id async for f in async_portfolio.fills_all()]
+        assert ids == ["a", "b"]
