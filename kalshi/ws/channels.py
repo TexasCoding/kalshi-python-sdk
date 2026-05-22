@@ -206,6 +206,14 @@ class SubscriptionManager:
                 raise KalshiConnectionError(
                     f"Connection closed while awaiting response to command {msg_id}"
                 ) from e
+            except TimeoutError:
+                # #314: wrap bare TimeoutError so callers retain channel/client_id/op (#213).
+                raise KalshiSubscriptionError(
+                    f"Timed out waiting for response to command {msg_id}",
+                    channel=channel,
+                    client_id=client_id,
+                    op=op,  # type: ignore[arg-type]
+                ) from None
             data: dict[str, Any] = self._json_loads(raw)
             if data.get("id") == msg_id:
                 return data
@@ -562,6 +570,8 @@ class SubscriptionManager:
         (it's assigned at subscribe-ack and may change on resubscribe)
         so enrich it here from the subscription's current
         ``server_sid`` when missing.
+
+        #315: pop the dead subscription so the next resubscribe_all can't resurrect a zombie sub.
         """
         sub = self._subscriptions.get(client_id)
         if sub is None:
@@ -573,6 +583,10 @@ class SubscriptionManager:
         ):
             exc.sid = sub.server_sid
         await sub.queue.put_error(exc)
+        # #315: drop the dead subscription so resubscribe_all skips it.
+        self._subscriptions.pop(client_id, None)
+        if sub.server_sid is not None:
+            self._sid_to_client.pop(sub.server_sid, None)
 
     def take_stash(self) -> dict[int, collections.deque[str]]:
         """Return and clear the resubscribe-window stash atomically (#176).
