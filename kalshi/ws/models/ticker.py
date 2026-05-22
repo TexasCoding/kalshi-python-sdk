@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -61,7 +63,7 @@ class TickerPayload(BaseModel):
 class TickerMessage(BaseModel):
     """Ticker update message. NO required seq."""
 
-    type: str = "ticker"
+    type: Literal["ticker"] = "ticker"
     sid: int
     seq: int | None = None
     msg: TickerPayload

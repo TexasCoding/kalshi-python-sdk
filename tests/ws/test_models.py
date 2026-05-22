@@ -152,7 +152,7 @@ class TestOrderbookModels:
         }
         msg = OrderbookDeltaMessage.model_validate(raw)
         assert msg.msg.client_order_id == "my-order"
-        assert msg.msg.ts == "2026-04-19T18:43:37.662364Z"
+        assert msg.msg.ts == datetime(2026, 4, 19, 18, 43, 37, 662364, tzinfo=UTC)
         assert msg.msg.delta == Decimal("-20")  # negative delta = removal
 
 
@@ -394,7 +394,7 @@ class TestMarketPositionsModel:
 class TestUserOrdersModel:
     def test_parse_user_orders(self) -> None:
         raw = {
-            "type": "user_orders",
+            "type": "user_order",
             "sid": 5,
             "msg": user_orders_payload_dict(
                 order_id="ord-001",
@@ -415,7 +415,7 @@ class TestUserOrdersModel:
             ),
         }
         msg = UserOrdersMessage.model_validate(raw)
-        assert msg.type == "user_orders"
+        assert msg.type == "user_order"
         assert msg.msg.order_id == "ord-001"
         assert msg.msg.status == "resting"
         assert msg.msg.is_yes is True
@@ -424,7 +424,7 @@ class TestUserOrdersModel:
 
     def test_user_orders_no_seq(self) -> None:
         raw = {
-            "type": "user_orders",
+            "type": "user_order",
             "sid": 5,
             "msg": user_orders_payload_dict(order_id="ord-001"),
         }
@@ -433,7 +433,7 @@ class TestUserOrdersModel:
 
     def test_user_orders_canceled(self) -> None:
         raw = {
-            "type": "user_orders",
+            "type": "user_order",
             "sid": 5,
             "msg": user_orders_payload_dict(
                 order_id="ord-002",
@@ -1034,7 +1034,7 @@ class TestWsPayloadDecimalCoercion:
     def test_user_orders_counts_parse_as_decimal(self) -> None:
         msg = UserOrdersMessage.model_validate(
             {
-                "type": "user_orders",
+                "type": "user_order",
                 "sid": 1,
                 "msg": user_orders_payload_dict(
                     fill_count_fp="3",
@@ -1141,7 +1141,7 @@ class TestWsPayloadDatetimeCoercion:
     def test_user_orders_timestamps_parse_as_datetime(self) -> None:
         msg = UserOrdersMessage.model_validate(
             {
-                "type": "user_orders",
+                "type": "user_order",
                 "sid": 1,
                 "msg": user_orders_payload_dict(
                     created_time="2026-01-01T00:00:00Z",
@@ -1499,3 +1499,121 @@ class TestWsPayloadsRejectNaiveDatetime:
                     "executed_ts": "2026-04-19T18:43:37",
                 }
             )
+
+
+class TestIssue331OrderbookDeltaTsAwareDatetime:
+    """#331: OrderbookDeltaPayload.ts widened to AwareDatetime to match v2.5 #270 sweep."""
+
+    def test_issue_331_orderbook_delta_ts_is_aware_datetime(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        payload = OrderbookDeltaPayload.model_validate(
+            {
+                "market_ticker": "T",
+                "market_id": "x",
+                "price_dollars": "0.5500",
+                "delta_fp": "10.00",
+                "side": "yes",
+                "ts": "2026-04-19T18:43:37.662364Z",
+            }
+        )
+        assert isinstance(payload.ts, datetime)
+        assert payload.ts == datetime(2026, 4, 19, 18, 43, 37, 662364, tzinfo=UTC)
+
+    def test_issue_331_orderbook_delta_ts_rejects_naive(self) -> None:
+        from kalshi.ws.models.orderbook_delta import OrderbookDeltaPayload
+
+        with pytest.raises(ValidationError, match="timezone"):
+            OrderbookDeltaPayload.model_validate(
+                {
+                    "market_ticker": "T",
+                    "market_id": "x",
+                    "price_dollars": "0.5500",
+                    "delta_fp": "10.00",
+                    "side": "yes",
+                    "ts": "2026-04-19T18:43:37",
+                }
+            )
+
+
+class TestIssue353EnvelopeTypeLiteralNarrowing:
+    """#353: WS message envelope ``type`` narrowed to its channel-specific Literal.
+
+    Construction with a mismatched ``type`` string must raise ValidationError. The
+    default-value form keeps the no-arg construction ergonomics.
+    """
+
+    def test_issue_353_envelope_type_literal_narrowing(self) -> None:
+        # Each (envelope cls, expected literal value, sample msg)
+        snapshot_msg = {
+            "market_ticker": "T",
+            "market_id": "x",
+            "yes": [["0.50", "100.00"]],
+            "no": [["0.45", "150.00"]],
+        }
+        delta_msg = {
+            "market_ticker": "T",
+            "market_id": "x",
+            "price_dollars": "0.5500",
+            "delta_fp": "10.00",
+            "side": "yes",
+        }
+        cases: list[tuple[type, str, dict, dict]] = [
+            (
+                OrderbookSnapshotMessage,
+                "orderbook_snapshot",
+                {"sid": 1, "seq": 1, "msg": snapshot_msg},
+                {"sid": 1, "seq": 1, "msg": snapshot_msg, "type": "fill"},
+            ),
+            (
+                OrderbookDeltaMessage,
+                "orderbook_delta",
+                {"sid": 1, "seq": 1, "msg": delta_msg},
+                {"sid": 1, "seq": 1, "msg": delta_msg, "type": "ticker"},
+            ),
+            (
+                TickerMessage,
+                "ticker",
+                {"sid": 1, "msg": ticker_payload_dict()},
+                {"sid": 1, "msg": ticker_payload_dict(), "type": "fill"},
+            ),
+            (
+                FillMessage,
+                "fill",
+                {"sid": 1, "msg": fill_payload_dict()},
+                {"sid": 1, "msg": fill_payload_dict(), "type": "ticker"},
+            ),
+            (
+                UserOrdersMessage,
+                "user_order",
+                {"sid": 1, "msg": user_orders_payload_dict()},
+                {"sid": 1, "msg": user_orders_payload_dict(), "type": "fill"},
+            ),
+            (
+                MarketLifecycleMessage,
+                "market_lifecycle_v2",
+                {
+                    "sid": 1,
+                    "msg": {"event_type": "created", "market_ticker": "T"},
+                },
+                {
+                    "sid": 1,
+                    "msg": {"event_type": "created", "market_ticker": "T"},
+                    "type": "ticker",
+                },
+            ),
+            (
+                CommunicationsMessage,
+                "communications",
+                {"sid": 1, "msg": {"id": "rfq-1"}},
+                {"sid": 1, "msg": {"id": "rfq-1"}, "type": "ticker"},
+            ),
+        ]
+        for cls, expected_type, ok_payload, bad_payload in cases:
+            instance = cls.model_validate(ok_payload)
+            assert instance.type == expected_type, f"{cls.__name__} default type"
+            # Field annotation is Literal[<expected>], not bare str.
+            annotation = cls.model_fields["type"].annotation
+            assert annotation is not str, f"{cls.__name__} still bare str"
+            with pytest.raises(ValidationError):
+                cls.model_validate(bad_payload)

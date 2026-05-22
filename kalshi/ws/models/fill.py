@@ -1,6 +1,8 @@
 """Fill channel message models."""
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import AliasChoices, BaseModel, Field
 
 from kalshi.models.orders import BookSideLiteral, SideLiteral
@@ -47,7 +49,7 @@ class FillPayload(BaseModel):
 class FillMessage(BaseModel):
     """Fill update message. NO required seq."""
 
-    type: str = "fill"
+    type: Literal["fill"] = "fill"
     sid: int
     seq: int | None = None
     msg: FillPayload
