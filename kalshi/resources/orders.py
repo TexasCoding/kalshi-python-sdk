@@ -1051,7 +1051,7 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Order]:
-        """Non-async method that returns an async iterator for direct use with `async for`."""
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_orders_params(
@@ -1162,6 +1162,7 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
