@@ -59,16 +59,30 @@ class _BookState:
         contract that the previous list-backed implementation maintained via
         ``list.sort`` after every insert. #244: the result is cached and
         invalidated only when ``_apply_*_inplace`` mutates a side.
+
+        #327: levels are materialized via :meth:`BaseModel.model_construct`
+        rather than the validating constructor. The ``yes`` / ``no`` dicts
+        are already SDK-canonical (``Decimal`` price -> ``Decimal`` quantity)
+        — they came either through ``_levels_to_dict`` on the snapshot wire
+        decode or through arithmetic on already-validated Decimals in
+        :meth:`OrderbookManager._apply_delta_inplace`. Re-running the
+        per-level ``DollarDecimal`` / ``FixedPointCount`` validators on every
+        materialization (O(n) cost on a hot path the #244 cache exists to
+        protect) was pure overhead.
         """
         if self._cached is not None:
             return self._cached
         yes_levels = [
-            OrderbookLevel(price=price, quantity=qty) for price, qty in sorted(self.yes.items())
+            OrderbookLevel.model_construct(price=price, quantity=qty)
+            for price, qty in sorted(self.yes.items())
         ]
         no_levels = [
-            OrderbookLevel(price=price, quantity=qty) for price, qty in sorted(self.no.items())
+            OrderbookLevel.model_construct(price=price, quantity=qty)
+            for price, qty in sorted(self.no.items())
         ]
-        ob = Orderbook(ticker=self.ticker, yes=yes_levels, no=no_levels)
+        ob = Orderbook.model_construct(
+            ticker=self.ticker, yes=yes_levels, no=no_levels
+        )
         self._cached = ob
         return ob
 
@@ -113,6 +127,49 @@ class OrderbookManager:
         # number of tickers owned by the sid, not O(n) over every book.
         self._sid_tickers: dict[int, set[str]] = {}
 
+    def _install_snapshot(
+        self,
+        ticker: str,
+        sid_val: int | None,
+        yes: dict[Decimal, Decimal],
+        no: dict[Decimal, Decimal],
+    ) -> _BookState:
+        """Replace the book for ``ticker`` with a freshly seeded state.
+
+        The provided ``yes`` / ``no`` dicts are adopted by identity into
+        the new :class:`_BookState`; the caller is responsible for
+        defensive-copying when its input must not alias the manager's
+        internal state. See :meth:`apply_snapshot` vs.
+        :meth:`_apply_snapshot_inplace` for the two callers.
+        """
+        # If a prior book existed under a different sid (e.g. server moved
+        # the ticker between subs), unindex it from the old sid first so
+        # remove_by_sid on the stale id doesn't drop the live book.
+        prior = self._books.get(ticker)
+        if prior is not None and prior.sid is not None and prior.sid != sid_val:
+            old_bucket = self._sid_tickers.get(prior.sid)
+            if old_bucket is not None:
+                old_bucket.discard(ticker)
+                if not old_bucket:
+                    self._sid_tickers.pop(prior.sid, None)
+
+        state = _BookState(ticker=ticker, yes=yes, no=no, sid=sid_val)
+        self._books[ticker] = state
+        if sid_val is not None:
+            bucket = self._sid_tickers.get(sid_val)
+            if bucket is None:
+                bucket = set()
+                self._sid_tickers[sid_val] = bucket
+            bucket.add(ticker)
+        logger.debug(
+            "Orderbook snapshot: %s (%d yes, %d no levels, sid=%s)",
+            ticker,
+            len(yes),
+            len(no),
+            sid_val,
+        )
+        return state
+
     def _apply_snapshot_inplace(
         self, msg: OrderbookSnapshotMessage, sid: int | None = None
     ) -> None:
@@ -130,36 +187,9 @@ class OrderbookManager:
         Ownership note: ``msg.msg.yes`` / ``.no`` are adopted by identity
         into the new ``_BookState``; callers must treat them as consumed.
         """
-        ticker = msg.msg.market_ticker
         sid_val = sid if sid is not None else msg.sid
-        yes_levels = msg.msg.yes
-        no_levels = msg.msg.no
-
-        # If a prior book existed under a different sid (e.g. server moved
-        # the ticker between subs), unindex it from the old sid first so
-        # remove_by_sid on the stale id doesn't drop the live book.
-        prior = self._books.get(ticker)
-        if prior is not None and prior.sid is not None and prior.sid != sid_val:
-            old_bucket = self._sid_tickers.get(prior.sid)
-            if old_bucket is not None:
-                old_bucket.discard(ticker)
-                if not old_bucket:
-                    self._sid_tickers.pop(prior.sid, None)
-
-        state = _BookState(ticker=ticker, yes=yes_levels, no=no_levels, sid=sid_val)
-        self._books[ticker] = state
-        if sid_val is not None:
-            bucket = self._sid_tickers.get(sid_val)
-            if bucket is None:
-                bucket = set()
-                self._sid_tickers[sid_val] = bucket
-            bucket.add(ticker)
-        logger.debug(
-            "Orderbook snapshot: %s (%d yes, %d no levels, sid=%s)",
-            ticker,
-            len(yes_levels),
-            len(no_levels),
-            sid_val,
+        self._install_snapshot(
+            msg.msg.market_ticker, sid_val, msg.msg.yes, msg.msg.no
         )
 
     def _apply_delta_inplace(self, msg: OrderbookDeltaMessage) -> bool:
@@ -186,41 +216,50 @@ class OrderbookManager:
             new_qty = existing_qty + delta
             if new_qty <= 0:
                 del levels[price]
-            else:
+                # #244: a side mutated; drop the cached Orderbook view so
+                # the next `to_orderbook`/`get` rebuilds with the new side.
+                state.invalidate()
+            elif new_qty != existing_qty:
                 levels[price] = new_qty
-            # #244: a side mutated; drop the cached Orderbook view so
-            # the next `to_orderbook`/`get` rebuilds with the new side.
-            state.invalidate()
+                state.invalidate()
+            # #347: ``delta == 0`` (or otherwise nets to no change) leaves
+            # the price-level dict identical; preserve the #244 cache so
+            # consumers polling ``get()`` keep getting the same instance.
         elif delta > 0:
             levels[price] = delta
             state.invalidate()
+        # #347: ``delta <= 0`` at a non-existent level is a no-op too —
+        # the original code already skipped invalidation here; keep it so.
 
         return True
 
     def apply_snapshot(self, msg: OrderbookSnapshotMessage, sid: int | None = None) -> Orderbook:
         """Initialize (or reset) a book from a full snapshot.
 
-        Public wrapper: mutates in place via :meth:`_apply_snapshot_inplace`
-        and materializes a fresh :class:`Orderbook`. The recv loop bypasses
-        this and calls :meth:`_apply_snapshot_inplace` directly to avoid the
-        unused O(n log n) materialization (#199).
+        Public wrapper: seeds the book with a defensive single-copy of the
+        caller's ``msg.msg.yes`` / ``.no`` dicts and materializes a fresh
+        :class:`Orderbook`. The recv loop bypasses this and calls
+        :meth:`_apply_snapshot_inplace` directly to avoid both the
+        defensive copy and the O(n log n) materialization (#199, #296).
 
-        ``msg`` is safe to reuse after this call: the manager defensively
-        copies the adopted dicts into ``_BookState`` so subsequent delta
-        mutations do not leak back through ``msg.msg.yes`` / ``.no``. The
-        recv loop, which never holds ``msg`` past dispatch, skips this
-        defensive copy via the direct inplace path.
+        ``msg`` is safe to reuse after this call: the manager owns the
+        copied dicts, so subsequent delta mutations cannot leak back
+        through ``msg.msg.yes`` / ``.no``.
+
+        #344: previously this routed through ``_apply_snapshot_inplace``
+        (which identity-adopts) and then overwrote ``state.yes`` / ``.no``
+        with a ``dict(...)`` copy — two assignments per side for one
+        useful copy. We now install the copies directly via
+        :meth:`_install_snapshot`, so each side is materialized into the
+        ``_BookState`` exactly once.
         """
-        self._apply_snapshot_inplace(msg, sid=sid)
-        ticker = msg.msg.market_ticker
-        state = self._books[ticker]
-        # Defensive copy on the public path so the caller-supplied ``msg``
-        # keeps its original ``.yes`` / ``.no`` dicts; ``_apply_snapshot_inplace``
-        # adopted them by identity above, so we copy via ``msg.msg`` to make
-        # the "copy the caller's input" intent explicit. The recv-loop bypass
-        # keeps the identity-adopt perf win where it matters.
-        state.yes = dict(msg.msg.yes)
-        state.no = dict(msg.msg.no)
+        sid_val = sid if sid is not None else msg.sid
+        state = self._install_snapshot(
+            msg.msg.market_ticker,
+            sid_val,
+            dict(msg.msg.yes),
+            dict(msg.msg.no),
+        )
         return state.to_orderbook()
 
     def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:

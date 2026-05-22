@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
+from kalshi.models.markets import Orderbook, OrderbookLevel
+from kalshi.ws import orderbook as ob_mod
 from kalshi.ws.models.orderbook_delta import (
     OrderbookDeltaMessage,
     OrderbookDeltaPayload,
@@ -505,3 +509,156 @@ class TestSnapshotIdentityAdoption:
         # Caller's held reference is untouched — the public-API safety contract.
         assert held_yes[Decimal("0.30")] == Decimal("5")
 
+
+class TestWave2CorrectnessRegressions:
+    """Round-3 W2 perf-correctness regressions for #327, #344, #347."""
+
+    def test_issue_327_to_orderbook_no_revalidation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_BookState.to_orderbook`` materializes via ``model_construct``.
+
+        The validating constructors (``OrderbookLevel(...)`` /
+        ``Orderbook(...)``) re-run the per-level ``DollarDecimal`` /
+        ``FixedPointCount`` validators on data that is already SDK-canonical
+        — wasted work on the high-frequency ``subscribe_book`` path that
+        the #244 cache exists to protect.
+
+        We spy on the validating ``__init__`` methods (which Pydantic's
+        ``model_construct`` bypasses) and assert zero calls during a
+        ``apply_snapshot`` + ``apply_delta`` cycle.
+        """
+        calls = {"level": 0, "ob": 0}
+        orig_level_init = OrderbookLevel.__init__
+        orig_ob_init = Orderbook.__init__
+
+        def spy_level_init(self: object, **kw: object) -> None:
+            calls["level"] += 1
+            orig_level_init(self, **kw)  # type: ignore[arg-type]
+
+        def spy_ob_init(self: object, **kw: object) -> None:
+            calls["ob"] += 1
+            orig_ob_init(self, **kw)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(OrderbookLevel, "__init__", spy_level_init)
+        monkeypatch.setattr(Orderbook, "__init__", spy_ob_init)
+
+        mgr = ob_mod.OrderbookManager()
+        book = mgr.apply_snapshot(
+            make_snapshot(
+                yes=[["0.50", "100"], ["0.55", "200"], ["0.60", "300"]],
+                no=[["0.40", "150"], ["0.35", "75"]],
+            )
+        )
+        assert len(book.yes) == 3 and len(book.no) == 2
+        # Force re-materialization by invalidating and reading again.
+        delta_book = mgr.apply_delta(
+            make_delta(price="0.50", delta="50", side="yes")
+        )
+        assert delta_book is not None
+
+        assert (
+            calls["level"] == 0
+        ), f"OrderbookLevel validating __init__ ran {calls['level']} times"
+        assert (
+            calls["ob"] == 0
+        ), f"Orderbook validating __init__ ran {calls['ob']} times"
+
+    def test_issue_344_apply_snapshot_public_single_copy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Public ``apply_snapshot`` assigns each side dict exactly once.
+
+        Pre-fix the public path identity-adopted ``msg.msg.yes`` / ``.no``
+        via :meth:`_apply_snapshot_inplace` and then overwrote with
+        ``dict(msg.msg.yes)`` / ``dict(msg.msg.no)`` — two assignments
+        per side for one useful copy. We spy on ``_BookState.__setattr__``
+        and assert exactly one ``yes`` and one ``no`` assignment.
+        """
+        side_assignments: list[tuple[str, int]] = []
+        orig_setattr = ob_mod._BookState.__setattr__
+
+        def spy_setattr(self: object, name: str, value: object) -> None:
+            if name in ("yes", "no"):
+                side_assignments.append((name, id(value)))
+            orig_setattr(self, name, value)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(ob_mod._BookState, "__setattr__", spy_setattr)
+
+        msg = make_snapshot(
+            yes=[["0.50", "100"], ["0.55", "200"]],
+            no=[["0.45", "150"]],
+        )
+        mgr = ob_mod.OrderbookManager()
+        book = mgr.apply_snapshot(msg)
+        assert book.ticker == "T"
+
+        yes_assigns = [a for a in side_assignments if a[0] == "yes"]
+        no_assigns = [a for a in side_assignments if a[0] == "no"]
+        assert (
+            len(yes_assigns) == 1
+        ), f"expected 1 yes assignment, got {len(yes_assigns)}: {yes_assigns}"
+        assert (
+            len(no_assigns) == 1
+        ), f"expected 1 no assignment, got {len(no_assigns)}: {no_assigns}"
+
+        # And the defensive-copy contract still holds.
+        state = mgr._books["T"]
+        assert state.yes is not msg.msg.yes
+        assert state.no is not msg.msg.no
+        assert state.yes == {Decimal("0.50"): Decimal("100"), Decimal("0.55"): Decimal("200")}
+
+    def test_issue_347_zero_delta_preserves_cache(self) -> None:
+        """A delta that nets to no change must not invalidate the #244 cache.
+
+        ``_apply_delta_inplace`` previously called ``state.invalidate()``
+        unconditionally when the level already existed, even when ``delta``
+        was zero (``new_qty == existing_qty``). Cache-identity for a
+        no-op delta is preserved by post-fix.
+        """
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(make_snapshot(yes=[["0.50", "100"]]))
+        state = mgr._books["T"]
+
+        # Populate the #244 cache.
+        first = mgr.get("T")
+        assert first is not None
+        cached = state._cached
+        assert cached is first
+
+        # Apply a zero delta: the dict must be byte-identical afterward.
+        before_snapshot = dict(state.yes)
+        result = mgr.apply_delta(make_delta(price="0.50", delta="0", side="yes"))
+        assert result is not None
+        assert state.yes == before_snapshot
+
+        # Cache MUST be preserved across the zero-delta and identity-stable
+        # on subsequent reads.
+        assert state._cached is cached, "zero delta should not invalidate cache"
+        assert result is cached
+        again = mgr.get("T")
+        assert again is cached
+
+        # A non-zero delta still invalidates (control case).
+        mgr.apply_delta(make_delta(price="0.50", delta="5", side="yes"))
+        fresh = mgr.get("T")
+        assert fresh is not None
+        assert fresh is not cached
+        assert fresh.yes[0].quantity == Decimal("105")
+
+    def test_issue_347_zero_delta_at_missing_level_preserves_cache(self) -> None:
+        """A non-positive delta at a missing price level is also a no-op."""
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(make_snapshot(yes=[["0.50", "100"]]))
+        state = mgr._books["T"]
+        first = mgr.get("T")
+        assert first is not None
+        cached = state._cached
+        assert cached is first
+
+        # Delta of 0 at a price we don't track: previously already a no-op,
+        # codify that the cache continues to ride through.
+        mgr.apply_delta(make_delta(price="0.99", delta="0", side="yes"))
+        assert state._cached is cached
+        again = mgr.get("T")
+        assert again is cached
