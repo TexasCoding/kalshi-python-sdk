@@ -413,12 +413,12 @@ class SyncTransport:
         raise KalshiError("Max retries exhausted")
 
     def close(self) -> None:
-        """Close the underlying httpx client.
+        """Close the underlying httpx client. Idempotent for sequential callers (#301).
 
-        #301: idempotent — safe to call multiple times. The second and
-        subsequent calls are no-ops so cleanup paths (context-manager
-        exits, ``atexit`` handlers, explicit ``client.close()`` in tests)
-        can stack without raising on the already-closed httpx client.
+        Concurrent close() across threads is not race-free — ``_closed`` is
+        checked-then-set without a lock — but the worst case degrades to
+        one redundant httpx ``Client.close()`` (itself idempotent), so the
+        practical contract holds.
         """
         if self._closed:
             return
@@ -622,10 +622,10 @@ class AsyncTransport:
         raise KalshiError("Max retries exhausted")
 
     async def close(self) -> None:
-        """Close the underlying httpx async client.
+        """Close the underlying httpx async client. Idempotent (#301).
 
-        #301: idempotent — safe to call multiple times. See
-        :meth:`SyncTransport.close` for the rationale.
+        Concurrent close() is safe under asyncio's cooperative scheduling —
+        no race between the ``_closed`` check and the flip.
         """
         if self._closed:
             return
