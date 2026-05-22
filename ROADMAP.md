@@ -4,6 +4,20 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **v2.6.0 (2026-05-22)** — post-v2.5 independent reviewer audit closure
+  (`#273` follow-on, 7 issues `#295`–`#301`). Two breaking changes folded
+  in: `int` request fields reject `bool` across V1+V2 via new
+  `kalshi.StrictInt` (`#295`); `KALSHI-ACCESS-*` in `extra_headers` is
+  rejected at both construction and per-request (`#298`). Critical fixes:
+  WS session re-entry guard with state reset on partial connect failure
+  (`#297`), case-insensitive transport header merge + explicit
+  `Content-Type` pin on JSON body helpers (`#298`). Performance: orderbook
+  snapshot identity adoption restored on the recv-loop bypass (`#296`),
+  with public `apply_snapshot` keeping its defensive copy. Polish:
+  `Sync/AsyncTransport.close()` idempotent (`#301`), docs corrections
+  (`#299`, `#300`). Executed across 3 sequential waves (W0 docs, W1
+  money/correctness, W2 polish) — 7 PRs merged.
+
 - **v2.5.0 (2026-05-21)** — post-v2.4 multi-reviewer SDK audit closure
   (#273, 34 issues across 7 surfaces). Critical fixes: WS seq watermark
   rolls back on validation failure (#241), REST/WS split-environment
