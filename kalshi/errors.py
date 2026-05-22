@@ -6,10 +6,23 @@ from typing import Literal
 
 
 class KalshiError(Exception):
-    """Base exception for all Kalshi SDK errors."""
+    """Base exception for all Kalshi SDK errors.
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    ``retry_after`` carries the server's RFC 7231 §7.1.3 Retry-After hint
+    (parsed to seconds) when present. Populated for 408/429/503/504 and
+    other retryable 5xx responses; ``None`` otherwise. The transport
+    retry loop reads it via plain attribute access regardless of error
+    subclass (#322).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
         self.status_code = status_code
+        self.retry_after = retry_after
         super().__init__(message)
 
 
@@ -51,15 +64,6 @@ class KalshiValidationError(KalshiError):
 
 class KalshiRateLimitError(KalshiError):
     """Rate limit exceeded (429). Check retry_after for backoff hint."""
-
-    def __init__(
-        self,
-        message: str,
-        status_code: int | None = None,
-        retry_after: float | None = None,
-    ) -> None:
-        self.retry_after = retry_after
-        super().__init__(message, status_code)
 
 
 class KalshiConflictError(KalshiError):

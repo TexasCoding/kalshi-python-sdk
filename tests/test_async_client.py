@@ -12,7 +12,7 @@ import httpx
 import pytest
 import respx
 
-from kalshi._base_client import AsyncTransport
+from kalshi._base_client import AsyncTransport, _map_error
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_BASE_URL, PRODUCTION_BASE_URL, KalshiConfig
@@ -93,8 +93,10 @@ class TestAsyncTransportRetry:
         )
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
-        assert sleeps == [0.0], (
-            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        # Floor=0 (Retry-After: 0), jitter in [0, retry_base_delay=0.01) (#321).
+        assert len(sleeps) == 1, f"Expected one sleep, got {sleeps!r}"
+        assert 0.0 <= sleeps[0] <= 0.01, (
+            f"Expected sleep in [0.0, 0.01] (Retry-After: 0 + Full Jitter), got {sleeps!r}"
         )
 
     @respx.mock
@@ -276,6 +278,90 @@ class TestAsyncTransportRetry:
         with pytest.raises(KalshiError, match="timed out"):
             await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_321_retry_after_with_jitter_async(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#321 async: Retry-After is floor; Full Jitter on top, capped at retry_max_delay."""
+        monkeypatch.setattr(
+            "kalshi._base_client.random.uniform",
+            lambda lo, hi: lo + (hi - lo) / 2,
+        )
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                httpx.Response(429, headers={"Retry-After": "0.03"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = await transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        # floor = min(0.03, 0.1) = 0.03; backoff cap at attempt=0 = min(0.01, 0.1) = 0.01;
+        # midpoint jitter = 0.005; delay = min(0.03 + 0.005, 0.1) = 0.035.
+        assert sleeps == pytest.approx([0.035]), (
+            f"Expected one sleep of 0.035s (floor 0.03 + 0.005 jitter), got {sleeps!r}"
+        )
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_322_retry_after_honored_on_5xx_and_408_async(
+        self, transport: AsyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#322 async: Retry-After parsed for 408/503/504, not only 429."""
+        sleeps: list[float] = []
+
+        async def fake_sleep(d: float) -> None:
+            sleeps.append(d)
+
+        monkeypatch.setattr("asyncio.sleep", fake_sleep)
+        monkeypatch.setattr(
+            "kalshi._base_client.random.uniform",
+            lambda lo, hi: 0.0,  # zero jitter: assert the floor is honored
+        )
+
+        for status, exc_type in (
+            (408, KalshiTimeoutError),
+            (503, KalshiServerError),
+            (504, KalshiTimeoutError),
+        ):
+            sleeps.clear()
+            mapped = _map_error(
+                httpx.Response(
+                    status,
+                    headers={"Retry-After": "0.04"},
+                    json={"message": "slow"},
+                )
+            )
+            assert isinstance(mapped, exc_type), (
+                f"status {status} mapped to {type(mapped).__name__}, expected {exc_type.__name__}"
+            )
+            assert mapped.retry_after == 0.04, (
+                f"status {status}: retry_after={mapped.retry_after!r}, expected 0.04"
+            )
+
+            respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+                side_effect=[
+                    httpx.Response(
+                        status,
+                        headers={"Retry-After": "0.04"},
+                        json={"message": "slow"},
+                    ),
+                    httpx.Response(200, json={"markets": []}),
+                ]
+            )
+            resp = await transport.request("GET", "/markets")
+            assert resp.status_code == 200
+            assert sleeps == pytest.approx([0.04]), (
+                f"status {status}: expected floor=0.04 with zero jitter, got {sleeps!r}"
+            )
+            respx.reset()
 
 
 class TestAsyncTransportContextManager:

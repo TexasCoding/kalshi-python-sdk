@@ -9,9 +9,31 @@ from typing import Any, TypeVar
 import httpx
 from pydantic import BaseModel
 
-from kalshi._base_client import AsyncTransport, SyncTransport
+from kalshi._base_client import MAX_RESPONSE_BODY_BYTES, AsyncTransport, SyncTransport
 from kalshi.errors import AuthRequiredError, KalshiError
 from kalshi.models.common import Page
+
+
+def _enforce_response_body_cap(response: httpx.Response) -> None:
+    """Raise ``KalshiError`` when a 2xx body exceeds ``MAX_RESPONSE_BODY_BYTES`` (#323)."""
+    content_length = response.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_RESPONSE_BODY_BYTES:
+                raise KalshiError(
+                    f"Response body advertises {content_length} bytes, exceeds "
+                    f"max_response_bytes={MAX_RESPONSE_BODY_BYTES}",
+                )
+        except ValueError:
+            # Malformed Content-Length — fall through to the post-buffer check.
+            pass
+    body_len = len(response.content)
+    if body_len > MAX_RESPONSE_BODY_BYTES:
+        raise KalshiError(
+            f"Response body is {body_len} bytes, exceeds "
+            f"max_response_bytes={MAX_RESPONSE_BODY_BYTES}",
+        )
+
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -145,6 +167,7 @@ class SyncResource:
         Falls back to ``response.json()`` (stdlib) when no custom loader is
         configured. Custom loaders receive ``response.content`` (bytes).
         """
+        _enforce_response_body_cap(response)
         loader = self._transport._config.rest_json_loads
         if loader is None:
             return response.json()
@@ -391,6 +414,7 @@ class AsyncResource:
         Falls back to ``response.json()`` (stdlib) when no custom loader is
         configured. Custom loaders receive ``response.content`` (bytes).
         """
+        _enforce_response_body_cap(response)
         loader = self._transport._config.rest_json_loads
         if loader is None:
             return response.json()

@@ -46,6 +46,15 @@ RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS"}
 MAX_ERROR_BODY_BYTES = 16 * 1024
 MAX_ERROR_MESSAGE_CHARS = 1024
 
+# #323: parallel cap on the success path. ``response.json()`` (and any
+# caller-supplied ``rest_json_loads``) materialises the full body into a
+# Python object graph that typically inflates 5-10x over wire size. A
+# compromised reverse proxy, a hijacked DNS entry, or a backend regression
+# streaming an oversize list-orders payload could OOM a serverless function
+# before the parse completes. 64 MiB is comfortably above the largest
+# legitimate Kalshi list endpoint response while still bounding memory.
+MAX_RESPONSE_BODY_BYTES = 64 * 1024 * 1024
+
 
 def _map_error(response: httpx.Response) -> KalshiError:
     """Map an HTTP error response to the appropriate SDK exception."""
@@ -90,57 +99,60 @@ def _map_error(response: httpx.Response) -> KalshiError:
         return KalshiNotFoundError(message=message, status_code=status)
     if status == 409:
         return KalshiConflictError(message=message, status_code=status)
-    if status == 429:
-        retry_after = response.headers.get("Retry-After")
-        retry_after_val: float | None = None
-        if retry_after:
-            try:
-                retry_after_val = float(retry_after)
-                # Reject non-finite (NaN/inf) which would survive the
-                # transport caller's min() cap. Negative deltas — a server
-                # signalling "retry now" or a clock-skewed proxy emitting a
-                # past timestamp — clamp to 0.0 so both Retry-After forms
-                # behave the same (#267): a negative delta-seconds value and
-                # a past HTTP-date below now both produce ``retry_after=0.0``
-                # rather than diverging into None vs 0.0.
-                if not math.isfinite(retry_after_val):
-                    retry_after_val = None
-                elif retry_after_val < 0:
-                    retry_after_val = 0.0
-            except ValueError:
-                # RFC 7231 §7.1.3: Retry-After may also be an HTTP-date.
-                try:
-                    dt = email.utils.parsedate_to_datetime(retry_after)
-                except (TypeError, ValueError):
-                    dt = None
-                if dt is None:
-                    logger.debug(
-                        "Retry-After %r is neither delta-seconds nor HTTP-date; "
-                        "falling back to computed backoff",
-                        retry_after,
-                    )
-                else:
-                    # RFC 5322 dates without a tz are interpreted as UTC by
-                    # parsedate_to_datetime; ensure aware before subtracting.
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=UTC)
-                    delta = (dt - datetime.now(tz=UTC)).total_seconds()
-                    # Clamp negatives (date in the past) to 0 — retry immediately.
-                    # The transport caller caps at config.retry_max_delay.
-                    retry_after_val = max(0.0, delta)
-        return KalshiRateLimitError(
+    if status in (408, 429, 504) or status >= 500:
+        retry_after_val = _parse_retry_after(response)
+        if status == 429:
+            return KalshiRateLimitError(
+                message=message, status_code=status, retry_after=retry_after_val
+            )
+        # #251: 408 Request Timeout and 504 Gateway Timeout carry the same
+        # "may have committed" semantic as a transport-level timeout. Route
+        # them to KalshiTimeoutError so callers can branch on it (e.g.,
+        # reconcile via client_order_id before retrying an order create).
+        if status in (408, 504):
+            return KalshiTimeoutError(
+                message=message, status_code=status, retry_after=retry_after_val
+            )
+        return KalshiServerError(
             message=message, status_code=status, retry_after=retry_after_val
         )
-    # #251: 408 Request Timeout and 504 Gateway Timeout carry the same
-    # "may have committed" semantic as a transport-level timeout. Route them
-    # to KalshiTimeoutError so callers can branch on it (e.g., reconcile via
-    # client_order_id before retrying an order create).
-    if status in (408, 504):
-        return KalshiTimeoutError(message=message, status_code=status)
-    if status >= 500:
-        return KalshiServerError(message=message, status_code=status)
 
     return KalshiError(message=message, status_code=status)
+
+
+def _parse_retry_after(response: httpx.Response) -> float | None:
+    """Parse RFC 7231 §7.1.3 Retry-After to seconds; ``None`` if absent/unparseable (#267, #322)."""
+    raw = response.headers.get("Retry-After")
+    if not raw:
+        return None
+    try:
+        val = float(raw)
+        if not math.isfinite(val):
+            return None
+        if val < 0:
+            return 0.0
+        return val
+    except ValueError:
+        pass
+    # RFC 7231 §7.1.3: Retry-After may also be an HTTP-date.
+    try:
+        dt = email.utils.parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        dt = None
+    if dt is None:
+        logger.debug(
+            "Retry-After %r is neither delta-seconds nor HTTP-date; "
+            "falling back to computed backoff",
+            raw,
+        )
+        return None
+    # RFC 5322 dates without a tz are interpreted as UTC by
+    # parsedate_to_datetime; ensure aware before subtracting.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    delta = (dt - datetime.now(tz=UTC)).total_seconds()
+    # Clamp negatives (date in the past) to 0 — retry immediately.
+    return max(0.0, delta)
 
 
 def _compute_backoff(attempt: int, config: KalshiConfig) -> float:
@@ -387,10 +399,21 @@ class SyncTransport:
             if not should_retry:
                 raise error
 
-            # Use Retry-After header if available for 429.
-            # `is not None` — not truthy — so Retry-After: 0 ("retry immediately") is honored.
-            if isinstance(error, KalshiRateLimitError) and error.retry_after is not None:
-                delay = min(error.retry_after, self._config.retry_max_delay)
+            # #322: Retry-After is honored for any retryable status that
+            # advertises it (429 + 408/503/504/other 5xx). #321: apply Full
+            # Jitter on top of the server's hint — a synchronized client
+            # fleet hitting the same Retry-After would otherwise re-stampede
+            # the rate limit on the same tick. Floor is the server hint
+            # (clamped at retry_max_delay); ceiling is retry_max_delay.
+            # ``is not None`` — not truthy — so Retry-After: 0 ("retry
+            # immediately") still adds jitter on top instead of falling
+            # through to plain backoff.
+            if error.retry_after is not None:
+                floor = min(error.retry_after, self._config.retry_max_delay)
+                delay = min(
+                    floor + _compute_backoff(attempt, self._config),
+                    self._config.retry_max_delay,
+                )
             else:
                 delay = _compute_backoff(attempt, self._config)
 
@@ -598,9 +621,14 @@ class AsyncTransport:
             if not should_retry:
                 raise error
 
-            # `is not None` so Retry-After: 0 ("retry immediately") is honored.
-            if isinstance(error, KalshiRateLimitError) and error.retry_after is not None:
-                delay = min(error.retry_after, self._config.retry_max_delay)
+            # #321/#322: jittered Retry-After on any retryable status that
+            # carries the header. See SyncTransport for the rationale.
+            if error.retry_after is not None:
+                floor = min(error.retry_after, self._config.retry_max_delay)
+                delay = min(
+                    floor + _compute_backoff(attempt, self._config),
+                    self._config.retry_max_delay,
+                )
             else:
                 delay = _compute_backoff(attempt, self._config)
 

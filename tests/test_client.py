@@ -247,7 +247,9 @@ class TestSyncTransportRetry:
         self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # Regression: `if error.retry_after:` would drop 0 ("retry immediately") as falsy.
-        # `is not None` keeps it; assert the transport actually sleeps 0, not the backoff fallback.
+        # `is not None` keeps it; the transport floors at 0 and adds Full Jitter on top
+        # (#321) so the recorded sleep lies in ``[0, retry_base_delay]`` rather than
+        # being a fallback computed-backoff value pinned to a different attempt.
         sleeps: list[float] = []
         monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
         respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
@@ -258,8 +260,10 @@ class TestSyncTransportRetry:
         )
         resp = transport.request("GET", "/markets")
         assert resp.status_code == 200
-        assert sleeps == [0.0], (
-            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        # Floor=0 (Retry-After: 0), jitter in [0, retry_base_delay=0.01).
+        assert len(sleeps) == 1, f"Expected one sleep, got {sleeps!r}"
+        assert 0.0 <= sleeps[0] <= 0.01, (
+            f"Expected sleep in [0.0, 0.01] (Retry-After: 0 + Full Jitter), got {sleeps!r}"
         )
 
     @respx.mock
@@ -443,6 +447,132 @@ class TestSyncTransportRetry:
         with pytest.raises(KalshiError, match="timed out"):
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
+
+    @respx.mock
+    def test_issue_321_retry_after_with_jitter(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#321: Retry-After is treated as a floor; Full Jitter is added on top
+        so synchronized clients hitting the same hint don't re-stampede on the
+        same tick. Floor is clamped to retry_max_delay; the final delay is
+        capped at retry_max_delay too."""
+        # Pin the jitter draw so the assertion is exact. ``random.uniform`` is
+        # called once per retry inside ``_compute_backoff``; return half the
+        # capped window each time.
+        monkeypatch.setattr(
+            "kalshi._base_client.random.uniform",
+            lambda lo, hi: lo + (hi - lo) / 2,
+        )
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                # Retry-After: 0.03 — well below retry_max_delay=0.1.
+                httpx.Response(429, headers={"Retry-After": "0.03"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        # floor = min(0.03, 0.1) = 0.03
+        # backoff cap at attempt=0: min(retry_base_delay*1, retry_max_delay)
+        #                         = min(0.01, 0.1) = 0.01
+        # jitter draw with monkeypatched uniform → 0.01 / 2 = 0.005
+        # delay = min(0.03 + 0.005, 0.1) = 0.035
+        assert sleeps == pytest.approx([0.035]), (
+            f"Expected one sleep of 0.035s (floor 0.03 + 0.005 jitter), got {sleeps!r}"
+        )
+
+    @respx.mock
+    def test_issue_321_retry_after_jitter_capped_at_retry_max_delay(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#321: the floor + jitter sum must never exceed retry_max_delay."""
+        # Force the maximum possible jitter draw.
+        monkeypatch.setattr(
+            "kalshi._base_client.random.uniform",
+            lambda lo, hi: hi,
+        )
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            side_effect=[
+                # Retry-After matches the cap exactly; any jitter would push past it.
+                httpx.Response(429, headers={"Retry-After": "0.1"}, json={"message": "rl"}),
+                httpx.Response(200, json={"markets": []}),
+            ]
+        )
+        resp = transport.request("GET", "/markets")
+        assert resp.status_code == 200
+        # floor = 0.1 (== retry_max_delay), jitter = 0.01, capped at 0.1.
+        assert sleeps == pytest.approx([0.1]), f"Expected sleep capped at 0.1, got {sleeps!r}"
+
+    @respx.mock
+    def test_issue_322_retry_after_honored_on_5xx_and_408(
+        self, transport: SyncTransport, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#322: Retry-After must be parsed for 408/503/504 (and any retryable
+        5xx), not only 429. Pre-fix these silently fell back to computed
+        backoff while the upstream signalled a longer wait."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("kalshi._base_client.time.sleep", lambda d: sleeps.append(d))
+        # Pin jitter so we know exactly what got added to the floor.
+        monkeypatch.setattr(
+            "kalshi._base_client.random.uniform",
+            lambda lo, hi: 0.0,  # zero jitter: assert the floor is honored
+        )
+
+        for status, exc_type in (
+            (408, KalshiTimeoutError),
+            (503, KalshiServerError),
+            (504, KalshiTimeoutError),
+        ):
+            sleeps.clear()
+            # 1) _map_error attaches retry_after to the typed exception.
+            mapped = _map_error(
+                httpx.Response(
+                    status,
+                    headers={"Retry-After": "0.04"},
+                    json={"message": "slow"},
+                )
+            )
+            assert isinstance(mapped, exc_type), (
+                f"status {status} mapped to {type(mapped).__name__}, expected {exc_type.__name__}"
+            )
+            assert mapped.retry_after == 0.04, (
+                f"status {status}: retry_after={mapped.retry_after!r}, expected 0.04"
+            )
+
+            # 2) End-to-end: the transport sleeps the server-hinted floor.
+            respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+                side_effect=[
+                    httpx.Response(
+                        status,
+                        headers={"Retry-After": "0.04"},
+                        json={"message": "slow"},
+                    ),
+                    httpx.Response(200, json={"markets": []}),
+                ]
+            )
+            resp = transport.request("GET", "/markets")
+            assert resp.status_code == 200
+            assert sleeps == pytest.approx([0.04]), (
+                f"status {status}: expected floor=0.04 with zero jitter, got {sleeps!r}"
+            )
+            respx.reset()
+
+    def test_issue_322_retry_after_attached_to_kalshi_error_base(self) -> None:
+        """#322: ``retry_after`` is now a base-class attribute, so callers can
+        read it generically without isinstance-narrowing to KalshiRateLimitError."""
+        err = _map_error(
+            httpx.Response(503, headers={"Retry-After": "5"}, json={"message": "down"})
+        )
+        # No isinstance check — just attribute access on the base.
+        assert isinstance(err, KalshiError)
+        assert err.retry_after == 5.0
+        # And no header → None.
+        err2 = _map_error(httpx.Response(500, json={"message": "boom"}))
+        assert err2.retry_after is None
 
 
 class TestSyncTransportContextManager:
