@@ -91,18 +91,25 @@ class AsyncKalshiClient:
         # silently signing with the wrong key.
         if private_key_path is not None and private_key is not None:
             raise ValueError("Provide either private_key_path or private_key, not both.")
-        # #210: only shut down auth on close() when WE built it. If the
-        # caller passed in their own KalshiAuth, they keep ownership.
-        self._auth_owned: bool = auth is None
+        # #210/#311: ``_auth_owned`` means "this client built the auth and is
+        # responsible for closing it". True only when we constructed the
+        # ``KalshiAuth`` from ``key_id``+private-key kwargs; never when the
+        # caller passed a ``KalshiAuth`` and never when there is no auth at
+        # all (nothing to own).
         self._auth: KalshiAuth | None
+        self._auth_owned: bool
         if auth is not None:
             self._auth = auth
+            self._auth_owned = False
         elif key_id and private_key_path:
             self._auth = KalshiAuth.from_key_path(key_id, private_key_path)
+            self._auth_owned = True
         elif key_id and private_key:
             self._auth = KalshiAuth.from_pem(key_id, private_key)
+            self._auth_owned = True
         else:
             self._auth = None
+            self._auth_owned = False
 
         # Build config
         if config is not None:
@@ -207,16 +214,33 @@ class AsyncKalshiClient:
 
         Returns an unauthenticated client if no credentials are configured.
         """
-        # Caller-supplied kwargs win over env-derived values (legacy behaviour
-        # via ``cls(auth=..., demo=..., base_url=..., **kwargs)`` would have
-        # TypeError'd on duplicates; setdefault preserves env semantics while
-        # giving the static signature a clean shape). See #266.
-        kwargs.setdefault("auth", KalshiAuth.try_from_env())
+        # #316: only consult env for credentials when the caller did not supply
+        # any explicit credential source. ``setdefault("auth", try_from_env())``
+        # always evaluates the default, so a malformed ``KALSHI_PRIVATE_KEY`` in
+        # the process env would raise even when the caller passed ``auth=`` or
+        # ``key_id``+``private_key``.
+        caller_supplied_auth = (
+            "auth" in kwargs
+            or kwargs.get("key_id") is not None
+            or kwargs.get("private_key") is not None
+            or kwargs.get("private_key_path") is not None
+        )
+        env_built_auth: KalshiAuth | None = None
+        if not caller_supplied_auth:
+            env_built_auth = KalshiAuth.try_from_env()
+            if env_built_auth is not None:
+                kwargs["auth"] = env_built_auth
         kwargs.setdefault("demo", os.environ.get("KALSHI_DEMO", "").lower() == "true")
         kwargs.setdefault("base_url", os.environ.get("KALSHI_API_BASE_URL"))
         client = cls(**kwargs)
-        # from_env constructs auth locally — caller never owned it.
-        client._auth_owned = kwargs["auth"] is not None
+        # #311: ``__init__`` treats any passed-in ``auth`` as caller-owned. When
+        # ``from_env`` itself built the auth from env vars, the client (not the
+        # caller) owns it and must shut it down on ``close()``. The constructor
+        # is the source of truth for every other path — caller passed ``auth=``
+        # (caller keeps ownership), caller passed ``key_id``+``private_key``
+        # (client owns), or no credentials at all (nothing to own).
+        if env_built_auth is not None:
+            client._auth_owned = True
         return client
 
     async def close(self) -> None:

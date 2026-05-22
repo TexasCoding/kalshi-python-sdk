@@ -1312,6 +1312,86 @@ class TestCloseOwnership:
         client.close()
 
 
+class TestFromEnvOwnershipAndLazyEval:
+    """#311 / #316: from_env must (a) honor ``__init__``'s ownership invariant
+    instead of recomputing from the input kwarg, and (b) only consult
+    ``KALSHI_PRIVATE_KEY`` lazily when the caller did not supply an explicit
+    credential source.
+    """
+
+    def test_issue_311_from_env_preserves_caller_owned_auth(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str, test_auth: KalshiAuth
+    ) -> None:
+        # Case C: env vars set + caller passes auth=. The previous bug flipped
+        # ``_auth_owned`` to True off the input kwarg and ``close()`` would
+        # tear down the caller's auth, breaking every subsequent sign request.
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env(auth=test_auth)
+        assert client._auth is test_auth
+        assert client._auth_owned is False
+        client.close()
+        # Caller-owned auth survives client.close() and can still sign.
+        headers = test_auth.sign_request("GET", "/trade-api/v2/markets")
+        assert "KALSHI-ACCESS-KEY" in headers
+
+    def test_issue_311_from_env_owns_auth_built_from_key_id(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        # Case B: no env vars, caller passes key_id+private_key. __init__
+        # builds auth and is the legitimate owner; the previous override
+        # recomputed ``_auth_owned`` as ``(None is not None) == False`` and
+        # leaked the sign ThreadPoolExecutor on close().
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env(key_id="caller-key", private_key=pem_string)
+        assert client._auth is not None
+        assert client._auth.key_id == "caller-key"
+        assert client._auth_owned is True
+        auth = client._auth
+        client.close()
+        # SDK-owned auth has been shut down; ``_closed`` flips True so a
+        # subsequent ``sign_request_async`` raises (per #267). The sync
+        # ``sign_request`` path intentionally still works on a retired auth.
+        assert auth._closed is True
+
+    def test_issue_316_from_env_does_not_eagerly_evaluate_env_when_auth_provided(
+        self, monkeypatch: pytest.MonkeyPatch, test_auth: KalshiAuth
+    ) -> None:
+        # Malformed PEM lingering in env must not block an explicit ``auth=``.
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", "-----BEGIN GARBAGE-----\nnotapem\n")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env(auth=test_auth)
+        assert client._auth is test_auth
+        assert client._auth_owned is False
+        client.close()
+
+    def test_issue_316_from_env_does_not_eagerly_evaluate_env_when_key_id_provided(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        # A malformed env PEM must not block explicit ``key_id``+``private_key``.
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", "-----BEGIN GARBAGE-----\nnotapem\n")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = KalshiClient.from_env(key_id="caller-key", private_key=pem_string)
+        assert client._auth is not None
+        assert client._auth.key_id == "caller-key"
+        assert client._auth_owned is True
+        client.close()
+
+
+
 class TestExtraHeadersPerRequest:
     """P1.2: SyncTransport.request accepts per-call ``extra_headers`` that
     layer on top of config-level ``extra_headers`` but never override the

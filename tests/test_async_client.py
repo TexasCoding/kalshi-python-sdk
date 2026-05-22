@@ -746,6 +746,79 @@ class TestAsyncCloseOwnership:
         await client.close()
 
 
+class TestAsyncFromEnvOwnershipAndLazyEval:
+    """#311 / #316: async mirror — from_env must (a) honor ``__init__``'s
+    ownership invariant instead of recomputing from the input kwarg, and (b)
+    only consult ``KALSHI_PRIVATE_KEY`` lazily when the caller did not supply
+    an explicit credential source.
+    """
+
+    @pytest.mark.asyncio
+    async def test_issue_311_from_env_preserves_caller_owned_auth(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str, test_auth: KalshiAuth
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env(auth=test_auth)
+        assert client._auth is test_auth
+        assert client._auth_owned is False
+        await client.close()
+        headers = test_auth.sign_request("GET", "/trade-api/v2/markets")
+        assert "KALSHI-ACCESS-KEY" in headers
+
+    @pytest.mark.asyncio
+    async def test_issue_311_from_env_owns_auth_built_from_key_id(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.delenv("KALSHI_KEY_ID", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY", raising=False)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env(key_id="caller-key", private_key=pem_string)
+        assert client._auth is not None
+        assert client._auth.key_id == "caller-key"
+        assert client._auth_owned is True
+        auth = client._auth
+        await client.close()
+        # SDK-owned auth has been shut down; ``_closed`` flips True so a
+        # subsequent ``sign_request_async`` raises (per #267).
+        assert auth._closed is True
+
+    @pytest.mark.asyncio
+    async def test_issue_316_from_env_does_not_eagerly_evaluate_env_when_auth_provided(
+        self, monkeypatch: pytest.MonkeyPatch, test_auth: KalshiAuth
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", "-----BEGIN GARBAGE-----\nnotapem\n")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env(auth=test_auth)
+        assert client._auth is test_auth
+        assert client._auth_owned is False
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_issue_316_from_env_does_not_eagerly_evaluate_env_when_key_id_provided(
+        self, monkeypatch: pytest.MonkeyPatch, pem_string: str
+    ) -> None:
+        monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
+        monkeypatch.setenv("KALSHI_PRIVATE_KEY", "-----BEGIN GARBAGE-----\nnotapem\n")
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
+        monkeypatch.delenv("KALSHI_DEMO", raising=False)
+        monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
+        client = AsyncKalshiClient.from_env(key_id="caller-key", private_key=pem_string)
+        assert client._auth is not None
+        assert client._auth.key_id == "caller-key"
+        assert client._auth_owned is True
+        await client.close()
+
+
+
 class TestAsyncTransportNetworkRetry:
     """#240: async httpx.TransportError retry policy. Mirrors sync tests."""
 
