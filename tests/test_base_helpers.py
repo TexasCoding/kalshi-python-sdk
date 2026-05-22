@@ -509,3 +509,55 @@ class TestMaxPagesNoneIsUnbounded:
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
         items = [item async for item in resource._list_all("/things", _Item, "items")]
         assert len(items) == total, f"Expected {total} items, got {len(items)} (cap leaked?)"
+
+class TestIssue323SuccessBodyCap:
+    """#323: parallel cap on the success path mirrors the 16 KB error guard."""
+
+    @respx.mock
+    def test_issue_323_success_body_capped(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """A 2xx with Content-Length above ``MAX_RESPONSE_BODY_BYTES`` must
+        refuse to parse before httpx finishes reading, matching the
+        ``_map_error`` guard added in #203."""
+        from kalshi._base_client import MAX_RESPONSE_BODY_BYTES
+        from kalshi.resources._base import _enforce_response_body_cap
+
+        # 1) Content-Length advertises an oversized body — short-circuit pre-parse.
+        oversize = MAX_RESPONSE_BODY_BYTES + 1
+        advertised = httpx.Response(
+            200,
+            headers={"content-length": str(oversize)},
+            content=b"{}",  # actual content is small; the header is the attack surface
+        )
+        with pytest.raises(KalshiError, match=r"max_response_bytes"):
+            _enforce_response_body_cap(advertised)
+
+        # 2) Chunked (no Content-Length) but actual body exceeds cap — post-buffer check.
+        chunked_oversize = httpx.Response(200, content=b"x" * (oversize))
+        with pytest.raises(KalshiError, match=r"max_response_bytes"):
+            _enforce_response_body_cap(chunked_oversize)
+
+        # 3) Normal-size 2xx must pass through untouched.
+        ok = httpx.Response(200, json={"items": [], "cursor": ""})
+        _enforce_response_body_cap(ok)  # must not raise
+
+        # 4) End-to-end: SyncResource._load_json refuses an oversized body.
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(
+                200,
+                headers={"content-length": str(oversize)},
+                content=b'{"items": []}',
+            )
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+        with pytest.raises(KalshiError, match=r"max_response_bytes"):
+            resource._get("/things")
+
+        # 5) Malformed Content-Length falls through to the post-buffer check.
+        garbage = httpx.Response(
+            200,
+            headers={"content-length": "not-a-number"},
+            content=b"{}",
+        )
+        _enforce_response_body_cap(garbage)  # must not raise; small body, garbage header

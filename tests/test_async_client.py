@@ -93,8 +93,10 @@ class TestAsyncTransportRetry:
         )
         resp = await transport.request("GET", "/markets")
         assert resp.status_code == 200
-        assert sleeps == [0.0], (
-            f"Expected one sleep of 0.0s honoring Retry-After: 0, got {sleeps!r}"
+        # Floor=0 (Retry-After: 0), jitter in [0, retry_base_delay=0.01) (#321).
+        assert len(sleeps) == 1, f"Expected one sleep, got {sleeps!r}"
+        assert 0.0 <= sleeps[0] <= 0.01, (
+            f"Expected sleep in [0.0, 0.01] (Retry-After: 0 + Full Jitter), got {sleeps!r}"
         )
 
     @respx.mock
