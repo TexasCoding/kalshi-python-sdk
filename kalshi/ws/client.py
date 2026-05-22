@@ -123,29 +123,56 @@ class KalshiWebSocket:
 
     async def _start(self) -> None:
         """Connect and initialize managers. Does NOT start recv_loop yet."""
-        self._connection = ConnectionManager(
-            auth=self._auth,
-            config=self._config,
-            heartbeat_timeout=self._heartbeat_timeout,
-            on_state_change=self._on_state_change,
-        )
-        await self._connection.connect()
+        if self._connection is not None or self._running:
+            raise RuntimeError(
+                "KalshiWebSocket session is already started. Each instance "
+                "supports one active session at a time — await the existing "
+                "`async with ws.connect()` to exit, or create a fresh "
+                "KalshiWebSocket() for a new session."
+            )
+        try:
+            self._connection = ConnectionManager(
+                auth=self._auth,
+                config=self._config,
+                heartbeat_timeout=self._heartbeat_timeout,
+                on_state_change=self._on_state_change,
+            )
+            await self._connection.connect()
 
-        self._sub_mgr = SubscriptionManager(self._connection, json_loads=self._json_loads)
-        self._seq_tracker = SequenceTracker(on_gap=self._handle_seq_gap)
-        self._orderbook_mgr = OrderbookManager()
-        self._dispatcher = MessageDispatcher(
-            sub_mgr=self._sub_mgr,
-            on_error=self._on_error,
-            seq_tracker=self._seq_tracker,
-            orderbook_mgr=self._orderbook_mgr,
-        )
-        self._running = True
+            self._sub_mgr = SubscriptionManager(self._connection, json_loads=self._json_loads)
+            self._seq_tracker = SequenceTracker(on_gap=self._handle_seq_gap)
+            self._orderbook_mgr = OrderbookManager()
+            self._dispatcher = MessageDispatcher(
+                sub_mgr=self._sub_mgr,
+                on_error=self._on_error,
+                seq_tracker=self._seq_tracker,
+                orderbook_mgr=self._orderbook_mgr,
+            )
+            self._running = True
 
-        # Register any callbacks that were buffered before connect()
-        for channel, func in self._pending_callbacks:
-            self._dispatcher.register_callback(channel, func)
-        self._pending_callbacks.clear()
+            # Register any callbacks that were buffered before connect()
+            # On failure mid-loop, _pending_callbacks is intentionally NOT cleared:
+            # any unregistered tail replays on the next _start (already-registered
+            # entries are discarded with the failed dispatcher).
+            for channel, func in self._pending_callbacks:
+                self._dispatcher.register_callback(channel, func)
+            self._pending_callbacks.clear()
+        except BaseException:
+            # #297: partial-failure cleanup. __aexit__ won't run if __aenter__
+            # raises, so reset state here to keep the instance reusable.
+            # Belt-and-suspenders close: if connect() succeeded but a subsequent
+            # step raised, drop the underlying socket explicitly rather than
+            # relying on GC of the orphaned ConnectionManager.
+            if self._connection is not None:
+                with contextlib.suppress(Exception):
+                    await self._connection.close()
+            self._connection = None
+            self._sub_mgr = None
+            self._seq_tracker = None
+            self._orderbook_mgr = None
+            self._dispatcher = None
+            self._running = False
+            raise
 
     async def _stop(self) -> None:
         """Stop the receive loop and close the connection."""
@@ -171,6 +198,17 @@ class KalshiWebSocket:
 
         if self._connection:
             await self._connection.close()
+
+        # Reset state AFTER awaiting close so teardown still has manager refs (#297).
+        self._connection = None
+        self._sub_mgr = None
+        self._seq_tracker = None
+        self._orderbook_mgr = None
+        self._dispatcher = None
+        self._recv_task = None
+        self._pause_pending = False
+        self._pause_granted.clear()
+        self._resume_signal.clear()
 
     async def _broadcast_sentinels(self) -> None:
         """Put a shutdown sentinel on every active subscription queue.
