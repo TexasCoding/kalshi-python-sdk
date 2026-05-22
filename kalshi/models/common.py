@@ -82,7 +82,13 @@ class Page(BaseModel, Generic[T]):
         columns: dict[str, list[object]] = {}
         for field in fields:
             col: list[object] = [getattr(item, field) for item in self.items]
-            if col and isinstance(col[0], BaseModel):
+            # Probe the whole column for the first non-None ``BaseModel`` rather
+            # than peeking only ``col[0]``: an ``Optional[NestedModel]`` field
+            # whose first row is ``None`` (common across Market / Event / Series
+            # nullable struct columns) would otherwise skip the dump pass and
+            # leak raw ``BaseModel`` instances into pandas / polars, breaking
+            # the polars Struct inference the docstring promises (#328).
+            if next((v for v in col if isinstance(v, BaseModel)), None) is not None:
                 col = [v.model_dump(mode="python") if isinstance(v, BaseModel) else v for v in col]
             columns[field] = col
         return columns

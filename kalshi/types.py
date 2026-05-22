@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated, Any, TypeVar
 
-from pydantic import BeforeValidator, PlainSerializer
+from pydantic import AfterValidator, BeforeValidator, PlainSerializer
 
 T = TypeVar("T")
 
@@ -96,15 +96,13 @@ def to_decimal(value: int | float | str | Decimal) -> Decimal:
 
     Always goes through str() to avoid float representation errors.
     e.g., to_decimal(0.65) returns Decimal("0.65"), not Decimal(0.65).
+
+    Rejects ``bool`` inputs (#225 pattern) and non-finite values
+    (``NaN``/``Infinity``); delegates to :func:`_coerce_decimal` so the
+    public helper and the :data:`DollarDecimal` / :data:`FixedPointCount`
+    validators share a single guard (#325).
     """
-    if isinstance(value, bool):
-        raise TypeError(
-            "Cannot convert bool to Decimal — bool is an int subclass, "
-            "so this is almost always a typo (did you mean count=1?)."
-        )
-    if isinstance(value, Decimal):
-        return value
-    return Decimal(str(value))
+    return _coerce_decimal(value)
 
 
 def _none_to_empty_list(value: Any) -> Any:
@@ -153,3 +151,50 @@ def _reject_bool_int(value: object) -> object:
 
 StrictInt = Annotated[int, BeforeValidator(_reject_bool_int)]
 """``int`` that rejects ``bool`` — use on every Request-model integer field. See #295."""
+
+
+_REQUEST_PRICE_TICK = Decimal("0.0001")
+
+
+def _ensure_request_price(value: Decimal) -> Decimal:
+    """Validate a request-side dollar price (#343).
+
+    ``DollarDecimal`` is shared with response-side fields (PnL, fees,
+    settlements) where negatives and arbitrary precision are legitimate.
+    Request-side price fields, however, are bounded by Kalshi's order
+    contract: prices must be non-negative and aligned to the $0.0001
+    tick. Catching both at construction (rather than as a server-side
+    400) matches the boundary-validation pattern that ``StrictInt`` /
+    ``Literal`` / ``_reject_bool_int`` apply elsewhere.
+    """
+    if value < 0:
+        raise ValueError(
+            f"Order price must be non-negative (got {value}); request-side "
+            "DollarDecimal fields reject negatives. Negative prices are "
+            "legitimate only on response-side PnL/fee/settlement fields."
+        )
+    if value != value.quantize(_REQUEST_PRICE_TICK):
+        raise ValueError(
+            f"Order price {value} is finer than the $0.0001 tick; round "
+            "to four decimal places (e.g. Decimal('0.5600')) before "
+            "constructing the request."
+        )
+    return value
+
+
+OrderPrice = Annotated[
+    Decimal,
+    BeforeValidator(_coerce_decimal),
+    AfterValidator(_ensure_request_price),
+    PlainSerializer(_decimal_to_str, return_type=str, when_used="json"),
+]
+"""Request-side dollar price with sign and $0.0001 tick guards (#343).
+
+Same wire shape as :data:`DollarDecimal` (BeforeValidator coerces to
+``Decimal`` without float drift, PlainSerializer emits a fixed-point
+string on ``mode="json"``), but adds an :class:`AfterValidator` that
+rejects negatives and sub-tick precision. Use on
+``CreateOrderRequest`` / ``AmendOrderRequest`` / V2 equivalents so a
+caller passing ``Decimal('-0.65')`` or ``Decimal('0.12345')`` fails at
+construction instead of round-tripping to a server 400.
+"""
