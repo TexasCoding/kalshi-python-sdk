@@ -10,9 +10,9 @@ Public — no auth required.
 
 | Method | Endpoint |
 |---|---|
-| `get(milestone_id, *, include_player_stats=None)` | `GET /live_data/{milestone_id}` |
-| `batch(milestone_ids, *, include_player_stats=None)` | `GET /live_data` |
-| `game_stats(milestone_id)` | `GET /live_data/{milestone_id}/game_stats` |
+| `get(milestone_id, *, include_player_stats=None)` | `GET /live_data/milestone/{milestone_id}` |
+| `batch(milestone_ids, *, include_player_stats=None)` | `GET /live_data/batch` |
+| `game_stats(milestone_id)` | `GET /live_data/milestone/{milestone_id}/game_stats` |
 | `get_typed(live_data_type, milestone_id)` | `GET /live_data/{type}/milestone/{milestone_id}` (legacy) |
 
 ## Get one milestone's live data
@@ -25,11 +25,11 @@ print(live.live_data_type, live.payload)
 ## Batch (up to 100 milestones)
 
 ```python
-resp = client.live_data.batch(
+entries = client.live_data.batch(
     milestone_ids=["ms_a", "ms_b", "ms_c"],
     include_player_stats=False,
 )
-for entry in resp.live_data:
+for entry in entries:
     print(entry.milestone_id, entry.payload)
 ```
 
