@@ -510,6 +510,7 @@ class TestMaxPagesNoneIsUnbounded:
         items = [item async for item in resource._list_all("/things", _Item, "items")]
         assert len(items) == total, f"Expected {total} items, got {len(items)} (cap leaked?)"
 
+
 class TestIssue323SuccessBodyCap:
     """#323: parallel cap on the success path mirrors the 16 KB error guard."""
 

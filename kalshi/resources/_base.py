@@ -23,7 +23,6 @@ def _enforce_response_body_cap(response: httpx.Response) -> None:
                 raise KalshiError(
                     f"Response body advertises {content_length} bytes, exceeds "
                     f"max_response_bytes={MAX_RESPONSE_BODY_BYTES}",
-                    status_code=response.status_code,
                 )
         except ValueError:
             # Malformed Content-Length — fall through to the post-buffer check.
@@ -33,7 +32,6 @@ def _enforce_response_body_cap(response: httpx.Response) -> None:
         raise KalshiError(
             f"Response body is {body_len} bytes, exceeds "
             f"max_response_bytes={MAX_RESPONSE_BODY_BYTES}",
-            status_code=response.status_code,
         )
 
 
