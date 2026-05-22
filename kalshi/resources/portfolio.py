@@ -19,6 +19,7 @@ from kalshi.models.portfolio import (
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
+    _fills_params,
     _params,
     _validate_limit,
     _validate_max_pages,
@@ -67,28 +68,6 @@ def _settlements_params(
         max_ts=max_ts,
         subaccount=subaccount,
     )
-
-def _fills_params(
-    *,
-    ticker: str | None,
-    order_id: str | None,
-    min_ts: int | None,
-    max_ts: int | None,
-    limit: int | None,
-    cursor: str | None,
-    subaccount: int | None,
-) -> dict[str, Any]:
-    limit = _validate_limit(limit, hi=1000)
-    return _params(
-        ticker=ticker,
-        order_id=order_id,
-        min_ts=min_ts,
-        max_ts=max_ts,
-        limit=limit,
-        cursor=cursor,
-        subaccount=subaccount,
-    )
-
 
 class PortfolioResource(SyncResource):
     """Sync portfolio API."""

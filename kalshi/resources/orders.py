@@ -45,6 +45,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _check_request_exclusive,
+    _fills_params,
     _join_tickers,
     _params,
     _seg,
@@ -268,28 +269,6 @@ def _list_orders_params(
         # Spec MultipleEventTickerQuery: comma-joined, max 10.
         event_ticker=_join_tickers(event_ticker, max_items=10),
         status=status,
-        min_ts=min_ts,
-        max_ts=max_ts,
-        limit=limit,
-        cursor=cursor,
-        subaccount=subaccount,
-    )
-
-
-def _fills_params(
-    *,
-    ticker: str | None,
-    order_id: str | None,
-    min_ts: int | None,
-    max_ts: int | None,
-    limit: int | None,
-    cursor: str | None,
-    subaccount: int | None,
-) -> dict[str, Any]:
-    limit = _validate_limit(limit, hi=1000)
-    return _params(
-        ticker=ticker,
-        order_id=order_id,
         min_ts=min_ts,
         max_ts=max_ts,
         limit=limit,
@@ -599,12 +578,7 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
-        """List trade fills.
-
-        .. deprecated:: 3.0.0
-            Use :meth:`PortfolioResource.fills` instead. This forwarder
-            remains for one release and will be removed in a future version.
-        """
+        """List trade fills."""
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -615,8 +589,6 @@ class OrdersResource(SyncResource):
             cursor=cursor,
             subaccount=subaccount,
         )
-        # NOTE: still hits /portfolio/fills directly — the canonical
-        # implementation now lives on PortfolioResource (issue #351).
         return self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
@@ -636,12 +608,7 @@ class OrdersResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
-        """Auto-paginate trade fills.
-
-        .. deprecated:: 3.0.0
-            Use :meth:`PortfolioResource.fills_all` instead. This forwarder
-            remains for one release and will be removed in a future version.
-        """
+        """Auto-paginate trade fills."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -653,8 +620,6 @@ class OrdersResource(SyncResource):
             cursor=None,
             subaccount=subaccount,
         )
-        # NOTE: still hits /portfolio/fills directly — the canonical
-        # implementation now lives on PortfolioResource (issue #351).
         return self._list_all(
             "/portfolio/fills",
             Fill,
@@ -1164,12 +1129,7 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
-        """List trade fills (async).
-
-        .. deprecated:: 3.0.0
-            Use :meth:`AsyncPortfolioResource.fills` instead. This forwarder
-            remains for one release and will be removed in a future version.
-        """
+        """List trade fills (async)."""
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -1180,8 +1140,6 @@ class AsyncOrdersResource(AsyncResource):
             cursor=cursor,
             subaccount=subaccount,
         )
-        # NOTE: still hits /portfolio/fills directly — the canonical
-        # implementation now lives on AsyncPortfolioResource (issue #351).
         return await self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
@@ -1201,12 +1159,7 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
-        """Auto-paginate trade fills (async). Use ``async for``.
-
-        .. deprecated:: 3.0.0
-            Use :meth:`AsyncPortfolioResource.fills_all` instead. This forwarder
-            remains for one release and will be removed in a future version.
-        """
+        """Auto-paginate trade fills (async). Use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -1218,8 +1171,6 @@ class AsyncOrdersResource(AsyncResource):
             cursor=None,
             subaccount=subaccount,
         )
-        # NOTE: still hits /portfolio/fills directly — the canonical
-        # implementation now lives on AsyncPortfolioResource (issue #351).
         return self._list_all(
             "/portfolio/fills",
             Fill,

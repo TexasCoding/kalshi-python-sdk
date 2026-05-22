@@ -1184,6 +1184,10 @@ class TestPortfolioFills:
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
 
+    def test_fills_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.fills()
+
 
 class TestPortfolioFillsAll:
     @respx.mock
@@ -1211,6 +1215,10 @@ class TestPortfolioFillsAll:
         )
         ids = [f.trade_id for f in portfolio.fills_all()]
         assert ids == ["a", "b"]
+
+    def test_fills_all_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_portfolio.fills_all())
 
 
 class TestAsyncPortfolioFills:
@@ -1262,6 +1270,13 @@ class TestAsyncPortfolioFills:
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
 
+    @pytest.mark.asyncio
+    async def test_fills_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.fills()
+
 
 class TestAsyncPortfolioFillsAll:
     @respx.mock
@@ -1289,3 +1304,11 @@ class TestAsyncPortfolioFillsAll:
         )
         ids = [f.trade_id async for f in async_portfolio.fills_all()]
         assert ids == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_fills_all_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            async for _ in unauth_async_portfolio.fills_all():
+                pass
