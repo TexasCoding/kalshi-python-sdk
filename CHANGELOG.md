@@ -2,6 +2,101 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 2.6.0 — 2026-05-22
+
+Post-v2.5 independent reviewer audit closure (`#273` follow-on). 7 issues
+(`#295`–`#301`) identified by a fresh 7-agent parallel review of v2.5.0 across
+security, HTTP transport, WebSocket reliability, models/types, REST resources,
+performance, and docs/testing. Executed across 3 sequential waves (W0 docs,
+W1 money/correctness, W2 polish) in disjoint git worktrees. 7 PRs merged;
+main is mypy --strict clean, ruff clean, 2780+ unit tests passing.
+
+### Breaking changes
+
+Two behavioral fences; both surface bugs that were already wrong.
+
+- **`int` request fields reject `bool`** (`#295`). Per-field `StrictInt`
+  annotation on every money-routing / counting integer of every Request
+  model: `subaccount`, `exchange_index`, `expiration_ts`, `reduce_by`,
+  `reduce_to`, `contracts_limit`, `contracts`, `from_subaccount`,
+  `to_subaccount`, `amount_cents`, `subaccount_number` across V1 + V2.
+  `bool` is an `int` subclass, so a caller passing `True`/`False` used to
+  silently route to subaccount 1 / transfer 1 cent / decrease by 1 contract
+  with no error. Now raises `ValidationError` at construction. The existing
+  `buy_max_cost` validator (`#243`) is unchanged. New `kalshi.StrictInt`
+  alias is exported for downstream models.
+- **`KALSHI-ACCESS-*` in `extra_headers` is rejected** (`#298`). Both
+  `KalshiClient(..., config=KalshiConfig(extra_headers=...))` at
+  construction time and per-request `extra_headers=` kwargs now raise
+  `ValueError` if any key (case-insensitive) starts with `kalshi-access-`.
+  Previously a caller-supplied `'kalshi-access-key'` (lowercase) co-existed
+  with the SDK-signed `KALSHI-ACCESS-KEY` and httpx shipped both raw header
+  lines — a forge surface even though the documented contract promises
+  auth headers are SDK-managed.
+
+### Critical (money-risk fixes)
+
+- **`int` request fields reject `bool`** (`#295`, see Breaking).
+- **Auth-header forge surface closed** (`#298`, see Breaking). Companion fix:
+  `_post(json=...)` / `_put(json=...)` / `_delete_with_body(json=...)` and
+  their async mirrors now pin `Content-Type: application/json` explicitly,
+  preventing a caller-supplied `'content-type': 'text/plain'` in
+  `extra_headers` from causing httpx to ship a JSON body labelled as
+  plain text.
+- **WebSocket session re-entry is rejected** (`#297`). `KalshiWebSocket._start()`
+  used to silently rebuild every manager on nested or re-used `connect()`,
+  orphaning the outer session's subscriptions and recv task with no error.
+  Now raises `RuntimeError` with a clear message. `_stop()` clears the
+  manager refs after teardown so the same instance can be cleanly reused
+  for a fresh `connect()` once the prior session exits. A partial connect
+  failure (auth/network) also resets state cleanly via a `BaseException`
+  cleanup block, so a failed connect no longer permanently bricks the
+  instance.
+
+### High-impact correctness
+
+- **`KalshiConfig.extra_headers` validated at construction** (`#298`). Closes
+  the construction-time bypass that survived the per-request guard.
+- **Case-insensitive header merge** (`#298`). New `_ci_merge` ensures a
+  caller-supplied `'x-foo'` and SDK-set `'X-Foo'` collapse to one wire
+  entry rather than co-existing.
+- **Public `OrderbookManager.apply_snapshot()` keeps no-aliasing contract**
+  (`#296`). Snapshot/delta input messages remain safe to reuse after a
+  public `apply_snapshot()` call — the manager defensively copies the
+  adopted dicts. The recv loop continues to skip the copy via
+  `_apply_snapshot_inplace` for the hot-path perf win (#263).
+
+### Performance
+
+- **Orderbook snapshot adoption restored to identity** (`#296`). The
+  `dict(msg.msg.yes)` / `dict(msg.msg.no)` wrappers in
+  `_apply_snapshot_inplace` were silently nullifying the ~5x speedup
+  CHANGELOG #263 advertises. For a 200-level book that's 400 needless
+  re-hashes/reallocs per snapshot on the recv hot path. Wrappers dropped;
+  identity adoption restored on the bypass path.
+
+### Polish
+
+- **`Sync/AsyncTransport.close()` explicitly idempotent** (`#301`). New
+  `_closed` flag matches the `KalshiAuth` / `KalshiClient` pattern; second
+  and subsequent `close()` calls are no-ops. Documents the threading scope
+  honestly: sync is sequential-safe (worst case: one redundant
+  `httpx.Client.close()`, itself idempotent), async is fully race-free
+  under cooperative scheduling.
+- **`docs/resources/orders.md`**: removed stale `# ActionLiteral, defaults to
+  "buy"` inline comment that would have re-introduced the `#242` footgun
+  for readers (`#299`).
+- **`docs/configuration.md`**: reference table now lists `total_timeout`,
+  `ws_ping_interval`, `ws_close_timeout`, and `allow_unknown_host`; URL
+  validation prose updated for the v2.5 default-reject behavior (`#300`).
+
+### Additive
+
+- **`kalshi.StrictInt`** — new public type alias for downstream models that
+  want the same `bool`-rejection guard (`#295`).
+- **`kalshi/_constants.py`** (internal) — holds `AUTH_HEADER_PREFIX` to
+  eliminate drift between `_base_client.py` and `config.py` (`#298`).
+
 ## 2.5.0 — 2026-05-21
 
 Post-v2.4 multi-reviewer audit closure (`#273`). 34 issues across security,

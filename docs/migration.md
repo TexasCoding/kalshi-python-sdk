@@ -1,5 +1,104 @@
 # Migration
 
+## v2.5 → v2.6
+
+v2.6 ships two behavioral fences, both surface bugs that were already wrong:
+``bool`` no longer slips through on integer request fields (`#295`), and
+``extra_headers`` cannot carry ``KALSHI-ACCESS-*`` keys (`#298`). Wire
+format is unchanged.
+
+### Breaking: `int` request fields reject `bool`
+
+Per `#295`, every integer field on every Request model that lacks a
+dedicated validator now rejects ``bool`` at construction. ``bool`` is an
+``int`` subclass, so a caller passing ``True``/``False`` silently became
+``1``/``0`` and money-routing fields (``subaccount``, ``from_subaccount``,
+``amount_cents``, ``count``, etc.) silently misrouted. The fix mirrors
+``CreateOrderRequest.buy_max_cost`` (`#243`) across all request models on
+both V1 and V2 surfaces:
+
+```python
+# v2.5 (silent True → 1)
+ApplySubaccountTransferRequest(
+    client_transfer_id=uuid4(),
+    from_subaccount=True,   # → 1, transfer from subaccount 1
+    to_subaccount=True,     # → 1, transfer TO subaccount 1
+    amount_cents=True,      # → 1, one cent
+)
+
+# v2.6 (raises ValidationError on each bool)
+ApplySubaccountTransferRequest(
+    client_transfer_id=uuid4(),
+    from_subaccount=True,   # ➜ ValidationError: bool is not a valid int here
+)
+```
+
+A new public alias ``kalshi.StrictInt = Annotated[int, BeforeValidator(...)]``
+is exported for downstream models that want the same guard.
+
+### Breaking: `KALSHI-ACCESS-*` rejected in `extra_headers`
+
+Per `#298`, the SDK promised in docs that auth headers could not be forged
+via ``extra_headers``. That promise relied on a case-sensitive Python dict
+merge: a caller-supplied lowercase ``"kalshi-access-key"`` co-existed with
+the SDK-signed uppercase ``"KALSHI-ACCESS-KEY"`` and httpx shipped both raw
+header lines on the wire — a forge surface even though the documented
+contract said otherwise. Now both the per-request ``extra_headers`` kwarg
+and ``KalshiConfig(extra_headers=...)`` reject any key (case-insensitive)
+that starts with ``kalshi-access-`` at the construction boundary:
+
+```python
+# v2.5 (silently shipped two KALSHI-ACCESS-KEY header lines)
+client.markets.list(
+    extra_headers={"kalshi-access-key": "forged"},
+)
+
+# v2.6 (raises ValueError naming the leaked keys)
+client.markets.list(
+    extra_headers={"kalshi-access-key": "forged"},
+)
+# ValueError: extra_headers must not include KALSHI-ACCESS-* keys ...
+
+# Same rejection now fires at construction:
+KalshiConfig(extra_headers={"kalshi-access-key": "x"})
+# ValueError
+```
+
+Companion behavior: `_post(json=...)` / `_put(json=...)` /
+`_delete_with_body(json=...)` (and async mirrors) now pin
+``Content-Type: application/json`` explicitly. A caller-supplied
+``extra_headers={"content-type": "text/plain"}`` previously suppressed
+httpx's implicit inference and shipped a JSON body labelled as plain
+text; the explicit pin prevents that. Most callers are unaffected.
+
+### Behavioral note: raw `subscribe_orderbook_delta` consumers
+
+Per `#296`, `OrderbookManager._apply_snapshot_inplace` now adopts
+``msg.msg.yes`` / ``.no`` by identity for the recv-loop hot path. Raw
+consumers of ``subscribe_orderbook_delta`` who receive an
+``OrderbookSnapshotMessage`` and hold a reference to ``msg.msg.yes`` /
+``.no`` will observe future delta mutations through that reference:
+
+```python
+# v2.6 raw subscriber
+async for msg in stream:
+    if isinstance(msg, OrderbookSnapshotMessage):
+        held = msg.msg.yes        # ← LIVE dict, mutated by next delta
+```
+
+The high-level ``client.orderbook(ticker)`` / ``subscribe_book(ticker)``
+iterators are unaffected — both materialize fresh ``Orderbook`` instances
+that are safe to retain. The public ``OrderbookManager.apply_snapshot()``
+is also unaffected: it defensively copies after the inplace adoption so
+the caller-supplied ``msg`` keeps its original dicts. If you need an
+immutable snapshot view from the raw stream, copy explicitly:
+
+```python
+async for msg in stream:
+    if isinstance(msg, OrderbookSnapshotMessage):
+        immutable_yes = dict(msg.msg.yes)
+```
+
 ## v2.4 → v2.5
 
 v2.5 ships two user-visible breaking changes — both surface bugs that
