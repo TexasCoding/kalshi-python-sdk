@@ -673,3 +673,78 @@ def test_message_models_multivariate_lookup_key() -> None:
     # multivariate_market_lifecycle is sibling (different message type) -- must stay
     assert "multivariate_market_lifecycle" in MESSAGE_MODELS
     assert "multivariate" not in MESSAGE_MODELS  # the original short form, now replaced
+
+
+@pytest.mark.asyncio
+async def test_issue_354_orphan_unsubscribe_ack_does_not_clobber_reused_sid() -> None:
+    """#354: An orphan-subscribe ack triggers an unsubscribe; the server's
+    eventual ``unsubscribed`` for that orphan sid MUST NOT tear down state
+    if the server has since reused the sid for a freshly-completed
+    subscribe. The dispatcher correlates by tracking orphan unsubscribes
+    in a pending set; the second ``unsubscribed`` arrives, sees the
+    marker, and short-circuits without resetting the now-owned sid.
+    """
+    sent: list[dict[str, object]] = []
+
+    class _FakeConnection:
+        async def send(self, msg: dict[str, object]) -> None:
+            sent.append(msg)
+
+    mgr = FakeSubManager()
+    mgr._connection = _FakeConnection()  # type: ignore[attr-defined]
+    mgr._get_msg_id = lambda: 1  # type: ignore[attr-defined]
+    tracker = SequenceTracker()
+    dispatcher = MessageDispatcher(
+        sub_mgr=mgr,  # type: ignore[arg-type]
+        seq_tracker=tracker,
+    )
+
+    # Step 1: orphan subscribed for sid=42 — dispatcher marks it pending
+    # and emits unsubscribe.
+    await dispatcher.dispatch(
+        {"type": "subscribed", "id": 1, "msg": {"sid": 42}}
+    )
+    assert 42 in dispatcher._pending_orphan_unsub
+    assert sent and sent[-1]["params"] == {"sids": [42]}
+
+    # Step 2: server reuses sid=42 for a new (legitimate) subscription;
+    # client now owns it and the seq tracker has fresh state.
+    new_sub = mgr.add(42, "orderbook_delta", client_id=99)
+    tracker.track_sync(42, 5, "orderbook_delta")
+    assert tracker.peek(42) == 5
+
+    # Step 3: late ``unsubscribed`` for the orphan sid lands. The guard
+    # must short-circuit instead of resetting the seq watermark or
+    # popping the new mapping.
+    await dispatcher.dispatch(
+        {"type": "unsubscribed", "id": 0, "msg": {"sid": 42}}
+    )
+    assert 42 not in dispatcher._pending_orphan_unsub  # marker consumed
+    assert mgr._sid_to_client.get(42) == 99  # mapping preserved
+    assert tracker.peek(42) == 5  # seq state preserved
+    assert new_sub.queue._closed is False  # iterator NOT terminated
+
+
+@pytest.mark.asyncio
+async def test_issue_354_legitimate_server_unsubscribe_still_tears_down() -> None:
+    """#354 regression guard: the orphan-correlation guard MUST NOT
+    short-circuit a legitimate server-initiated unsubscribe for a sid we
+    own. The cleanup path (seq reset, sentinel) must still run.
+    """
+    mgr = FakeSubManager()
+    sub = mgr.add(7, "orderbook_delta")
+    tracker = SequenceTracker()
+    tracker.track_sync(7, 3, "orderbook_delta")
+    dispatcher = MessageDispatcher(
+        sub_mgr=mgr,  # type: ignore[arg-type]
+        seq_tracker=tracker,
+    )
+
+    await dispatcher.dispatch(
+        {"type": "unsubscribed", "id": 0, "msg": {"sid": 7}}
+    )
+
+    assert 7 not in mgr._sid_to_client
+    assert tracker.peek(7) is None  # seq state reset
+    # Sentinel pushed so any iterator on `sub.queue` exits.
+    assert sub.queue._closed is True

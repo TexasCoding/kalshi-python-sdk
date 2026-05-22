@@ -100,3 +100,77 @@ class TestSequenceTracker:
         """seq=None on a sequenced channel is treated as OK (snapshot/first)."""
         tracker = SequenceTracker()
         assert await tracker.track(1, None, "orderbook_delta") is True
+
+
+def test_issue_330_track_sync_happy_path_no_gap() -> None:
+    """#330: sync fast path returns (True, None) for in-order frames without
+    allocating any coroutine. Verified by calling it as plain sync."""
+    tracker = SequenceTracker()
+    assert tracker.track_sync(1, 1, "orderbook_delta") == (True, None)
+    assert tracker.track_sync(1, 2, "orderbook_delta") == (True, None)
+    assert tracker.track_sync(1, 3, "orderbook_delta") == (True, None)
+
+
+def test_issue_330_track_sync_forward_gap_returns_gap() -> None:
+    """#330: forward gap returns (False, SequenceGap(kind='gap')) without
+    invoking on_gap — the caller awaits it. on_gap MUST NOT fire from
+    track_sync even when one is registered on the tracker."""
+    called: list[SequenceGap] = []
+
+    async def on_gap(g: SequenceGap) -> None:
+        called.append(g)
+
+    tracker = SequenceTracker(on_gap=on_gap)
+    tracker.track_sync(1, 1, "orderbook_delta")
+    ok, gap = tracker.track_sync(1, 5, "orderbook_delta")
+    assert ok is False
+    assert gap is not None
+    assert gap.kind == "gap"
+    assert gap.expected == 2
+    assert gap.received == 5
+    # Hot path responsibility: track_sync NEVER awaits on_gap.
+    assert called == []
+
+
+def test_issue_330_track_sync_reset_returns_gap() -> None:
+    """#330: backwards seq returns (False, SequenceGap(kind='reset')) and
+    rewinds the watermark, without awaiting the callback."""
+    tracker = SequenceTracker()
+    tracker.track_sync(1, 10, "orderbook_delta")
+    ok, gap = tracker.track_sync(1, 1, "orderbook_delta")
+    assert ok is False
+    assert gap is not None and gap.kind == "reset"
+    assert tracker.peek(1) == 1
+
+
+def test_issue_330_track_sync_duplicate_no_gap() -> None:
+    """#330: exact duplicate returns (False, None) — drop without gap."""
+    tracker = SequenceTracker()
+    tracker.track_sync(1, 1, "orderbook_delta")
+    tracker.track_sync(1, 2, "orderbook_delta")
+    ok, gap = tracker.track_sync(1, 2, "orderbook_delta")
+    assert ok is False
+    assert gap is None
+
+
+def test_issue_330_track_sync_non_sequenced_passthrough() -> None:
+    """#330: non-sequenced channels and seq=None return (True, None)."""
+    tracker = SequenceTracker()
+    assert tracker.track_sync(1, None, "ticker") == (True, None)
+    assert tracker.track_sync(1, 5, "fill") == (True, None)
+
+
+@pytest.mark.asyncio
+async def test_issue_330_async_wrapper_still_awaits_on_gap() -> None:
+    """#330: the async track() wrapper must remain a working back-compat
+    surface — gap callbacks still fire when callers use the old API."""
+    gaps: list[SequenceGap] = []
+
+    async def on_gap(g: SequenceGap) -> None:
+        gaps.append(g)
+
+    tracker = SequenceTracker(on_gap=on_gap)
+    await tracker.track(1, 1, "orderbook_delta")
+    result = await tracker.track(1, 5, "orderbook_delta")
+    assert result is False
+    assert len(gaps) == 1 and gaps[0].kind == "gap"

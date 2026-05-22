@@ -372,6 +372,47 @@ class TestConnectionManagerReconnect:
             await mgr.reconnect()
         assert mgr.state == ConnectionState.CLOSED
 
+    async def test_issue_355_reconnect_logs_exc_info_and_chains_last_exc(
+        self,
+        test_auth: object,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """#355: Per-attempt DEBUG log MUST include ``exc_info`` and the
+        final ``KalshiConnectionError`` MUST chain the last attempt's
+        exception via ``__cause__`` — without it operators cannot tell
+        DNS vs TLS vs auth from a ten-retry burn.
+        """
+        import logging as _logging
+
+        config = KalshiConfig(
+            ws_base_url="ws://127.0.0.1:1",
+            timeout=1.0,
+            retry_base_delay=0.001,
+            retry_max_delay=0.005,
+            ws_max_retries=2,
+        )
+        mgr = ConnectionManager(auth=test_auth, config=config)  # type: ignore[arg-type]
+        with (
+            caplog.at_level(_logging.DEBUG, logger="kalshi.ws"),
+            pytest.raises(KalshiConnectionError) as excinfo,
+        ):
+            await mgr.reconnect()
+
+        # The final raise chains the last attempt's exception.
+        assert excinfo.value.__cause__ is not None, (
+            "Max-retries raise must chain the last attempt's exception"
+        )
+
+        # Each attempt log carries exc_info (LogRecord.exc_info populated).
+        attempt_records = [
+            r for r in caplog.records
+            if "Reconnect attempt" in r.getMessage() and "failed" in r.getMessage()
+        ]
+        assert attempt_records, "Expected DEBUG 'Reconnect attempt N/M failed' records"
+        assert all(r.exc_info is not None for r in attempt_records), (
+            "Per-attempt failure log MUST include exc_info=True"
+        )
+
     async def test_reconnect_eventually_succeeds(
         self, fake_ws: FakeKalshiWS, test_auth: object
     ) -> None:

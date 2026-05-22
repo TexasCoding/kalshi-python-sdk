@@ -175,29 +175,51 @@ class KalshiWebSocket:
             raise
 
     async def _stop(self) -> None:
-        """Stop the receive loop and close the connection."""
+        """Stop the receive loop and close the connection.
+
+        #357: close-then-drain ordering. Closing the connection first
+        unblocks any in-flight ``recv()`` via ``ConnectionClosed`` and
+        lets the recv loop drain whatever frames the ``websockets``
+        library has buffered before the close-ack arrives. Sentinels are
+        broadcast LAST so iterator consumers see those final drained
+        frames before the close sentinel, instead of having the recv
+        task cancelled and the queues closed out from under them.
+        """
         self._running = False
         # #245: wake the recv loop if it's parked on `_resume_signal`
         # (a pause request that never reached resume). Setting the
         # signal lets it observe ``_running=False`` and exit cleanly.
         self._resume_signal.set()
-        if self._recv_task and not self._recv_task.done():
-            # Closing the connection unblocks any in-flight ``recv()``
-            # via ConnectionClosed; the loop then sees ``_running=False``
-            # and exits at the top of its while. The poll-interval
-            # bounds the latency at ``_RECV_POLL_S`` even if close
-            # races the wait.
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await asyncio.wait_for(self._recv_task, timeout=2.0)
-            if not self._recv_task.done():
-                self._recv_task.cancel()
+
+        # #357: close the connection FIRST. The in-flight ``recv()``
+        # raises ``ConnectionClosed``; the loop drains any buffered
+        # frames, sees ``_running=False``, and exits at the top of its
+        # while. Guard the close in try/finally so a misbehaving
+        # transport (e.g. ``close()`` raising) cannot strand iterator
+        # consumers waiting on queues that never receive a sentinel.
+        try:
+            if self._connection:
+                await self._connection.close()
+        except Exception:
+            logger.warning(
+                "_connection.close() raised during _stop", exc_info=True
+            )
+        finally:
+            if self._recv_task and not self._recv_task.done():
+                # The poll-interval bounds the latency at ``_RECV_POLL_S``
+                # even if close races the wait.
                 with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await self._recv_task
+                    await asyncio.wait_for(self._recv_task, timeout=2.0)
+                if not self._recv_task.done():
+                    self._recv_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await self._recv_task
 
-        await self._broadcast_sentinels()
-
-        if self._connection:
-            await self._connection.close()
+            # Sentinels last (#357): iterator consumers have already seen
+            # the post-close drained frames; the sentinel now terminates
+            # their ``async for`` cleanly. Inside ``finally`` so a raising
+            # close() still wakes consumers instead of hanging them.
+            await self._broadcast_sentinels()
 
         # Reset state AFTER awaiting close so teardown still has manager refs (#297).
         self._connection = None
@@ -282,13 +304,16 @@ class KalshiWebSocket:
                 continue
 
             try:
+                # #356: ``asyncio.timeout`` (3.11+) reuses the loop's
+                # underlying TimerHandle plumbing with a single context-
+                # manager allocation, avoiding the per-frame Task wrap
+                # that ``asyncio.wait_for`` performs on every iteration.
                 # Poll with a short timeout so ``_pause_pending`` and
                 # ``_running`` get re-checked on quiet channels. On a
                 # busy channel the timeout is cancelled before firing,
-                # so polling adds no overhead in the hot path.
-                raw = await asyncio.wait_for(
-                    self._connection.recv(), timeout=_RECV_POLL_S,
-                )
+                # so polling adds minimal overhead in the hot path.
+                async with asyncio.timeout(_RECV_POLL_S):
+                    raw = await self._connection.recv()
             except TimeoutError:
                 continue
             except asyncio.CancelledError:
@@ -442,9 +467,15 @@ class KalshiWebSocket:
             if sub:
                 channel = sub.channel
             prev_seq = self._seq_tracker.peek(sid)
-            ok = await self._seq_tracker.track(
+            # #330: sync fast path. Avoids per-frame coroutine allocation
+            # on the happy path (seq == expected, the case on every
+            # legitimate sequenced frame). Only await on_gap when the
+            # tracker actually reports a gap.
+            ok, gap = self._seq_tracker.track_sync(
                 sid, seq, msg_type if msg_type else channel
             )
+            if gap is not None:
+                await self._seq_tracker.fire_gap(gap)
             if not ok:
                 # Gap detected — skip dispatching this message.
                 # The gap handler will trigger resync.
