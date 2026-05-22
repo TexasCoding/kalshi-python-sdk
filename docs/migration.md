@@ -1,5 +1,27 @@
 # Migration
 
+## v2.7 → v3.0
+
+v3.0.0 is the first major release in the v3 line. It renames three groups of
+public methods (issues `#348`, `#349`, `#351`). The wire protocol is
+unchanged from v2.7.0; v3 is purely a Python-API ergonomics break.
+
+**One-release deprecation window.** All old names continue to work in v3.0.0
+as `@typing_extensions.deprecated` aliases. Each emits `DeprecationWarning`
+on every call. Aliases will be removed no sooner than v3.1.0.
+
+For full BEFORE/AFTER snippets and a one-page search-and-replace cheat sheet,
+see [v2-to-v3.md](migrations/v2-to-v3.md). Quick summary:
+
+| Rename | Old (deprecated v3.0.0) | New (v3.0.0+) |
+|---|---|---|
+| Communications sub-namespaces | `client.communications.list_rfqs(...)` | `client.communications.rfqs.list(...)` |
+|   | `client.communications.get_quote(id)` | `client.communications.quotes.get(id)` |
+|   | (12 forwarders total across rfqs/quotes) | (same; sub-resource methods) |
+| `*_all` naming | `client.markets.list_trades_all(...)` | `client.markets.list_all_trades(...)` |
+| `fills` relocation | `client.orders.fills(...)` | `client.portfolio.fills(...)` |
+|   | `client.orders.fills_all(...)` | `client.portfolio.fills_all(...)` |
+
 ## v2.5 → v2.6
 
 v2.6 ships two behavioral fences, both surface bugs that were already wrong:

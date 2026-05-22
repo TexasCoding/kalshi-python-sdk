@@ -2,6 +2,98 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 3.0.0 — 2026-05-22
+
+Public-API rename release. Three breaking-rename issues (`#348`, `#349`, `#351`)
+that were deferred from the v2.7.0 audit closure now land with **one-release
+deprecation aliases**: both old and new spellings work in v3.0.0; old names
+emit `DeprecationWarning` and will be removed in a future release (v3.1+).
+
+This is the first release in the v3 line. The wire protocol is unchanged from
+v2.7.0; v3 is purely a public Python API ergonomics break.
+
+### Migration
+
+See `docs/migrations/v2-to-v3.md` for full BEFORE/AFTER snippets and a one-page
+search-and-replace cheat sheet.
+
+### Breaking changes
+
+All three changes ship with `@typing_extensions.deprecated` aliases on the old
+names — existing v2.x callers continue to work, but get a `DeprecationWarning`
+on every call until they migrate.
+
+- **`CommunicationsResource` sub-namespaces** (`#348`). Flat noun-prefixed
+  methods (`list_rfqs`, `get_rfq`, `create_rfq`, `delete_rfq`, `list_all_rfqs`,
+  `list_quotes`, `get_quote`, `create_quote`, `delete_quote`, `accept_quote`,
+  `confirm_quote`, `list_all_quotes`) are split into two sub-resources matching
+  the OpenAPI v3.18.0 tag structure:
+
+  ```python
+  # v2.x (deprecated in v3.0.0)
+  client.communications.list_rfqs(...)
+  client.communications.create_rfq(...)
+  client.communications.accept_quote(quote_id, accepted_side="yes")
+
+  # v3.0.0+
+  client.communications.rfqs.list(...)
+  client.communications.rfqs.create(...)
+  client.communications.quotes.accept(quote_id, accepted_side="yes")
+  ```
+
+  The misc `client.communications.get_id(...)` stays at the top level (no
+  sub-noun). The new sub-resource classes `RFQsResource`, `QuotesResource`,
+  `AsyncRFQsResource`, `AsyncQuotesResource` are exported from `kalshi/__init__.py`
+  for type annotations.
+
+- **`MarketsResource.list_trades_all` → `list_all_trades`** (`#349`).
+  Standardizes on `list_all_<noun>` matching the other three resources
+  (`CommunicationsResource.list_all_rfqs`, `SubaccountsResource.list_all_transfers`,
+  etc.). `list_trades_all` remains as a deprecated alias.
+
+  ```python
+  # v2.x (deprecated in v3.0.0)
+  for trade in client.markets.list_trades_all(ticker="..."):
+      ...
+
+  # v3.0.0+
+  for trade in client.markets.list_all_trades(ticker="..."):
+      ...
+  ```
+
+- **`OrdersResource.fills` / `fills_all` → `PortfolioResource.fills` /
+  `fills_all`** (`#351`). The endpoint URL is `/portfolio/fills`; this aligns
+  the SDK layout with the URL family (`portfolio.settlements`,
+  `portfolio.deposits`, `portfolio.withdrawals`). The old `OrdersResource.fills`
+  / `fills_all` remain as deprecated aliases.
+
+  ```python
+  # v2.x (deprecated in v3.0.0)
+  page = client.orders.fills(ticker="...")
+
+  # v3.0.0+
+  page = client.portfolio.fills(ticker="...")
+  ```
+
+### Polish
+
+- **`_fills_params` deduped** to `kalshi/resources/_base.py` (was duplicated in
+  `orders.py` and `portfolio.py` during the relocation).
+
+### Internal
+
+- 78 new regression tests covering the deprecation-alias delegation and warning
+  emission across sync + async pairs for every renamed method (12 communications
+  forwarders × 2, plus markets + fills × 2 each).
+- `tests/_contract_support.py` `METHOD_ENDPOINT_MAP` registers both old and new
+  spellings for the duration of the alias window.
+
+### Deprecation removal schedule
+
+The v3.0.0 aliases will be removed no sooner than **v3.1.0**. Callers should
+migrate before then. Each deprecated method has a `@typing_extensions.deprecated`
+decorator that surfaces in type checkers and IDEs per PEP 702.
+
 ## 2.7.0 — 2026-05-22
 
 Post-v2.6 independent multi-LLM reviewer audit closure. **47 issues filed
