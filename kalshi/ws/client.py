@@ -151,12 +151,21 @@ class KalshiWebSocket:
             self._running = True
 
             # Register any callbacks that were buffered before connect()
+            # On failure mid-loop, _pending_callbacks is intentionally NOT cleared:
+            # any unregistered tail replays on the next _start (already-registered
+            # entries are discarded with the failed dispatcher).
             for channel, func in self._pending_callbacks:
                 self._dispatcher.register_callback(channel, func)
             self._pending_callbacks.clear()
         except BaseException:
             # #297: partial-failure cleanup. __aexit__ won't run if __aenter__
             # raises, so reset state here to keep the instance reusable.
+            # Belt-and-suspenders close: if connect() succeeded but a subsequent
+            # step raised, drop the underlying socket explicitly rather than
+            # relying on GC of the orphaned ConnectionManager.
+            if self._connection is not None:
+                with contextlib.suppress(Exception):
+                    await self._connection.close()
             self._connection = None
             self._sub_mgr = None
             self._seq_tracker = None
