@@ -520,7 +520,9 @@ class TestFromPem:
         )
         with pytest.raises(KalshiAuthError, match="OpenSSH private-key format") as exc:
             KalshiAuth.from_pem("key-ossh", openssh_pem)
-        assert "ssh-keygen -p -m PKCS8" in str(exc.value)
+        msg = str(exc.value)
+        assert "ssh-keygen -p -m PKCS8 -f <path>" in msg
+        assert "-N ''" not in msg
 
 
 class TestFromEnv:

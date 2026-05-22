@@ -127,7 +127,8 @@ class KalshiAuth:
             raise KalshiAuthError(
                 "OpenSSH private-key format detected (-----BEGIN OPENSSH PRIVATE KEY-----); "
                 "Kalshi requires PKCS8 PEM. Convert in place with: "
-                "ssh-keygen -p -m PKCS8 -f <path> -N '' "
+                "ssh-keygen -p -m PKCS8 -f <path> "
+                "(you will be prompted for the current passphrase, if any, and a new one), "
                 "or generate a fresh PKCS8 key with: "
                 "openssl genpkey -algorithm RSA -out <path> -pkeyopt rsa_keygen_bits:2048"
             )
