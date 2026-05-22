@@ -2,6 +2,22 @@
 
 ## Shipped
 
+- **v3.0.0 (2026-05-23)** — first major release in the v3 line. Three
+  breaking-rename issues (`#348`, `#349`, `#351`) deferred from the v2.7.0
+  audit closure land with one-release deprecation aliases:
+  `CommunicationsResource` flat noun-prefixed methods split into
+  `client.communications.{rfqs,quotes}.<verb>` sub-namespaces (`#348`);
+  `MarketsResource.list_trades_all` → `list_all_trades` to match the
+  `list_all_<noun>` convention used by Communications/Subaccounts (`#349`);
+  `OrdersResource.fills` / `fills_all` relocate to `PortfolioResource`
+  alongside `settlements` / `deposits` / `withdrawals` since the endpoint URL
+  is `/portfolio/fills` (`#351`). Wire protocol unchanged. New
+  `RFQsResource`/`QuotesResource`/`AsyncRFQsResource`/`AsyncQuotesResource`
+  exported from `kalshi/__init__.py` for type annotations. 78 new regression
+  tests covering deprecation-alias delegation and warning emission. Migration
+  guide at `docs/migrations/v2-to-v3.md`. Aliases removed no sooner than
+  v3.1.0.
+
 See `CHANGELOG.md` for full release history.
 
 - **v2.7.0 (2026-05-22)** — post-v2.6 independent multi-LLM reviewer audit
