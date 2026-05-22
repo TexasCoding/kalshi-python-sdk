@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -68,7 +69,7 @@ class KalshiConfig:
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
     total_timeout: float | None = None
-    extra_headers: dict[str, str] = field(default_factory=dict)
+    extra_headers: Mapping[str, str] = field(default_factory=dict)
     ws_base_url: str = PRODUCTION_WS_URL  # trailing slash is stripped automatically
     ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
     http2: bool = False
@@ -141,6 +142,13 @@ class KalshiConfig:
         # and forge the auth surface. Validate at construction. The prefix
         # lives in kalshi._constants (no imports from either file) to avoid
         # the circular hazard with kalshi._base_client.
+        # #313: defense-in-depth — the #298 fence above only runs at
+        # construction. A plain dict stored on a frozen dataclass is still
+        # mutable, so a caller could do ``config.extra_headers["kalshi-access-
+        # key"] = "forged"`` afterwards and bypass the guard entirely. Freeze a
+        # defensive copy into a ``MappingProxyType`` so post-construction
+        # mutation raises ``TypeError`` and the original mapping the caller
+        # passed in can be safely discarded.
         if self.extra_headers:
             leaked = sorted(
                 k for k in self.extra_headers if k.lower().startswith(AUTH_HEADER_PREFIX)
@@ -151,6 +159,9 @@ class KalshiConfig:
                     f"keys (got: {leaked!r}). These are reserved for SDK-managed "
                     f"RSA-PSS signing."
                 )
+        object.__setattr__(
+            self, "extra_headers", MappingProxyType(dict(self.extra_headers))
+        )
         if self.http2:
             import importlib.util
 

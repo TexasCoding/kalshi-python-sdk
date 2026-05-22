@@ -12,6 +12,7 @@ import logging
 import math
 import random
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
@@ -180,7 +181,7 @@ def _assert_no_auth_headers(h: dict[str, str] | None) -> None:
         )
 
 
-def _ci_merge(*layers: dict[str, str] | None) -> dict[str, str]:
+def _ci_merge(*layers: Mapping[str, str] | None) -> dict[str, str]:
     """Case-insensitive, last-layer-wins header merge.
 
     #298: plain ``dict`` unpacking is case-sensitive, so case-mismatched
@@ -217,10 +218,14 @@ class SyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
+        # #341: ``config.extra_headers`` is merged per-request via
+        # ``_ci_merge`` below, which keeps SDK-managed precedence (config
+        # defaults < per-call extras < signed auth) authoritative. Attaching
+        # them to the httpx client as well would route the same headers
+        # through httpx's own merge on every request and blur the contract.
         client_kwargs: dict[str, Any] = {
             "base_url": config.base_url,
             "timeout": config.timeout,
-            "headers": config.extra_headers,
             "transport": transport,
             "http2": config.http2,
         }
@@ -440,10 +445,11 @@ class AsyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
+        # #341: see SyncTransport — config.extra_headers is merged per-request
+        # via ``_ci_merge``, not via httpx.Client's default headers.
         client_kwargs: dict[str, Any] = {
             "base_url": config.base_url,
             "timeout": config.timeout,
-            "headers": config.extra_headers,
             "transport": transport,
             "http2": config.http2,
         }
