@@ -122,12 +122,15 @@ class OrderbookManager:
         ticker can be torn down later via :meth:`remove_by_sid` — required
         for all-markets subscriptions that don't pin tickers up front.
         If omitted, defaults to ``msg.sid`` from the envelope.
+
+        Ownership note: ``msg.msg.yes`` / ``.no`` are adopted by identity
+        into the new ``_BookState``; callers must treat them as consumed.
         """
         ticker = msg.msg.market_ticker
         sid_val = sid if sid is not None else msg.sid
-        # Adopt by identity — validator already produced dict[Decimal, Decimal],
-        # and the model is discarded immediately after this call so nothing
-        # outside _BookState can observe later in-place delta mutations.
+        # Adopt msg.msg.yes / .no by identity. _BookState takes ownership and
+        # mutates them in place on every delta — callers must not access these
+        # dicts on `msg` after this returns.
         yes_levels = msg.msg.yes
         no_levels = msg.msg.no
 
