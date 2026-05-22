@@ -64,6 +64,14 @@ register(
         "list_rfqs",
     ],
 )
+register(
+    "RFQsResource",
+    ["create", "delete", "get", "list", "list_all"],
+)
+register(
+    "QuotesResource",
+    ["accept", "confirm", "create", "delete", "get", "list", "list_all"],
+)
 
 
 @pytest.fixture
@@ -177,6 +185,139 @@ class TestCommunicationsSync:
     def test_get_unknown_quote_errors(self, sync_client: KalshiClient) -> None:
         with pytest.raises(KalshiError):
             sync_client.communications.get_quote("q-nonexistent-00000000")
+
+
+@pytest.mark.integration
+class TestRFQsV3Sync:
+    """v3 namespaced surface: ``client.communications.rfqs.*``.
+
+    These calls forward to the same endpoints as the deprecated
+    top-level methods; this class proves the new public path works
+    end-to-end on demo.
+    """
+
+    def test_list(self, sync_client: KalshiClient) -> None:
+        page = sync_client.communications.rfqs.list(limit=10)
+        assert isinstance(page, Page)
+        for rfq in page.items:
+            assert isinstance(rfq, RFQ)
+
+    def test_list_all(self, sync_client: KalshiClient) -> None:
+        for i, rfq in enumerate(
+            sync_client.communications.rfqs.list_all(limit=10),
+        ):
+            assert isinstance(rfq, RFQ)
+            if i >= 4:
+                break
+
+    def test_create_get_delete(
+        self, sync_client: KalshiClient, demo_market_ticker: str,
+    ) -> None:
+        try:
+            created = sync_client.communications.rfqs.create(
+                market_ticker=demo_market_ticker,
+                rest_remainder=False,
+                contracts=1,
+            )
+        except (KalshiValidationError, KalshiAuthError) as e:
+            pytest.skip(f"demo refused rfqs.create: {e}")
+        assert isinstance(created, CreateRFQResponse)
+        try:
+            time.sleep(0.5)  # eventual consistency on demo
+            got = sync_client.communications.rfqs.get(created.id)
+            assert isinstance(got, GetRFQResponse)
+            assert got.rfq.id == created.id
+        finally:
+            sync_client.communications.rfqs.delete(created.id)
+
+
+@pytest.mark.integration
+class TestQuotesV3Sync:
+    """v3 namespaced surface: ``client.communications.quotes.*``.
+
+    ``list`` and ``list_all`` need a creator filter on demo; ``accept`` and
+    ``confirm`` require two parties — both live behind the real-API gate to
+    mirror ``TestCommunicationsRealApiOnly``. The lifecycle test exercises
+    ``create`` / ``get`` / ``delete`` which the demo supports for self-quoting.
+    """
+
+    def test_quote_lifecycle(
+        self, sync_client: KalshiClient, ephemeral_rfq: str,
+    ) -> None:
+        try:
+            created = sync_client.communications.quotes.create(
+                rfq_id=ephemeral_rfq,
+                yes_bid="0.50",
+                no_bid="0.50",
+                rest_remainder=False,
+            )
+        except (KalshiValidationError, KalshiAuthError) as e:
+            pytest.skip(f"demo refused quotes.create: {e}")
+        quote_id = created.id
+        try:
+            time.sleep(0.5)
+            got = sync_client.communications.quotes.get(quote_id)
+            assert got.quote.id == quote_id
+            assert got.quote.rfq_id == ephemeral_rfq
+        finally:
+            try:
+                sync_client.communications.quotes.delete(quote_id)
+            except Exception:
+                logger.warning("cleanup: failed to delete quote %s", quote_id)
+
+
+@pytest.mark.integration
+@pytest.mark.integration_real_api_only
+class TestQuotesV3RealApiOnly:
+    """v3 namespaced surface for endpoints the demo can't service.
+
+    See ``TestCommunicationsRealApiOnly`` for the underlying demo
+    constraints — these tests mirror that gating against the new
+    ``client.communications.quotes`` namespace.
+    """
+
+    def test_list(self, sync_client: KalshiClient) -> None:
+        comms_id = sync_client.communications.get_id().communications_id
+        page = sync_client.communications.quotes.list(
+            limit=10, quote_creator_user_id=comms_id,
+        )
+        assert isinstance(page, Page)
+
+    def test_list_all(self, sync_client: KalshiClient) -> None:
+        comms_id = sync_client.communications.get_id().communications_id
+        for i, quote in enumerate(
+            sync_client.communications.quotes.list_all(
+                limit=10, quote_creator_user_id=comms_id,
+            ),
+        ):
+            assert isinstance(quote, Quote)
+            if i >= 4:
+                break
+
+    def test_accept_and_confirm(
+        self, sync_client: KalshiClient, demo_market_ticker: str,
+    ) -> None:
+        rfq = sync_client.communications.rfqs.create(
+            market_ticker=demo_market_ticker,
+            rest_remainder=False,
+            contracts=1,
+        )
+        try:
+            quote = sync_client.communications.quotes.create(
+                rfq_id=rfq.id,
+                yes_bid="0.50",
+                no_bid="0.50",
+                rest_remainder=False,
+            )
+            sync_client.communications.quotes.accept(
+                quote.id, accepted_side="yes",
+            )
+            sync_client.communications.quotes.confirm(quote.id)
+        finally:
+            try:
+                sync_client.communications.rfqs.delete(rfq.id)
+            except Exception:
+                logger.warning("cleanup: failed to delete rfq %s", rfq.id)
 
 
 @pytest.mark.integration

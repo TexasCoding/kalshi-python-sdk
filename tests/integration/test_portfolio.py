@@ -7,9 +7,11 @@ import pytest
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
+from kalshi.models.orders import Fill
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
+    MarketPosition,
     PositionsResponse,
     Settlement,
     TotalRestingOrderValue,
@@ -24,7 +26,10 @@ register(
         "balance",
         "deposits",
         "deposits_all",
+        "fills",
+        "fills_all",
         "positions",
+        "positions_all",
         "settlements",
         "settlements_all",
         "total_resting_order_value",
@@ -50,6 +55,27 @@ class TestPortfolioSync:
         assert_model_fields(result)
         assert isinstance(result.market_positions, list)
         assert isinstance(result.event_positions, list)
+
+    def test_positions_all(self, sync_client: KalshiClient) -> None:
+        for count, pos in enumerate(sync_client.portfolio.positions_all(limit=2)):
+            assert isinstance(pos, MarketPosition)
+            assert_model_fields(pos)
+            if count >= 2:
+                break
+
+    def test_fills(self, sync_client: KalshiClient) -> None:
+        page = sync_client.portfolio.fills(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Fill)
+            assert_model_fields(item)
+
+    def test_fills_all(self, sync_client: KalshiClient) -> None:
+        for count, fill in enumerate(sync_client.portfolio.fills_all(limit=2)):
+            assert isinstance(fill, Fill)
+            assert_model_fields(fill)
+            if count >= 2:
+                break
 
     def test_settlements(self, sync_client: KalshiClient) -> None:
         page = sync_client.portfolio.settlements(limit=5)
@@ -114,6 +140,31 @@ class TestPortfolioAsync:
         result = await async_client.portfolio.positions()
         assert isinstance(result, PositionsResponse)
         assert_model_fields(result)
+
+    async def test_positions_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for pos in async_client.portfolio.positions_all(limit=2):
+            assert isinstance(pos, MarketPosition)
+            assert_model_fields(pos)
+            count += 1
+            if count >= 3:
+                break
+
+    async def test_fills(self, async_client: AsyncKalshiClient) -> None:
+        page = await async_client.portfolio.fills(limit=5)
+        assert isinstance(page, Page)
+        for item in page.items:
+            assert isinstance(item, Fill)
+            assert_model_fields(item)
+
+    async def test_fills_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for fill in async_client.portfolio.fills_all(limit=2):
+            assert isinstance(fill, Fill)
+            assert_model_fields(fill)
+            count += 1
+            if count >= 3:
+                break
 
     async def test_settlements(self, async_client: AsyncKalshiClient) -> None:
         page = await async_client.portfolio.settlements(limit=5)

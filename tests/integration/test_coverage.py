@@ -69,7 +69,7 @@ class TestCoverageHarness:
             )
 
     def test_discovery_finds_all_resources(self) -> None:
-        """Sanity check: discover finds the expected 19 resource classes."""
+        """Sanity check: discover finds the expected 21 resource classes."""
         discovered = discover_public_methods()
         expected = {
             "AccountResource",
@@ -86,6 +86,8 @@ class TestCoverageHarness:
             "ExchangeResource",
             "HistoricalResource",
             "PortfolioResource",
+            "QuotesResource",
+            "RFQsResource",
             "SearchResource",
             "SeriesResource",
             "StructuredTargetsResource",

@@ -30,6 +30,7 @@ register(
         "get",
         "list",
         "list_all",
+        "list_all_trades",
         "list_trades",
         "list_trades_all",
         "orderbook",
@@ -175,6 +176,15 @@ class TestMarketsBulkSync:
     def test_list_trades_all(self, sync_client: KalshiClient) -> None:
         for count, t in enumerate(
             sync_client.markets.list_trades_all(limit=5),
+        ):
+            assert isinstance(t, Trade)
+            if count >= 2:
+                break
+
+    def test_list_all_trades(self, sync_client: KalshiClient) -> None:
+        # v3 canonical name; ``list_trades_all`` is a deprecated forwarder.
+        for count, t in enumerate(
+            sync_client.markets.list_all_trades(limit=5),
         ):
             assert isinstance(t, Trade)
             if count >= 2:

@@ -13,11 +13,11 @@ from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.errors import KalshiAuthError, KalshiNotFoundError, KalshiServerError
 from kalshi.models.orders import Order
-from kalshi.models.portfolio import PositionsResponse
+from kalshi.models.portfolio import MarketPosition, PositionsResponse
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
-register("FcmResource", ["orders", "orders_all", "positions"])
+register("FcmResource", ["orders", "orders_all", "positions", "positions_all"])
 
 # Tolerated errors on demo for non-FCM accounts:
 #   - 401/403 → KalshiAuthError (expected: demo account lacks FCM role)
@@ -65,6 +65,19 @@ class TestFcmSync:
         assert isinstance(result, PositionsResponse)
         assert_model_fields(result)
 
+    def test_positions_all(self, sync_client: KalshiClient) -> None:
+        try:
+            gen = sync_client.fcm.positions_all(
+                subtrader_id="sdk-test-subtrader",
+                limit=2,
+            )
+            for count, pos in enumerate(gen):
+                assert isinstance(pos, MarketPosition)
+                if count >= 2:
+                    break
+        except _TOLERATED_FCM_ERRORS:
+            pytest.skip("Demo account is not FCM-enabled (expected)")
+
 
 @pytest.mark.integration
 class TestFcmAsync:
@@ -85,3 +98,18 @@ class TestFcmAsync:
         except _TOLERATED_FCM_ERRORS:
             pytest.skip("Demo account is not FCM-enabled (expected)")
         assert isinstance(result, PositionsResponse)
+
+    async def test_positions_all(self, async_client: AsyncKalshiClient) -> None:
+        try:
+            gen = async_client.fcm.positions_all(
+                subtrader_id="sdk-test-subtrader",
+                limit=2,
+            )
+            count = 0
+            async for pos in gen:
+                assert isinstance(pos, MarketPosition)
+                count += 1
+                if count >= 2:
+                    break
+        except _TOLERATED_FCM_ERRORS:
+            pytest.skip("Demo account is not FCM-enabled (expected)")

@@ -42,12 +42,14 @@ class TestErrorPaths:
     ) -> None:
         """Malformed request params should raise KalshiValidationError (400).
 
-        Uses a malformed cursor — the SDK passes it verbatim to the server,
-        which rejects it with a 400. (Numeric range checks like negative
-        limit are now enforced client-side via ValueError per #214.)
+        Uses an invalid ``status`` filter — the server rejects values outside
+        its accepted enum with 400 invalid_status_filter. (Numeric range
+        checks like negative ``limit`` are enforced client-side via
+        ``ValueError`` per #214, and malformed cursors are now silently
+        ignored by the demo server.)
         """
         with pytest.raises(KalshiValidationError) as exc_info:
-            sync_client.markets.list(cursor="!!!not-a-valid-cursor!!!")
+            sync_client.markets.list(status="not-a-real-status")  # type: ignore[arg-type]
 
         exc = exc_info.value
         assert exc.status_code == 400
@@ -70,9 +72,7 @@ class TestErrorPaths:
         auth = KalshiAuth(
             key_id="invalid-key-id-for-test", private_key=dummy_key
         )
-        config = KalshiConfig(
-            base_url="https://demo-api.kalshi.co/trade-api/v2"
-        )
+        config = KalshiConfig.demo()
         client = KalshiClient(auth=auth, config=config)
 
         try:
@@ -102,7 +102,7 @@ class TestErrorPaths:
     ) -> None:
         """KalshiValidationError should have a details attribute (may be None or dict)."""
         with pytest.raises(KalshiValidationError) as exc_info:
-            sync_client.markets.list(cursor="!!!not-a-valid-cursor!!!")
+            sync_client.markets.list(status="not-a-real-status")  # type: ignore[arg-type]
 
         exc = exc_info.value
         assert hasattr(exc, "details")
