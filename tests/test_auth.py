@@ -512,6 +512,16 @@ class TestFromPem:
         with pytest.raises(KalshiAuthError, match="Expected RSA"):
             KalshiAuth.from_pem("key-4", ec_pem)
 
+    def test_issue_335_from_pem_openssh_format_error_message(self) -> None:
+        openssh_pem = (
+            b"-----BEGIN OPENSSH PRIVATE KEY-----\n"
+            b"b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAAB\n"
+            b"-----END OPENSSH PRIVATE KEY-----\n"
+        )
+        with pytest.raises(KalshiAuthError, match="OpenSSH private-key format") as exc:
+            KalshiAuth.from_pem("key-ossh", openssh_pem)
+        assert "ssh-keygen -p -m PKCS8" in str(exc.value)
+
 
 class TestFromEnv:
     def test_missing_key_id(self, monkeypatch: pytest.MonkeyPatch) -> None:

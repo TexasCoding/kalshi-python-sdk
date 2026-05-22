@@ -123,6 +123,14 @@ class KalshiAuth:
         if password is not None:
             raw = password() if callable(password) else password
             pw_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+        if pem_data.lstrip().startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----"):
+            raise KalshiAuthError(
+                "OpenSSH private-key format detected (-----BEGIN OPENSSH PRIVATE KEY-----); "
+                "Kalshi requires PKCS8 PEM. Convert in place with: "
+                "ssh-keygen -p -m PKCS8 -f <path> -N '' "
+                "or generate a fresh PKCS8 key with: "
+                "openssl genpkey -algorithm RSA -out <path> -pkeyopt rsa_keygen_bits:2048"
+            )
         try:
             private_key = serialization.load_pem_private_key(pem_data, password=pw_bytes)
         except TypeError as e:
