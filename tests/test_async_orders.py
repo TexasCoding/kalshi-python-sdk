@@ -836,7 +836,7 @@ class TestAsyncOrdersAmend:
             return_value=httpx.Response(400, json={"message": "invalid"})
         )
         with pytest.raises(KalshiValidationError):
-            await orders.amend("ord-123", ticker="T", side="bad", action="buy", yes_price=0.50)
+            await orders.amend("ord-123", ticker="T", side="yes", action="buy", yes_price=0.50)
 
     @pytest.mark.asyncio
     async def test_amend_requires_price_or_count(self, orders: AsyncOrdersResource) -> None:
