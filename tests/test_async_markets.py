@@ -13,7 +13,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import AuthRequiredError, KalshiNotFoundError
 from kalshi.resources.markets import AsyncMarketsResource
-from tests._model_fixtures import market_dict
+from tests._model_fixtures import market_dict, trade_dict
 
 
 @pytest.fixture
@@ -424,3 +424,63 @@ class TestAsyncMarketsBulkCandlesticksValidation:
             end_ts=2,
             period_interval=60,
         )
+
+
+class TestAsyncMarketsListAllTradesRename:
+    """v3.0.0 standardization of ``list_<noun>_all`` → ``list_all_<noun>`` (#349)."""
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_349_list_all_trades_works(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/trades").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "trades": [
+                        trade_dict(
+                            trade_id="t-1",
+                            ticker="MKT-A",
+                            count_fp="1.00",
+                            yes_price_dollars="0.50",
+                            no_price_dollars="0.50",
+                            taker_side="yes",
+                            created_time="2026-04-18T12:00:00Z",
+                        ),
+                    ],
+                    "cursor": "",
+                },
+            ),
+        )
+        items = [t async for t in markets.list_all_trades(limit=1)]
+        assert [t.trade_id for t in items] == ["t-1"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_349_list_trades_all_emits_deprecation_warning(
+        self, markets: AsyncMarketsResource,
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/trades").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "trades": [
+                        trade_dict(
+                            trade_id="t-1",
+                            ticker="MKT-A",
+                            count_fp="1.00",
+                            yes_price_dollars="0.50",
+                            no_price_dollars="0.50",
+                            taker_side="yes",
+                            created_time="2026-04-18T12:00:00Z",
+                        ),
+                    ],
+                    "cursor": "",
+                },
+            ),
+        )
+        with pytest.warns(DeprecationWarning, match=r"list_all_trades"):
+            iterator = markets.list_trades_all(limit=1)
+        items = [t async for t in iterator]
+        assert [t.trade_id for t in items] == ["t-1"]
