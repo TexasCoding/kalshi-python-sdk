@@ -29,6 +29,8 @@ from kalshi.models.communications import (
     GetRFQsResponse,
     MveSelectedLeg,
     Quote,
+    QuoteStatusLiteral,
+    RfqStatusLiteral,
     UserFilterLiteral,
 )
 from kalshi.models.events import (
@@ -293,7 +295,9 @@ __all__ = [
     "PositionsResponse",
     "PriceDistribution",
     "Quote",
+    "QuoteStatusLiteral",
     "RateLimit",
+    "RfqStatusLiteral",
     "Schedule",
     "ScopeList",
     "SelfTradePreventionTypeLiteral",
