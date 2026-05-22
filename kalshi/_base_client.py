@@ -227,6 +227,7 @@ class SyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.Client(**client_kwargs)
+        self._closed = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -412,6 +413,16 @@ class SyncTransport:
         raise KalshiError("Max retries exhausted")
 
     def close(self) -> None:
+        """Close the underlying httpx client.
+
+        #301: idempotent — safe to call multiple times. The second and
+        subsequent calls are no-ops so cleanup paths (context-manager
+        exits, ``atexit`` handlers, explicit ``client.close()`` in tests)
+        can stack without raising on the already-closed httpx client.
+        """
+        if self._closed:
+            return
+        self._closed = True
         self._client.close()
 
 
@@ -439,6 +450,7 @@ class AsyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.AsyncClient(**client_kwargs)
+        self._closed = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -610,4 +622,12 @@ class AsyncTransport:
         raise KalshiError("Max retries exhausted")
 
     async def close(self) -> None:
+        """Close the underlying httpx async client.
+
+        #301: idempotent — safe to call multiple times. See
+        :meth:`SyncTransport.close` for the rationale.
+        """
+        if self._closed:
+            return
+        self._closed = True
         await self._client.aclose()

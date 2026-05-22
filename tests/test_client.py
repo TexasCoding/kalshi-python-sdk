@@ -1452,3 +1452,18 @@ class TestTransportNetworkRetry:
             transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
         assert isinstance(exc_info.value.__cause__, httpx.ReadError)
+
+
+class TestSyncTransportLifecycle:
+    def test_sync_transport_close_is_idempotent(self, transport: SyncTransport) -> None:
+        """#301: ``close()`` must be safe to call multiple times.
+
+        Mirrors ``test_auth.py::test_close_is_idempotent`` for ``KalshiAuth``:
+        cleanup paths (context exits, ``atexit``, explicit teardown in tests)
+        can stack without raising on an already-closed httpx client.
+        """
+        transport.close()
+        assert transport._closed is True
+        transport.close()
+        transport.close()  # triple-close OK
+        assert transport._closed is True
