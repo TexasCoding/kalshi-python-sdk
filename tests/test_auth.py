@@ -795,3 +795,58 @@ class TestTrailingSlashCanonicalization:
             hashes.SHA256(),
         )
         transport.close()
+
+
+class TestIssueRegressions:
+    def test_issue_317_sign_request_strips_url_fragment(
+        self, rsa_private_key: rsa.RSAPrivateKey, test_auth: KalshiAuth
+    ) -> None:
+        """#317: sign_request must strip '#fragment' so signed bytes match what httpx sends."""
+        canonical = b"1000GET/trade-api/v2/markets/EVT"
+        pub = rsa_private_key.public_key()
+        pss = padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.DIGEST_LENGTH,
+        )
+
+        for input_path in (
+            "/trade-api/v2/markets/EVT#tab=foo",
+            "/trade-api/v2/markets/EVT?limit=5#tab=foo",
+            "/trade-api/v2/markets/EVT#",
+        ):
+            headers = test_auth.sign_request("GET", input_path, timestamp_ms=1000)
+            sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+            # Should verify against the fragment-stripped canonical message.
+            pub.verify(sig, canonical, pss, hashes.SHA256())
+
+    def test_issue_345_pss_config_cached_at_module_level(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        """#345: PSS/MGF1/SHA256 config objects are module-level singletons, not per-call."""
+        from kalshi import auth as auth_mod
+
+        assert isinstance(auth_mod._SHA256, hashes.SHA256)
+        assert isinstance(auth_mod._PSS_PADDING, padding.PSS)
+
+        # Identity is preserved across calls (no re-allocation in sign_request).
+        sha_before = auth_mod._SHA256
+        pss_before = auth_mod._PSS_PADDING
+        test_auth.sign_request("GET", "/trade-api/v2/markets", timestamp_ms=1)
+        test_auth.sign_request("POST", "/trade-api/v2/orders", timestamp_ms=2)
+        assert auth_mod._SHA256 is sha_before
+        assert auth_mod._PSS_PADDING is pss_before
+
+        # And the cached config still produces a verifiable signature.
+        headers = test_auth.sign_request(
+            "GET", "/trade-api/v2/markets", timestamp_ms=1000
+        )
+        sig = base64.b64decode(headers["KALSHI-ACCESS-SIGNATURE"])
+        test_auth._private_key.public_key().verify(
+            sig,
+            b"1000GET/trade-api/v2/markets",
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.DIGEST_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
