@@ -48,7 +48,15 @@ class LiveDataResource(SyncResource):
         include_player_stats: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
-        """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
+        """Legacy ``/live_data/{type}/milestone/{milestone_id}`` URL form.
+
+        Despite the name, ``get_typed`` is **not** a more-strongly-typed
+        variant of :meth:`get`: both return the same :class:`LiveData`
+        model with the same annotations. The only difference is the URL
+        — ``get_typed`` hits the legacy path that embeds the milestone
+        ``{type}`` segment, while :meth:`get` hits the canonical
+        ``/live_data/milestone/{milestone_id}``. The ``_typed`` suffix
+        refers to the typed URL form, not to Python typing.
 
         ``milestone_type`` populates the ``{type}`` path segment. Named
         ``milestone_type`` (not ``type``) to avoid shadowing the Python
@@ -134,7 +142,15 @@ class AsyncLiveDataResource(AsyncResource):
         include_player_stats: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> LiveData:
-        """Legacy ``/live_data/{type}/milestone/{milestone_id}`` shape.
+        """Legacy ``/live_data/{type}/milestone/{milestone_id}`` URL form.
+
+        Despite the name, ``get_typed`` is **not** a more-strongly-typed
+        variant of :meth:`get`: both return the same :class:`LiveData`
+        model with the same annotations. The only difference is the URL
+        — ``get_typed`` hits the legacy path that embeds the milestone
+        ``{type}`` segment, while :meth:`get` hits the canonical
+        ``/live_data/milestone/{milestone_id}``. The ``_typed`` suffix
+        refers to the typed URL form, not to Python typing.
 
         ``milestone_type`` populates the ``{type}`` path segment. Named
         ``milestone_type`` (not ``type``) to avoid shadowing the Python

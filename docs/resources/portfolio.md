@@ -64,16 +64,29 @@ for ep in resp.event_positions:
     print(ep.event_ticker, ep.event_exposure)
 ```
 
-!!! warning "`positions()` does not return Page[T]"
+!!! note "`positions()` does not return Page[T]"
     It returns `PositionsResponse` — two parallel lists (`market_positions`
-    and `event_positions`) plus its own `cursor` and `has_next`. There is no
-    `positions_all()` helper. Walk it manually:
+    and `event_positions`) plus its own `cursor` and `has_next`. Use
+    `positions_all()` (sync and async, shipped in v2.4) to auto-paginate
+    over `market_positions` as an iterator of `MarketPosition`:
+
+    ```python
+    for mp in client.portfolio.positions_all(ticker="KXPRES-24-DJT"):
+        print(mp.ticker, mp.position, mp.realized_pnl)
+    ```
+
+    `event_positions` are intentionally *not* surfaced by `positions_all()`:
+    they are aggregate roll-ups over the same underlying markets, and page
+    boundaries cut the aggregate arbitrarily — concatenating across pages
+    would not recompute a meaningful event-level total. Callers that need
+    the event view should iterate `positions()` page-by-page:
 
     ```python
     cursor = None
     while True:
         resp = client.portfolio.positions(cursor=cursor)
-        ...
+        for ep in resp.event_positions:
+            ...
         if not resp.has_next:
             break
         cursor = resp.cursor

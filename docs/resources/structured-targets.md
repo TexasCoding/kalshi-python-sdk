@@ -37,15 +37,23 @@ for t in page:
 ## Get one structured target
 
 ```python
-t = client.structured_targets.get("st_abc")
-if t is None:
+from kalshi.errors import KalshiNotFoundError
+
+try:
+    t = client.structured_targets.get("st_abc")
+except KalshiNotFoundError:
     print("not found")
 else:
-    print(t.name, t.target_type)
+    if t is None:
+        # rare: server returned 200 with {"structured_target": null}
+        print("soft-not-found")
+    else:
+        print(t.name, t.target_type)
 ```
 
-`get()` may return `None` for unknown IDs (the underlying endpoint returns a
-404 that's mapped to `None` rather than `KalshiNotFoundError`).
+A 404 from the server raises `KalshiNotFoundError`. `get()` returns `None`
+only if the server responds 200 with `{"structured_target": null}` — a
+server-side soft-not-found that the spec permits but is rare in practice.
 
 ## Reference
 
