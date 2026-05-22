@@ -214,12 +214,13 @@ class OrderbookManager:
         self._apply_snapshot_inplace(msg, sid=sid)
         ticker = msg.msg.market_ticker
         state = self._books[ticker]
-        # Defensive copy on the public path so a caller-supplied ``msg`` keeps
-        # its original ``.yes`` / ``.no`` dicts and is not aliased to the
-        # live ``_BookState``. The recv-loop bypass keeps the identity-adopt
-        # perf win where it matters (#296).
-        state.yes = dict(state.yes)
-        state.no = dict(state.no)
+        # Defensive copy on the public path so the caller-supplied ``msg``
+        # keeps its original ``.yes`` / ``.no`` dicts; ``_apply_snapshot_inplace``
+        # adopted them by identity above, so we copy via ``msg.msg`` to make
+        # the "copy the caller's input" intent explicit. The recv-loop bypass
+        # keeps the identity-adopt perf win where it matters.
+        state.yes = dict(msg.msg.yes)
+        state.no = dict(msg.msg.no)
         return state.to_orderbook()
 
     def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:

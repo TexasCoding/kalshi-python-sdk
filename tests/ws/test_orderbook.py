@@ -464,14 +464,6 @@ class TestSnapshotIdentityAdoption:
 
     def test_public_apply_snapshot_does_not_alias_input_msg(self) -> None:
         """Public apply_snapshot must defensively copy so the caller's msg is not aliased."""
-        from decimal import Decimal
-
-        from kalshi.ws.models.orderbook_delta import (
-            OrderbookDeltaMessage,
-            OrderbookSnapshotMessage,
-        )
-        from kalshi.ws.orderbook import OrderbookManager
-
         snapshot_payload = {
             "type": "orderbook_snapshot",
             "sid": 7,
