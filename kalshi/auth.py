@@ -32,6 +32,15 @@ from kalshi.errors import KalshiAuthError
 
 logger = logging.getLogger("kalshi")
 
+# Module-level cached config objects for RSA-PSS signing (#345).
+# These are immutable algorithm descriptors and safe to reuse across
+# operations; hoisting them out of sign_request avoids per-call allocation.
+_SHA256 = hashes.SHA256()
+_PSS_PADDING = padding.PSS(
+    mgf=padding.MGF1(_SHA256),
+    salt_length=padding.PSS.DIGEST_LENGTH,
+)
+
 
 def _normalize_percent_encoding(path: str) -> str:
     """Normalize percent-encoded characters to uppercase hex digits.
@@ -262,7 +271,8 @@ class KalshiAuth:
 
         Args:
             method: HTTP method (GET, POST, DELETE, etc.)
-            path: Full API path (e.g., /trade-api/v2/markets). Query params are stripped.
+            path: Full API path (e.g., /trade-api/v2/markets). Query strings
+                and URL fragments are stripped.
             timestamp_ms: Unix timestamp in milliseconds. Auto-generated if None.
 
         Returns:
@@ -271,8 +281,10 @@ class KalshiAuth:
         if timestamp_ms is None:
             timestamp_ms = int(time.time() * 1000)
 
-        # Strip query parameters before signing
-        clean_path = path.split("?")[0]
+        # Strip query parameters and URL fragments before signing (#317).
+        # httpx drops fragments before transmission, so signing them would
+        # produce a guaranteed signature mismatch (401).
+        clean_path = path.split("?", 1)[0].split("#", 1)[0]
 
         # Strip trailing slash for canonical form
         if clean_path != "/" and clean_path.endswith("/"):
@@ -287,11 +299,8 @@ class KalshiAuth:
 
         signature = self._private_key.sign(
             message_bytes,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.DIGEST_LENGTH,
-            ),
-            hashes.SHA256(),
+            _PSS_PADDING,
+            _SHA256,
         )
 
         sig_b64 = base64.b64encode(signature).decode("utf-8")
