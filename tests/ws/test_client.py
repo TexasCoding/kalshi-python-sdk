@@ -852,7 +852,6 @@ class TestIssue332BackpressureTeardown:
         recovery — which is also exercised here.
         """
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
-        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
             await session.subscribe_orderbook_delta(tickers=["T1"], maxsize=1)

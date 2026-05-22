@@ -361,8 +361,14 @@ class KalshiWebSocket:
                 self._orderbook_mgr = None
                 self._dispatcher = None
                 self._pause_pending = False
-                self._pause_granted.clear()
-                self._resume_signal.clear()
+                # #332: wake any subscriber blocked on ``_pause_granted.wait()``;
+                # ``Event.clear()`` does NOT unblock existing waiters, so a
+                # pending ``_pause_recv_loop`` would deadlock here. ``set()``
+                # releases the waiter; the post-pause guard in
+                # ``_do_subscribe`` re-checks ``_running`` so the woken
+                # subscriber sees the torn-down session and raises.
+                self._pause_granted.set()
+                self._resume_signal.set()
                 break
             except (json.JSONDecodeError, ValidationError, KeyError):
                 # #83: genuinely-non-fatal per-message errors. #241: when
@@ -688,6 +694,24 @@ class KalshiWebSocket:
             )
         async with self._subscribe_lock:
             await self._pause_recv_loop()
+            # #332: ``_pause_recv_loop`` can return because the recv loop
+            # tore the session down on backpressure (inline teardown sets
+            # ``_pause_granted`` to release any waiter — ``Event.clear()``
+            # alone does NOT unblock a coroutine already in ``.wait()``).
+            # Re-check before proceeding so a woken-up subscriber doesn't
+            # poke a dead session.
+            if (
+                not self._running
+                or self._sub_mgr is None
+                or self._connection is None
+            ):
+                raise RuntimeError(
+                    "KalshiWebSocket session is not active. The recv loop "
+                    "tore down after a fatal error (e.g. "
+                    "KalshiBackpressureError); exit the current `async with "
+                    "ws.connect()` block and start a fresh session before "
+                    "subscribing again."
+                )
             try:
                 sub = await self._sub_mgr.subscribe(
                     channel, params=params, overflow=overflow, maxsize=maxsize,
