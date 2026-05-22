@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 import pytest
+from pydantic import ValidationError
 
 from kalshi.models.communications import RFQ, Quote
 from kalshi.models.events import Event, EventMetadata
@@ -1694,8 +1695,6 @@ class TestIssue312AmendOrderRequestLiteralNarrowing:
     """
 
     def test_issue_312_amend_order_request_rejects_invalid_side(self) -> None:
-        from pydantic import ValidationError
-
         from kalshi.models.orders import AmendOrderRequest
 
         with pytest.raises(ValidationError):
@@ -1707,8 +1706,6 @@ class TestIssue312AmendOrderRequestLiteralNarrowing:
             )
 
     def test_issue_312_amend_order_request_rejects_invalid_action(self) -> None:
-        from pydantic import ValidationError
-
         from kalshi.models.orders import AmendOrderRequest
 
         with pytest.raises(ValidationError):
@@ -1810,7 +1807,7 @@ class TestIssue326V1SubaccountGeZero:
         self,
         model_path: str,
         field_name: str,
-        other_kwargs: dict,
+        other_kwargs: dict[str, object],
     ) -> None:
         import importlib
 

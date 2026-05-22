@@ -1467,6 +1467,8 @@ class TestSyncTransportLifecycle:
         transport.close()
         transport.close()  # triple-close OK
         assert transport._closed is True
+
+
 class TestIssue350OrdersCreateOverloadRequiresActionCount:
     """#350: orders.create() kwarg overload requires ``action`` and ``count``.
 
