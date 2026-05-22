@@ -134,6 +134,13 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/markets/trades",
     ),
+    # v3.0.0 standardization on ``list_all_<noun>`` (#349); old
+    # ``list_trades_all`` is a deprecated forwarder.
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.list_all_trades",
+        http_method="GET",
+        path_template="/markets/trades",
+    ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.markets.MarketsResource.bulk_candlesticks",
         http_method="GET",
@@ -534,6 +541,72 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.communications.CommunicationsResource.confirm_quote",
+        http_method="PUT",
+        path_template="/communications/quotes/{quote_id}/confirm",
+    ),
+    # v3.0.0 sub-namespaces (#348) — same endpoints, new shape.
+    # ``CommunicationsResource.{rfqs,quotes}.<verb>`` is canonical; the flat
+    # forwarders above are kept as deprecated aliases for one release.
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQsResource.list",
+        http_method="GET",
+        path_template="/communications/rfqs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQsResource.list_all",
+        http_method="GET",
+        path_template="/communications/rfqs",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQsResource.create",
+        http_method="POST",
+        path_template="/communications/rfqs",
+        request_body_schema="#/components/schemas/CreateRFQRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQsResource.get",
+        http_method="GET",
+        path_template="/communications/rfqs/{rfq_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQsResource.delete",
+        http_method="DELETE",
+        path_template="/communications/rfqs/{rfq_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.list",
+        http_method="GET",
+        path_template="/communications/quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.list_all",
+        http_method="GET",
+        path_template="/communications/quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.create",
+        http_method="POST",
+        path_template="/communications/quotes",
+        request_body_schema="#/components/schemas/CreateQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.get",
+        http_method="GET",
+        path_template="/communications/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.delete",
+        http_method="DELETE",
+        path_template="/communications/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.accept",
+        http_method="PUT",
+        path_template="/communications/quotes/{quote_id}/accept",
+        request_body_schema="#/components/schemas/AcceptQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.confirm",
         http_method="PUT",
         path_template="/communications/quotes/{quote_id}/confirm",
     ),
@@ -989,6 +1062,18 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    ("kalshi.resources.communications.RFQsResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.resources.communications.QuotesResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.resources.markets.MarketsResource.list_all_trades", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.milestones.MilestonesResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1179,6 +1264,9 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
 _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.markets.MarketsResource.list_all",
     "kalshi.resources.markets.MarketsResource.list_trades_all",
+    "kalshi.resources.markets.MarketsResource.list_all_trades",
+    "kalshi.resources.communications.RFQsResource.list_all",
+    "kalshi.resources.communications.QuotesResource.list_all",
     "kalshi.resources.milestones.MilestonesResource.list_all",
     "kalshi.resources.events.EventsResource.list_all",
     "kalshi.resources.events.EventsResource.list_all_multivariate",
@@ -1203,6 +1291,9 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     # Async counterparts — same kwarg, same client-only semantics.
     "kalshi.resources.markets.AsyncMarketsResource.list_all",
     "kalshi.resources.markets.AsyncMarketsResource.list_trades_all",
+    "kalshi.resources.markets.AsyncMarketsResource.list_all_trades",
+    "kalshi.resources.communications.AsyncRFQsResource.list_all",
+    "kalshi.resources.communications.AsyncQuotesResource.list_all",
     "kalshi.resources.milestones.AsyncMilestonesResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all_multivariate",

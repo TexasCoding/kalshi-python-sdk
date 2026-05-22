@@ -6,6 +6,8 @@ import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
+from typing_extensions import deprecated
+
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.historical import Trade
@@ -357,7 +359,7 @@ class MarketsResource(SyncResource):
             "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
         )
 
-    def list_trades_all(
+    def list_all_trades(
         self,
         *,
         ticker: str | None = None,
@@ -380,6 +382,30 @@ class MarketsResource(SyncResource):
             Trade,
             "trades",
             params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(
+        "`MarketsResource.list_trades_all` is deprecated since v3.0.0 and will be "
+        "removed in a future release; use `list_all_trades` instead."
+    )
+    def list_trades_all(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[Trade]:
+        """.. deprecated:: 3.0.0  Use :meth:`list_all_trades` instead."""
+        return self.list_all_trades(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
             max_pages=max_pages,
             extra_headers=extra_headers,
         )
@@ -580,7 +606,7 @@ class AsyncMarketsResource(AsyncResource):
             "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
         )
 
-    def list_trades_all(
+    def list_all_trades(
         self,
         *,
         ticker: str | None = None,
@@ -604,6 +630,30 @@ class AsyncMarketsResource(AsyncResource):
             Trade,
             "trades",
             params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(
+        "`AsyncMarketsResource.list_trades_all` is deprecated since v3.0.0 and "
+        "will be removed in a future release; use `list_all_trades` instead."
+    )
+    def list_trades_all(
+        self,
+        *,
+        ticker: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[Trade]:
+        """.. deprecated:: 3.0.0  Use :meth:`list_all_trades` instead."""
+        return self.list_all_trades(
+            ticker=ticker,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
             max_pages=max_pages,
             extra_headers=extra_headers,
         )

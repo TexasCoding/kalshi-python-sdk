@@ -34,7 +34,11 @@ from kalshi.models.communications import (
 )
 from kalshi.resources.communications import (
     AsyncCommunicationsResource,
+    AsyncQuotesResource,
+    AsyncRFQsResource,
     CommunicationsResource,
+    QuotesResource,
+    RFQsResource,
 )
 
 
@@ -944,3 +948,163 @@ class TestIssue324CommunicationsStatusLiteralNarrowing:
         ).mock(return_value=httpx.Response(200, json={"quotes": []}))
         await async_comms.list_quotes(status="executed", quote_creator_user_id="u1")
         assert route.calls[0].request.url.params["status"] == "executed"
+
+
+class TestV3DeprecationAliases:
+    """v3.0.0 sub-namespace migration (#348).
+
+    ``client.communications.{rfqs,quotes}.<verb>`` is the new shape. The flat
+    ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` / ``delete_rfq`` /
+    ``list_all_rfqs`` / ``list_quotes`` / ``get_quote`` / ``create_quote`` /
+    ``delete_quote`` / ``list_all_quotes`` / ``accept_quote`` /
+    ``confirm_quote`` methods are kept as deprecated forwarders for one
+    release. Each call emits ``DeprecationWarning`` and delegates to the
+    sub-namespace equivalent.
+    """
+
+    @respx.mock
+    def test_issue_348_rfqs_sub_namespace_works(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        assert isinstance(comms.rfqs, RFQsResource)
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": [_MINIMAL_RFQ]}))
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/rfq-1",
+        ).mock(return_value=httpx.Response(200, json={"rfq": _MINIMAL_RFQ}))
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(201, json={"id": "rfq-new"}))
+
+        page = comms.rfqs.list(limit=10)
+        assert isinstance(page.items[0], RFQ)
+
+        got = comms.rfqs.get("rfq-1")
+        assert got.rfq.id == "rfq-1"
+
+        created = comms.rfqs.create(market_ticker="MKT-1", rest_remainder=True)
+        assert created.id == "rfq-new"
+
+    @respx.mock
+    def test_issue_348_quotes_sub_namespace_works(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        assert isinstance(comms.quotes, QuotesResource)
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": [_MINIMAL_QUOTE]}))
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(201, json={"id": "q-new"}))
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1/accept",
+        ).mock(return_value=httpx.Response(204))
+
+        page = comms.quotes.list(quote_creator_user_id="u1")
+        assert isinstance(page.items[0], Quote)
+
+        created = comms.quotes.create(
+            rfq_id="rfq-1",
+            yes_bid=Decimal("0.56"),
+            no_bid=Decimal("0.44"),
+            rest_remainder=True,
+        )
+        assert created.id == "q-new"
+
+        comms.quotes.accept("q-1", accepted_side="yes")
+
+    def test_issue_348_async_rfqs_sub_namespace_class(
+        self, async_comms: AsyncCommunicationsResource,
+    ) -> None:
+        # Wiring check — full async I/O is exercised in TestAsyncCommunications
+        # via the deprecated forwarders, which delegate here.
+        assert isinstance(async_comms.rfqs, AsyncRFQsResource)
+        assert isinstance(async_comms.quotes, AsyncQuotesResource)
+
+    @respx.mock
+    def test_issue_348_flat_names_still_work_emit_deprecation_warning(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": [_MINIMAL_RFQ]}))
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/rfq-1",
+        ).mock(return_value=httpx.Response(200, json={"rfq": _MINIMAL_RFQ}))
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(201, json={"id": "rfq-new"}))
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/rfq-1",
+        ).mock(return_value=httpx.Response(204))
+
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": [_MINIMAL_QUOTE]}))
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1",
+        ).mock(return_value=httpx.Response(200, json={"quote": _MINIMAL_QUOTE}))
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(201, json={"id": "q-new"}))
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1",
+        ).mock(return_value=httpx.Response(204))
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1/accept",
+        ).mock(return_value=httpx.Response(204))
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1/confirm",
+        ).mock(return_value=httpx.Response(204))
+
+        # Each old flat method emits exactly one DeprecationWarning per call
+        # and produces a response shape matching the sub-namespace method.
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.list"):
+            page_rfqs = comms.list_rfqs(limit=10)
+        assert isinstance(page_rfqs.items[0], RFQ)
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.list_all"):
+            rfqs_all = list(comms.list_all_rfqs())
+        assert isinstance(rfqs_all[0], RFQ)
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.get"):
+            got_rfq = comms.get_rfq("rfq-1")
+        assert got_rfq.rfq.id == "rfq-1"
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.create"):
+            new_rfq = comms.create_rfq(market_ticker="MKT-1", rest_remainder=True)
+        assert new_rfq.id == "rfq-new"
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.delete"):
+            comms.delete_rfq("rfq-1")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.list"):
+            page_quotes = comms.list_quotes(quote_creator_user_id="u1")
+        assert isinstance(page_quotes.items[0], Quote)
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.list_all"):
+            quotes_all = list(comms.list_all_quotes(quote_creator_user_id="u1"))
+        assert isinstance(quotes_all[0], Quote)
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.get"):
+            got_quote = comms.get_quote("q-1")
+        assert got_quote.quote.id == "q-1"
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.create"):
+            new_quote = comms.create_quote(
+                rfq_id="rfq-1",
+                yes_bid=Decimal("0.5"),
+                no_bid=Decimal("0.5"),
+                rest_remainder=True,
+            )
+        assert new_quote.id == "q-new"
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.delete"):
+            comms.delete_quote("q-1")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.accept"):
+            comms.accept_quote("q-1", accepted_side="yes")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.confirm"):
+            comms.confirm_quote("q-1")

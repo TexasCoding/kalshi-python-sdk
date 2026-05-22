@@ -16,7 +16,7 @@ recent trades.
 | `bulk_candlesticks(*, market_tickers, ...)` | `GET /markets/candlesticks` | no |
 | `bulk_orderbooks(*, tickers)` | `GET /markets/orderbooks` | **yes** |
 | `list_trades(...)` | `GET /markets/trades` | no |
-| `list_trades_all(...)` | walks `list_trades` | no |
+| `list_all_trades(...)` | walks `list_trades` | no |
 
 !!! warning "Orderbook endpoints require auth"
     `orderbook()` and `bulk_orderbooks()` raise `AuthRequiredError` on an
@@ -129,6 +129,13 @@ page = client.markets.list_trades(
 for trade in page:
     print(trade.trade_id, trade.taker_side, trade.yes_price, trade.count)
 ```
+
+!!! warning "Deprecated since v3.0.0"
+    `list_trades_all` is the legacy name; it still works but emits
+    `DeprecationWarning` and will be removed in a future release. Use
+    `list_all_trades` instead — see [#349][issue-349].
+
+    [issue-349]: https://github.com/TexasCoding/kalshi-python-sdk/issues/349
 
 ## Reference
 

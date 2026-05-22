@@ -484,6 +484,58 @@ class TestMarketsListTrades:
         items = list(markets.list_trades_all(limit=1))
         assert [t.trade_id for t in items] == ["t-1", "t-2"]
 
+    @respx.mock
+    def test_issue_349_list_all_trades_works(self, markets: MarketsResource) -> None:
+        """``list_all_trades`` is the v3.0.0 canonical name (#349)."""
+        page1 = {
+            "trades": [
+                trade_dict(
+                    trade_id="t-1",
+                    ticker="MKT-A",
+                    count_fp="1.00",
+                    yes_price_dollars="0.50",
+                    no_price_dollars="0.50",
+                    taker_side="yes",
+                    created_time="2026-04-18T12:00:00Z",
+                ),
+            ],
+            "cursor": "",
+        }
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/trades").mock(
+            return_value=httpx.Response(200, json=page1),
+        )
+        items = list(markets.list_all_trades(limit=1))
+        assert [t.trade_id for t in items] == ["t-1"]
+
+    @respx.mock
+    def test_issue_349_list_trades_all_emits_deprecation_warning(
+        self, markets: MarketsResource,
+    ) -> None:
+        """``list_trades_all`` (the suffix-style legacy name) is a deprecated
+        forwarder to ``list_all_trades`` for one release; calling it must emit
+        ``DeprecationWarning`` and still return the same result.
+        """
+        page1 = {
+            "trades": [
+                trade_dict(
+                    trade_id="t-1",
+                    ticker="MKT-A",
+                    count_fp="1.00",
+                    yes_price_dollars="0.50",
+                    no_price_dollars="0.50",
+                    taker_side="yes",
+                    created_time="2026-04-18T12:00:00Z",
+                ),
+            ],
+            "cursor": "",
+        }
+        respx.get("https://test.kalshi.com/trade-api/v2/markets/trades").mock(
+            return_value=httpx.Response(200, json=page1),
+        )
+        with pytest.warns(DeprecationWarning, match=r"list_all_trades"):
+            items = list(markets.list_trades_all(limit=1))
+        assert [t.trade_id for t in items] == ["t-1"]
+
 
 class TestMarketsBulkCandlesticks:
     @respx.mock

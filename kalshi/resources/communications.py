@@ -1,4 +1,14 @@
-"""Communications / RFQ resource — request-for-quote + quote API."""
+"""Communications / RFQ resource — request-for-quote + quote API.
+
+v3.0.0 reorganized the surface into sub-namespaces matching the OpenAPI tag
+structure: ``client.communications.rfqs`` and ``client.communications.quotes``.
+The flat ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` / ``delete_rfq`` /
+``list_all_rfqs`` / ``list_quotes`` / ``get_quote`` / ``create_quote`` /
+``delete_quote`` / ``list_all_quotes`` / ``accept_quote`` / ``confirm_quote``
+methods remain as ``@deprecated`` forwarders for one release; they emit
+``DeprecationWarning`` on call and will be removed in a future release.
+``get_id`` is a misc top-level endpoint and stays on the parent class.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +16,9 @@ from collections.abc import AsyncIterator, Iterator
 from decimal import Decimal
 from typing import Any, Literal, overload
 
+from typing_extensions import deprecated
+
+from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.models.common import Page
 from kalshi.models.communications import (
     RFQ,
@@ -204,15 +217,30 @@ def _build_accept_quote_body(
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
-class CommunicationsResource(SyncResource):
-    """Sync communications / RFQ API."""
+# v3.0.0 deprecation messages shown by ``typing_extensions.deprecated`` at the
+# call site. Templated so each forwarder names its replacement explicitly.
+def _rfq_dep(new: str, old: str) -> str:
+    return (
+        f"`CommunicationsResource.{old}` is deprecated since v3.0.0 and will "
+        f"be removed in a future release; use `client.communications.rfqs.{new}` instead."
+    )
 
-    def get_id(self, *, extra_headers: dict[str, str] | None = None) -> GetCommunicationsIDResponse:
-        self._require_auth()
-        data = self._get("/communications/id", extra_headers=extra_headers)
-        return GetCommunicationsIDResponse.model_validate(data)
 
-    def list_rfqs(
+def _quote_dep(new: str, old: str) -> str:
+    return (
+        f"`CommunicationsResource.{old}` is deprecated since v3.0.0 and will "
+        f"be removed in a future release; use `client.communications.quotes.{new}` instead."
+    )
+
+
+class RFQsResource(SyncResource):
+    """Sync RFQ sub-resource — ``client.communications.rfqs``.
+
+    Reached via :attr:`CommunicationsResource.rfqs`. Backs
+    ``/communications/rfqs`` endpoints.
+    """
+
+    def list(
         self,
         *,
         cursor: str | None = None,
@@ -240,7 +268,7 @@ class CommunicationsResource(SyncResource):
             "/communications/rfqs", RFQ, "rfqs", params=params, extra_headers=extra_headers
         )
 
-    def list_all_rfqs(
+    def list_all(
         self,
         *,
         limit: int | None = None,
@@ -274,7 +302,7 @@ class CommunicationsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
-    def get_rfq(
+    def get(
         self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> GetRFQResponse:
         self._require_auth()
@@ -284,11 +312,11 @@ class CommunicationsResource(SyncResource):
         return GetRFQResponse.model_validate(data)
 
     @overload
-    def create_rfq(
+    def create(
         self, *, request: CreateRFQRequest, extra_headers: dict[str, str] | None = None
     ) -> CreateRFQResponse: ...
     @overload
-    def create_rfq(
+    def create(
         self,
         *,
         market_ticker: str,
@@ -300,7 +328,7 @@ class CommunicationsResource(SyncResource):
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
-    def create_rfq(
+    def create(
         self,
         *,
         request: CreateRFQRequest | None = None,
@@ -327,13 +355,21 @@ class CommunicationsResource(SyncResource):
         data = self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
 
-    def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+    def delete(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         self._delete(
             f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
         )
 
-    def list_quotes(
+
+class QuotesResource(SyncResource):
+    """Sync Quote sub-resource — ``client.communications.quotes``.
+
+    Reached via :attr:`CommunicationsResource.quotes`. Backs
+    ``/communications/quotes`` endpoints.
+    """
+
+    def list(
         self,
         *,
         cursor: str | None = None,
@@ -373,7 +409,7 @@ class CommunicationsResource(SyncResource):
             "/communications/quotes", Quote, "quotes", params=params, extra_headers=extra_headers
         )
 
-    def list_all_quotes(
+    def list_all(
         self,
         *,
         limit: int | None = None,
@@ -419,7 +455,7 @@ class CommunicationsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
-    def get_quote(
+    def get(
         self, quote_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> GetQuoteResponse:
         self._require_auth()
@@ -429,11 +465,11 @@ class CommunicationsResource(SyncResource):
         return GetQuoteResponse.model_validate(data)
 
     @overload
-    def create_quote(
+    def create(
         self, *, request: CreateQuoteRequest, extra_headers: dict[str, str] | None = None
     ) -> CreateQuoteResponse: ...
     @overload
-    def create_quote(
+    def create(
         self,
         *,
         rfq_id: str,
@@ -444,7 +480,7 @@ class CommunicationsResource(SyncResource):
         post_only: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse: ...
-    def create_quote(
+    def create(
         self,
         *,
         request: CreateQuoteRequest | None = None,
@@ -469,14 +505,14 @@ class CommunicationsResource(SyncResource):
         data = self._post("/communications/quotes", json=body, extra_headers=extra_headers)
         return CreateQuoteResponse.model_validate(data)
 
-    def delete_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+    def delete(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         self._delete(
             f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
         )
 
     @overload
-    def accept_quote(
+    def accept(
         self,
         quote_id: str,
         *,
@@ -484,14 +520,14 @@ class CommunicationsResource(SyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
-    def accept_quote(
+    def accept(
         self,
         quote_id: str,
         *,
         accepted_side: Literal["yes", "no"],
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
-    def accept_quote(
+    def accept(
         self,
         quote_id: str,
         *,
@@ -507,7 +543,7 @@ class CommunicationsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
-    def confirm_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+    def confirm(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
         self._put(
@@ -517,17 +553,260 @@ class CommunicationsResource(SyncResource):
         )
 
 
-class AsyncCommunicationsResource(AsyncResource):
-    """Async communications / RFQ API."""
+class CommunicationsResource(SyncResource):
+    """Sync communications / RFQ API.
 
-    async def get_id(
-        self, *, extra_headers: dict[str, str] | None = None
-    ) -> GetCommunicationsIDResponse:
+    Sub-namespaces:
+
+    - :attr:`rfqs` — :class:`RFQsResource` — ``/communications/rfqs`` surface.
+    - :attr:`quotes` — :class:`QuotesResource` — ``/communications/quotes`` surface.
+
+    The misc :meth:`get_id` endpoint stays at the top level because it has no
+    sub-noun. The flat ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` /
+    ``delete_rfq`` / ``list_all_rfqs`` / ``list_quotes`` / ``get_quote`` /
+    ``create_quote`` / ``delete_quote`` / ``list_all_quotes`` / ``accept_quote``
+    / ``confirm_quote`` methods are :class:`typing_extensions.deprecated`
+    forwarders kept for one release.
+    """
+
+    rfqs: RFQsResource
+    quotes: QuotesResource
+
+    def __init__(self, transport: SyncTransport) -> None:
+        super().__init__(transport)
+        self.rfqs = RFQsResource(transport)
+        self.quotes = QuotesResource(transport)
+
+    def get_id(self, *, extra_headers: dict[str, str] | None = None) -> GetCommunicationsIDResponse:
         self._require_auth()
-        data = await self._get("/communications/id", extra_headers=extra_headers)
+        data = self._get("/communications/id", extra_headers=extra_headers)
         return GetCommunicationsIDResponse.model_validate(data)
 
-    async def list_rfqs(
+    # ── Deprecated flat forwarders (v3.0.0) ────────────────────────────────
+
+    @deprecated(_rfq_dep("list", "list_rfqs"))
+    def list_rfqs(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        subaccount: int | None = None,
+        status: RfqStatusLiteral | None = None,
+        creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[RFQ]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.list` instead."""
+        return self.rfqs.list(
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
+            user_filter=user_filter,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("list_all", "list_all_rfqs"))
+    def list_all_rfqs(
+        self,
+        *,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        subaccount: int | None = None,
+        status: RfqStatusLiteral | None = None,
+        creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[RFQ]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.list_all` instead."""
+        return self.rfqs.list_all(
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
+            user_filter=user_filter,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("get", "get_rfq"))
+    def get_rfq(
+        self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.get` instead."""
+        return self.rfqs.get(rfq_id, extra_headers=extra_headers)
+
+    @deprecated(_rfq_dep("create", "create_rfq"))
+    def create_rfq(
+        self,
+        *,
+        request: CreateRFQRequest | None = None,
+        market_ticker: str | None = None,
+        rest_remainder: bool | None = None,
+        contracts: int | None = None,
+        target_cost: Decimal | str | float | int | None = None,
+        replace_existing: bool | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
+        return self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]
+            request=request,
+            market_ticker=market_ticker,
+            rest_remainder=rest_remainder,
+            contracts=contracts,
+            target_cost=target_cost,
+            replace_existing=replace_existing,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("delete", "delete_rfq"))
+    def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.delete` instead."""
+        self.rfqs.delete(rfq_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("list", "list_quotes"))
+    def list_quotes(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        status: QuoteStatusLiteral | None = None,
+        quote_creator_user_id: str | None = None,
+        rfq_creator_user_id: str | None = None,
+        rfq_creator_subtrader_id: str | None = None,
+        rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[Quote]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list` instead."""
+        return self.quotes.list(
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
+            quote_creator_user_id=quote_creator_user_id,
+            rfq_creator_user_id=rfq_creator_user_id,
+            rfq_creator_subtrader_id=rfq_creator_subtrader_id,
+            rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("list_all", "list_all_quotes"))
+    def list_all_quotes(
+        self,
+        *,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        status: QuoteStatusLiteral | None = None,
+        quote_creator_user_id: str | None = None,
+        rfq_creator_user_id: str | None = None,
+        rfq_creator_subtrader_id: str | None = None,
+        rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[Quote]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list_all` instead."""
+        return self.quotes.list_all(
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
+            quote_creator_user_id=quote_creator_user_id,
+            rfq_creator_user_id=rfq_creator_user_id,
+            rfq_creator_subtrader_id=rfq_creator_subtrader_id,
+            rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("get", "get_quote"))
+    def get_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.get` instead."""
+        return self.quotes.get(quote_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("create", "create_quote"))
+    def create_quote(
+        self,
+        *,
+        request: CreateQuoteRequest | None = None,
+        rfq_id: str | None = None,
+        yes_bid: Decimal | str | float | int | None = None,
+        no_bid: Decimal | str | float | int | None = None,
+        rest_remainder: bool | None = None,
+        subaccount: int | None = None,
+        post_only: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateQuoteResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.create` instead."""
+        return self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]
+            request=request,
+            rfq_id=rfq_id,
+            yes_bid=yes_bid,
+            no_bid=no_bid,
+            rest_remainder=rest_remainder,
+            subaccount=subaccount,
+            post_only=post_only,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("delete", "delete_quote"))
+    def delete_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.delete` instead."""
+        self.quotes.delete(quote_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("accept", "accept_quote"))
+    def accept_quote(
+        self,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.accept` instead."""
+        self.quotes.accept(  # type: ignore[call-overload]
+            quote_id,
+            request=request,
+            accepted_side=accepted_side,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("confirm", "confirm_quote"))
+    def confirm_quote(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.confirm` instead."""
+        self.quotes.confirm(quote_id, extra_headers=extra_headers)
+
+
+class AsyncRFQsResource(AsyncResource):
+    """Async RFQ sub-resource — ``client.communications.rfqs``."""
+
+    async def list(
         self,
         *,
         cursor: str | None = None,
@@ -555,7 +834,7 @@ class AsyncCommunicationsResource(AsyncResource):
             "/communications/rfqs", RFQ, "rfqs", params=params, extra_headers=extra_headers
         )
 
-    def list_all_rfqs(
+    def list_all(
         self,
         *,
         limit: int | None = None,
@@ -569,7 +848,7 @@ class AsyncCommunicationsResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[RFQ]:
         """Returns an async iterator — use ``async for``."""
-        # Plain `def` so _require_auth + _validate_max_pages run at call time.
+        # Plain ``def`` so _require_auth + _validate_max_pages run at call time.
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_rfqs_params(
@@ -591,7 +870,7 @@ class AsyncCommunicationsResource(AsyncResource):
             extra_headers=extra_headers,
         )
 
-    async def get_rfq(
+    async def get(
         self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> GetRFQResponse:
         self._require_auth()
@@ -601,11 +880,11 @@ class AsyncCommunicationsResource(AsyncResource):
         return GetRFQResponse.model_validate(data)
 
     @overload
-    async def create_rfq(
+    async def create(
         self, *, request: CreateRFQRequest, extra_headers: dict[str, str] | None = None
     ) -> CreateRFQResponse: ...
     @overload
-    async def create_rfq(
+    async def create(
         self,
         *,
         market_ticker: str,
@@ -617,7 +896,7 @@ class AsyncCommunicationsResource(AsyncResource):
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
-    async def create_rfq(
+    async def create(
         self,
         *,
         request: CreateRFQRequest | None = None,
@@ -644,13 +923,17 @@ class AsyncCommunicationsResource(AsyncResource):
         data = await self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
 
-    async def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+    async def delete(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         await self._delete(
             f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
         )
 
-    async def list_quotes(
+
+class AsyncQuotesResource(AsyncResource):
+    """Async Quote sub-resource — ``client.communications.quotes``."""
+
+    async def list(
         self,
         *,
         cursor: str | None = None,
@@ -690,7 +973,7 @@ class AsyncCommunicationsResource(AsyncResource):
             "/communications/quotes", Quote, "quotes", params=params, extra_headers=extra_headers
         )
 
-    def list_all_quotes(
+    def list_all(
         self,
         *,
         limit: int | None = None,
@@ -737,7 +1020,7 @@ class AsyncCommunicationsResource(AsyncResource):
             extra_headers=extra_headers,
         )
 
-    async def get_quote(
+    async def get(
         self, quote_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> GetQuoteResponse:
         self._require_auth()
@@ -747,11 +1030,11 @@ class AsyncCommunicationsResource(AsyncResource):
         return GetQuoteResponse.model_validate(data)
 
     @overload
-    async def create_quote(
+    async def create(
         self, *, request: CreateQuoteRequest, extra_headers: dict[str, str] | None = None
     ) -> CreateQuoteResponse: ...
     @overload
-    async def create_quote(
+    async def create(
         self,
         *,
         rfq_id: str,
@@ -762,7 +1045,7 @@ class AsyncCommunicationsResource(AsyncResource):
         post_only: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse: ...
-    async def create_quote(
+    async def create(
         self,
         *,
         request: CreateQuoteRequest | None = None,
@@ -787,7 +1070,7 @@ class AsyncCommunicationsResource(AsyncResource):
         data = await self._post("/communications/quotes", json=body, extra_headers=extra_headers)
         return CreateQuoteResponse.model_validate(data)
 
-    async def delete_quote(
+    async def delete(
         self, quote_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> None:
         self._require_auth()
@@ -796,7 +1079,7 @@ class AsyncCommunicationsResource(AsyncResource):
         )
 
     @overload
-    async def accept_quote(
+    async def accept(
         self,
         quote_id: str,
         *,
@@ -804,14 +1087,14 @@ class AsyncCommunicationsResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     @overload
-    async def accept_quote(
+    async def accept(
         self,
         quote_id: str,
         *,
         accepted_side: Literal["yes", "no"],
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
-    async def accept_quote(
+    async def accept(
         self,
         quote_id: str,
         *,
@@ -827,7 +1110,7 @@ class AsyncCommunicationsResource(AsyncResource):
             extra_headers=extra_headers,
         )
 
-    async def confirm_quote(
+    async def confirm(
         self, quote_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> None:
         self._require_auth()
@@ -837,3 +1120,260 @@ class AsyncCommunicationsResource(AsyncResource):
             json={},
             extra_headers=extra_headers,
         )
+
+
+class AsyncCommunicationsResource(AsyncResource):
+    """Async communications / RFQ API.
+
+    Sub-namespaces:
+
+    - :attr:`rfqs` — :class:`AsyncRFQsResource` — ``/communications/rfqs``.
+    - :attr:`quotes` — :class:`AsyncQuotesResource` — ``/communications/quotes``.
+
+    The flat ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` / ``delete_rfq`` /
+    ``list_all_rfqs`` / ``list_quotes`` / ``get_quote`` / ``create_quote`` /
+    ``delete_quote`` / ``list_all_quotes`` / ``accept_quote`` / ``confirm_quote``
+    coroutines are :class:`typing_extensions.deprecated` forwarders kept for
+    one release.
+    """
+
+    rfqs: AsyncRFQsResource
+    quotes: AsyncQuotesResource
+
+    def __init__(self, transport: AsyncTransport) -> None:
+        super().__init__(transport)
+        self.rfqs = AsyncRFQsResource(transport)
+        self.quotes = AsyncQuotesResource(transport)
+
+    async def get_id(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetCommunicationsIDResponse:
+        self._require_auth()
+        data = await self._get("/communications/id", extra_headers=extra_headers)
+        return GetCommunicationsIDResponse.model_validate(data)
+
+    # ── Deprecated flat forwarders (v3.0.0) ────────────────────────────────
+
+    @deprecated(_rfq_dep("list", "list_rfqs"))
+    async def list_rfqs(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        subaccount: int | None = None,
+        status: RfqStatusLiteral | None = None,
+        creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[RFQ]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.list` instead."""
+        return await self.rfqs.list(
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
+            user_filter=user_filter,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("list_all", "list_all_rfqs"))
+    def list_all_rfqs(
+        self,
+        *,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        subaccount: int | None = None,
+        status: RfqStatusLiteral | None = None,
+        creator_user_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[RFQ]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.list_all` instead."""
+        # Plain ``def`` so deprecation + validation fire at call time, before
+        # the user awaits/iterates. Mirrors the sub-resource shape.
+        return self.rfqs.list_all(
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            subaccount=subaccount,
+            status=status,
+            creator_user_id=creator_user_id,
+            user_filter=user_filter,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("get", "get_rfq"))
+    async def get_rfq(
+        self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.get` instead."""
+        return await self.rfqs.get(rfq_id, extra_headers=extra_headers)
+
+    @deprecated(_rfq_dep("create", "create_rfq"))
+    async def create_rfq(
+        self,
+        *,
+        request: CreateRFQRequest | None = None,
+        market_ticker: str | None = None,
+        rest_remainder: bool | None = None,
+        contracts: int | None = None,
+        target_cost: Decimal | str | float | int | None = None,
+        replace_existing: bool | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
+        return await self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]
+            request=request,
+            market_ticker=market_ticker,
+            rest_remainder=rest_remainder,
+            contracts=contracts,
+            target_cost=target_cost,
+            replace_existing=replace_existing,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_rfq_dep("delete", "delete_rfq"))
+    async def delete_rfq(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.delete` instead."""
+        await self.rfqs.delete(rfq_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("list", "list_quotes"))
+    async def list_quotes(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        status: QuoteStatusLiteral | None = None,
+        quote_creator_user_id: str | None = None,
+        rfq_creator_user_id: str | None = None,
+        rfq_creator_subtrader_id: str | None = None,
+        rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[Quote]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list` instead."""
+        return await self.quotes.list(
+            cursor=cursor,
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
+            quote_creator_user_id=quote_creator_user_id,
+            rfq_creator_user_id=rfq_creator_user_id,
+            rfq_creator_subtrader_id=rfq_creator_subtrader_id,
+            rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("list_all", "list_all_quotes"))
+    def list_all_quotes(
+        self,
+        *,
+        limit: int | None = None,
+        event_ticker: str | None = None,
+        market_ticker: str | None = None,
+        status: QuoteStatusLiteral | None = None,
+        quote_creator_user_id: str | None = None,
+        rfq_creator_user_id: str | None = None,
+        rfq_creator_subtrader_id: str | None = None,
+        rfq_id: str | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        rfq_user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[Quote]:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list_all` instead."""
+        return self.quotes.list_all(
+            limit=limit,
+            event_ticker=event_ticker,
+            market_ticker=market_ticker,
+            status=status,
+            quote_creator_user_id=quote_creator_user_id,
+            rfq_creator_user_id=rfq_creator_user_id,
+            rfq_creator_subtrader_id=rfq_creator_subtrader_id,
+            rfq_id=rfq_id,
+            user_filter=user_filter,
+            rfq_user_filter=rfq_user_filter,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("get", "get_quote"))
+    async def get_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.get` instead."""
+        return await self.quotes.get(quote_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("create", "create_quote"))
+    async def create_quote(
+        self,
+        *,
+        request: CreateQuoteRequest | None = None,
+        rfq_id: str | None = None,
+        yes_bid: Decimal | str | float | int | None = None,
+        no_bid: Decimal | str | float | int | None = None,
+        rest_remainder: bool | None = None,
+        subaccount: int | None = None,
+        post_only: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateQuoteResponse:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.create` instead."""
+        return await self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]
+            request=request,
+            rfq_id=rfq_id,
+            yes_bid=yes_bid,
+            no_bid=no_bid,
+            rest_remainder=rest_remainder,
+            subaccount=subaccount,
+            post_only=post_only,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("delete", "delete_quote"))
+    async def delete_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.delete` instead."""
+        await self.quotes.delete(quote_id, extra_headers=extra_headers)
+
+    @deprecated(_quote_dep("accept", "accept_quote"))
+    async def accept_quote(
+        self,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.accept` instead."""
+        await self.quotes.accept(  # type: ignore[call-overload]
+            quote_id,
+            request=request,
+            accepted_side=accepted_side,
+            extra_headers=extra_headers,
+        )
+
+    @deprecated(_quote_dep("confirm", "confirm_quote"))
+    async def confirm_quote(
+        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.confirm` instead."""
+        await self.quotes.confirm(quote_id, extra_headers=extra_headers)
