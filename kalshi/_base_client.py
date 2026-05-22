@@ -276,6 +276,9 @@ class SyncTransport:
         # is preserved.
         if path != "/" and path.endswith("/"):
             path = path.rstrip("/") or "/"
+        # #342: normalize verb once. Used by auth-sign, the httpx call, log
+        # statements, and method-class checks across every retry attempt.
+        method_upper = method.upper()
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
@@ -297,7 +300,7 @@ class SyncTransport:
         )
 
         for attempt in range(self._config.max_retries + 1):
-            auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
+            auth_headers = self._auth.sign_request(method_upper, sign_path) if self._auth else {}
             # auth_headers keys are case-canonical (always uppercase
             # KALSHI-ACCESS-*) and base_headers is already case-deduped by
             # _ci_merge above, so a plain dict-unpack is safe here (#298).
@@ -305,7 +308,7 @@ class SyncTransport:
 
             logger.debug(
                 "Request: %s %s (attempt %d/%d)",
-                method.upper(),
+                method_upper,
                 path,
                 attempt + 1,
                 self._config.max_retries + 1,
@@ -313,7 +316,7 @@ class SyncTransport:
 
             try:
                 response = self._client.request(
-                    method=method.upper(),
+                    method=method_upper,
                     url=path,
                     params=params,
                     json=json,
@@ -324,7 +327,7 @@ class SyncTransport:
                 # #204: pool exhaustion never reached the wire — safe to retry
                 # even for POST/DELETE.
                 last_error = KalshiPoolExhaustedError(
-                    f"Connection pool exhausted on {method.upper()} {path}. "
+                    f"Connection pool exhausted on {method_upper} {path}. "
                     f"Raise KalshiConfig.limits.max_connections."
                 )
                 if attempt < self._config.max_retries:
@@ -345,8 +348,8 @@ class SyncTransport:
                 # include the full URL with query string and can leak
                 # token-like values into uncaught-exception sinks. The
                 # underlying exception is preserved via `__cause__`.
-                last_error = KalshiTimeoutError(f"Request timed out: {method.upper()} {path}")
-                if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
+                last_error = KalshiTimeoutError(f"Request timed out: {method_upper} {path}")
+                if method_upper in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
                         raise last_error from None
@@ -362,9 +365,9 @@ class SyncTransport:
                 # RemoteProtocolError on POST/DELETE may indicate the server
                 # accepted bytes already; surface them so the caller can
                 # reconcile via client_order_id.
-                last_error = KalshiNetworkError(f"Network error: {method.upper()} {path}")
+                last_error = KalshiNetworkError(f"Network error: {method_upper} {path}")
                 pre_wire = isinstance(e, httpx.ConnectError)
-                idempotent = method.upper() in RETRYABLE_METHODS
+                idempotent = method_upper in RETRYABLE_METHODS
                 if (idempotent or pre_wire) and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
@@ -379,9 +382,9 @@ class SyncTransport:
                     continue
                 raise last_error from e
             except httpx.HTTPError as e:
-                raise KalshiError(f"HTTP error: {method.upper()} {path}") from e
+                raise KalshiError(f"HTTP error: {method_upper} {path}") from e
 
-            logger.debug("Response: %s %s → %d", method.upper(), path, response.status_code)
+            logger.debug("Response: %s %s → %d", method_upper, path, response.status_code)
 
             if response.is_success:
                 return response
@@ -392,7 +395,7 @@ class SyncTransport:
             # Only retry safe methods on transient errors
             should_retry = (
                 response.status_code in RETRYABLE_STATUS_CODES
-                and method.upper() in RETRYABLE_METHODS
+                and method_upper in RETRYABLE_METHODS
                 and attempt < self._config.max_retries
             )
 
@@ -422,7 +425,7 @@ class SyncTransport:
 
             logger.warning(
                 "%s %s returned %d, retrying in %.1fs (attempt %d/%d)",
-                method.upper(),
+                method_upper,
                 path,
                 response.status_code,
                 delay,
@@ -506,6 +509,8 @@ class AsyncTransport:
         # P1.6: canonicalize trailing slash BEFORE both signing and httpx call.
         if path != "/" and path.endswith("/"):
             path = path.rstrip("/") or "/"
+        # #342: normalize verb once; see SyncTransport.request.
+        method_upper = method.upper()
         # Sign with path-only (not full URL). Kalshi expects: /trade-api/v2/endpoint
         sign_path = self._base_path + path
         last_error: KalshiError | None = None
@@ -527,7 +532,7 @@ class AsyncTransport:
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
-                auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
+                auth_headers = await self._auth.sign_request_async(method_upper, sign_path)
             else:
                 auth_headers = {}
             # auth_headers keys are case-canonical (always uppercase
@@ -537,7 +542,7 @@ class AsyncTransport:
 
             logger.debug(
                 "Async request: %s %s (attempt %d/%d)",
-                method.upper(),
+                method_upper,
                 path,
                 attempt + 1,
                 self._config.max_retries + 1,
@@ -545,7 +550,7 @@ class AsyncTransport:
 
             try:
                 response = await self._client.request(
-                    method=method.upper(),
+                    method=method_upper,
                     url=path,
                     params=params,
                     json=json,
@@ -556,7 +561,7 @@ class AsyncTransport:
                 # #204: pool exhaustion never reached the wire — safe to retry
                 # even for POST/DELETE.
                 last_error = KalshiPoolExhaustedError(
-                    f"Connection pool exhausted on {method.upper()} {path}. "
+                    f"Connection pool exhausted on {method_upper} {path}. "
                     f"Raise KalshiConfig.limits.max_connections."
                 )
                 if attempt < self._config.max_retries:
@@ -574,8 +579,8 @@ class AsyncTransport:
                 raise last_error from e
             except httpx.TimeoutException as e:
                 # F-O-09: see sync transport above.
-                last_error = KalshiTimeoutError(f"Request timed out: {method.upper()} {path}")
-                if method.upper() in RETRYABLE_METHODS and attempt < self._config.max_retries:
+                last_error = KalshiTimeoutError(f"Request timed out: {method_upper} {path}")
+                if method_upper in RETRYABLE_METHODS and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
                         raise last_error from None
@@ -585,9 +590,9 @@ class AsyncTransport:
                 raise last_error from e
             except httpx.TransportError as e:
                 # #240: see SyncTransport above for the retry rules.
-                last_error = KalshiNetworkError(f"Network error: {method.upper()} {path}")
+                last_error = KalshiNetworkError(f"Network error: {method_upper} {path}")
                 pre_wire = isinstance(e, httpx.ConnectError)
-                idempotent = method.upper() in RETRYABLE_METHODS
+                idempotent = method_upper in RETRYABLE_METHODS
                 if (idempotent or pre_wire) and attempt < self._config.max_retries:
                     delay = _compute_backoff(attempt, self._config)
                     if _would_exceed_budget(start, delay, total_timeout):
@@ -602,9 +607,9 @@ class AsyncTransport:
                     continue
                 raise last_error from e
             except httpx.HTTPError as e:
-                raise KalshiError(f"HTTP error: {method.upper()} {path}") from e
+                raise KalshiError(f"HTTP error: {method_upper} {path}") from e
 
-            logger.debug("Async response: %s %s → %d", method.upper(), path, response.status_code)
+            logger.debug("Async response: %s %s → %d", method_upper, path, response.status_code)
 
             if response.is_success:
                 return response
@@ -614,7 +619,7 @@ class AsyncTransport:
 
             should_retry = (
                 response.status_code in RETRYABLE_STATUS_CODES
-                and method.upper() in RETRYABLE_METHODS
+                and method_upper in RETRYABLE_METHODS
                 and attempt < self._config.max_retries
             )
 
@@ -637,7 +642,7 @@ class AsyncTransport:
 
             logger.warning(
                 "%s %s returned %d, retrying in %.1fs (attempt %d/%d)",
-                method.upper(),
+                method_upper,
                 path,
                 response.status_code,
                 delay,
@@ -653,10 +658,14 @@ class AsyncTransport:
     async def close(self) -> None:
         """Close the underlying httpx async client. Idempotent (#301).
 
-        Concurrent close() is safe under asyncio's cooperative scheduling —
-        no race between the ``_closed`` check and the flip.
+        #333: ``aclose()`` is awaited BEFORE ``_closed`` flips. If the
+        surrounding task is cancelled at the ``await`` point (or aclose
+        raises for any other reason) the flag stays ``False`` so a
+        follow-up ``close()`` on the same instance actually drains the
+        pool instead of returning a silent no-op. ``httpx.AsyncClient.
+        aclose`` is itself idempotent, so the retried call is safe.
         """
         if self._closed:
             return
-        self._closed = True
         await self._client.aclose()
+        self._closed = True

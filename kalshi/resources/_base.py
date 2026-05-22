@@ -13,6 +13,12 @@ from kalshi._base_client import MAX_RESPONSE_BODY_BYTES, AsyncTransport, SyncTra
 from kalshi.errors import AuthRequiredError, KalshiError
 from kalshi.models.common import Page
 
+# #352: pagination cycle detector. The seen-set is capped so a legitimately
+# long paginate (e.g. a fills export) can't blow memory; in the unlikely
+# event the cap is exhausted the guard still catches the adjacent-repeat
+# (A→A) shape via the legacy last_cursor check.
+_CURSOR_SEEN_CAP = 1024
+
 
 def _enforce_response_body_cap(response: httpx.Response) -> None:
     """Raise ``KalshiError`` when a 2xx body exceeds ``MAX_RESPONSE_BODY_BYTES`` (#323)."""
@@ -281,11 +287,13 @@ class SyncResource:
         path: str,
         *,
         json: dict[str, Any],
+        params: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = self._transport.request(
             "DELETE",
             path,
+            params=params,
             json=json,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
@@ -363,12 +371,16 @@ class SyncResource:
         cursor-repeat guard below provides the safety net against
         infinite loops.
 
-        Raises ``KalshiError`` if the previous page's cursor repeats —
-        the realistic server-pagination-bug shape (last page replayed
-        forever). Only the most recent cursor is retained, so memory is
-        O(1) regardless of page count.
+        Raises ``KalshiError`` if a cursor the server has already issued
+        recurs — covers both the trivial "last page replayed forever"
+        shape and the LB-rotation / cache-drift ``A→B→A→B→…`` cycles
+        (#352). The seen-set is bounded by ``_CURSOR_SEEN_CAP`` so a
+        legitimately very-long paginate can't grow unbounded; once the
+        cap is hit the guard degrades to the adjacent-repeat check.
+        Memory is therefore O(min(pages, cap)).
         """
         current_params = dict(params) if params else {}
+        seen_cursors: set[str] = set()
         last_cursor: str | None = None
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
@@ -384,12 +396,14 @@ class SyncResource:
             pages_fetched += 1
             if not page.cursor:
                 break
-            if page.cursor == last_cursor:
+            if page.cursor in seen_cursors or page.cursor == last_cursor:
                 raise KalshiError(
                     f"Cursor loop detected on {path}: server returned "
                     f"cursor {page.cursor!r} which was already used. "
                     f"This indicates a server-side pagination bug."
                 )
+            if len(seen_cursors) < _CURSOR_SEEN_CAP:
+                seen_cursors.add(page.cursor)
             last_cursor = page.cursor
             current_params["cursor"] = page.cursor
 
@@ -523,11 +537,13 @@ class AsyncResource:
         path: str,
         *,
         json: dict[str, Any],
+        params: dict[str, Any] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, Any] | None:
         response = await self._transport.request(
             "DELETE",
             path,
+            params=params,
             json=json,
             headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
@@ -592,6 +608,7 @@ class AsyncResource:
         Raises ``KalshiError`` on repeated cursor; see sync docstring.
         """
         current_params = dict(params) if params else {}
+        seen_cursors: set[str] = set()
         last_cursor: str | None = None
         pages_fetched = 0
         while max_pages is None or pages_fetched < max_pages:
@@ -608,11 +625,13 @@ class AsyncResource:
             pages_fetched += 1
             if not page.cursor:
                 break
-            if page.cursor == last_cursor:
+            if page.cursor in seen_cursors or page.cursor == last_cursor:
                 raise KalshiError(
                     f"Cursor loop detected on {path}: server returned "
                     f"cursor {page.cursor!r} which was already used. "
                     f"This indicates a server-side pagination bug."
                 )
+            if len(seen_cursors) < _CURSOR_SEEN_CAP:
+                seen_cursors.add(page.cursor)
             last_cursor = page.cursor
             current_params["cursor"] = page.cursor
