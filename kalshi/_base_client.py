@@ -227,6 +227,7 @@ class SyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.Client(**client_kwargs)
+        self._closed: bool = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -412,6 +413,16 @@ class SyncTransport:
         raise KalshiError("Max retries exhausted")
 
     def close(self) -> None:
+        """Close the underlying httpx client. Idempotent for sequential callers (#301).
+
+        Concurrent close() across threads is not race-free — ``_closed`` is
+        checked-then-set without a lock — but the worst case degrades to
+        one redundant httpx ``Client.close()`` (itself idempotent), so the
+        practical contract holds.
+        """
+        if self._closed:
+            return
+        self._closed = True
         self._client.close()
 
 
@@ -439,6 +450,7 @@ class AsyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.AsyncClient(**client_kwargs)
+        self._closed: bool = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -610,4 +622,12 @@ class AsyncTransport:
         raise KalshiError("Max retries exhausted")
 
     async def close(self) -> None:
+        """Close the underlying httpx async client. Idempotent (#301).
+
+        Concurrent close() is safe under asyncio's cooperative scheduling —
+        no race between the ``_closed`` check and the flip.
+        """
+        if self._closed:
+            return
+        self._closed = True
         await self._client.aclose()

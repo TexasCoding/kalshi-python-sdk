@@ -821,3 +821,21 @@ class TestAsyncTransportNetworkRetry:
             await transport.request("POST", "/portfolio/orders", json={"ticker": "T"})
         assert route.call_count == 1
         assert isinstance(exc_info.value.__cause__, httpx.ReadError)
+
+
+class TestAsyncTransportLifecycle:
+    @pytest.mark.asyncio
+    async def test_async_transport_close_is_idempotent(
+        self, transport: AsyncTransport
+    ) -> None:
+        """#301: async ``close()`` must be safe to call multiple times.
+
+        Mirrors ``test_auth.py::test_close_is_idempotent`` for ``KalshiAuth``
+        and the sync ``test_sync_transport_close_is_idempotent``: stacked
+        cleanup paths must not raise on an already-closed httpx AsyncClient.
+        """
+        await transport.close()
+        assert transport._closed is True
+        await transport.close()
+        await transport.close()  # triple-close OK
+        assert transport._closed is True
