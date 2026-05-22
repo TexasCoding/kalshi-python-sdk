@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
+from kalshi.models.markets import Orderbook, OrderbookLevel
+from kalshi.ws import orderbook as ob_mod
 from kalshi.ws.models.orderbook_delta import (
     OrderbookDeltaMessage,
     OrderbookDeltaPayload,
@@ -510,7 +514,7 @@ class TestWave2CorrectnessRegressions:
     """Round-3 W2 perf-correctness regressions for #327, #344, #347."""
 
     def test_issue_327_to_orderbook_no_revalidation(
-        self, monkeypatch: object
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """``_BookState.to_orderbook`` materializes via ``model_construct``.
 
@@ -524,11 +528,6 @@ class TestWave2CorrectnessRegressions:
         ``model_construct`` bypasses) and assert zero calls during a
         ``apply_snapshot`` + ``apply_delta`` cycle.
         """
-        import pytest
-
-        from kalshi.models.markets import Orderbook, OrderbookLevel
-        from kalshi.ws import orderbook as ob_mod
-
         calls = {"level": 0, "ob": 0}
         orig_level_init = OrderbookLevel.__init__
         orig_ob_init = Orderbook.__init__
@@ -541,25 +540,22 @@ class TestWave2CorrectnessRegressions:
             calls["ob"] += 1
             orig_ob_init(self, **kw)  # type: ignore[arg-type]
 
-        mp = pytest.MonkeyPatch()
-        mp.setattr(OrderbookLevel, "__init__", spy_level_init)
-        mp.setattr(Orderbook, "__init__", spy_ob_init)
-        try:
-            mgr = ob_mod.OrderbookManager()
-            book = mgr.apply_snapshot(
-                make_snapshot(
-                    yes=[["0.50", "100"], ["0.55", "200"], ["0.60", "300"]],
-                    no=[["0.40", "150"], ["0.35", "75"]],
-                )
+        monkeypatch.setattr(OrderbookLevel, "__init__", spy_level_init)
+        monkeypatch.setattr(Orderbook, "__init__", spy_ob_init)
+
+        mgr = ob_mod.OrderbookManager()
+        book = mgr.apply_snapshot(
+            make_snapshot(
+                yes=[["0.50", "100"], ["0.55", "200"], ["0.60", "300"]],
+                no=[["0.40", "150"], ["0.35", "75"]],
             )
-            assert len(book.yes) == 3 and len(book.no) == 2
-            # Force re-materialization by invalidating and reading again.
-            delta_book = mgr.apply_delta(
-                make_delta(price="0.50", delta="50", side="yes")
-            )
-            assert delta_book is not None
-        finally:
-            mp.undo()
+        )
+        assert len(book.yes) == 3 and len(book.no) == 2
+        # Force re-materialization by invalidating and reading again.
+        delta_book = mgr.apply_delta(
+            make_delta(price="0.50", delta="50", side="yes")
+        )
+        assert delta_book is not None
 
         assert (
             calls["level"] == 0
@@ -568,7 +564,9 @@ class TestWave2CorrectnessRegressions:
             calls["ob"] == 0
         ), f"Orderbook validating __init__ ran {calls['ob']} times"
 
-    def test_issue_344_apply_snapshot_public_single_copy(self) -> None:
+    def test_issue_344_apply_snapshot_public_single_copy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Public ``apply_snapshot`` assigns each side dict exactly once.
 
         Pre-fix the public path identity-adopted ``msg.msg.yes`` / ``.no``
@@ -577,10 +575,6 @@ class TestWave2CorrectnessRegressions:
         per side for one useful copy. We spy on ``_BookState.__setattr__``
         and assert exactly one ``yes`` and one ``no`` assignment.
         """
-        import pytest
-
-        from kalshi.ws import orderbook as ob_mod
-
         side_assignments: list[tuple[str, int]] = []
         orig_setattr = ob_mod._BookState.__setattr__
 
@@ -589,18 +583,15 @@ class TestWave2CorrectnessRegressions:
                 side_assignments.append((name, id(value)))
             orig_setattr(self, name, value)  # type: ignore[arg-type]
 
-        mp = pytest.MonkeyPatch()
-        mp.setattr(ob_mod._BookState, "__setattr__", spy_setattr)
-        try:
-            msg = make_snapshot(
-                yes=[["0.50", "100"], ["0.55", "200"]],
-                no=[["0.45", "150"]],
-            )
-            mgr = ob_mod.OrderbookManager()
-            book = mgr.apply_snapshot(msg)
-            assert book.ticker == "T"
-        finally:
-            mp.undo()
+        monkeypatch.setattr(ob_mod._BookState, "__setattr__", spy_setattr)
+
+        msg = make_snapshot(
+            yes=[["0.50", "100"], ["0.55", "200"]],
+            no=[["0.45", "150"]],
+        )
+        mgr = ob_mod.OrderbookManager()
+        book = mgr.apply_snapshot(msg)
+        assert book.ticker == "T"
 
         yes_assigns = [a for a in side_assignments if a[0] == "yes"]
         no_assigns = [a for a in side_assignments if a[0] == "no"]
