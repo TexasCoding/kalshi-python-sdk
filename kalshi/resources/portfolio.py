@@ -337,12 +337,12 @@ class AsyncPortfolioResource(AsyncResource):
     ) -> AsyncIterator[MarketPosition]:
         """Async counterpart of :meth:`PortfolioResource.positions_all`. Use ``async for``.
 
-        The endpoint response also carries ``event_positions`` (aggregate
-        roll-ups over the same underlying markets); those are *not*
-        surfaced here because page boundaries cut the aggregate
-        arbitrarily and concatenating across pages would not recompute a
-        meaningful event-level total. Callers that need the event view
-        should iterate :meth:`positions` page-by-page.
+        Mirrors :meth:`settlements_all`. The endpoint response also carries
+        ``event_positions`` (aggregate roll-ups over the same underlying
+        markets); those are *not* surfaced here because page boundaries cut
+        the aggregate arbitrarily and concatenating across pages would not
+        recompute a meaningful event-level total. Callers that need the
+        event view should iterate :meth:`positions` page-by-page.
         """
         self._require_auth()
         _validate_max_pages(max_pages)
