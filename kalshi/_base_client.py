@@ -164,7 +164,7 @@ def _would_exceed_budget(start: float, delay: float, total_timeout: float | None
 
 
 
-def _assert_no_auth_headers(h: dict[str, str] | None) -> None:
+def _assert_no_auth_headers(h: Mapping[str, str] | None) -> None:
     """Reject caller-supplied ``KALSHI-ACCESS-*`` keys (case-insensitive).
 
     #298: auth headers are SDK-managed (RSA-PSS signed per attempt) and

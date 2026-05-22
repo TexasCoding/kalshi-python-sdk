@@ -352,10 +352,10 @@ class TestExtraHeadersSecurityFreeze:
         with KalshiClient(auth=test_auth, config=cfg) as client:
             client.markets.get("BTC")
         wire = route.calls.last.request.headers
-        # No forged lowercase pair ever reached the wire.
-        forged = [k for k, _ in wire.raw if k.lower() == b"kalshi-access-key"]
-        # Exactly one signed KALSHI-ACCESS-KEY line, never two.
-        assert len(forged) == 1, forged
+        # Exactly one KALSHI-ACCESS-KEY line on the wire — the SDK-signed
+        # one, not a forged duplicate.
+        access_key_lines = [k for k, _ in wire.raw if k.lower() == b"kalshi-access-key"]
+        assert len(access_key_lines) == 1, access_key_lines
         # And the signed value is not the forged one.
         assert wire["KALSHI-ACCESS-KEY"] != "forged"
 
