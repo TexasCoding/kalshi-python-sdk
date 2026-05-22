@@ -194,24 +194,32 @@ class KalshiWebSocket:
         # #357: close the connection FIRST. The in-flight ``recv()``
         # raises ``ConnectionClosed``; the loop drains any buffered
         # frames, sees ``_running=False``, and exits at the top of its
-        # while.
-        if self._connection:
-            await self._connection.close()
-
-        if self._recv_task and not self._recv_task.done():
-            # The poll-interval bounds the latency at ``_RECV_POLL_S``
-            # even if close races the wait.
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await asyncio.wait_for(self._recv_task, timeout=2.0)
-            if not self._recv_task.done():
-                self._recv_task.cancel()
+        # while. Guard the close in try/finally so a misbehaving
+        # transport (e.g. ``close()`` raising) cannot strand iterator
+        # consumers waiting on queues that never receive a sentinel.
+        try:
+            if self._connection:
+                await self._connection.close()
+        except Exception:
+            logger.warning(
+                "_connection.close() raised during _stop", exc_info=True
+            )
+        finally:
+            if self._recv_task and not self._recv_task.done():
+                # The poll-interval bounds the latency at ``_RECV_POLL_S``
+                # even if close races the wait.
                 with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await self._recv_task
+                    await asyncio.wait_for(self._recv_task, timeout=2.0)
+                if not self._recv_task.done():
+                    self._recv_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await self._recv_task
 
-        # Sentinels last (#357): iterator consumers have already seen
-        # the post-close drained frames; the sentinel now terminates
-        # their ``async for`` cleanly.
-        await self._broadcast_sentinels()
+            # Sentinels last (#357): iterator consumers have already seen
+            # the post-close drained frames; the sentinel now terminates
+            # their ``async for`` cleanly. Inside ``finally`` so a raising
+            # close() still wakes consumers instead of hanging them.
+            await self._broadcast_sentinels()
 
         # Reset state AFTER awaiting close so teardown still has manager refs (#297).
         self._connection = None
@@ -466,8 +474,8 @@ class KalshiWebSocket:
             ok, gap = self._seq_tracker.track_sync(
                 sid, seq, msg_type if msg_type else channel
             )
-            if gap is not None and self._seq_tracker._on_gap is not None:
-                await self._seq_tracker._on_gap(gap)
+            if gap is not None:
+                await self._seq_tracker.fire_gap(gap)
             if not ok:
                 # Gap detected — skip dispatching this message.
                 # The gap handler will trigger resync.

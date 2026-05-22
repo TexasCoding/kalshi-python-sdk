@@ -1042,3 +1042,45 @@ class TestIssue357StopOrdering:
         assert close_idx < broadcast_idx, (
             "_stop must close the connection BEFORE broadcasting sentinels (#357)"
         )
+
+    async def test_issue_357_stop_broadcasts_sentinels_when_close_raises(
+        self,
+        fake_ws,  # type: ignore[no-untyped-def]
+        test_auth,  # type: ignore[no-untyped-def]
+    ) -> None:
+        """#357 round-2: ``_stop()`` must broadcast sentinels even when
+        ``_connection.close()`` raises, otherwise iterator consumers hang
+        on queues whose recv loop is dead. The close() call is wrapped in
+        ``try/except``; the sentinel broadcast lives in ``finally``.
+        """
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+
+        sentinels: list[str] = []
+
+        async with ws.connect() as session:
+            await session.subscribe_ticker(tickers=["T1"])
+            assert ws._connection is not None
+            assert ws._sub_mgr is not None
+
+            async def raising_close() -> None:
+                raise RuntimeError("transport boom")
+
+            ws._connection.close = raising_close  # type: ignore[method-assign]
+
+            for sid, sub in ws._sub_mgr.active_subscriptions.items():
+                real_sentinel = sub.queue.put_sentinel
+
+                async def tracking_sentinel(
+                    _real: Any = real_sentinel, _sid: int = sid,
+                ) -> None:
+                    sentinels.append(f"sid={_sid}")
+                    await _real()
+
+                sub.queue.put_sentinel = tracking_sentinel  # type: ignore[method-assign]
+
+        # __aexit__ -> _stop(); close() raises but sentinels MUST still fire.
+        assert sentinels, (
+            "Sentinels must broadcast even when _connection.close() raises; "
+            "otherwise iterator consumers hang waiting on the closed queue."
+        )

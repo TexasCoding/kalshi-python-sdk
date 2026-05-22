@@ -134,6 +134,16 @@ class SequenceTracker:
             await self._on_gap(gap)
         return ok
 
+    async def fire_gap(self, gap: SequenceGap) -> None:
+        """Invoke the configured ``on_gap`` callback, if any.
+
+        Encapsulates ``_on_gap`` for callers using the sync fast path
+        (``track_sync``) so they do not need to reach into private state
+        to dispatch the gap notification.
+        """
+        if self._on_gap is not None:
+            await self._on_gap(gap)
+
     def peek(self, sid: int) -> int | None:
         """Return the current last-seen seq for ``sid``, or None if untracked.
 
