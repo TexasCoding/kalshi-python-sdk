@@ -11,6 +11,12 @@ from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
 UserFilterLiteral = Literal["self"]
 """Filter for items created by the authenticated user. Spec: UserFilter enum."""
 
+RfqStatusLiteral = Literal["open", "closed"]
+"""RFQ status filter for GET /communications/rfqs. Spec: RFQ.status enum."""
+
+QuoteStatusLiteral = Literal["open", "accepted", "confirmed", "executed", "cancelled"]
+"""Quote status filter for GET /communications/quotes. Spec: Quote.status enum."""
+
 
 class MveSelectedLeg(BaseModel):
     """A selected leg within a multivariate event collection RFQ."""

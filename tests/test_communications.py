@@ -867,3 +867,80 @@ class TestClientWiring:
         assert isinstance(
             async_client.communications, AsyncCommunicationsResource,
         )
+
+
+class TestIssue324CommunicationsStatusLiteralNarrowing:
+    """``status`` on list_rfqs / list_quotes is narrowed to a closed Literal
+    matching the spec's RFQ.status and Quote.status enums (#324). The values
+    are stable: tightening the type later would be a breaking change, so we
+    pin them here. Static checking (mypy) is what fences typos at the call
+    site; we mirror the static contract at runtime via ``typing.get_args``.
+    """
+
+    def test_issue_324_communications_status_literal_narrowing(self) -> None:
+        from typing import get_args
+
+        from kalshi.models.communications import (
+            QuoteStatusLiteral,
+            RfqStatusLiteral,
+        )
+
+        # Pin the closed set of values against the OpenAPI spec. Adding a new
+        # status is a non-breaking expansion; removing one is breaking.
+        assert set(get_args(RfqStatusLiteral)) == {"open", "closed"}
+        assert set(get_args(QuoteStatusLiteral)) == {
+            "open", "accepted", "confirmed", "executed", "cancelled",
+        }
+
+    def test_issue_324_status_literals_reexported_from_models_and_root(self) -> None:
+        import kalshi
+        import kalshi.models
+
+        assert kalshi.RfqStatusLiteral is kalshi.models.RfqStatusLiteral
+        assert kalshi.QuoteStatusLiteral is kalshi.models.QuoteStatusLiteral
+        assert "RfqStatusLiteral" in kalshi.__all__
+        assert "QuoteStatusLiteral" in kalshi.__all__
+
+    @respx.mock
+    def test_issue_324_valid_rfq_status_flows_through_to_query(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": []}))
+        comms.list_rfqs(status="closed")
+        assert route.calls[0].request.url.params["status"] == "closed"
+
+    @respx.mock
+    def test_issue_324_valid_quote_status_flows_through_to_query(
+        self, comms: CommunicationsResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        comms.list_quotes(status="executed", quote_creator_user_id="u1")
+        assert route.calls[0].request.url.params["status"] == "executed"
+
+    @pytest.mark.asyncio
+    async def test_issue_324_valid_rfq_status_flows_through_to_query_async(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": []}))
+        await async_comms.list_rfqs(status="closed")
+        assert route.calls[0].request.url.params["status"] == "closed"
+
+    @pytest.mark.asyncio
+    async def test_issue_324_valid_quote_status_flows_through_to_query_async(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        await async_comms.list_quotes(status="executed", quote_creator_user_id="u1")
+        assert route.calls[0].request.url.params["status"] == "executed"

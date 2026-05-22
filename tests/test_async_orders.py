@@ -1559,6 +1559,72 @@ class TestAsyncBatchCancelV2:
             )
 
 
+class TestIssue329AsyncBatchV2BytesFastPath:
+    """Async mirror of test_orders' TestIssue329BatchV2BytesFastPath — V2 batch
+    endpoints must route through the bytes fast-path helpers (#223, #329).
+    """
+
+    @pytest.mark.asyncio
+    async def test_issue_329_v2_batch_create_uses_bytes_fast_path(
+        self, orders: AsyncOrdersResource,
+    ) -> None:
+        request = BatchCreateOrdersV2Request(
+            orders=[
+                CreateOrderV2Request(
+                    ticker="MKT-A",
+                    client_order_id="cli-1",
+                    side="bid",
+                    count=Decimal("10"),
+                    price=Decimal("0.50"),
+                    time_in_force="good_till_canceled",
+                    self_trade_prevention_type="taker_at_cross",
+                ),
+            ],
+        )
+        with patch.object(
+            AsyncOrdersResource,
+            "_post_json",
+            new=AsyncMock(return_value={"orders": []}),
+        ) as post_json, patch.object(
+            AsyncOrdersResource, "_post", new=AsyncMock(),
+        ) as post_dict:
+            await orders.batch_create_v2(request=request)
+        post_dict.assert_not_called()
+        assert post_json.call_count == 1
+        kwargs = post_json.call_args.kwargs
+        assert "json" not in kwargs
+        body = kwargs["content"]
+        assert isinstance(body, bytes)
+        assert json.loads(body) == request.model_dump(
+            exclude_none=True, by_alias=True, mode="json",
+        )
+
+    @pytest.mark.asyncio
+    async def test_issue_329_v2_batch_cancel_uses_bytes_fast_path(
+        self, orders: AsyncOrdersResource,
+    ) -> None:
+        request = BatchCancelOrdersV2Request(
+            orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+        )
+        with patch.object(
+            AsyncOrdersResource,
+            "_delete_with_body_json",
+            new=AsyncMock(return_value={"orders": []}),
+        ) as del_json, patch.object(
+            AsyncOrdersResource, "_delete_with_body", new=AsyncMock(),
+        ) as del_dict:
+            await orders.batch_cancel_v2(request=request)
+        del_dict.assert_not_called()
+        assert del_json.call_count == 1
+        kwargs = del_json.call_args.kwargs
+        assert "json" not in kwargs
+        body = kwargs["content"]
+        assert isinstance(body, bytes)
+        assert json.loads(body) == request.model_dump(
+            exclude_none=True, by_alias=True, mode="json",
+        )
+
+
 class TestAsyncAmendDecreaseV2QueryParams:
     """Regression guard: subaccount must reach the query string (not the body)
     on both amend_v2 and decrease_v2 — exchange_index stays in the body.

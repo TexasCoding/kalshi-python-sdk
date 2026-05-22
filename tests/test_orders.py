@@ -1793,6 +1793,67 @@ class TestBatchCancelV2:
             )
 
 
+class TestIssue329BatchV2BytesFastPath:
+    """V2 batch endpoints must route through the v2.4 #223 bytes fast-path
+    (``_post_json`` / ``_delete_with_body_json`` with ``content=<bytes>``),
+    not the dict-walk slow path (``_post`` / ``_delete_with_body`` with
+    ``json=<dict>``). See issues #223 and #329.
+
+    We assert by patching the transport-helper layer: the fast-path helpers
+    forward ``content=`` bytes; the slow-path helpers forward ``json=``.
+    """
+
+    def test_issue_329_v2_batch_create_uses_bytes_fast_path(
+        self, orders: OrdersResource,
+    ) -> None:
+        request = BatchCreateOrdersV2Request(
+            orders=[
+                CreateOrderV2Request(
+                    ticker="MKT-A",
+                    client_order_id="cli-1",
+                    side="bid",
+                    count=Decimal("10"),
+                    price=Decimal("0.50"),
+                    time_in_force="good_till_canceled",
+                    self_trade_prevention_type="taker_at_cross",
+                ),
+            ],
+        )
+        with patch.object(
+            OrdersResource, "_post_json", return_value={"orders": []},
+        ) as post_json, patch.object(OrdersResource, "_post") as post_dict:
+            orders.batch_create_v2(request=request)
+        post_dict.assert_not_called()
+        assert post_json.call_count == 1
+        kwargs = post_json.call_args.kwargs
+        assert "json" not in kwargs
+        body = kwargs["content"]
+        assert isinstance(body, bytes)
+        assert json.loads(body) == request.model_dump(
+            exclude_none=True, by_alias=True, mode="json",
+        )
+
+    def test_issue_329_v2_batch_cancel_uses_bytes_fast_path(
+        self, orders: OrdersResource,
+    ) -> None:
+        request = BatchCancelOrdersV2Request(
+            orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
+        )
+        with patch.object(
+            OrdersResource, "_delete_with_body_json", return_value={"orders": []},
+        ) as del_json, patch.object(OrdersResource, "_delete_with_body") as del_dict:
+            orders.batch_cancel_v2(request=request)
+        del_dict.assert_not_called()
+        assert del_json.call_count == 1
+        kwargs = del_json.call_args.kwargs
+        assert "json" not in kwargs
+        body = kwargs["content"]
+        assert isinstance(body, bytes)
+        assert json.loads(body) == request.model_dump(
+            exclude_none=True, by_alias=True, mode="json",
+        )
+
+
 class TestV2RequiresAuth:
     """Every V2 method must reject an unauthenticated client before
     issuing the request (matches the V1 cancel/create/etc. tests).

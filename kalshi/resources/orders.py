@@ -167,6 +167,7 @@ def _build_batch_cancel_body(
     return request.model_dump_json(exclude_none=True, by_alias=True).encode()
 
 
+
 def _build_amend_body(
     request: AmendOrderRequest | None,
     *,
@@ -867,9 +868,9 @@ class OrdersResource(SyncResource):
         self, *, request: BatchCreateOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersV2Response:
         self._require_auth()
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._post(
-            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        body = request.model_dump_json(exclude_none=True, by_alias=True).encode()
+        data = self._post_json(
+            "/portfolio/events/orders/batched", content=body, extra_headers=extra_headers
         )
         return BatchCreateOrdersV2Response.model_validate(data)
 
@@ -877,9 +878,9 @@ class OrdersResource(SyncResource):
         self, *, request: BatchCancelOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersV2Response:
         self._require_auth()
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = self._delete_with_body(
-            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        body = request.model_dump_json(exclude_none=True, by_alias=True).encode()
+        data = self._delete_with_body_json(
+            "/portfolio/events/orders/batched", content=body, extra_headers=extra_headers
         )
         if data is None:
             raise KalshiError("Expected BatchCancelOrdersV2Response body, got 204 No Content.")
@@ -1408,9 +1409,9 @@ class AsyncOrdersResource(AsyncResource):
         self, *, request: BatchCreateOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCreateOrdersV2Response:
         self._require_auth()
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._post(
-            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        body = request.model_dump_json(exclude_none=True, by_alias=True).encode()
+        data = await self._post_json(
+            "/portfolio/events/orders/batched", content=body, extra_headers=extra_headers
         )
         return BatchCreateOrdersV2Response.model_validate(data)
 
@@ -1418,9 +1419,9 @@ class AsyncOrdersResource(AsyncResource):
         self, *, request: BatchCancelOrdersV2Request, extra_headers: dict[str, str] | None = None
     ) -> BatchCancelOrdersV2Response:
         self._require_auth()
-        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
-        data = await self._delete_with_body(
-            "/portfolio/events/orders/batched", json=body, extra_headers=extra_headers
+        body = request.model_dump_json(exclude_none=True, by_alias=True).encode()
+        data = await self._delete_with_body_json(
+            "/portfolio/events/orders/batched", content=body, extra_headers=extra_headers
         )
         if data is None:
             raise KalshiError("Expected BatchCancelOrdersV2Response body, got 204 No Content.")
