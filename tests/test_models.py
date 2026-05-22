@@ -1460,3 +1460,226 @@ class TestEventFeeMultiplierOverrideDecimal:
 
         with pytest.raises(TypeError, match="bool"):
             Event.model_validate(event_dict(fee_multiplier_override=True))
+
+
+class TestStrictIntRejectsBoolOnRequestModels:
+    """#295: every ``StrictInt`` field on a Request model must reject ``bool``.
+
+    ``bool`` is an ``int`` subclass, so a plain ``int`` annotation would
+    silently coerce ``True``->1 / ``False``->0 — silently routing money to
+    subaccount 1, capping order groups at 1 contract, transferring 1 cent
+    between the wrong subaccounts, etc. #243 hardened ``buy_max_cost``
+    against this; this test pins the same guard on every other int request
+    field.
+    """
+
+    @pytest.mark.parametrize(
+        ("model_path", "field_name", "other_kwargs"),
+        [
+            # CreateOrderRequest
+            (
+                "kalshi.models.orders:CreateOrderRequest",
+                "subaccount",
+                {"ticker": "MKT", "side": "yes", "action": "buy", "count": 1},
+            ),
+            (
+                "kalshi.models.orders:CreateOrderRequest",
+                "exchange_index",
+                {"ticker": "MKT", "side": "yes", "action": "buy", "count": 1},
+            ),
+            (
+                "kalshi.models.orders:CreateOrderRequest",
+                "expiration_ts",
+                {"ticker": "MKT", "side": "yes", "action": "buy", "count": 1},
+            ),
+            # AmendOrderRequest
+            (
+                "kalshi.models.orders:AmendOrderRequest",
+                "subaccount",
+                {"ticker": "MKT", "side": "yes", "action": "buy"},
+            ),
+            (
+                "kalshi.models.orders:AmendOrderRequest",
+                "exchange_index",
+                {"ticker": "MKT", "side": "yes", "action": "buy"},
+            ),
+            # DecreaseOrderRequest — reduce_by/reduce_to are XOR with each other,
+            # so each row pairs the StrictInt-under-test against a valid sibling
+            # where required. subaccount/exchange_index need a real reduce_* set.
+            ("kalshi.models.orders:DecreaseOrderRequest", "reduce_by", {}),
+            ("kalshi.models.orders:DecreaseOrderRequest", "reduce_to", {}),
+            (
+                "kalshi.models.orders:DecreaseOrderRequest",
+                "subaccount",
+                {"reduce_by": 1},
+            ),
+            (
+                "kalshi.models.orders:DecreaseOrderRequest",
+                "exchange_index",
+                {"reduce_by": 1},
+            ),
+            # BatchCancelOrdersRequestOrder
+            (
+                "kalshi.models.orders:BatchCancelOrdersRequestOrder",
+                "subaccount",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersRequestOrder",
+                "exchange_index",
+                {"order_id": "abc"},
+            ),
+            # Order groups
+            (
+                "kalshi.models.order_groups:CreateOrderGroupRequest",
+                "contracts_limit",
+                {},
+            ),
+            (
+                "kalshi.models.order_groups:CreateOrderGroupRequest",
+                "subaccount",
+                {"contracts_limit": 10},
+            ),
+            (
+                "kalshi.models.order_groups:CreateOrderGroupRequest",
+                "exchange_index",
+                {"contracts_limit": 10},
+            ),
+            (
+                "kalshi.models.order_groups:UpdateOrderGroupLimitRequest",
+                "contracts_limit",
+                {},
+            ),
+            # Communications / RFQ
+            (
+                "kalshi.models.communications:CreateRFQRequest",
+                "contracts",
+                {"market_ticker": "MKT", "rest_remainder": True},
+            ),
+            (
+                "kalshi.models.communications:CreateRFQRequest",
+                "subaccount",
+                {"market_ticker": "MKT", "rest_remainder": True},
+            ),
+            # Subaccount transfers — the highest-risk surface in #295: a bool
+            # slipping through silently moves cents between subaccount 1 and 1.
+            (
+                "kalshi.models.subaccounts:ApplySubaccountTransferRequest",
+                "from_subaccount",
+                {
+                    "client_transfer_id": "00000000-0000-4000-8000-000000000000",
+                    "to_subaccount": 2,
+                    "amount_cents": 1,
+                },
+            ),
+            (
+                "kalshi.models.subaccounts:ApplySubaccountTransferRequest",
+                "to_subaccount",
+                {
+                    "client_transfer_id": "00000000-0000-4000-8000-000000000000",
+                    "from_subaccount": 1,
+                    "amount_cents": 1,
+                },
+            ),
+            (
+                "kalshi.models.subaccounts:ApplySubaccountTransferRequest",
+                "amount_cents",
+                {
+                    "client_transfer_id": "00000000-0000-4000-8000-000000000000",
+                    "from_subaccount": 1,
+                    "to_subaccount": 2,
+                },
+            ),
+            # V2 order requests (#295 follow-up)
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "expiration_time",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "subaccount",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "exchange_index",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:DecreaseOrderV2Request",
+                "exchange_index",
+                {"reduce_by": 1},
+            ),
+            (
+                "kalshi.models.orders:AmendOrderV2Request",
+                "exchange_index",
+                {"ticker": "MKT", "side": "bid", "price": "0.50", "count": 1},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersV2RequestOrder",
+                "subaccount",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersV2RequestOrder",
+                "exchange_index",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.subaccounts:UpdateSubaccountNettingRequest",
+                "subaccount_number",
+                {"enabled": True},
+            ),
+            (
+                "kalshi.models.communications:CreateQuoteRequest",
+                "subaccount",
+                {
+                    "rfq_id": "rfq1",
+                    "yes_bid": "0.50",
+                    "no_bid": "0.50",
+                    "rest_remainder": True,
+                },
+            ),
+        ],
+    )
+    def test_strict_int_rejects_bool_on_request_models(
+        self,
+        model_path: str,
+        field_name: str,
+        other_kwargs: dict,
+    ) -> None:
+        import importlib
+
+        from pydantic import ValidationError
+
+        module_name, class_name = model_path.split(":")
+        model_cls = getattr(importlib.import_module(module_name), class_name)
+
+        for bool_value in (True, False):
+            with pytest.raises(ValidationError, match=r"bool"):
+                model_cls(**{**other_kwargs, field_name: bool_value})

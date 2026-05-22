@@ -138,3 +138,18 @@ field site that the value is *seconds* (not milliseconds, not a datetime).
 Callers wanting a :class:`datetime.datetime` can use
 ``datetime.fromtimestamp(value, tz=timezone.utc)``.
 """
+
+
+def _reject_bool_int(value: object) -> object:
+    """Reject ``bool`` so True->1 / False->0 cannot silently route money (#243 pattern, #295)."""
+    if isinstance(value, bool):
+        raise ValueError(
+            "bool is not a valid int here — pass an explicit integer "
+            "(e.g. 1 instead of True). bool is an int subclass so True "
+            "would otherwise silently become 1."
+        )
+    return value
+
+
+StrictInt = Annotated[int, BeforeValidator(_reject_bool_int)]
+"""``int`` that rejects ``bool`` — use on every Request-model integer field. See #295."""

@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
 
 UserFilterLiteral = Literal["self"]
 """Filter for items created by the authenticated user. Spec: UserFilter enum."""
@@ -150,14 +150,14 @@ class CreateRFQRequest(BaseModel):
 
     market_ticker: str
     rest_remainder: bool
-    contracts: int | None = Field(default=None, ge=1)
+    contracts: StrictInt | None = Field(default=None, ge=1)
     target_cost: DollarDecimal | None = Field(
         default=None,
         serialization_alias="target_cost_dollars",
     )
     replace_existing: bool | None = None
     subtrader_id: str | None = None
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -199,7 +199,7 @@ class CreateQuoteRequest(BaseModel):
     yes_bid: DollarDecimal
     no_bid: DollarDecimal
     rest_remainder: bool
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: StrictInt | None = Field(default=None, ge=0)
     post_only: bool | None = None
 
     model_config = {"extra": "forbid"}

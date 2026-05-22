@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_validator, model_validator
 
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
 
 # Literal aliases for fixed-enum kwargs on order resource methods.
 # Source of truth: OpenAPI spec v3.13.0 (specs/openapi.yaml).
@@ -183,7 +183,7 @@ class CreateOrderRequest(BaseModel):
         serialization_alias="no_price_dollars",
     )
     client_order_id: str | None = None
-    expiration_ts: int | None = None
+    expiration_ts: StrictInt | None = None
     buy_max_cost: int | None = None
     time_in_force: TimeInForceLiteral | None = None
     post_only: bool | None = None
@@ -191,8 +191,8 @@ class CreateOrderRequest(BaseModel):
     self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
     order_group_id: str | None = None
     cancel_order_on_pause: bool | None = None
-    subaccount: int | None = None
-    exchange_index: int | None = None
+    subaccount: StrictInt | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -266,8 +266,8 @@ class AmendOrderRequest(BaseModel):
     )
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
-    subaccount: int | None = None
-    exchange_index: int | None = None
+    subaccount: StrictInt | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -286,10 +286,10 @@ class DecreaseOrderRequest(BaseModel):
     builds this model internally; method signature unchanged.
     """
 
-    reduce_by: int | None = None
-    reduce_to: int | None = None
-    subaccount: int | None = None
-    exchange_index: int | None = None
+    reduce_by: StrictInt | None = None
+    reduce_to: StrictInt | None = None
+    subaccount: StrictInt | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -332,8 +332,8 @@ class BatchCancelOrdersRequestOrder(BaseModel):
     """
 
     order_id: str
-    subaccount: int | None = None
-    exchange_index: int | None = None
+    subaccount: StrictInt | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -475,13 +475,13 @@ class CreateOrderV2Request(BaseModel):
     price: DollarDecimal
     time_in_force: TimeInForceLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral
-    expiration_time: int | None = None
+    expiration_time: StrictInt | None = None
     post_only: bool | None = None
     cancel_order_on_pause: bool | None = None
     reduce_only: bool | None = None
-    subaccount: int | None = Field(default=None, ge=0)
+    subaccount: StrictInt | None = Field(default=None, ge=0)
     order_group_id: str | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -520,7 +520,7 @@ class DecreaseOrderV2Request(BaseModel):
 
     reduce_by: FixedPointCount | None = None
     reduce_to: FixedPointCount | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -560,7 +560,7 @@ class AmendOrderV2Request(BaseModel):
     count: FixedPointCount
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
-    exchange_index: int | None = None
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -622,8 +622,8 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
     """Single entry in BatchCancelOrdersV2Request.orders."""
 
     order_id: str
-    subaccount: int | None = Field(default=None, ge=0)
-    exchange_index: int | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 

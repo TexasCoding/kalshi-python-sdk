@@ -167,7 +167,7 @@ from kalshi.models import (
     WeeklySchedule,
     Withdrawal,
 )
-from kalshi.types import NullableList
+from kalshi.types import NullableList, StrictInt
 
 __all__ = [
     "RFQ",
@@ -320,6 +320,7 @@ __all__ = [
     "SettlementStatusLiteral",
     "SideLiteral",
     "SportFilterDetails",
+    "StrictInt",
     "StructuredTarget",
     "SubaccountBalance",
     "SubaccountNettingConfig",

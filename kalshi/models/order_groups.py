@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import FixedPointCount, NullableList
+from kalshi.types import FixedPointCount, NullableList, StrictInt
 
 
 class OrderGroup(BaseModel):
@@ -55,9 +55,9 @@ class CreateOrderGroupResponse(BaseModel):
 class CreateOrderGroupRequest(BaseModel):
     """Create body. SDK sends integer form; spec's `contracts_limit_fp` string variant unused."""
 
-    contracts_limit: int = Field(..., ge=1)
-    subaccount: int | None = Field(default=None, ge=0)
-    exchange_index: int | None = None
+    contracts_limit: StrictInt = Field(..., ge=1)
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -65,6 +65,6 @@ class CreateOrderGroupRequest(BaseModel):
 class UpdateOrderGroupLimitRequest(BaseModel):
     """Update-limit body. No `subaccount` — spec omits SubaccountQuery on /limit."""
 
-    contracts_limit: int = Field(..., ge=1)
+    contracts_limit: StrictInt = Field(..., ge=1)
 
     model_config = {"extra": "forbid"}
