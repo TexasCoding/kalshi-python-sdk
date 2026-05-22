@@ -851,8 +851,7 @@ class TestIssue332BackpressureTeardown:
         to exit the ``async with`` block and start a fresh session for
         recovery — which is also exercised here.
         """
-        from kalshi.errors import KalshiBackpressureError
-
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)
         async with ws.connect() as session:
@@ -926,9 +925,3 @@ class TestIssue332BackpressureTeardown:
             )
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.market_ticker == "T2"
-
-        # Drain the prior iterator's KalshiBackpressureError tail (the
-        # first session's stream still holds the snapshot + error; reading
-        # the error here keeps it from surfacing as an unhandled exception
-        # in test teardown).
-        _ = KalshiBackpressureError

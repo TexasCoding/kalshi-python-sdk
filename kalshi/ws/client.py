@@ -983,6 +983,9 @@ class KalshiWebSocket:
                             self._recv_task.result()
                     finally:
                         await self._broadcast_sentinels()
+                # NOTE: _recv_task is intentionally NOT reset to None here —
+                # session lifecycle state is owned by ``_stop()`` (called from
+                # ``__aexit__``), which performs the full reset atomically.
             elif self._recv_task in done:
                 # Server-side close / crash without stop event firing. The
                 # recv loop's error paths broadcast sentinels themselves;
