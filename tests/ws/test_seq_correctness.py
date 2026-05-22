@@ -112,13 +112,19 @@ class TestBackpressureDoesNotAdvanceSeq:
 
             recv_task = session._recv_task
             assert recv_task is not None
+            # #332: the recv loop now clears manager refs on
+            # ``KalshiBackpressureError`` teardown (close the WS and reset
+            # state so the next subscribe doesn't resurrect a dead session).
+            # Snapshot the tracker BEFORE awaiting the task so we can still
+            # validate the #78 invariant on the now-detached object.
+            seq_tracker = session._seq_tracker
             await asyncio.wait_for(recv_task, timeout=2.0)
 
             # #78: the seq watermark MUST still be 1, not 2. If it were 2,
             # a post-reconnect message with seq=2 would be treated as a
             # duplicate (silent desync); a message with seq=3 would not
             # be detected as a gap.
-            assert session._seq_tracker.peek(sid) == 1, (
+            assert seq_tracker.peek(sid) == 1, (
                 "#78 regression: ERROR-overflow advanced last_seq past a "
                 "dropped message; orderbook is now silently desynced."
             )
