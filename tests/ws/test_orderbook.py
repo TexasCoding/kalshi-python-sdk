@@ -461,3 +461,55 @@ class TestSnapshotIdentityAdoption:
         assert Decimal("0.60") in held_yes
         assert held_yes[Decimal("0.60")] == Decimal("25.00")
         assert held_yes is mgr._books["T"].yes
+
+    def test_public_apply_snapshot_does_not_alias_input_msg(self) -> None:
+        """Public apply_snapshot must defensively copy so the caller's msg is not aliased."""
+        from decimal import Decimal
+
+        from kalshi.ws.models.orderbook_delta import (
+            OrderbookDeltaMessage,
+            OrderbookSnapshotMessage,
+        )
+        from kalshi.ws.orderbook import OrderbookManager
+
+        snapshot_payload = {
+            "type": "orderbook_snapshot",
+            "sid": 7,
+            "seq": 1,
+            "msg": {
+                "market_ticker": "PUB-T",
+                "market_id": "id",
+                "yes": {Decimal("0.30"): Decimal("5")},
+                "no": {Decimal("0.70"): Decimal("3")},
+            },
+        }
+        msg = OrderbookSnapshotMessage.model_validate(snapshot_payload)
+        held_yes = msg.msg.yes
+
+        mgr = OrderbookManager()
+        mgr.apply_snapshot(msg)
+
+        # Public path: state must NOT share identity with the caller's msg.
+        state = mgr._books["PUB-T"]
+        assert state.yes is not held_yes
+        assert state.no is not msg.msg.no
+        assert state.yes == {Decimal("0.30"): Decimal("5")}
+
+        # A subsequent delta mutates state but leaves the caller's msg dict untouched.
+        delta = OrderbookDeltaMessage.model_validate({
+            "type": "orderbook_delta",
+            "sid": 7,
+            "seq": 2,
+            "msg": {
+                "market_ticker": "PUB-T",
+                "market_id": "id",
+                "price": Decimal("0.30"),
+                "delta": Decimal("4"),
+                "side": "yes",
+            },
+        })
+        mgr.apply_delta(delta)
+        assert state.yes[Decimal("0.30")] == Decimal("9")
+        # Caller's held reference is untouched — the public-API safety contract.
+        assert held_yes[Decimal("0.30")] == Decimal("5")
+

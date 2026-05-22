@@ -89,9 +89,10 @@ class OrderbookManager:
     Each call to :meth:`apply_snapshot`, :meth:`apply_delta`, or :meth:`get`
     returns a fresh :class:`Orderbook` instance. Consumers may safely retain
     references; subsequent updates will not mutate previously-returned books.
-    (This safety guarantee applies to returned ``Orderbook`` objects;
-    ``msg.msg.yes`` / ``.no`` fields on input snapshot messages are
-    adopted by reference — see :class:`OrderbookSnapshotPayload`.)
+    Input ``OrderbookSnapshotMessage`` arguments are also safe to reuse on
+    the public API — see :meth:`apply_snapshot`. Raw
+    ``subscribe_orderbook_delta`` consumers, which bypass this wrapper, see
+    the live ``_BookState`` dicts; see :class:`OrderbookSnapshotPayload`.
 
     Per-sid tracking (:meth:`tickers_for_sid`, :meth:`remove_by_sid`) lets
     callers tear down all books owned by a subscription without enumerating
@@ -199,19 +200,26 @@ class OrderbookManager:
     def apply_snapshot(self, msg: OrderbookSnapshotMessage, sid: int | None = None) -> Orderbook:
         """Initialize (or reset) a book from a full snapshot.
 
-        Public wrapper that mutates in place then materializes the
-        resulting :class:`Orderbook`. The recv loop bypasses this and
-        calls :meth:`_apply_snapshot_inplace` directly to avoid the
+        Public wrapper: mutates in place via :meth:`_apply_snapshot_inplace`
+        and materializes a fresh :class:`Orderbook`. The recv loop bypasses
+        this and calls :meth:`_apply_snapshot_inplace` directly to avoid the
         unused O(n log n) materialization (#199).
 
-        Ownership note: ``msg.msg.yes`` / ``.no`` are adopted by identity
-        into the new ``_BookState`` and mutate on every subsequent delta;
-        callers must treat them as consumed after this returns. The
-        returned :class:`Orderbook` is a fresh, immutable snapshot.
+        ``msg`` is safe to reuse after this call: the manager defensively
+        copies the adopted dicts into ``_BookState`` so subsequent delta
+        mutations do not leak back through ``msg.msg.yes`` / ``.no``. The
+        recv loop, which never holds ``msg`` past dispatch, skips this
+        defensive copy via the direct inplace path.
         """
         self._apply_snapshot_inplace(msg, sid=sid)
         ticker = msg.msg.market_ticker
         state = self._books[ticker]
+        # Defensive copy on the public path so a caller-supplied ``msg`` keeps
+        # its original ``.yes`` / ``.no`` dicts and is not aliased to the
+        # live ``_BookState``. The recv-loop bypass keeps the identity-adopt
+        # perf win where it matters (#296).
+        state.yes = dict(state.yes)
+        state.no = dict(state.no)
         return state.to_orderbook()
 
     def apply_delta(self, msg: OrderbookDeltaMessage) -> Orderbook | None:
