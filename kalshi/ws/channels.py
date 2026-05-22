@@ -206,6 +206,19 @@ class SubscriptionManager:
                 raise KalshiConnectionError(
                     f"Connection closed while awaiting response to command {msg_id}"
                 ) from e
+            except TimeoutError:
+                # #314: asyncio.wait_for surfaces a bare TimeoutError that the
+                # top-of-loop ``remaining <= 0`` guard never gets to reach
+                # (the next iteration doesn't run). Raise the same structured
+                # KalshiSubscriptionError so consumers branching on SDK
+                # exception types (#213) retain the channel/client_id/op
+                # surface for timeout recovery.
+                raise KalshiSubscriptionError(
+                    f"Timed out waiting for response to command {msg_id}",
+                    channel=channel,
+                    client_id=client_id,
+                    op=op,  # type: ignore[arg-type]
+                ) from None
             data: dict[str, Any] = self._json_loads(raw)
             if data.get("id") == msg_id:
                 return data
@@ -562,6 +575,14 @@ class SubscriptionManager:
         (it's assigned at subscribe-ack and may change on resubscribe)
         so enrich it here from the subscription's current
         ``server_sid`` when missing.
+
+        #315: the error sentinel closes the queue permanently, so the
+        subscription is dead from the consumer's perspective. Pop it
+        from ``_subscriptions`` / ``_sid_to_client`` so the next
+        reconnect's ``resubscribe_all`` doesn't resurrect a zombie
+        sub on the server (silent data loss + server-quota leak) and
+        so user-driven ``unsubscribe`` doesn't short-circuit on a
+        permanently-stuck entry.
         """
         sub = self._subscriptions.get(client_id)
         if sub is None:
@@ -573,6 +594,10 @@ class SubscriptionManager:
         ):
             exc.sid = sub.server_sid
         await sub.queue.put_error(exc)
+        # #315: drop the dead subscription so resubscribe_all skips it.
+        self._subscriptions.pop(client_id, None)
+        if sub.server_sid is not None:
+            self._sid_to_client.pop(sub.server_sid, None)
 
     def take_stash(self) -> dict[int, collections.deque[str]]:
         """Return and clear the resubscribe-window stash atomically (#176).

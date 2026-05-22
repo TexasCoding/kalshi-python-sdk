@@ -598,3 +598,172 @@ class TestPluggableJsonLoads:
         # At minimum the ticker frame was parsed by our loader. The recv loop
         # parses every frame off the socket — assert non-empty.
         assert calls, "ws_json_loads was never invoked on recv frames"
+
+
+# ---------------------------------------------------------------------------
+# Regression — #314, #315
+# ---------------------------------------------------------------------------
+
+
+class TestIssue314WaitForResponseTimeout:
+    async def test_issue_314_subscribe_raises_kalshi_subscription_error_on_timeout(
+        self,
+    ) -> None:
+        """#314: ``asyncio.wait_for`` inside ``_wait_for_response`` raises a
+        bare ``TimeoutError`` when the server never answers a subscribe ack.
+        Before the fix it escaped to ``subscribe()`` callers as a plain
+        ``TimeoutError``, losing the structured ``channel`` / ``client_id`` /
+        ``op`` surface promised by #213. After the fix it surfaces as a
+        ``KalshiSubscriptionError`` with those fields populated."""
+        from kalshi.ws.channels import SubscriptionManager
+
+        class NeverRecv:
+            async def send(self, _cmd: Any) -> None:
+                return None
+
+            async def recv(self) -> str:
+                # Hang forever; the wait_for inside _wait_for_response is
+                # what must time out and surface as KalshiSubscriptionError.
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")  # pragma: no cover
+
+        mgr = SubscriptionManager(NeverRecv())  # type: ignore[arg-type]
+
+        with pytest.raises(KalshiSubscriptionError) as excinfo:
+            await mgr._wait_for_response(
+                msg_id=42,
+                timeout=0.05,
+                channel="orderbook_delta",
+                client_id=7,
+                op="subscribe",
+            )
+
+        err = excinfo.value
+        assert err.channel == "orderbook_delta"
+        assert err.client_id == 7
+        assert err.op == "subscribe"
+        assert "42" in str(err)
+
+
+class TestIssue315ZombieSubscriptionCleanup:
+    async def test_issue_315_failed_resubscribe_removes_zombie_subscription(
+        self,
+    ) -> None:
+        """#315: ``broadcast_error`` must pop the dead ``Subscription`` so the
+        next reconnect's ``resubscribe_all`` doesn't resurrect a zombie sub on
+        the server (silent data loss + server-quota leak) and ``unsubscribe``
+        doesn't short-circuit on a permanently-stuck entry."""
+        from kalshi.errors import KalshiSequenceGapError
+        from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
+        from kalshi.ws.channels import Subscription, SubscriptionManager
+
+        recorded: list[Any] = []
+
+        class StubConn:
+            async def send(self, cmd: Any) -> None:
+                recorded.append(cmd)
+
+            async def recv(self) -> str:  # pragma: no cover - not used
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+
+        mgr = SubscriptionManager(StubConn())  # type: ignore[arg-type]
+        queue: MessageQueue[Any] = MessageQueue(
+            maxsize=10,
+            overflow=OverflowStrategy.ERROR,
+            channel="orderbook_delta",
+            client_id=7,
+        )
+        sub = Subscription(
+            client_id=7,
+            channel="orderbook_delta",
+            params={"market_tickers": ["ABC-YES"]},
+            queue=queue,
+        )
+        sub.server_sid = 314
+        mgr._subscriptions[7] = sub
+        mgr._sid_to_client[314] = 7
+
+        # Simulate the gap-recovery failure path: ``resubscribe_one`` clears
+        # ``server_sid`` and the ``_sid_to_client`` entry before raising, then
+        # ``_handle_seq_gap`` calls broadcast_error. After the fix
+        # ``broadcast_error`` must also pop the dead Subscription so the
+        # next reconnect's ``resubscribe_all`` doesn't resurrect it.
+        sub.server_sid = None
+        mgr._sid_to_client.pop(314, None)
+        await mgr.broadcast_error(
+            7,
+            KalshiSequenceGapError(
+                "Resubscribe failed for orderbook_delta after gap",
+                channel="orderbook_delta",
+                sid=314,
+                client_id=7,
+                last_seq=10,
+                next_seq=12,
+            ),
+        )
+
+        # Subscription is gone — no zombie left behind.
+        assert 7 not in mgr._subscriptions
+        assert 314 not in mgr._sid_to_client
+
+        # The iterator surfaces the error sentinel.
+        with pytest.raises(Exception) as excinfo:
+            async for _ in queue:
+                pass
+        assert "Resubscribe failed" in str(excinfo.value)
+
+        # A subsequent reconnect's resubscribe_all must be a no-op — no
+        # subscribe command should hit the wire for the dead client_id.
+        recorded.clear()
+        await mgr.resubscribe_all()
+        assert recorded == []
+        assert mgr._subscriptions == {}
+
+    async def test_issue_315_backpressure_path_also_removes_subscription(
+        self,
+    ) -> None:
+        """#315: the ``KalshiBackpressureError`` rollback path in
+        ``_process_frame`` routes through the same ``broadcast_error``, so the
+        zombie cleanup must apply there too."""
+        from kalshi.errors import KalshiBackpressureError
+        from kalshi.ws.backpressure import MessageQueue, OverflowStrategy
+        from kalshi.ws.channels import Subscription, SubscriptionManager
+
+        class StubConn:
+            async def send(self, _cmd: Any) -> None:
+                return None
+
+            async def recv(self) -> str:  # pragma: no cover - not used
+                await asyncio.Event().wait()
+                raise AssertionError("unreachable")
+
+        mgr = SubscriptionManager(StubConn())  # type: ignore[arg-type]
+        queue: MessageQueue[Any] = MessageQueue(
+            maxsize=1,
+            overflow=OverflowStrategy.ERROR,
+            channel="orderbook_delta",
+            client_id=11,
+        )
+        sub = Subscription(
+            client_id=11,
+            channel="orderbook_delta",
+            params={},
+            queue=queue,
+        )
+        sub.server_sid = 999
+        mgr._subscriptions[11] = sub
+        mgr._sid_to_client[999] = 11
+
+        await mgr.broadcast_error(
+            11,
+            KalshiBackpressureError(
+                "queue full",
+                channel="orderbook_delta",
+                client_id=11,
+                maxsize=1,
+            ),
+        )
+
+        assert 11 not in mgr._subscriptions
+        assert 999 not in mgr._sid_to_client
