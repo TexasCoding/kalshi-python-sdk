@@ -19,7 +19,7 @@ import httpx
 import pytest
 import respx
 
-from kalshi import KalshiClient
+from kalshi import AsyncKalshiClient, KalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_WS_URL, KalshiConfig
 from kalshi.resources._base import AsyncResource, SyncResource
@@ -388,6 +388,38 @@ class TestExtraHeadersSecurityFreeze:
         first_trace = [k for k, _ in first.raw if k.lower() == b"x-trace-id"]
         assert len(first_trace) == 1, first_trace
         # User-Agent from config still reaches both wires (single pipeline).
+        assert first["user-agent"] == "kalshi-sdk/cfg"
+
+        second = route.calls[1].request.headers
+        assert second["x-trace-id"] == "config-default"
+        second_trace = [k for k, _ in second.raw if k.lower() == b"x-trace-id"]
+        assert len(second_trace) == 1, second_trace
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_341_extra_headers_single_pipeline_async(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # #341 async mirror: AsyncTransport must follow the same single-pipeline
+        # contract — _ci_merge is the sole header source, per-call extras win over
+        # config defaults case-insensitively, and no httpx-side default attachment
+        # produces a duplicate raw header line on the wire.
+        cfg = _config(
+            extra_headers={"X-Trace-Id": "config-default", "User-Agent": "kalshi-sdk/cfg"}
+        )
+        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+            return_value=httpx.Response(200, json={"market": _example_market_payload()})
+        )
+        async with AsyncKalshiClient(auth=test_auth, config=cfg) as client:
+            await client.markets.get(
+                "BTC", extra_headers={"x-trace-id": "per-call"}
+            )
+            await client.markets.get("BTC")
+
+        first = route.calls[0].request.headers
+        assert first["x-trace-id"] == "per-call"
+        first_trace = [k for k, _ in first.raw if k.lower() == b"x-trace-id"]
+        assert len(first_trace) == 1, first_trace
         assert first["user-agent"] == "kalshi-sdk/cfg"
 
         second = route.calls[1].request.headers

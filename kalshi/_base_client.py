@@ -218,11 +218,7 @@ class SyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
-        # #341: ``config.extra_headers`` is merged per-request via
-        # ``_ci_merge`` below, which keeps SDK-managed precedence (config
-        # defaults < per-call extras < signed auth) authoritative. Attaching
-        # them to the httpx client as well would route the same headers
-        # through httpx's own merge on every request and blur the contract.
+        # #341: extra_headers merged per-request via _ci_merge; attaching here would duplicate it.
         client_kwargs: dict[str, Any] = {
             "base_url": config.base_url,
             "timeout": config.timeout,
@@ -445,8 +441,7 @@ class AsyncTransport:
         self._config = config
         # Cached once: base_url is immutable on a frozen KalshiConfig.
         self._base_path = urlparse(config.base_url).path
-        # #341: see SyncTransport — config.extra_headers is merged per-request
-        # via ``_ci_merge``, not via httpx.Client's default headers.
+        # #341: extra_headers merged per-request via _ci_merge; attaching here would duplicate it.
         client_kwargs: dict[str, Any] = {
             "base_url": config.base_url,
             "timeout": config.timeout,

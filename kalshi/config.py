@@ -136,19 +136,7 @@ class KalshiConfig:
                 "KalshiConfig.production() / KalshiConfig.demo(), or pass both "
                 "base_url and ws_base_url explicitly."
             )
-        # #298 follow-up: bot review flagged that config.extra_headers
-        # bypasses the per-request _assert_no_auth_headers check, so a caller
-        # could still seed KALSHI-ACCESS-* on the httpx.Client default headers
-        # and forge the auth surface. Validate at construction. The prefix
-        # lives in kalshi._constants (no imports from either file) to avoid
-        # the circular hazard with kalshi._base_client.
-        # #313: defense-in-depth — the #298 fence above only runs at
-        # construction. A plain dict stored on a frozen dataclass is still
-        # mutable, so a caller could do ``config.extra_headers["kalshi-access-
-        # key"] = "forged"`` afterwards and bypass the guard entirely. Freeze a
-        # defensive copy into a ``MappingProxyType`` so post-construction
-        # mutation raises ``TypeError`` and the original mapping the caller
-        # passed in can be safely discarded.
+        # #298: reject KALSHI-ACCESS-* prefix at construction so callers cannot forge auth.
         if self.extra_headers:
             leaked = sorted(
                 k for k in self.extra_headers if k.lower().startswith(AUTH_HEADER_PREFIX)
@@ -159,6 +147,7 @@ class KalshiConfig:
                     f"keys (got: {leaked!r}). These are reserved for SDK-managed "
                     f"RSA-PSS signing."
                 )
+        # #313: defensive copy into MappingProxyType so post-construction mutation raises.
         object.__setattr__(
             self, "extra_headers", MappingProxyType(dict(self.extra_headers))
         )
