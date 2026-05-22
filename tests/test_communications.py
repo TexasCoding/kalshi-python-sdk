@@ -920,3 +920,27 @@ class TestIssue324CommunicationsStatusLiteralNarrowing:
         ).mock(return_value=httpx.Response(200, json={"quotes": []}))
         comms.list_quotes(status="executed", quote_creator_user_id="u1")
         assert route.calls[0].request.url.params["status"] == "executed"
+
+    @pytest.mark.asyncio
+    async def test_issue_324_valid_rfq_status_flows_through_to_query_async(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": []}))
+        await async_comms.list_rfqs(status="closed")
+        assert route.calls[0].request.url.params["status"] == "closed"
+
+    @pytest.mark.asyncio
+    async def test_issue_324_valid_quote_status_flows_through_to_query_async(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": []}))
+        await async_comms.list_quotes(status="executed", quote_creator_user_id="u1")
+        assert route.calls[0].request.url.params["status"] == "executed"
