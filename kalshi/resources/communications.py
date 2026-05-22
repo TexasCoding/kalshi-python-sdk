@@ -660,7 +660,7 @@ class CommunicationsResource(SyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
-        return self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]
+        return self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]  # `misc`: mypy's "too many union combinations" overload limit
             request=request,
             market_ticker=market_ticker,
             rest_remainder=rest_remainder,
@@ -764,7 +764,7 @@ class CommunicationsResource(SyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.create` instead."""
-        return self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]
+        return self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]  # `misc`: mypy's "too many union combinations" overload limit
             request=request,
             rfq_id=rfq_id,
             yes_bid=yes_bid,
@@ -1232,7 +1232,7 @@ class AsyncCommunicationsResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
-        return await self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]
+        return await self.rfqs.create(  # type: ignore[call-overload, no-any-return, misc]  # `misc`: mypy's "too many union combinations" overload limit
             request=request,
             market_ticker=market_ticker,
             rest_remainder=rest_remainder,
@@ -1336,7 +1336,7 @@ class AsyncCommunicationsResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> CreateQuoteResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.create` instead."""
-        return await self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]
+        return await self.quotes.create(  # type: ignore[call-overload, no-any-return, misc]  # `misc`: mypy's "too many union combinations" overload limit
             request=request,
             rfq_id=rfq_id,
             yes_bid=yes_bid,

@@ -169,6 +169,12 @@ from kalshi.models import (
     WeeklySchedule,
     Withdrawal,
 )
+from kalshi.resources.communications import (
+    AsyncQuotesResource,
+    AsyncRFQsResource,
+    QuotesResource,
+    RFQsResource,
+)
 from kalshi.types import NullableList, StrictInt
 
 __all__ = [
@@ -186,6 +192,8 @@ __all__ = [
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncKalshiClient",
+    "AsyncQuotesResource",
+    "AsyncRFQsResource",
     "AuthRequiredError",
     "Balance",
     "BatchCancelOrdersRequest",
@@ -312,6 +320,8 @@ __all__ = [
     "PriceDistribution",
     "Quote",
     "QuoteStatusLiteral",
+    "QuotesResource",
+    "RFQsResource",
     "RateLimit",
     "RfqStatusLiteral",
     "Schedule",

@@ -1108,3 +1108,94 @@ class TestV3DeprecationAliases:
 
         with pytest.warns(DeprecationWarning, match=r"quotes\.confirm"):
             comms.confirm_quote("q-1")
+
+    @pytest.mark.asyncio
+    async def test_issue_348_async_flat_names_emit_deprecation_warning(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(200, json={"rfqs": [_MINIMAL_RFQ]}))
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/rfq-1",
+        ).mock(return_value=httpx.Response(200, json={"rfq": _MINIMAL_RFQ}))
+        respx_mock.post(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(201, json={"id": "rfq-new"}))
+        respx_mock.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/rfq-1",
+        ).mock(return_value=httpx.Response(204))
+
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(200, json={"quotes": [_MINIMAL_QUOTE]}))
+        respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1",
+        ).mock(return_value=httpx.Response(200, json={"quote": _MINIMAL_QUOTE}))
+        respx_mock.post(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes",
+        ).mock(return_value=httpx.Response(201, json={"id": "q-new"}))
+        respx_mock.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1",
+        ).mock(return_value=httpx.Response(204))
+        respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1/accept",
+        ).mock(return_value=httpx.Response(204))
+        respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/communications/quotes/q-1/confirm",
+        ).mock(return_value=httpx.Response(204))
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.list"):
+            page_rfqs = await async_comms.list_rfqs(limit=10)
+        assert isinstance(page_rfqs.items[0], RFQ)
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.list_all"):
+            rfqs_all = [r async for r in async_comms.list_all_rfqs()]
+        assert isinstance(rfqs_all[0], RFQ)
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.get"):
+            got_rfq = await async_comms.get_rfq("rfq-1")
+        assert got_rfq.rfq.id == "rfq-1"
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.create"):
+            new_rfq = await async_comms.create_rfq(
+                market_ticker="MKT-1", rest_remainder=True,
+            )
+        assert new_rfq.id == "rfq-new"
+
+        with pytest.warns(DeprecationWarning, match=r"rfqs\.delete"):
+            await async_comms.delete_rfq("rfq-1")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.list"):
+            page_quotes = await async_comms.list_quotes(quote_creator_user_id="u1")
+        assert isinstance(page_quotes.items[0], Quote)
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.list_all"):
+            quotes_all = [
+                q async for q in async_comms.list_all_quotes(quote_creator_user_id="u1")
+            ]
+        assert isinstance(quotes_all[0], Quote)
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.get"):
+            got_quote = await async_comms.get_quote("q-1")
+        assert got_quote.quote.id == "q-1"
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.create"):
+            new_quote = await async_comms.create_quote(
+                rfq_id="rfq-1",
+                yes_bid=Decimal("0.5"),
+                no_bid=Decimal("0.5"),
+                rest_remainder=True,
+            )
+        assert new_quote.id == "q-new"
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.delete"):
+            await async_comms.delete_quote("q-1")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.accept"):
+            await async_comms.accept_quote("q-1", accepted_side="yes")
+
+        with pytest.warns(DeprecationWarning, match=r"quotes\.confirm"):
+            await async_comms.confirm_quote("q-1")
