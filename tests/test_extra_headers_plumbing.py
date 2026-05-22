@@ -19,7 +19,7 @@ import httpx
 import pytest
 import respx
 
-from kalshi import KalshiClient
+from kalshi import AsyncKalshiClient, KalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_WS_URL, KalshiConfig
 from kalshi.resources._base import AsyncResource, SyncResource
@@ -327,3 +327,102 @@ def test_every_public_method_accepts_extra_headers(cls: type, name: str, fn: Any
         inspect.Parameter.KEYWORD_ONLY,
         inspect.Parameter.POSITIONAL_OR_KEYWORD,
     )
+
+# ---------------------------------------------------------------------------
+# #313 + #341 — post-construction immutability and single header pipeline.
+# ---------------------------------------------------------------------------
+
+
+class TestExtraHeadersSecurityFreeze:
+    @respx.mock
+    def test_issue_313_extra_headers_post_mutation_does_not_send_auth_forge(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # #313: the underlying mapping is frozen post-construction, so attempting
+        # to seed a forged KALSHI-ACCESS-* key after construction must either
+        # raise (TypeError on the proxy) or otherwise have no effect on the wire
+        # — never both an SDK-signed and a caller-forged pair on the same line.
+        cfg = _config(extra_headers={"X-Trace-Id": "t1"})
+        with pytest.raises(TypeError):
+            cfg.extra_headers["kalshi-access-key"] = "forged"  # type: ignore[index]
+
+        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+            return_value=httpx.Response(200, json={"market": _example_market_payload()})
+        )
+        with KalshiClient(auth=test_auth, config=cfg) as client:
+            client.markets.get("BTC")
+        wire = route.calls.last.request.headers
+        # Exactly one KALSHI-ACCESS-KEY line on the wire — the SDK-signed
+        # one, not a forged duplicate.
+        access_key_lines = [k for k, _ in wire.raw if k.lower() == b"kalshi-access-key"]
+        assert len(access_key_lines) == 1, access_key_lines
+        # And the signed value is not the forged one.
+        assert wire["KALSHI-ACCESS-KEY"] != "forged"
+
+    @respx.mock
+    def test_issue_341_extra_headers_single_pipeline(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # #341: config.extra_headers is no longer attached to httpx.Client's
+        # default headers. _ci_merge is the single source of truth, so a
+        # per-call extra_headers value must override config.extra_headers
+        # case-insensitively with no duplicate raw header line on the wire.
+        cfg = _config(
+            extra_headers={"X-Trace-Id": "config-default", "User-Agent": "kalshi-sdk/cfg"}
+        )
+        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+            return_value=httpx.Response(200, json={"market": _example_market_payload()})
+        )
+        with KalshiClient(auth=test_auth, config=cfg) as client:
+            # Per-call layer overrides the config layer (case-insensitive).
+            client.markets.get(
+                "BTC", extra_headers={"x-trace-id": "per-call"}
+            )
+            # No per-call override → config default reaches the wire.
+            client.markets.get("BTC")
+
+        first = route.calls[0].request.headers
+        assert first["x-trace-id"] == "per-call"
+        # Exactly one X-Trace-Id raw header line — no httpx-side duplicate
+        # alongside the SDK-merged one.
+        first_trace = [k for k, _ in first.raw if k.lower() == b"x-trace-id"]
+        assert len(first_trace) == 1, first_trace
+        # User-Agent from config still reaches both wires (single pipeline).
+        assert first["user-agent"] == "kalshi-sdk/cfg"
+
+        second = route.calls[1].request.headers
+        assert second["x-trace-id"] == "config-default"
+        second_trace = [k for k, _ in second.raw if k.lower() == b"x-trace-id"]
+        assert len(second_trace) == 1, second_trace
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_341_extra_headers_single_pipeline_async(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        # #341 async mirror: AsyncTransport must follow the same single-pipeline
+        # contract — _ci_merge is the sole header source, per-call extras win over
+        # config defaults case-insensitively, and no httpx-side default attachment
+        # produces a duplicate raw header line on the wire.
+        cfg = _config(
+            extra_headers={"X-Trace-Id": "config-default", "User-Agent": "kalshi-sdk/cfg"}
+        )
+        route = respx.get(f"{MOCK_BASE}/markets/BTC").mock(
+            return_value=httpx.Response(200, json={"market": _example_market_payload()})
+        )
+        async with AsyncKalshiClient(auth=test_auth, config=cfg) as client:
+            await client.markets.get(
+                "BTC", extra_headers={"x-trace-id": "per-call"}
+            )
+            await client.markets.get("BTC")
+
+        first = route.calls[0].request.headers
+        assert first["x-trace-id"] == "per-call"
+        first_trace = [k for k, _ in first.raw if k.lower() == b"x-trace-id"]
+        assert len(first_trace) == 1, first_trace
+        assert first["user-agent"] == "kalshi-sdk/cfg"
+
+        second = route.calls[1].request.headers
+        assert second["x-trace-id"] == "config-default"
+        second_trace = [k for k, _ in second.raw if k.lower() == b"x-trace-id"]
+        assert len(second_trace) == 1, second_trace

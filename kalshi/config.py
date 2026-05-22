@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -68,7 +69,7 @@ class KalshiConfig:
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
     total_timeout: float | None = None
-    extra_headers: dict[str, str] = field(default_factory=dict)
+    extra_headers: Mapping[str, str] = field(default_factory=dict)
     ws_base_url: str = PRODUCTION_WS_URL  # trailing slash is stripped automatically
     ws_max_retries: int = DEFAULT_WS_MAX_RETRIES
     http2: bool = False
@@ -135,12 +136,7 @@ class KalshiConfig:
                 "KalshiConfig.production() / KalshiConfig.demo(), or pass both "
                 "base_url and ws_base_url explicitly."
             )
-        # #298 follow-up: bot review flagged that config.extra_headers
-        # bypasses the per-request _assert_no_auth_headers check, so a caller
-        # could still seed KALSHI-ACCESS-* on the httpx.Client default headers
-        # and forge the auth surface. Validate at construction. The prefix
-        # lives in kalshi._constants (no imports from either file) to avoid
-        # the circular hazard with kalshi._base_client.
+        # #298: reject KALSHI-ACCESS-* prefix at construction so callers cannot forge auth.
         if self.extra_headers:
             leaked = sorted(
                 k for k in self.extra_headers if k.lower().startswith(AUTH_HEADER_PREFIX)
@@ -151,6 +147,10 @@ class KalshiConfig:
                     f"keys (got: {leaked!r}). These are reserved for SDK-managed "
                     f"RSA-PSS signing."
                 )
+        # #313: defensive copy into MappingProxyType so post-construction mutation raises.
+        object.__setattr__(
+            self, "extra_headers", MappingProxyType(dict(self.extra_headers))
+        )
         if self.http2:
             import importlib.util
 

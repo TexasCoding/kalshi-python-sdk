@@ -166,15 +166,34 @@ class TestExtraHeadersForwarding:
         finally:
             transport.close()
 
-    def test_extra_headers_defaults_to_empty_dict(self) -> None:
-        # Each instance gets its own dict (default_factory), so mutating one
-        # config's extras must not bleed into another's.
+    def test_extra_headers_defaults_to_empty_mapping(self) -> None:
+        # Each instance gets its own underlying dict (default_factory), so the
+        # frozen views are isolated and per-instance state cannot leak between
+        # configs even via the original mapping passed at construction.
         config_a = KalshiConfig()
         config_b = KalshiConfig()
-        assert config_a.extra_headers == {}
-        assert config_b.extra_headers == {}
-        config_a.extra_headers["X-Trace-Id"] = "a"
-        assert config_b.extra_headers == {}
+        assert dict(config_a.extra_headers) == {}
+        assert dict(config_b.extra_headers) == {}
+
+    def test_issue_313_extra_headers_immutable_post_construction(self) -> None:
+        # #313: a frozen dataclass forbids attribute reassignment but the
+        # underlying dict was still mutable, re-opening the #298 forge surface.
+        # extra_headers is now a MappingProxyType and rejects mutation.
+        cfg = KalshiConfig(extra_headers={"X-Trace-Id": "a"})
+        with pytest.raises(TypeError):
+            cfg.extra_headers["X-Trace-Id"] = "b"  # type: ignore[index]
+        with pytest.raises(TypeError):
+            cfg.extra_headers["kalshi-access-key"] = "forged"  # type: ignore[index]
+        with pytest.raises(TypeError):
+            del cfg.extra_headers["X-Trace-Id"]  # type: ignore[attr-defined]
+        # Original passed-in dict must not back the stored view either —
+        # mutating it after construction must not affect the config.
+        original = {"X-Other": "v"}
+        cfg2 = KalshiConfig(extra_headers=original)
+        original["X-Other"] = "tampered"
+        original["kalshi-access-key"] = "forged"
+        assert cfg2.extra_headers["X-Other"] == "v"
+        assert "kalshi-access-key" not in cfg2.extra_headers
 
     def test_extra_headers_rejects_kalshi_access_uppercase(self) -> None:
         # #298 follow-up: config.extra_headers must not be a back door for the
