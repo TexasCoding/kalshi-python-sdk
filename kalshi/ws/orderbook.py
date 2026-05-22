@@ -89,6 +89,9 @@ class OrderbookManager:
     Each call to :meth:`apply_snapshot`, :meth:`apply_delta`, or :meth:`get`
     returns a fresh :class:`Orderbook` instance. Consumers may safely retain
     references; subsequent updates will not mutate previously-returned books.
+    (This safety guarantee applies to returned ``Orderbook`` objects;
+    ``msg.msg.yes`` / ``.no`` fields on input snapshot messages are
+    adopted by reference — see :class:`OrderbookSnapshotPayload`.)
 
     Per-sid tracking (:meth:`tickers_for_sid`, :meth:`remove_by_sid`) lets
     callers tear down all books owned by a subscription without enumerating
@@ -200,6 +203,11 @@ class OrderbookManager:
         resulting :class:`Orderbook`. The recv loop bypasses this and
         calls :meth:`_apply_snapshot_inplace` directly to avoid the
         unused O(n log n) materialization (#199).
+
+        Ownership note: ``msg.msg.yes`` / ``.no`` are adopted by identity
+        into the new ``_BookState`` and mutate on every subsequent delta;
+        callers must treat them as consumed after this returns. The
+        returned :class:`Orderbook` is a fresh, immutable snapshot.
         """
         self._apply_snapshot_inplace(msg, sid=sid)
         ticker = msg.msg.market_ticker
