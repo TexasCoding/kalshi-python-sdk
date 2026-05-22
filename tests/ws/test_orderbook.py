@@ -391,11 +391,9 @@ class TestSnapshotIdentityAdoption:
                 },
             }
         )
-        # NOTE: Pydantic may re-bind the validator output to a fresh model
-        # field — we don't control that and shouldn't assert it. What this
-        # test pins down is the SDK-side contract: whatever dict Pydantic
-        # hands us through ``msg.msg.yes`` / ``.no``, ``_apply_snapshot_inplace``
-        # adopts by identity without an extra ``dict(...)`` copy (#296).
+        # We don't assert state.yes is yes_in (Pydantic may copy the input during
+        # field binding), but we DO assert state.yes is msg.msg.yes: the SDK must
+        # adopt the already-validated dict without adding another dict() copy.
         mgr._apply_snapshot_inplace(msg)
         state = mgr._books["T"]
         assert state.yes is msg.msg.yes

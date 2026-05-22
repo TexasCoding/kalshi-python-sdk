@@ -69,6 +69,11 @@ class OrderbookSnapshotPayload(BaseModel):
     ``ValidationError`` lets the recv loop's malformed-frame handler
     log it and roll back the seq watermark for #241 rather than silently
     resetting the local book to empty.
+
+    Aliasing note: when delivered through
+    :meth:`KalshiWSClient.subscribe_orderbook_delta`, ``yes`` / ``no`` are live
+    dicts owned by the :class:`OrderbookManager` after dispatch — they
+    mutate on every subsequent delta.
     """
 
     market_ticker: str

@@ -128,9 +128,6 @@ class OrderbookManager:
         """
         ticker = msg.msg.market_ticker
         sid_val = sid if sid is not None else msg.sid
-        # Adopt msg.msg.yes / .no by identity. _BookState takes ownership and
-        # mutates them in place on every delta — callers must not access these
-        # dicts on `msg` after this returns.
         yes_levels = msg.msg.yes
         no_levels = msg.msg.no
 
