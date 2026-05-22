@@ -370,6 +370,65 @@ class TestAsyncTransportContextManager:
         transport = AsyncTransport(test_auth, config)
         await transport.close()  # should not raise
 
+    @pytest.mark.asyncio
+    async def test_issue_333_async_close_cancellation_safe(
+        self, test_auth: KalshiAuth, config: KalshiConfig
+    ) -> None:
+        """#333: cancellation through ``aclose()`` must leave ``_closed=False``
+        so a follow-up ``close()`` actually drains the pool. The pre-fix
+        order set the flag first; a CancelledError between the flip and
+        the (unfinished) ``aclose`` left the pool orphaned.
+        """
+        import asyncio
+
+        transport = AsyncTransport(test_auth, config)
+        original_aclose = transport._client.aclose
+        cancelled_once = {"v": False}
+
+        async def cancelling_aclose() -> None:
+            # Simulate the parent task being cancelled while we're inside
+            # the await point. After the first invocation we restore the
+            # real aclose so the second close() can drain the pool.
+            if not cancelled_once["v"]:
+                cancelled_once["v"] = True
+                transport._client.aclose = original_aclose  # type: ignore[method-assign]
+                raise asyncio.CancelledError()
+            await original_aclose()
+
+        transport._client.aclose = cancelling_aclose  # type: ignore[method-assign]
+
+        with pytest.raises(asyncio.CancelledError):
+            await transport.close()
+
+        # Pre-fix: _closed was already True here, the follow-up close()
+        # short-circuited, and the httpx pool stayed open until GC.
+        assert transport._closed is False
+        await transport.close()
+        assert transport._closed is True
+        assert transport._client.is_closed is True
+
+    @pytest.mark.asyncio
+    async def test_issue_342_method_upper_hoisted(
+        self, test_auth: KalshiAuth, config: KalshiConfig
+    ) -> None:
+        """#342: lowercase verb is normalized once at the top of ``request()``
+        and reused. The wire request and auth signature must match the
+        uppercase form, and the call must complete without raising the
+        ``KeyError: 'get'``-style failure a partial revert would cause.
+        """
+        with respx.mock(assert_all_called=True) as mock:
+            route = mock.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+                return_value=httpx.Response(200, json={"markets": []})
+            )
+            transport = AsyncTransport(test_auth, config)
+            try:
+                resp = await transport.request("get", "/markets")
+            finally:
+                await transport.close()
+            assert resp.status_code == 200
+            # Wire request used the normalized verb.
+            assert route.calls.last.request.method == "GET"
+
 
 class TestAsyncTransportUnauthenticated:
     """Tests for AsyncTransport with auth=None (unauthenticated mode)."""

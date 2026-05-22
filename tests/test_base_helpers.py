@@ -183,27 +183,23 @@ class TestSyncListAllCursorLoopDetection:
         assert route.call_count == 2
 
     @respx.mock
-    def test_list_all_cursor_loop_detection_uses_last_cursor_only_o1(
+    def test_issue_352_pagination_cycle_detector_non_adjacent(
         self, test_auth: KalshiAuth, test_config: KalshiConfig
     ) -> None:
-        """P4.1: cursor guard is O(1) — only the previous page's cursor is
-        compared. A non-adjacent revisit (A → B → A) must NOT trip the guard;
-        the realistic server-pagination-bug shape is the *immediate* replay
-        captured by ``test_repeated_cursor_raises``. The old set-based
-        guard would have raised here and consumed unbounded memory on a
-        well-behaved server that legitimately reused cursor tokens across
-        non-adjacent pages."""
+        """#352: a non-adjacent A → B → A cycle (LB drift / cache rotation
+        between two pod-local cursors) must trip the guard. Old O(1)
+        last-cursor-only check would have looped forever; the set-based
+        guard catches the revisit on the third request."""
         responses = [
             httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
             httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "B"}),
             httpx.Response(200, json={"items": [{"id": "3"}], "cursor": "A"}),
-            httpx.Response(200, json={"items": [{"id": "4"}], "cursor": ""}),
         ]
         respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responses)
         resource = SyncResource(SyncTransport(test_auth, test_config))
 
-        collected = list(resource._list_all("/things", _Item, "items"))
-        assert [item.id for item in collected] == ["1", "2", "3", "4"]
+        with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'A'"):
+            list(resource._list_all("/things", _Item, "items"))
 
     @respx.mock
     def test_list_all_cursor_loop_detection_catches_adjacent_replay(
@@ -254,6 +250,24 @@ class TestAsyncListAllCursorLoopDetection:
                 pass
 
         assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_352_pagination_cycle_detector_non_adjacent(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        """Async mirror of the sync non-adjacent cycle regression (#352)."""
+        responses = [
+            httpx.Response(200, json={"items": [{"id": "1"}], "cursor": "A"}),
+            httpx.Response(200, json={"items": [{"id": "2"}], "cursor": "B"}),
+            httpx.Response(200, json={"items": [{"id": "3"}], "cursor": "A"}),
+        ]
+        respx.get("https://test.kalshi.com/trade-api/v2/things").mock(side_effect=responses)
+        resource = AsyncResource(AsyncTransport(test_auth, test_config))
+
+        with pytest.raises(KalshiError, match=r"[Cc]ursor loop.*'A'"):
+            async for _ in resource._list_all("/things", _Item, "items"):
+                pass
 
 
 def _fresh_cursor_side_effect() -> Any:
@@ -582,3 +596,46 @@ class TestIssue323SuccessBodyCap:
         resource = AsyncResource(AsyncTransport(test_auth, test_config))
         with pytest.raises(KalshiError, match=r"max_response_bytes"):
             await resource._get("/things")
+
+
+class TestDeleteWithBodyAcceptsParams:
+    """#340: ``_delete_with_body`` accepts a ``params`` kwarg for symmetry
+    with its bytes-fast-path sibling ``_delete_with_body_json``. Without
+    this, callers that need a query param on a DELETE-with-body endpoint
+    have to switch helpers just to plumb one string through."""
+
+    @respx.mock
+    def test_issue_340_delete_with_body_accepts_params(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(204)
+        )
+        resource = SyncResource(SyncTransport(test_auth, test_config))
+
+        result = resource._delete_with_body(
+            "/things", json={"ids": ["a"]}, params={"subaccount": "main"}
+        )
+
+        assert result is None
+        assert route.call_count == 1
+        # Query param survived through to the wire.
+        assert dict(route.calls.last.request.url.params) == {"subaccount": "main"}
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_340_delete_with_body_accepts_params_async(
+        self, test_auth: KalshiAuth, test_config: KalshiConfig
+    ) -> None:
+        route = respx.delete("https://test.kalshi.com/trade-api/v2/things").mock(
+            return_value=httpx.Response(204)
+        )
+        resource = AsyncResource(AsyncTransport(test_auth, test_config))
+
+        result = await resource._delete_with_body(
+            "/things", json={"ids": ["a"]}, params={"subaccount": "main"}
+        )
+
+        assert result is None
+        assert route.call_count == 1
+        assert dict(route.calls.last.request.url.params) == {"subaccount": "main"}
