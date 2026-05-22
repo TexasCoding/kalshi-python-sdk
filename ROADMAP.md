@@ -4,6 +4,35 @@
 
 See `CHANGELOG.md` for full release history.
 
+- **v2.7.0 (2026-05-22)** — post-v2.6 independent multi-LLM reviewer audit
+  closure (47 issues `#311`–`#357`, 44 closed; `#348` / `#349` / `#351`
+  deferred to v3.0.0). Identified by a 9-reviewer parallel pass combining 7
+  internal specialist agents with fresh-eyes Codex CLI (GPT-5) + Gemini CLI
+  reviews. Five breaking fences folded in: `AmendOrderRequest.side`/`.action`
+  narrowed to `Literal` (`#312`); `KalshiConfig.extra_headers` immutable
+  post-construction (`#313`); communications `status` kwarg `Literal`
+  (`#324`); `to_decimal()` rejects NaN/Inf (`#325`); `DollarDecimal` request
+  fields reject negative/sub-tick (`#343`). Critical fixes: `from_env`
+  caller-ownership invariant (`#311`), WS `TimeoutError` wrap (`#314`), WS
+  zombie-subscription cleanup (`#315`). High-impact correctness: lazy
+  `try_from_env` (`#316`), `sign_request` strips URL fragment (`#317`),
+  `Retry-After` honored across 408/429/503/504 with jitter (`#321`, `#322`),
+  success-body size cap (`#323`), V1 `ge=0` parity (`#326`), `Page._columns`
+  None-first nested (`#328`), WS `OrderbookDeltaPayload.ts` AwareDatetime
+  (`#331`), WS backpressure WS teardown (`#332`). Performance: orderbook
+  `model_construct` (`#327`), zero-delta cache preservation (`#347`),
+  `apply_snapshot` single-copy (`#344`), V2 batch bytes fast-path (`#329`),
+  PSS config cache (`#345`), `track_sync` (`#330`), `asyncio.timeout` recv
+  (`#356`), `method.upper` hoist (`#342`). Polish: async close
+  cancellation-safe (`#333`), `_delete_with_body(params=)` (`#340`),
+  non-adjacent pagination cycle (`#352`), orphan unsubscribe correlation
+  (`#354`), reconnect exc_info (`#355`), `_stop()` teardown order (`#357`),
+  dropped `extra_headers` dual pipeline (`#341`), `orders.create()` overload
+  (`#350`), docs + docstring drift (`#318`–`#320`, `#334`–`#339`), OpenSSH
+  key error message (`#335`). Dependencies: `pydantic>=2.4` (`#346`).
+  Executed across 4 sequential waves (W0 docs, W1 HIGH, W2 MEDIUM, W3 LOW)
+  in disjoint git worktrees — 17 PRs merged.
+
 - **v2.6.0 (2026-05-22)** — post-v2.5 independent reviewer audit closure
   (`#273` follow-on, 7 issues `#295`–`#301`). Two breaking changes folded
   in: `int` request fields reject `bool` across V1+V2 via new
