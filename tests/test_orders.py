@@ -760,7 +760,7 @@ class TestOrdersAmend:
             return_value=httpx.Response(400, json={"message": "invalid side"})
         )
         with pytest.raises(KalshiValidationError):
-            orders.amend("ord-300", ticker="T", side="invalid", action="buy", yes_price=0.50)
+            orders.amend("ord-300", ticker="T", side="yes", action="buy", yes_price=0.50)
 
     def test_amend_requires_price_or_count(self, orders: OrdersResource) -> None:
         with pytest.raises(ValueError, match="requires at least one"):

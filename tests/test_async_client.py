@@ -473,7 +473,7 @@ class TestAsyncUnauthenticatedResourceGuards:
 
         resource = AsyncOrdersResource(transport)
         with pytest.raises(AuthRequiredError):
-            await resource.create(ticker="TEST", side="yes")
+            await resource.create(ticker="TEST", side="yes", action="buy", count=1)
 
     @pytest.mark.asyncio
     async def test_portfolio_balance_raises_auth_required(self) -> None:

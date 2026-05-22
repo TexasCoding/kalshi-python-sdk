@@ -9,11 +9,12 @@ from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_valida
 
 from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
 
-# Literal aliases for fixed-enum kwargs on order resource methods.
+# Literal aliases for fixed-enum kwargs on order resource methods and the
+# matching V1 / V2 request models.
 # Source of truth: OpenAPI spec v3.13.0 (specs/openapi.yaml).
-# The Pydantic request models leave these fields as ``str`` to remain tolerant
-# of spec drift; the static-type narrowing happens at the resource-method
-# boundary where users actually pass values.
+# V1 ``CreateOrderRequest`` (#270) and ``AmendOrderRequest`` (#312) plus V2
+# ``CreateOrderV2Request`` all carry these narrowed types so a typo fails
+# at construction rather than as a 400 from the server.
 SideLiteral = Literal["yes", "no"]
 """Order side. Spec: CreateOrderRequest.side / AmendOrderRequest.side enum."""
 
@@ -191,8 +192,8 @@ class CreateOrderRequest(BaseModel):
     self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
     order_group_id: str | None = None
     cancel_order_on_pause: bool | None = None
-    subaccount: StrictInt | None = None
-    exchange_index: StrictInt | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -250,8 +251,8 @@ class AmendOrderRequest(BaseModel):
     """
 
     ticker: str
-    side: str
-    action: str
+    side: SideLiteral
+    action: ActionLiteral
     yes_price: DollarDecimal | None = Field(
         default=None,
         serialization_alias="yes_price_dollars",
@@ -266,8 +267,8 @@ class AmendOrderRequest(BaseModel):
     )
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
-    subaccount: StrictInt | None = None
-    exchange_index: StrictInt | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -288,8 +289,8 @@ class DecreaseOrderRequest(BaseModel):
 
     reduce_by: StrictInt | None = None
     reduce_to: StrictInt | None = None
-    subaccount: StrictInt | None = None
-    exchange_index: StrictInt | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -332,8 +333,8 @@ class BatchCancelOrdersRequestOrder(BaseModel):
     """
 
     order_id: str
-    subaccount: StrictInt | None = None
-    exchange_index: StrictInt | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -481,7 +482,7 @@ class CreateOrderV2Request(BaseModel):
     reduce_only: bool | None = None
     subaccount: StrictInt | None = Field(default=None, ge=0)
     order_group_id: str | None = None
-    exchange_index: StrictInt | None = None
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -623,7 +624,7 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
 
     order_id: str
     subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = None
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 

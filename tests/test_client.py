@@ -872,7 +872,7 @@ class TestUnauthenticatedResourceGuards:
 
         resource = OrdersResource(transport)
         with pytest.raises(AuthRequiredError):
-            resource.create(ticker="TEST", side="yes")
+            resource.create(ticker="TEST", side="yes", action="buy", count=1)
 
     def test_orders_list_raises_auth_required(self) -> None:
         config = KalshiConfig(
@@ -1547,3 +1547,53 @@ class TestSyncTransportLifecycle:
         transport.close()
         transport.close()  # triple-close OK
         assert transport._closed is True
+
+
+class TestIssue350OrdersCreateOverloadRequiresActionCount:
+    """#350: orders.create() kwarg overload requires ``action`` and ``count``.
+
+    v2.5 (#242) removed the silent ``count=1`` / ``action="buy"`` defaults
+    at runtime, raising ``TypeError`` when either is missing. The kwarg
+    overload still advertised them as ``... | None = ...``, so mypy
+    accepted the missing-arg shape silently. This test pins both the
+    runtime guard and the type-system fence: removing ``action`` or
+    ``count`` triggers a ``call-overload`` mypy error and a runtime
+    ``TypeError`` before any HTTP traffic.
+    """
+
+    def test_issue_350_orders_create_overload_requires_action_count(
+        self, test_auth: KalshiAuth
+    ) -> None:
+        config = KalshiConfig(
+            base_url="https://test.kalshi.com/trade-api/v2",
+            timeout=5.0,
+            max_retries=0,
+        )
+        transport = SyncTransport(test_auth, config)
+        from kalshi.resources.orders import OrdersResource
+
+        resource = OrdersResource(transport)
+
+        # Runtime guard from #242: missing ``action`` raises before HTTP.
+        with pytest.raises(TypeError, match=r"action"):
+            resource.create(  # type: ignore[call-overload]
+                ticker="TEST",
+                side="yes",
+                count=1,
+            )
+
+        # Runtime guard: missing ``count`` raises before HTTP.
+        with pytest.raises(TypeError, match=r"count"):
+            resource.create(  # type: ignore[call-overload]
+                ticker="TEST",
+                side="yes",
+                action="buy",
+            )
+
+        # The ``# type: ignore[call-overload]`` markers above demonstrate the
+        # static fence: mypy --strict refuses the missing-arg shapes; if the
+        # overload were re-loosened to ``ActionLiteral | None = ...`` again,
+        # mypy would emit ``unused-ignore`` on these lines and fail the
+        # repo-wide strict check.
+
+        transport.close()

@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import ClassVar
 
 import pytest
+from pydantic import ValidationError
 
 from kalshi.models.communications import RFQ, Quote
 from kalshi.models.events import Event, EventMetadata
@@ -1683,3 +1684,139 @@ class TestStrictIntRejectsBoolOnRequestModels:
         for bool_value in (True, False):
             with pytest.raises(ValidationError, match=r"bool"):
                 model_cls(**{**other_kwargs, field_name: bool_value})
+
+
+class TestIssue312AmendOrderRequestLiteralNarrowing:
+    """#312: AmendOrderRequest.side/.action narrowed to Literal aliases.
+
+    Mirrors the v2.5 #270 narrowing on CreateOrderRequest. A typo like
+    ``side="yess"`` now fails at construction rather than at the server's
+    400 response after a signed HTTP round-trip.
+    """
+
+    def test_issue_312_amend_order_request_rejects_invalid_side(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest(
+                ticker="MKT",
+                side="yess",  # type: ignore[arg-type]
+                action="buy",
+                count=Decimal(1),
+            )
+
+    def test_issue_312_amend_order_request_rejects_invalid_action(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        with pytest.raises(ValidationError):
+            AmendOrderRequest(
+                ticker="MKT",
+                side="yes",
+                action="buyy",  # type: ignore[arg-type]
+                count=Decimal(1),
+            )
+
+    def test_issue_312_amend_order_request_accepts_valid_literals(self) -> None:
+        from kalshi.models.orders import AmendOrderRequest
+
+        req = AmendOrderRequest(ticker="MKT", side="no", action="sell")
+        assert req.side == "no"
+        assert req.action == "sell"
+
+
+class TestIssue326V1SubaccountGeZero:
+    """#326: V1 order request models gain ``ge=0`` on subaccount-shaped ints.
+
+    Achieves parity with V2 + communications + order_groups + subaccount-
+    transfer. Negative ``subaccount``/``exchange_index`` previously survived
+    construction, was signed by the SDK, and was 400'd by the server.
+
+    Also sweeps the V2 ``exchange_index`` slots missed by the original
+    V2 hardening.
+    """
+
+    @pytest.mark.parametrize(
+        ("model_path", "field_name", "other_kwargs"),
+        [
+            # V1 CreateOrderRequest
+            (
+                "kalshi.models.orders:CreateOrderRequest",
+                "subaccount",
+                {"ticker": "MKT", "side": "yes", "action": "buy", "count": 1},
+            ),
+            (
+                "kalshi.models.orders:CreateOrderRequest",
+                "exchange_index",
+                {"ticker": "MKT", "side": "yes", "action": "buy", "count": 1},
+            ),
+            # V1 AmendOrderRequest
+            (
+                "kalshi.models.orders:AmendOrderRequest",
+                "subaccount",
+                {"ticker": "MKT", "side": "yes", "action": "buy"},
+            ),
+            (
+                "kalshi.models.orders:AmendOrderRequest",
+                "exchange_index",
+                {"ticker": "MKT", "side": "yes", "action": "buy"},
+            ),
+            # V1 DecreaseOrderRequest
+            (
+                "kalshi.models.orders:DecreaseOrderRequest",
+                "subaccount",
+                {"reduce_by": 1},
+            ),
+            (
+                "kalshi.models.orders:DecreaseOrderRequest",
+                "exchange_index",
+                {"reduce_by": 1},
+            ),
+            # V1 BatchCancelOrdersRequestOrder
+            (
+                "kalshi.models.orders:BatchCancelOrdersRequestOrder",
+                "subaccount",
+                {"order_id": "abc"},
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersRequestOrder",
+                "exchange_index",
+                {"order_id": "abc"},
+            ),
+            # V2 exchange_index slots that were missed in #295
+            (
+                "kalshi.models.orders:CreateOrderV2Request",
+                "exchange_index",
+                {
+                    "ticker": "MKT",
+                    "client_order_id": "c1",
+                    "side": "bid",
+                    "count": 1,
+                    "price": "0.50",
+                    "time_in_force": "good_till_canceled",
+                    "self_trade_prevention_type": "maker",
+                },
+            ),
+            (
+                "kalshi.models.orders:BatchCancelOrdersV2RequestOrder",
+                "exchange_index",
+                {"order_id": "abc"},
+            ),
+        ],
+    )
+    def test_issue_326_v1_subaccount_ge_zero(
+        self,
+        model_path: str,
+        field_name: str,
+        other_kwargs: dict[str, object],
+    ) -> None:
+        import importlib
+
+        module_name, class_name = model_path.split(":")
+        model_cls = getattr(importlib.import_module(module_name), class_name)
+
+        with pytest.raises(ValidationError, match=r"greater than or equal to 0"):
+            model_cls(**{**other_kwargs, field_name: -1})
+
+        # Zero (primary subaccount / first shard) remains valid.
+        instance = model_cls(**{**other_kwargs, field_name: 0})
+        assert getattr(instance, field_name) == 0
