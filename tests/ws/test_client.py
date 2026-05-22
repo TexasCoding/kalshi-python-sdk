@@ -684,13 +684,12 @@ class TestIssue315ZombieSubscriptionCleanup:
         mgr._subscriptions[7] = sub
         mgr._sid_to_client[314] = 7
 
-        # Simulate the gap-recovery failure path: ``resubscribe_one`` clears
-        # ``server_sid`` and the ``_sid_to_client`` entry before raising, then
-        # ``_handle_seq_gap`` calls broadcast_error. After the fix
-        # ``broadcast_error`` must also pop the dead Subscription so the
-        # next reconnect's ``resubscribe_all`` doesn't resurrect it.
-        sub.server_sid = None
-        mgr._sid_to_client.pop(314, None)
+        # Simulate the gap-recovery failure path: ``_handle_seq_gap`` calls
+        # broadcast_error on the live subscription (server_sid still set, sid
+        # still in ``_sid_to_client``) after ``resubscribe_one`` raises. The
+        # fix must clear *both* maps so the zombie can't resurrect.
+        assert sub.server_sid == 314
+        assert mgr._sid_to_client[314] == 7
         await mgr.broadcast_error(
             7,
             KalshiSequenceGapError(

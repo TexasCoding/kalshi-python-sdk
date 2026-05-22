@@ -207,12 +207,7 @@ class SubscriptionManager:
                     f"Connection closed while awaiting response to command {msg_id}"
                 ) from e
             except TimeoutError:
-                # #314: asyncio.wait_for surfaces a bare TimeoutError that the
-                # top-of-loop ``remaining <= 0`` guard never gets to reach
-                # (the next iteration doesn't run). Raise the same structured
-                # KalshiSubscriptionError so consumers branching on SDK
-                # exception types (#213) retain the channel/client_id/op
-                # surface for timeout recovery.
+                # #314: wrap bare TimeoutError so callers retain channel/client_id/op (#213).
                 raise KalshiSubscriptionError(
                     f"Timed out waiting for response to command {msg_id}",
                     channel=channel,
@@ -576,13 +571,7 @@ class SubscriptionManager:
         so enrich it here from the subscription's current
         ``server_sid`` when missing.
 
-        #315: the error sentinel closes the queue permanently, so the
-        subscription is dead from the consumer's perspective. Pop it
-        from ``_subscriptions`` / ``_sid_to_client`` so the next
-        reconnect's ``resubscribe_all`` doesn't resurrect a zombie
-        sub on the server (silent data loss + server-quota leak) and
-        so user-driven ``unsubscribe`` doesn't short-circuit on a
-        permanently-stuck entry.
+        #315: pop the dead subscription so the next resubscribe_all can't resurrect a zombie sub.
         """
         sub = self._subscriptions.get(client_id)
         if sub is None:
