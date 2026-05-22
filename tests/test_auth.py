@@ -522,8 +522,8 @@ class TestFromPem:
             KalshiAuth.from_pem("key-ossh", openssh_pem)
         msg = str(exc.value)
         assert "ssh-keygen -p -m PKCS8 -f <path>" in msg
-        # regression: dropped from earlier draft (would silently strip passphrase
-        # on encrypted OpenSSH keys)
+        # -N '' would silently strip the passphrase on encrypted OpenSSH keys —
+        # must not appear in the message
         assert "-N ''" not in msg
 
 
