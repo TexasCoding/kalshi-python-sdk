@@ -431,3 +431,33 @@ class TestSnapshotIdentityAdoption:
         assert state.yes[Decimal("0.50")] == Decimal("125.00")
         # The cache was invalidated so the next read re-materializes.
         assert state._cached is None
+
+    def test_subscriber_held_snapshot_dict_mutates_on_delta(self) -> None:
+        """Documents the live-dict contract for raw ``subscribe_orderbook_delta`` consumers."""
+        mgr = OrderbookManager()
+        yes_in: dict[Decimal, Decimal] = {Decimal("0.50"): Decimal("100.00")}
+        no_in: dict[Decimal, Decimal] = {Decimal("0.45"): Decimal("150.00")}
+        msg = OrderbookSnapshotMessage.model_validate(
+            {
+                "type": "orderbook_snapshot",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "market_ticker": "T",
+                    "market_id": "id",
+                    "yes": yes_in,
+                    "no": no_in,
+                },
+            }
+        )
+        mgr._apply_snapshot_inplace(msg)
+        # A raw subscriber who stored ``msg.msg.yes`` after receiving the snapshot
+        # frame is holding the live ``_BookState`` dict; the next delta mutates it.
+        held_yes = msg.msg.yes
+        applied = mgr._apply_delta_inplace(
+            make_delta(price="0.60", delta="25", side="yes")
+        )
+        assert applied is True
+        assert Decimal("0.60") in held_yes
+        assert held_yes[Decimal("0.60")] == Decimal("25.00")
+        assert held_yes is mgr._books["T"].yes
