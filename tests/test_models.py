@@ -1811,8 +1811,6 @@ class TestIssue326V1SubaccountGeZero:
     ) -> None:
         import importlib
 
-        from pydantic import ValidationError
-
         module_name, class_name = model_path.split(":")
         model_cls = getattr(importlib.import_module(module_name), class_name)
 
