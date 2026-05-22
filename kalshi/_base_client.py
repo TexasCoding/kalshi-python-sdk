@@ -227,7 +227,7 @@ class SyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.Client(**client_kwargs)
-        self._closed = False
+        self._closed: bool = False
 
     @property
     def is_authenticated(self) -> bool:
@@ -450,7 +450,7 @@ class AsyncTransport:
         if config.limits is not None:
             client_kwargs["limits"] = config.limits
         self._client = httpx.AsyncClient(**client_kwargs)
-        self._closed = False
+        self._closed: bool = False
 
     @property
     def is_authenticated(self) -> bool:
