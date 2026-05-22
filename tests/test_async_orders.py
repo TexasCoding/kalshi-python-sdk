@@ -1762,3 +1762,53 @@ class TestAsyncV2RequiresAuth:
                     orders=[BatchCancelOrdersV2RequestOrder(order_id="ord-a")],
                 ),
             )
+
+
+# ── Issue #351: deprecated forwarders for fills on AsyncOrdersResource ───────
+
+
+class TestIssue351AsyncOrdersFillsDeprecated:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_351_orders_fills_emits_deprecation_warning(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [
+                        fill_dict(
+                            trade_id="t1", order_id="o1", yes_price_dollars="0.5", count_fp="5"
+                        )
+                    ],
+                    "cursor": "",
+                },
+            )
+        )
+        with pytest.warns(DeprecationWarning, match=r"AsyncOrdersResource\.fills") as record:
+            page = await orders.fills()
+        assert len(page) == 1
+        assert page.items[0].trade_id == "t1"
+        assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_issue_351_orders_fills_all_emits_deprecation_warning(
+        self, orders: AsyncOrdersResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [fill_dict(trade_id="a", yes_price_dollars="0.5")],
+                    "cursor": "",
+                },
+            )
+        )
+        with pytest.warns(
+            DeprecationWarning, match=r"AsyncOrdersResource\.fills_all"
+        ) as record:
+            ids = [f.trade_id async for f in orders.fills_all()]
+        assert ids == ["a"]
+        assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1

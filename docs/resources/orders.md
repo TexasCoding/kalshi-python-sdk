@@ -19,7 +19,7 @@ Every method here requires auth.
 | `batch_cancel(orders)` | `DELETE /portfolio/orders/batched` | never |
 | `amend(order_id, ...)` | `POST /portfolio/orders/{order_id}/amend` | never |
 | `decrease(order_id, *, reduce_by, reduce_to)` | `POST /portfolio/orders/{order_id}/decrease` | never |
-| `fills(...)` / `fills_all(...)` | `GET /portfolio/fills` | yes |
+| ~~`fills(...)` / `fills_all(...)`~~ | moved to `PortfolioResource` in v3.0.0 — see [Portfolio › Fills](portfolio.md#fills); the old methods remain as deprecated aliases until removal in a future release. |
 | `queue_positions(*, market_tickers, event_ticker)` | `GET /portfolio/orders/queue_positions` | yes |
 | `queue_position(order_id)` | `GET /portfolio/orders/{order_id}/queue_position` | yes |
 
@@ -198,18 +198,20 @@ order = client.orders.decrease("ord_abc", reduce_to=5)    # decrease size to 5
 Passing neither or both raises `ValidationError` at construction (XOR enforced
 by the model).
 
-## List orders and fills
+## List orders
 
 ```python
 for order in client.orders.list_all(status="resting"):
     print(order.order_id, order.ticker, order.remaining_count)
-
-for fill in client.orders.fills_all(ticker="KXPRES-24-DJT"):
-    print(fill.fill_id, fill.price, fill.count, fill.is_taker)
 ```
 
 `status` accepts an `OrderStatusLiteral`: `"resting"`, `"canceled"`,
 `"executed"`. `min_ts` / `max_ts` (Unix seconds) bound by created time.
+
+Fills (`fills` / `fills_all`) moved to `PortfolioResource` in v3.0.0 — see
+[Portfolio › Fills](portfolio.md#fills). `client.orders.fills(...)` /
+`client.orders.fills_all(...)` still work in v3.0.0 but emit a
+`DeprecationWarning` and will be removed in a future release.
 
 ## Queue position
 

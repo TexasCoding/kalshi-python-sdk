@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from kalshi.models.common import Page
+from kalshi.models.orders import Fill
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
@@ -18,6 +19,7 @@ from kalshi.models.portfolio import (
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
+    _fills_params,
     _params,
     _validate_limit,
     _validate_max_pages,
@@ -66,7 +68,6 @@ def _settlements_params(
         max_ts=max_ts,
         subaccount=subaccount,
     )
-
 
 class PortfolioResource(SyncResource):
     """Sync portfolio API."""
@@ -198,6 +199,71 @@ class PortfolioResource(SyncResource):
             "/portfolio/settlements",
             Settlement,
             "settlements",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    def fills(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[Fill]:
+        """List trade fills (``GET /portfolio/fills``).
+
+        Moved from :class:`OrdersResource` in v3.0.0 (issue #351) to group
+        with the rest of the ``/portfolio/*`` family (``settlements``,
+        ``deposits``, ``withdrawals``).
+        """
+        self._require_auth()
+        params = _fills_params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
+        return self._list(
+            "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
+        )
+
+    def fills_all(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[Fill]:
+        """Auto-paginate trade fills. Moved from :class:`OrdersResource` in v3.0.0."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fills_params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
+            subaccount=subaccount,
+        )
+        return self._list_all(
+            "/portfolio/fills",
+            Fill,
+            "fills",
             params=params,
             max_pages=max_pages,
             extra_headers=extra_headers,
@@ -421,6 +487,72 @@ class AsyncPortfolioResource(AsyncResource):
             "/portfolio/settlements",
             Settlement,
             "settlements",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    async def fills(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[Fill]:
+        """List trade fills (``GET /portfolio/fills``, async).
+
+        Moved from :class:`AsyncOrdersResource` in v3.0.0 (issue #351).
+        """
+        self._require_auth()
+        params = _fills_params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=cursor,
+            subaccount=subaccount,
+        )
+        return await self._list(
+            "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
+        )
+
+    def fills_all(
+        self,
+        *,
+        ticker: str | None = None,
+        order_id: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[Fill]:
+        """Auto-paginate trade fills (async). Use ``async for``.
+
+        Moved from :class:`AsyncOrdersResource` in v3.0.0 (issue #351).
+        """
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fills_params(
+            ticker=ticker,
+            order_id=order_id,
+            min_ts=min_ts,
+            max_ts=max_ts,
+            limit=limit,
+            cursor=None,
+            subaccount=subaccount,
+        )
+        return self._list_all(
+            "/portfolio/fills",
+            Fill,
+            "fills",
             params=params,
             max_pages=max_pages,
             extra_headers=extra_headers,

@@ -626,6 +626,16 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/withdrawals",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.fills",
+        http_method="GET",
+        path_template="/portfolio/fills",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.fills_all",
+        http_method="GET",
+        path_template="/portfolio/fills",
+    ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.list",
@@ -844,6 +854,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         kind="paginator_handled",
     ),
     ("kalshi.resources.portfolio.PortfolioResource.withdrawals_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.resources.portfolio.PortfolioResource.fills_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
@@ -1195,6 +1209,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.PortfolioResource.deposits_all",
     "kalshi.resources.portfolio.PortfolioResource.withdrawals_all",
     "kalshi.resources.portfolio.PortfolioResource.positions_all",
+    "kalshi.resources.portfolio.PortfolioResource.fills_all",
     "kalshi.resources.fcm.FcmResource.orders_all",
     "kalshi.resources.fcm.FcmResource.positions_all",
     "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
@@ -1219,6 +1234,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.AsyncPortfolioResource.deposits_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.withdrawals_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.positions_all",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.fills_all",
     "kalshi.resources.fcm.AsyncFcmResource.orders_all",
     "kalshi.resources.fcm.AsyncFcmResource.positions_all",
     "kalshi.resources.incentive_programs.AsyncIncentiveProgramsResource.list_all",

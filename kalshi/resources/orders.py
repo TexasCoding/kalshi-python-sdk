@@ -7,6 +7,8 @@ from collections.abc import AsyncIterator, Iterator, Sequence
 from decimal import Decimal
 from typing import Any, overload
 
+from typing_extensions import deprecated
+
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import (
@@ -43,6 +45,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _check_request_exclusive,
+    _fills_params,
     _join_tickers,
     _params,
     _seg,
@@ -266,28 +269,6 @@ def _list_orders_params(
         # Spec MultipleEventTickerQuery: comma-joined, max 10.
         event_ticker=_join_tickers(event_ticker, max_items=10),
         status=status,
-        min_ts=min_ts,
-        max_ts=max_ts,
-        limit=limit,
-        cursor=cursor,
-        subaccount=subaccount,
-    )
-
-
-def _fills_params(
-    *,
-    ticker: str | None,
-    order_id: str | None,
-    min_ts: int | None,
-    max_ts: int | None,
-    limit: int | None,
-    cursor: str | None,
-    subaccount: int | None,
-) -> dict[str, Any]:
-    limit = _validate_limit(limit, hi=1000)
-    return _params(
-        ticker=ticker,
-        order_id=order_id,
         min_ts=min_ts,
         max_ts=max_ts,
         limit=limit,
@@ -582,6 +563,9 @@ class OrdersResource(SyncResource):
             raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
+    @deprecated(
+        "OrdersResource.fills is deprecated; use client.portfolio.fills instead."
+    )
     def fills(
         self,
         *,
@@ -594,6 +578,7 @@ class OrdersResource(SyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List trade fills."""
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -608,6 +593,9 @@ class OrdersResource(SyncResource):
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
 
+    @deprecated(
+        "OrdersResource.fills_all is deprecated; use client.portfolio.fills_all instead."
+    )
     def fills_all(
         self,
         *,
@@ -620,6 +608,7 @@ class OrdersResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
+        """Auto-paginate trade fills."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -1125,6 +1114,9 @@ class AsyncOrdersResource(AsyncResource):
             raise KalshiError("Expected BatchCancelOrdersResponse body, got 204 No Content.")
         return BatchCancelOrdersResponse.model_validate(data)
 
+    @deprecated(
+        "AsyncOrdersResource.fills is deprecated; use client.portfolio.fills instead."
+    )
     async def fills(
         self,
         *,
@@ -1137,6 +1129,7 @@ class AsyncOrdersResource(AsyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List trade fills (async)."""
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -1151,6 +1144,9 @@ class AsyncOrdersResource(AsyncResource):
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
         )
 
+    @deprecated(
+        "AsyncOrdersResource.fills_all is deprecated; use client.portfolio.fills_all instead."
+    )
     def fills_all(
         self,
         *,
@@ -1163,7 +1159,7 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
-        """Returns an async iterator — use ``async for``."""
+        """Auto-paginate trade fills (async). Use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(

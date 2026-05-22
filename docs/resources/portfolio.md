@@ -10,6 +10,7 @@ Auth required throughout.
 | `balance(*, subaccount=None)` | `GET /portfolio/balance` |
 | `positions(*, ...)` | `GET /portfolio/positions` |
 | `settlements(...)` / `settlements_all(...)` | `GET /portfolio/settlements` |
+| `fills(...)` / `fills_all(...)` | `GET /portfolio/fills` |
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
 | `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
@@ -114,6 +115,31 @@ for s in client.portfolio.settlements_all():
 ```
 
 Standard `Page[Settlement]` pagination — see [Pagination](../pagination.md).
+
+## Fills
+
+```python
+page = client.portfolio.fills(
+    ticker="KXPRES-24-DJT",
+    min_ts=1_700_000_000,
+    max_ts=1_800_000_000,
+    limit=200,
+)
+for f in page:
+    print(f.trade_id, f.order_id, f.yes_price, f.count, f.is_taker)
+
+# Or auto-paginate:
+for f in client.portfolio.fills_all(ticker="KXPRES-24-DJT"):
+    ...
+```
+
+Standard `Page[Fill]` pagination — see [Pagination](../pagination.md).
+
+!!! note "Moved from `OrdersResource` in v3.0.0 (issue #351)"
+    `client.orders.fills(...)` / `client.orders.fills_all(...)` still work
+    in v3.0.0 but emit a `DeprecationWarning` and will be removed in a
+    future release. Update call sites to `client.portfolio.fills(...)` /
+    `client.portfolio.fills_all(...)`.
 
 ## Total resting order value
 
