@@ -464,7 +464,7 @@ class CreateOrderV2Request(BaseModel):
       overload at the resource-method boundary (see model_only V2 surface).
     - ``client_order_id`` is **required** in V2, unlike V1 where it is
       optional. The server uses it for idempotency in V2.
-    - Price is a single ``price: FixedPointDollars`` field rather than the
+    - Price is a single ``price: DollarDecimal`` field rather than the
       paired ``yes_price`` / ``no_price`` from V1.
     """
 

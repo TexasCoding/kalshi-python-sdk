@@ -488,7 +488,7 @@ class AsyncMarketsResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Market]:
-        """Non-async method that returns an async iterator for direct use with `async for`."""
+        """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
         params = _list_markets_params(
             status=status,

@@ -566,6 +566,7 @@ class AsyncCommunicationsResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[RFQ]:
+        """Returns an async iterator — use ``async for``."""
         # Plain `def` so _require_auth + _validate_max_pages run at call time.
         self._require_auth()
         _validate_max_pages(max_pages)
@@ -703,6 +704,7 @@ class AsyncCommunicationsResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Quote]:
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _require_quote_filter(
             quote_creator_user_id,

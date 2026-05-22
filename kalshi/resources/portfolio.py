@@ -335,7 +335,15 @@ class AsyncPortfolioResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarketPosition]:
-        """Async counterpart of :meth:`PortfolioResource.positions_all`. Use ``async for``."""
+        """Async counterpart of :meth:`PortfolioResource.positions_all`. Use ``async for``.
+
+        Mirrors :meth:`settlements_all`. The endpoint response also carries
+        ``event_positions`` (aggregate roll-ups over the same underlying
+        markets); those are *not* surfaced here because page boundaries cut
+        the aggregate arbitrarily and concatenating across pages would not
+        recompute a meaningful event-level total. Callers that need the
+        event view should iterate :meth:`positions` page-by-page.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _positions_params(
@@ -397,6 +405,7 @@ class AsyncPortfolioResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Settlement]:
+        """Returns an async iterator — use ``async for``."""
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _settlements_params(
@@ -420,7 +429,11 @@ class AsyncPortfolioResource(AsyncResource):
     async def total_resting_order_value(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> TotalRestingOrderValue:
-        """Total value of resting orders in cents. FCM-members only."""
+        """Total value of resting orders in cents. FCM-members only.
+
+        Non-FCM accounts receive 403; demo mirrors prod on this route
+        per Path B audit (2026-04-18).
+        """
         self._require_auth()
         data = await self._get(
             "/portfolio/summary/total_resting_order_value", extra_headers=extra_headers
