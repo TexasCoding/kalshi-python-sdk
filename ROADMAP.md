@@ -2,7 +2,7 @@
 
 ## Shipped
 
-- **v3.0.0 (2026-05-23)** — first major release in the v3 line. Three
+- **v3.0.0 (2026-05-22)** — first major release in the v3 line. Three
   breaking-rename issues (`#348`, `#349`, `#351`) deferred from the v2.7.0
   audit closure land with one-release deprecation aliases:
   `CommunicationsResource` flat noun-prefixed methods split into

@@ -2,7 +2,7 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## 3.0.0 — 2026-05-23
+## 3.0.0 — 2026-05-22
 
 Public-API rename release. Three breaking-rename issues (`#348`, `#349`, `#351`)
 that were deferred from the v2.7.0 audit closure now land with **one-release
