@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from kalshi._constants import AUTH_HEADER_PREFIX
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import (
@@ -161,6 +162,47 @@ def _would_exceed_budget(start: float, delay: float, total_timeout: float | None
     return (time.monotonic() - start) + delay > total_timeout
 
 
+
+def _assert_no_auth_headers(h: dict[str, str] | None) -> None:
+    """Reject caller-supplied ``KALSHI-ACCESS-*`` keys (case-insensitive).
+
+    #298: auth headers are SDK-managed (RSA-PSS signed per attempt) and
+    must not be set via ``extra_headers``. No-op if no leak is found.
+    """
+    if not h:
+        return
+    leaked = [k for k in h if k.lower().startswith(AUTH_HEADER_PREFIX)]
+    if leaked:
+        raise ValueError(
+            f"extra_headers must not include KALSHI-ACCESS-* keys "
+            f"(got: {sorted(leaked)!r}). These are reserved for "
+            f"SDK-managed RSA-PSS signing and cannot be overridden."
+        )
+
+
+def _ci_merge(*layers: dict[str, str] | None) -> dict[str, str]:
+    """Case-insensitive, last-layer-wins header merge.
+
+    #298: plain ``dict`` unpacking is case-sensitive, so case-mismatched
+    keys co-exist on the wire (httpx ships both raw header lines). This
+    merge drops the earlier-case key when a later layer supplies the same
+    lowercase form, so the rightmost layer cleanly wins.
+    """
+    out: dict[str, str] = {}
+    lower_to_canonical: dict[str, str] = {}
+    for layer in layers:
+        if not layer:
+            continue
+        for k, v in layer.items():
+            lk = k.lower()
+            canonical = lower_to_canonical.get(lk)
+            if canonical is not None and canonical != k:
+                out.pop(canonical, None)
+            lower_to_canonical[lk] = k
+            out[k] = v
+    return out
+
+
 class SyncTransport:
     """Synchronous HTTP transport using httpx.Client."""
 
@@ -209,6 +251,10 @@ class SyncTransport:
         client-default one), but the ``KALSHI-ACCESS-*`` auth headers always
         win — callers cannot forge them via ``extra_headers``.
         """
+        # #298: reject KALSHI-ACCESS-* in caller-supplied extra_headers
+        # before any merging — auth headers are SDK-signed per attempt and
+        # the only safe behaviour is a hard error at the boundary.
+        _assert_no_auth_headers(extra_headers)
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
         # P1.6: canonicalize trailing slash BEFORE both signing and httpx call
@@ -227,14 +273,20 @@ class SyncTransport:
         # timestamp). Merge the invariant base once outside the loop.
         # Order matters: config defaults < per-request overrides
         #               < body-helper headers < signed auth.
-        base_headers: dict[str, str] = {
-            **(self._config.extra_headers or {}),
-            **(extra_headers or {}),
-            **(headers or {}),
-        }
+        # #298: case-insensitive merge — plain dict unpacking would leave
+        # case-mismatched duplicates (e.g. user 'content-type' beside SDK
+        # 'Content-Type'), and httpx 0.28 ships both raw header lines.
+        base_headers: dict[str, str] = _ci_merge(
+            self._config.extra_headers,
+            extra_headers,
+            headers,
+        )
 
         for attempt in range(self._config.max_retries + 1):
             auth_headers = self._auth.sign_request(method.upper(), sign_path) if self._auth else {}
+            # auth_headers keys are case-canonical (always uppercase
+            # KALSHI-ACCESS-*) and base_headers is already case-deduped by
+            # _ci_merge above, so a plain dict-unpack is safe here (#298).
             merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(
@@ -408,6 +460,10 @@ class AsyncTransport:
 
         See :meth:`SyncTransport.request` for ``extra_headers`` semantics.
         """
+        # #298: reject KALSHI-ACCESS-* in caller-supplied extra_headers
+        # before any merging — auth headers are SDK-signed per attempt and
+        # the only safe behaviour is a hard error at the boundary.
+        _assert_no_auth_headers(extra_headers)
         if json is not None and content is not None:
             raise TypeError("request() accepts `json=` or `content=`, not both.")
 
@@ -424,17 +480,23 @@ class AsyncTransport:
         # out of the retry loop; only auth_headers changes per attempt.
         # Order matters: config defaults < per-request overrides
         #               < body-helper headers < signed auth.
-        base_headers: dict[str, str] = {
-            **(self._config.extra_headers or {}),
-            **(extra_headers or {}),
-            **(headers or {}),
-        }
+        # #298: case-insensitive merge — plain dict unpacking would leave
+        # case-mismatched duplicates (e.g. user 'content-type' beside SDK
+        # 'Content-Type'), and httpx 0.28 ships both raw header lines.
+        base_headers: dict[str, str] = _ci_merge(
+            self._config.extra_headers,
+            extra_headers,
+            headers,
+        )
 
         for attempt in range(self._config.max_retries + 1):
             if self._auth:
                 auth_headers = await self._auth.sign_request_async(method.upper(), sign_path)
             else:
                 auth_headers = {}
+            # auth_headers keys are case-canonical (always uppercase
+            # KALSHI-ACCESS-*) and base_headers is already case-deduped by
+            # _ci_merge above, so a plain dict-unpack is safe here (#298).
             merged_headers = {**base_headers, **auth_headers}
 
             logger.debug(

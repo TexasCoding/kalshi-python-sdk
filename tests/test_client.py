@@ -1348,41 +1348,40 @@ class TestExtraHeadersPerRequest:
         transport.close()
 
     @respx.mock
-    def test_extra_headers_cannot_forge_KALSHI_ACCESS_headers(  # noqa: N802
+    def test_extra_headers_rejects_KALSHI_ACCESS_headers(  # noqa: N802
         self, test_auth: KalshiAuth
     ) -> None:
-        """Per-call extra_headers MUST NOT override the SDK's signed auth headers."""
+        """#298: per-call extra_headers with KALSHI-ACCESS-* keys raise ValueError.
+
+        Previously the SDK silently overrode them; the case-mismatched variant
+        still leaked on the wire. The fix rejects any kalshi-access-* key at
+        the public boundary, regardless of case.
+        """
         config = KalshiConfig(
             base_url="https://test.kalshi.com/trade-api/v2",
             timeout=5.0,
         )
         transport = SyncTransport(test_auth, config)
-        captured: list[httpx.Request] = []
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            captured.append(request)
-            return httpx.Response(200, json={})
-
-        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(side_effect=handler)
-        resp = transport.request(
-            "GET",
-            "/markets",
-            extra_headers={
-                "KALSHI-ACCESS-KEY": "attacker-key",
-                "KALSHI-ACCESS-SIGNATURE": "AAAAAA==",
-                "KALSHI-ACCESS-TIMESTAMP": "1",
-                "X-Trace": "ok",
-            },
-        )
-        assert resp.status_code == 200
-        sent = captured[0]
-        # The signed key (from test_auth fixture) wins, not the forged one.
-        assert sent.headers["KALSHI-ACCESS-KEY"] == "test-key-id"
-        # Signature/timestamp were re-signed by the SDK, not "AAAAAA=="/"1".
-        assert sent.headers["KALSHI-ACCESS-SIGNATURE"] != "AAAAAA=="
-        assert sent.headers["KALSHI-ACCESS-TIMESTAMP"] != "1"
-        # Non-auth headers still pass through.
-        assert sent.headers["X-Trace"] == "ok"
+        # No respx route: ValueError fires before any request is sent.
+        # @respx.mock decorator still sandboxes any accidental real call.
+        with pytest.raises(ValueError, match="KALSHI-ACCESS-"):
+            transport.request(
+                "GET",
+                "/markets",
+                extra_headers={
+                    "KALSHI-ACCESS-KEY": "attacker-key",
+                    "KALSHI-ACCESS-SIGNATURE": "AAAAAA==",
+                    "KALSHI-ACCESS-TIMESTAMP": "1",
+                    "X-Trace": "ok",
+                },
+            )
+        # Case-mismatched lowercase variant is also rejected.
+        with pytest.raises(ValueError, match="kalshi-access-"):
+            transport.request(
+                "GET",
+                "/markets",
+                extra_headers={"kalshi-access-key": "attacker-key"},
+            )
         transport.close()
 
 

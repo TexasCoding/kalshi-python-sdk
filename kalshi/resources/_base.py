@@ -179,6 +179,9 @@ class SyncResource:
             path,
             params=params,
             json=json,
+            # #298: pin Content-Type so a caller-supplied (mismatched-case)
+            # `content-type` cannot suppress httpx's JSON inference.
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
@@ -222,6 +225,9 @@ class SyncResource:
             path,
             params=params,
             json=json,
+            # #298: pin Content-Type so a caller-supplied (mismatched-case)
+            # `content-type` cannot suppress httpx's JSON inference.
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:
@@ -258,6 +264,7 @@ class SyncResource:
             "DELETE",
             path,
             json=json,
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:
@@ -418,6 +425,9 @@ class AsyncResource:
             path,
             params=params,
             json=json,
+            # #298: pin Content-Type so a caller-supplied (mismatched-case)
+            # `content-type` cannot suppress httpx's JSON inference.
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         result: dict[str, Any] = self._load_json(response)
@@ -456,6 +466,9 @@ class AsyncResource:
             path,
             params=params,
             json=json,
+            # #298: pin Content-Type so a caller-supplied (mismatched-case)
+            # `content-type` cannot suppress httpx's JSON inference.
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:
@@ -492,6 +505,7 @@ class AsyncResource:
             "DELETE",
             path,
             json=json,
+            headers={"Content-Type": "application/json"},
             extra_headers=extra_headers,
         )
         if response.status_code == 204:
