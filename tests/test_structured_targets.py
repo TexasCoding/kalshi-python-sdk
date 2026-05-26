@@ -226,3 +226,46 @@ class TestModel:
             {"target_type": "basketball_player"},
         )
         assert from_sdk.target_type == "basketball_player"
+
+class TestIdsCap:
+    """Spec v3.19.0 added ``maxItems: 2000`` on the ``ids`` query param.
+
+    The SDK mirrors this client-side so callers see a clear ``ValueError``
+    instead of paying a network round trip for a 400.
+    """
+
+    def test_list_rejects_oversize_ids(
+        self, resource: StructuredTargetsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match=r"at most 2000.*got 2001"):
+            resource.list(ids=[f"uuid-{i}" for i in range(2001)])
+
+    def test_list_all_rejects_oversize_ids(
+        self, resource: StructuredTargetsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match=r"at most 2000.*got 2001"):
+            resource.list_all(ids=[f"uuid-{i}" for i in range(2001)])
+
+    @respx.mock
+    def test_list_allows_boundary(self, resource: StructuredTargetsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/structured_targets").mock(
+            return_value=httpx.Response(200, json={"structured_targets": []})
+        )
+        # 2000 is the spec cap — boundary must succeed.
+        page = resource.list(ids=[f"uuid-{i}" for i in range(2000)])
+        assert page.items == []
+
+    @pytest.mark.asyncio
+    async def test_async_list_rejects_oversize_ids(
+        self, async_resource: AsyncStructuredTargetsResource,
+    ) -> None:
+        with pytest.raises(ValueError, match=r"at most 2000.*got 2001"):
+            await async_resource.list(ids=[f"uuid-{i}" for i in range(2001)])
+
+    def test_async_list_all_rejects_oversize_ids(
+        self, async_resource: AsyncStructuredTargetsResource,
+    ) -> None:
+        # ``list_all`` is a plain ``def`` returning an AsyncIterator so the
+        # validator fires synchronously at call time, not on first iteration.
+        with pytest.raises(ValueError, match=r"at most 2000.*got 2001"):
+            async_resource.list_all(ids=[f"uuid-{i}" for i in range(2001)])
