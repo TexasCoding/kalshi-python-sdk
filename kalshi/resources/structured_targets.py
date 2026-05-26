@@ -19,6 +19,18 @@ from kalshi.resources._base import (
     _validate_max_pages,
 )
 
+# Spec v3.19.0 added ``maxItems: 2000`` to the ``ids`` query param on
+# ``GET /structured_targets``. Mirror it at the SDK boundary so an oversize
+# filter fails fast with a clear ``ValueError`` instead of a 400 round trip.
+_MAX_IDS = 2000
+
+
+def _validate_ids(ids: builtins.list[str] | None) -> None:
+    if ids is not None and len(ids) > _MAX_IDS:
+        raise ValueError(
+            f"ids accepts at most {_MAX_IDS} entries per spec (got {len(ids)})"
+        )
+
 
 class StructuredTargetsResource(SyncResource):
     """Sync structured targets API.
@@ -39,6 +51,7 @@ class StructuredTargetsResource(SyncResource):
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[StructuredTarget]:
+        _validate_ids(ids)
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
@@ -66,6 +79,7 @@ class StructuredTargetsResource(SyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[StructuredTarget]:
         _validate_max_pages(max_pages)
+        _validate_ids(ids)
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
@@ -105,6 +119,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[StructuredTarget]:
+        _validate_ids(ids)
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,
@@ -133,6 +148,7 @@ class AsyncStructuredTargetsResource(AsyncResource):
     ) -> AsyncIterator[StructuredTarget]:
         """Returns an async iterator — use ``async for``."""
         _validate_max_pages(max_pages)
+        _validate_ids(ids)
         _validate_limit(page_size, hi=2000, name="page_size")
         params = _params(
             ids=ids,

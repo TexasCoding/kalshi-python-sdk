@@ -2,6 +2,31 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 3.0.1 — 2026-05-26
+
+OpenAPI spec sync from v3.18.0 → v3.19.0 (`#383`). Single additive
+request-side constraint on `GET /structured_targets`: the `ids` query
+param gained `maxItems: 2000`. Mirrored at the SDK boundary so an
+oversize filter fails fast with a clear `ValueError` instead of paying
+a network round trip for a 400. No endpoint, channel, or response-model
+changes; regenerated `kalshi/_generated/models.py` is byte-identical to
+the v3.18.0 output.
+
+### Changed
+
+- `StructuredTargetsResource.list` / `list_all` and their async
+  counterparts now raise `ValueError("ids accepts at most 2000 entries
+  per spec ...")` when `ids` exceeds 2000 entries. The 2000 boundary
+  is inclusive (matches spec `maxItems`). Mirrors the existing
+  `live_data.batch` (`milestone_ids`, max 100) and
+  `markets.bulk_*` (`tickers`, max 100) precedent.
+
+### Internal
+
+- `specs/openapi.yaml` snapshot bumped (sha256
+  `5eaeca6bb64b2ff0aa4f63f9e13381da5a8f6d8f9b34328408499a0503a3085d`).
+- README + `docs/index.md` banners bumped to "OpenAPI v3.19.0".
+
 ## 3.0.0 — 2026-05-22
 
 Public-API rename release. Three breaking-rename issues (`#348`, `#349`, `#351`)
