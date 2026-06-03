@@ -30,7 +30,7 @@ jobs:
             echo "has_secrets=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: steps.guard.outputs.has_secrets == 'true'
 
       - name: Install uv
