@@ -594,6 +594,20 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
 # prediction-API ``kalshi.models.*`` modules, so perps models under
 # ``kalshi.perps.models.*`` are not subject to that completeness gate — these
 # maps are additive coverage, populated as response models land.
-PERPS_CONTRACT_MAP: list[ContractEntry] = []
+PERPS_CONTRACT_MAP: list[ContractEntry] = [
+    # ── perps exchange (#389) ───────────────────────────────────────────
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.ExchangeStatus",
+        spec_schema="ExchangeStatus",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.MarginEnabledResponse",
+        spec_schema="MarginEnabledResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.GetMarginRiskParametersResponse",
+        spec_schema="GetMarginRiskParametersResponse",
+    ),
+]
 
 PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = []

@@ -43,6 +43,15 @@ from kalshi.perps.models.common import (
     PriceLevelDollarsCountFp,
     SelfTradePreventionType,
 )
+from kalshi.perps.models.exchange import (
+    ExchangeStatus,
+    GetMarginRiskParametersResponse,
+    MarginEnabledResponse,
+)
+from kalshi.perps.resources.exchange import (
+    AsyncPerpsExchangeResource,
+    PerpsExchangeResource,
+)
 
 __all__ = [
     "PERPS_DEMO_BASE_URL",
@@ -50,16 +59,21 @@ __all__ = [
     "PERPS_PRODUCTION_BASE_URL",
     "PERPS_PRODUCTION_WS_URL",
     "AsyncPerpsClient",
+    "AsyncPerpsExchangeResource",
     "BookSide",
     "EmptyResponse",
     "ErrorResponse",
     "ExchangeIndex",
     "ExchangeInstance",
+    "ExchangeStatus",
+    "GetMarginRiskParametersResponse",
     "LastUpdateReason",
+    "MarginEnabledResponse",
     "MarginMarketStatus",
     "OrderSource",
     "PerpsClient",
     "PerpsConfig",
+    "PerpsExchangeResource",
     "PriceLevelDollarsCountFp",
     "SelfTradePreventionType",
 ]

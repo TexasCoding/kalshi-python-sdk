@@ -1367,13 +1367,22 @@ for _fqn in _MAX_PAGES_FQNS:
 
 # Perps REST endpoints — validated against ``specs/perps_openapi.yaml``.
 PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
-    # Dependent perps REST issues append entries here, e.g.:
-    # MethodEndpointEntry(
-    #     sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.create",
-    #     http_method="POST",
-    #     path_template="/margin/orders",
-    #     request_body_schema="#/components/schemas/CreateMarginOrderRequest",
-    # ),
+    # ── perps exchange (#389) ────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.status",
+        http_method="GET",
+        path_template="/margin/exchange/status",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.enabled",
+        http_method="GET",
+        path_template="/margin/enabled",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.risk_parameters",
+        http_method="GET",
+        path_template="/margin/risk_parameters",
+    ),
 ]
 
 # SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.

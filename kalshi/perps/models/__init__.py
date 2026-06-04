@@ -21,6 +21,11 @@ from kalshi.perps.models.common import (
     PriceLevelDollarsCountFp,
     SelfTradePreventionType,
 )
+from kalshi.perps.models.exchange import (
+    ExchangeStatus,
+    GetMarginRiskParametersResponse,
+    MarginEnabledResponse,
+)
 
 __all__ = [
     "BookSide",
@@ -28,7 +33,10 @@ __all__ = [
     "ErrorResponse",
     "ExchangeIndex",
     "ExchangeInstance",
+    "ExchangeStatus",
+    "GetMarginRiskParametersResponse",
     "LastUpdateReason",
+    "MarginEnabledResponse",
     "MarginMarketStatus",
     "OrderSource",
     "PriceLevelDollarsCountFp",
