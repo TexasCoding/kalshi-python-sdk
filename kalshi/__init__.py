@@ -170,6 +170,7 @@ from kalshi.models import (
     WeeklySchedule,
     Withdrawal,
 )
+from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.resources.communications import (
     AsyncQuotesResource,
     AsyncRFQsResource,
@@ -193,6 +194,7 @@ __all__ = [
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncKalshiClient",
+    "AsyncPerpsClient",
     "AsyncQuotesResource",
     "AsyncRFQsResource",
     "AuthRequiredError",
@@ -316,6 +318,8 @@ __all__ = [
     "PaymentStatusLiteral",
     "PaymentTypeLiteral",
     "PercentilePoint",
+    "PerpsClient",
+    "PerpsConfig",
     "PlayByPlay",
     "PlayByPlayPeriod",
     "PositionsResponse",

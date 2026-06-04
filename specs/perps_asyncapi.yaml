@@ -1,0 +1,1257 @@
+asyncapi: 3.0.0
+info:
+  title: Kalshi Perps WebSocket API
+  version: 2.0.0
+  description: >
+    WebSocket API for receiving real-time market data notifications and updates
+    on Kalshi perps markets.
+
+
+    Supported channels:
+
+    - `orderbook_delta`
+
+    - `ticker`
+
+    - `trade`
+
+    - `fill`
+
+    - `user_orders`
+
+    - `order_group_updates`
+  contact:
+    name: Kalshi Support
+    url: https://kalshi.com
+    email: support@kalshi.com
+  license:
+    name: Proprietary
+    url: https://kalshi.com/terms
+  tags:
+    - name: control-frames
+      description: WebSocket control frames for connection management
+    - name: commands
+      description: Client-to-server command messages
+    - name: responses
+      description: Server responses to commands
+    - name: market-data
+      description: Real-time margin market data updates
+    - name: private
+      description: Private/authenticated margin data channels
+servers:
+  production:
+    host: external-api-margin-ws.kalshi.com
+    pathname: /trade-api/ws/v2/margin
+    protocol: wss
+    description: Production margin WebSocket server (encrypted connection only)
+    security:
+      - $ref: '#/components/securitySchemes/apiKey'
+  demo:
+    host: external-api-margin-ws.demo.kalshi.co
+    pathname: /trade-api/ws/v2/margin
+    protocol: wss
+    description: Demo margin WebSocket server (encrypted connection only)
+    security:
+      - $ref: '#/components/securitySchemes/apiKey'
+defaultContentType: application/json
+channels:
+  root:
+    address: /
+    title: WebSocket Connection
+    description: |
+      Main WebSocket connection endpoint.
+      Authentication is required during the WebSocket handshake.
+    bindings:
+      ws:
+        method: GET
+    messages:
+      subscribeCommand:
+        $ref: '#/components/messages/subscribeCommand'
+      unsubscribeCommand:
+        $ref: '#/components/messages/unsubscribeCommand'
+      updateSubscriptionCommand:
+        $ref: '#/components/messages/updateSubscriptionCommand'
+      updateSubscriptionDeleteCommand:
+        $ref: '#/components/messages/updateSubscriptionDeleteCommand'
+      updateSubscriptionSingleSidCommand:
+        $ref: '#/components/messages/updateSubscriptionSingleSidCommand'
+      listSubscriptionsCommand:
+        $ref: '#/components/messages/listSubscriptionsCommand'
+      subscribedResponse:
+        $ref: '#/components/messages/subscribedResponse'
+      unsubscribedResponse:
+        $ref: '#/components/messages/unsubscribedResponse'
+      okResponse:
+        $ref: '#/components/messages/okResponse'
+      listSubscriptionsResponse:
+        $ref: '#/components/messages/listSubscriptionsResponse'
+      errorResponse:
+        $ref: '#/components/messages/errorResponse'
+  control_frames:
+    address: /
+    title: Connection Keep-Alive
+    description: |
+      Kalshi sends Ping frames every 10 seconds with body `heartbeat`.
+      Clients should respond with Pong frames.
+    messages:
+      incomingPing:
+        $ref: '#/components/messages/incomingPing'
+      incomingPong:
+        $ref: '#/components/messages/incomingPong'
+      outgoingPing:
+        $ref: '#/components/messages/outgoingPing'
+      outgoingPong:
+        $ref: '#/components/messages/outgoingPong'
+  orderbook_delta:
+    address: orderbook_delta
+    title: Orderbook Updates
+    description: >
+      Real-time margin orderbook price-level changes.
+
+
+      Requirements:
+
+      - authenticated connection
+
+      - market specification required via `market_ticker` or `market_tickers`
+
+      - sends `orderbook_snapshot` first, then incremental `orderbook_delta`
+      updates
+    messages:
+      orderbookSnapshot:
+        $ref: '#/components/messages/orderbookSnapshot'
+      orderbookDelta:
+        $ref: '#/components/messages/orderbookDelta'
+  ticker:
+    address: ticker
+    title: Market Ticker
+    description: >
+      Margin market updates are delivered on a single channel. `ticker` messages
+      include
+
+      price, top-of-book size, volume, open-interest, and optional
+      reference/mark prices.
+
+
+      Messages are coalesced to at most one per market per second (latest value
+      wins
+
+      within the window).
+
+
+      Requirements:
+
+      - no additional channel-level auth beyond the authenticated WebSocket
+      connection
+
+      - market specification optional
+
+      - supports `market_ticker`/`market_tickers`
+    messages:
+      ticker:
+        $ref: '#/components/messages/ticker'
+  trade:
+    address: trade
+    title: Public Trades
+    description: >
+      Public notifications for executed margin trades.
+
+
+      Requirements:
+
+      - no additional channel-level auth beyond the authenticated WebSocket
+      connection
+
+      - market specification optional via `market_ticker` or `market_tickers`
+    messages:
+      trade:
+        $ref: '#/components/messages/trade'
+  fill:
+    address: fill
+    title: User Fills
+    description: >
+      Private fill notifications for the authenticated user on the margin
+      exchange.
+
+
+      Requirements:
+
+      - authenticated connection
+
+      - market specification optional via `market_ticker` or `market_tickers`
+
+      - supports `update_subscription` with `add_markets` and `delete_markets`
+    messages:
+      fill:
+        $ref: '#/components/messages/fill'
+  user_orders:
+    address: user_orders
+    title: User Orders
+    description: >
+      Private order created/updated notifications for the authenticated user on
+      the margin exchange.
+
+
+      Requirements:
+
+      - authenticated connection
+
+      - market specification optional via `market_tickers`
+
+      - supports `update_subscription` with `add_markets` and `delete_markets`
+    messages:
+      userOrder:
+        $ref: '#/components/messages/userOrder'
+  order_group_updates:
+    address: order_group_updates
+    title: Order Group Updates
+    description: >
+      Real-time order group lifecycle and limit updates. Requires
+      authentication.
+
+
+      **Requirements:**
+
+      - Authentication required
+
+      - Market specification ignored
+
+      - Updates sent when order groups are created, triggered, reset, deleted,
+      or have limits updated
+
+
+      **Use case:** Tracking order group lifecycle and limits
+    messages:
+      orderGroupUpdates:
+        $ref: '#/components/messages/orderGroupUpdates'
+operations:
+  sendPing:
+    action: receive
+    title: Send Ping
+    channel:
+      $ref: '#/channels/control_frames'
+    messages:
+      - $ref: '#/channels/control_frames/messages/incomingPing'
+    tags:
+      - name: control-frames
+  sendPong:
+    action: receive
+    title: Send Pong
+    channel:
+      $ref: '#/channels/control_frames'
+    messages:
+      - $ref: '#/channels/control_frames/messages/incomingPong'
+    tags:
+      - name: control-frames
+  sendSubscribe:
+    action: receive
+    title: Subscribe to Channels
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/subscribeCommand'
+    tags:
+      - name: commands
+  sendUnsubscribe:
+    action: receive
+    title: Unsubscribe from Channels
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/unsubscribeCommand'
+    tags:
+      - name: commands
+  sendListSubscriptions:
+    action: receive
+    title: List Subscriptions
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/listSubscriptionsCommand'
+    tags:
+      - name: commands
+  sendUpdateSubscription:
+    action: receive
+    title: Update Subscription - Add Markets
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/updateSubscriptionCommand'
+    tags:
+      - name: commands
+  sendUpdateSubscriptionDelete:
+    action: receive
+    title: Update Subscription - Delete Markets
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/updateSubscriptionDeleteCommand'
+    tags:
+      - name: commands
+  sendUpdateSubscriptionSingleSid:
+    action: receive
+    title: Update Subscription - Single SID
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/updateSubscriptionSingleSidCommand'
+    tags:
+      - name: commands
+  receivePing:
+    action: send
+    title: Receive Ping
+    channel:
+      $ref: '#/channels/control_frames'
+    messages:
+      - $ref: '#/channels/control_frames/messages/outgoingPing'
+    tags:
+      - name: control-frames
+  receivePong:
+    action: send
+    title: Receive Pong
+    channel:
+      $ref: '#/channels/control_frames'
+    messages:
+      - $ref: '#/channels/control_frames/messages/outgoingPong'
+    tags:
+      - name: control-frames
+  receiveSubscribed:
+    action: send
+    title: Subscription Confirmed
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/subscribedResponse'
+    tags:
+      - name: responses
+  receiveUnsubscribed:
+    action: send
+    title: Unsubscription Confirmed
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/unsubscribedResponse'
+    tags:
+      - name: responses
+  receiveOk:
+    action: send
+    title: Update Confirmed
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/okResponse'
+    tags:
+      - name: responses
+  receiveListSubscriptions:
+    action: send
+    title: List Subscriptions Response
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/listSubscriptionsResponse'
+    tags:
+      - name: responses
+  receiveError:
+    action: send
+    title: Error Response
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/errorResponse'
+    tags:
+      - name: responses
+  receiveOrderbookSnapshot:
+    action: send
+    title: Orderbook Snapshot
+    channel:
+      $ref: '#/channels/orderbook_delta'
+    messages:
+      - $ref: '#/channels/orderbook_delta/messages/orderbookSnapshot'
+    tags:
+      - name: market-data
+  receiveOrderbookDelta:
+    action: send
+    title: Orderbook Delta
+    channel:
+      $ref: '#/channels/orderbook_delta'
+    messages:
+      - $ref: '#/channels/orderbook_delta/messages/orderbookDelta'
+    tags:
+      - name: market-data
+  receiveTicker:
+    action: send
+    title: Ticker Update
+    channel:
+      $ref: '#/channels/ticker'
+    messages:
+      - $ref: '#/channels/ticker/messages/ticker'
+    tags:
+      - name: market-data
+  receiveTrade:
+    action: send
+    title: Trade Update
+    channel:
+      $ref: '#/channels/trade'
+    messages:
+      - $ref: '#/channels/trade/messages/trade'
+    tags:
+      - name: market-data
+  receiveFill:
+    action: send
+    title: Fill Notification
+    channel:
+      $ref: '#/channels/fill'
+    messages:
+      - $ref: '#/channels/fill/messages/fill'
+    tags:
+      - name: private
+  receiveUserOrder:
+    action: send
+    title: User Order Update
+    channel:
+      $ref: '#/channels/user_orders'
+    messages:
+      - $ref: '#/channels/user_orders/messages/userOrder'
+    tags:
+      - name: private
+  receiveOrderGroupUpdates:
+    action: send
+    title: Order Group Updates
+    summary: Receive order group lifecycle and limit updates
+    channel:
+      $ref: '#/channels/order_group_updates'
+    messages:
+      - $ref: '#/channels/order_group_updates/messages/orderGroupUpdates'
+    tags:
+      - name: private
+components:
+  messages:
+    incomingPing:
+      name: ping
+      title: Ping
+      summary: Client sends Ping frame (0x9) to elicit Pong from Kalshi
+      contentType: application/octet-stream
+      payload:
+        type: string
+        const: ''
+      examples:
+        - name: emptyPing
+          summary: Client sends ping
+          payload: ''
+    incomingPong:
+      name: pong
+      title: Pong
+      summary: Client replies to Ping with Pong Frame (0xA)
+      contentType: application/octet-stream
+      payload:
+        type: string
+        const: ''
+      examples:
+        - name: emptyPong
+          summary: Client sends pong
+          payload: ''
+    outgoingPing:
+      name: ping
+      title: Ping
+      summary: Kalshi sends Ping (0x9) with body 'heartbeat' to elicit Pong from client
+      contentType: application/octet-stream
+      payload:
+        type: string
+        const: heartbeat
+      examples:
+        - name: heartbeatPing
+          summary: Kalshi sends heartbeat ping
+          payload: heartbeat
+    outgoingPong:
+      name: pong
+      title: Pong
+      summary: Kalshi responds to client Ping with Pong frame (0xA)
+      contentType: application/octet-stream
+      payload:
+        type: string
+        const: ''
+      examples:
+        - name: emptyPong
+          summary: Kalshi sends pong
+          payload: ''
+    subscribeCommand:
+      name: subscribe
+      title: Subscribe Command
+      summary: Subscribe to one or more margin channels
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/subscribeCommandPayload'
+    unsubscribeCommand:
+      name: unsubscribe
+      title: Unsubscribe Command
+      summary: Cancel one or more subscriptions
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/unsubscribeCommandPayload'
+    listSubscriptionsCommand:
+      name: list_subscriptions
+      title: List Subscriptions Command
+      summary: List all active subscriptions
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/listSubscriptionsCommandPayload'
+    updateSubscriptionCommand:
+      name: update_subscription_add
+      title: Update Subscription - Add Markets
+      summary: Add markets to an existing subscription
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/updateSubscriptionCommandPayload'
+    updateSubscriptionDeleteCommand:
+      name: update_subscription_delete
+      title: Update Subscription - Delete Markets
+      summary: Remove markets from an existing subscription
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/updateSubscriptionCommandPayload'
+    updateSubscriptionSingleSidCommand:
+      name: update_subscription_single_sid
+      title: Update Subscription - Single SID
+      summary: Update a subscription using `sid` rather than `sids`
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/updateSubscriptionCommandPayload'
+    subscribedResponse:
+      name: subscribed
+      title: Subscribed Response
+      summary: Confirmation that subscription was successful
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/subscribedResponsePayload'
+    unsubscribedResponse:
+      name: unsubscribed
+      title: Unsubscribed Response
+      summary: Confirmation that unsubscription was successful
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/unsubscribedResponsePayload'
+    okResponse:
+      name: ok
+      title: OK Response
+      summary: Successful update operation response
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/okResponsePayload'
+    listSubscriptionsResponse:
+      name: list_subscriptions
+      title: List Subscriptions Response
+      summary: Response containing all active subscriptions
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/listSubscriptionsResponsePayload'
+    errorResponse:
+      name: error
+      title: Error Response
+      summary: Error response for failed operations
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/errorResponsePayload'
+    orderbookSnapshot:
+      name: orderbook_snapshot
+      title: Orderbook Snapshot
+      summary: Complete view of the margin order book's aggregated price levels
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginOrderbookSnapshotPayload'
+    orderbookDelta:
+      name: orderbook_delta
+      title: Orderbook Delta
+      summary: Update to be applied to the current margin order book view
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginOrderbookDeltaPayload'
+    ticker:
+      name: ticker
+      title: Ticker Update
+      summary: Margin market ticker information
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginTickerPayload'
+    trade:
+      name: trade
+      title: Trade Update
+      summary: Public margin trade information
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginTradePayload'
+    fill:
+      name: fill
+      title: Fill Update
+      summary: Private margin fill information for the authenticated user
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginFillPayload'
+    userOrder:
+      name: user_order
+      title: User Order Update
+      summary: Private margin order create/update notifications
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginUserOrderPayload'
+    orderGroupUpdates:
+      name: order_group_updates
+      title: Order Group Updates
+      summary: Order group lifecycle and limit updates for authenticated user
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/orderGroupUpdatesPayload'
+      examples:
+        - name: orderGroupLimitUpdated
+          summary: Order group limit updated
+          payload:
+            type: order_group_updates
+            sid: 21
+            seq: 7
+            msg:
+              event_type: limit_updated
+              order_group_id: og_123
+              contracts_limit_fp: '150.00'
+  schemas:
+    commandId:
+      type: integer
+      minimum: 0
+      description: Unique ID of a command within a WebSocket session
+    subscriptionId:
+      type: integer
+      minimum: 1
+      description: Server-generated subscription identifier
+    sequenceNumber:
+      type: integer
+      minimum: 1
+      description: Sequence number used for snapshot/delta consistency
+    marketTicker:
+      type: string
+      description: Unique market identifier
+    bookSide:
+      type: string
+      enum:
+        - bid
+        - ask
+    selfTradePreventionType:
+      type: string
+      enum:
+        - taker_at_cross
+        - maker
+      description: Self-trade prevention type
+    lastUpdateReason:
+      type: string
+      enum:
+        - ''
+        - Decrease
+        - Amend
+        - MarginCancel
+        - SelfTradeCancel
+        - ExpiryCancel
+        - Trade
+        - PostOnlyCrossCancel
+      description: >-
+        Margin order update reason when the delta corresponds to the
+        authenticated user's order.
+    tickerPrice:
+      type: object
+      required:
+        - price
+        - ts_ms
+      properties:
+        price:
+          type: string
+          description: USD price as a fixed-point decimal string (4 decimals)
+        ts_ms:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+    fundingRate:
+      type: object
+      required:
+        - rate
+        - next_funding_time_ms
+        - ts_ms
+      properties:
+        rate:
+          type: number
+          format: double
+          description: Funding rate as a decimal value.
+        next_funding_time_ms:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds for the next funding time.
+        ts_ms:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds for the funding snapshot.
+    priceLevelDollarsCountFp:
+      type: array
+      items:
+        type: string
+      minItems: 2
+      maxItems: 2
+      description: '[price_in_dollars, contract_count_fp]'
+    subscribeCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+        - params
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: subscribe
+        params:
+          type: object
+          required:
+            - channels
+          properties:
+            channels:
+              type: array
+              minItems: 1
+              items:
+                type: string
+                enum:
+                  - orderbook_delta
+                  - ticker
+                  - trade
+                  - fill
+                  - user_orders
+                  - order_group_updates
+            market_ticker:
+              type: string
+            market_tickers:
+              type: array
+              items:
+                $ref: '#/components/schemas/marketTicker'
+              minItems: 1
+            send_initial_snapshot:
+              type: boolean
+              description: Sends an initial snapshot for ticker subscriptions.
+              default: false
+            skip_ticker_ack:
+              type: boolean
+              default: false
+    unsubscribeCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+        - params
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: unsubscribe
+        params:
+          type: object
+          required:
+            - sids
+          properties:
+            sids:
+              type: array
+              items:
+                $ref: '#/components/schemas/subscriptionId'
+              minItems: 1
+    updateSubscriptionCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+        - params
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: update_subscription
+        params:
+          type: object
+          required:
+            - action
+          properties:
+            sid:
+              $ref: '#/components/schemas/subscriptionId'
+            sids:
+              type: array
+              items:
+                $ref: '#/components/schemas/subscriptionId'
+              minItems: 1
+              maxItems: 1
+            market_ticker:
+              type: string
+            market_tickers:
+              type: array
+              items:
+                $ref: '#/components/schemas/marketTicker'
+              minItems: 1
+            send_initial_snapshot:
+              type: boolean
+              description: Sends an initial snapshot for newly added ticker subscriptions.
+              default: false
+            action:
+              type: string
+              enum:
+                - add_markets
+                - delete_markets
+    listSubscriptionsCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: list_subscriptions
+    subscribedResponsePayload:
+      type: object
+      required:
+        - type
+        - msg
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        type:
+          type: string
+          const: subscribed
+        msg:
+          type: object
+          required:
+            - channel
+            - sid
+          properties:
+            channel:
+              type: string
+            sid:
+              $ref: '#/components/schemas/subscriptionId'
+    unsubscribedResponsePayload:
+      type: object
+      required:
+        - sid
+        - seq
+        - type
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        type:
+          type: string
+          const: unsubscribed
+    okResponsePayload:
+      type: object
+      required:
+        - type
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        type:
+          type: string
+          const: ok
+        msg:
+          type: object
+          properties:
+            market_tickers:
+              type: array
+              items:
+                $ref: '#/components/schemas/marketTicker'
+    listSubscriptionsResponsePayload:
+      type: object
+      required:
+        - id
+        - type
+        - msg
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        type:
+          type: string
+          const: ok
+        msg:
+          type: array
+          items:
+            type: object
+            required:
+              - channel
+              - sid
+            properties:
+              channel:
+                type: string
+              sid:
+                $ref: '#/components/schemas/subscriptionId'
+    errorResponsePayload:
+      type: object
+      required:
+        - type
+        - msg
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        type:
+          type: string
+          const: error
+        msg:
+          type: object
+          required:
+            - code
+            - msg
+          properties:
+            code:
+              type: integer
+              minimum: 1
+              maximum: 18
+            msg:
+              type: string
+            market_ticker:
+              type: string
+    marginOrderbookSnapshotPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: orderbook_snapshot
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - market_ticker
+          properties:
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            bid:
+              type: array
+              items:
+                $ref: '#/components/schemas/priceLevelDollarsCountFp'
+            ask:
+              type: array
+              items:
+                $ref: '#/components/schemas/priceLevelDollarsCountFp'
+    marginOrderbookDeltaPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: orderbook_delta
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - market_ticker
+            - price
+            - delta
+            - side
+          properties:
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            price:
+              type: string
+            delta:
+              type: string
+            side:
+              $ref: '#/components/schemas/bookSide'
+            last_update_reason:
+              $ref: '#/components/schemas/lastUpdateReason'
+            client_order_id:
+              type: string
+            subaccount:
+              type: integer
+            ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+    marginTickerPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - msg
+      properties:
+        type:
+          type: string
+          const: ticker
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        msg:
+          type: object
+          required:
+            - market_ticker
+            - price
+            - bid
+            - ask
+            - bid_size_fp
+            - ask_size_fp
+            - last_trade_size_fp
+            - volume
+            - volume_24h
+            - open_interest
+            - ts_ms
+          properties:
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            price:
+              type: string
+              description: >-
+                Last traded price in USD as a fixed-point decimal string (4
+                decimals).
+            bid:
+              type: string
+              description: USD price as a fixed-point decimal string (4 decimals).
+            ask:
+              type: string
+              description: USD price as a fixed-point decimal string (4 decimals).
+            bid_size_fp:
+              type: string
+            ask_size_fp:
+              type: string
+            last_trade_size_fp:
+              type: string
+            volume:
+              type: string
+            volume_24h:
+              type: string
+            open_interest:
+              type: string
+            reference_price:
+              description: Reference price of underlying asset, when available.
+              allOf:
+                - $ref: '#/components/schemas/tickerPrice'
+            settlement_mark_price:
+              $ref: '#/components/schemas/tickerPrice'
+            liquidation_mark_price:
+              $ref: '#/components/schemas/tickerPrice'
+            funding_rate:
+              $ref: '#/components/schemas/fundingRate'
+            ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+    marginTradePayload:
+      type: object
+      required:
+        - type
+        - sid
+        - msg
+      properties:
+        type:
+          type: string
+          const: trade
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        msg:
+          type: object
+          required:
+            - trade_id
+            - market_ticker
+            - price
+            - count
+            - taker_side
+            - ts_ms
+          properties:
+            trade_id:
+              type: string
+              format: uuid
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            price:
+              type: string
+            count:
+              type: string
+            taker_side:
+              $ref: '#/components/schemas/bookSide'
+            ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+    marginFillPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - msg
+      properties:
+        type:
+          type: string
+          const: fill
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        msg:
+          type: object
+          required:
+            - trade_id
+            - order_id
+            - market_ticker
+            - is_taker
+            - side
+            - ts_ms
+            - price
+            - count
+            - fee_cost
+            - post_position
+          properties:
+            trade_id:
+              type: string
+              format: uuid
+            order_id:
+              type: string
+              format: uuid
+            client_order_id:
+              type: string
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            is_taker:
+              type: boolean
+            side:
+              $ref: '#/components/schemas/bookSide'
+            ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+            price:
+              type: string
+            count:
+              type: string
+            fee_cost:
+              type: string
+            post_position:
+              type: string
+            subaccount:
+              type: integer
+    marginUserOrderPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - msg
+      properties:
+        type:
+          type: string
+          const: user_order
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        msg:
+          type: object
+          required:
+            - order_id
+            - user_id
+            - client_order_id
+            - ticker
+            - side
+            - price
+            - fill_count
+            - remaining_count
+            - created_ts_ms
+          properties:
+            order_id:
+              type: string
+              format: uuid
+            user_id:
+              type: string
+              format: uuid
+            client_order_id:
+              type: string
+            ticker:
+              $ref: '#/components/schemas/marketTicker'
+            side:
+              $ref: '#/components/schemas/bookSide'
+            price:
+              type: string
+            fill_count:
+              type: string
+            remaining_count:
+              type: string
+            self_trade_prevention_type:
+              $ref: '#/components/schemas/selfTradePreventionType'
+            order_group_id:
+              type: string
+              description: Order group identifier, if the order belongs to an order group
+            expiration_ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+            created_ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+            last_updated_ts_ms:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+            subaccount_number:
+              type: integer
+    orderGroupUpdatesPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: order_group_updates
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - event_type
+            - order_group_id
+            - ts_ms
+          properties:
+            event_type:
+              type: string
+              description: Order group event type
+              enum:
+                - created
+                - triggered
+                - reset
+                - deleted
+                - limit_updated
+            order_group_id:
+              type: string
+              description: Order group identifier
+            contracts_limit_fp:
+              type: string
+              description: >-
+                Updated contracts limit in fixed-point (2 decimals). Present for
+                "created" and "limit_updated" events only.
+            ts_ms:
+              type: integer
+              format: int64
+              description: >-
+                Matching engine timestamp at which the event was processed, as
+                Unix epoch milliseconds.
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: user
+      description: API key authentication required for margin WebSocket connections.

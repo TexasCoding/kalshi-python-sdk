@@ -581,3 +581,19 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     # - multivariateMarketLifecyclePayload: allOf with marketLifecycleV2Payload, covered by base
     # - Control envelopes (SubscriptionInfo, OkMessage): structural, low drift risk
 ]
+
+
+# ── Perps (margin) API response-side contract maps ──────────────────────────
+# Map perps SDK response models to their schema names in the perps specs. These
+# are consumed by ``TestPerpsSpecDrift`` / ``TestPerpsScmSpecDrift`` and resolved
+# against ``specs/perps_openapi.yaml`` / ``specs/perps_scm_openapi.yaml`` rather
+# than the prediction-API spec. The foundation issue (#388) ships them empty;
+# the per-resource perps issues append their entries.
+#
+# NOTE: ``TestSpecDrift.test_contract_map_completeness`` only scans the
+# prediction-API ``kalshi.models.*`` modules, so perps models under
+# ``kalshi.perps.models.*`` are not subject to that completeness gate — these
+# maps are additive coverage, populated as response models land.
+PERPS_CONTRACT_MAP: list[ContractEntry] = []
+
+PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = []

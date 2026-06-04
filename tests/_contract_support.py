@@ -1350,6 +1350,51 @@ for _fqn in _MAX_PAGES_FQNS:
     )
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# Perps (margin) API contract maps
+#
+# The perps API uses its own spec files: ``specs/perps_openapi.yaml`` (REST) and
+# ``specs/perps_scm_openapi.yaml`` (the Self-Clearing-Member "Klear" surface).
+# These parallel maps are consumed by the ``TestPerps*Drift`` classes in
+# ``test_contracts.py`` and resolved against those specs instead of the
+# prediction-API ``specs/openapi.yaml``. Keying each map to its own spec file
+# sidesteps the schema-ref name collisions across specs (e.g. perps and core
+# both define ``ApplySubaccountTransferRequest``).
+#
+# The foundation issue (#388) ships these empty-but-defined; each per-resource
+# perps issue appends its entries.
+# ════════════════════════════════════════════════════════════════════════════
+
+# Perps REST endpoints — validated against ``specs/perps_openapi.yaml``.
+PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
+    # Dependent perps REST issues append entries here, e.g.:
+    # MethodEndpointEntry(
+    #     sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.create",
+    #     http_method="POST",
+    #     path_template="/margin/orders",
+    #     request_body_schema="#/components/schemas/CreateMarginOrderRequest",
+    # ),
+]
+
+# SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
+PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
+    # The SCM/Klear issues (#399/#400) append entries here, e.g.:
+    # MethodEndpointEntry(
+    #     sdk_method="kalshi.perps.klear.resources.auth.AuthResource.log_in",
+    #     http_method="POST",
+    #     path_template="/log_in",
+    #     request_body_schema="#/components/schemas/LogInRequest",
+    # ),
+]
+
+# Shared perps exclusion allowlist (same ``(sdk_fqn, field) → Exclusion`` shape
+# as ``EXCLUSIONS``). Covers both the perps REST and SCM drift checks — FQNs are
+# globally unique, so one map serves both. Dependent issues add their
+# ``paginator_handled`` / ``client_only`` / ``wire_normalization`` entries here
+# with a required ``reason``.
+PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {}
+
+
 def _resolve_ref(
     spec: dict[str, Any],
     ref: str,

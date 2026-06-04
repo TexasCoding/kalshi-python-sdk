@@ -13,6 +13,9 @@ import httpx
 SPECS = {
     "openapi.yaml": "https://docs.kalshi.com/openapi.yaml",
     "asyncapi.yaml": "https://docs.kalshi.com/asyncapi.yaml",
+    "perps_openapi.yaml": "https://docs.kalshi.com/perps_openapi.yaml",
+    "perps_asyncapi.yaml": "https://docs.kalshi.com/perps_asyncapi.yaml",
+    "perps_scm_openapi.yaml": "https://docs.kalshi.com/perps_scm_openapi.yaml",
 }
 SPEC_DIR = Path(__file__).parent.parent / "specs"
 
