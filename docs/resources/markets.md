@@ -124,11 +124,15 @@ page = client.markets.list_trades(
     ticker="KXPRES-24-DJT",
     min_ts=1_700_000_000,
     max_ts=1_700_100_000,
+    is_block_trade=False,   # omit for all trades; True = only block, False = only non-block
     limit=200,
 )
 for trade in page:
-    print(trade.trade_id, trade.taker_side, trade.yes_price, trade.count)
+    print(trade.trade_id, trade.taker_side, trade.yes_price, trade.count, trade.is_block_trade)
 ```
+
+`is_block_trade` (v3.20.0) filters by whether a trade is a block trade. Omit it
+to return all trades. Each `Trade` also carries an `is_block_trade: bool`.
 
 !!! warning "Deprecated since v3.0.0"
     `list_trades_all` is the legacy name; it still works but emits

@@ -7,13 +7,22 @@ import pytest
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
-from kalshi.models.events import Event, EventMetadata
+from kalshi.models.events import Event, EventFeeChange, EventMetadata
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
 register(
     "EventsResource",
-    ["get", "list", "list_all", "list_multivariate", "list_all_multivariate", "metadata"],
+    [
+        "get",
+        "list",
+        "list_all",
+        "list_multivariate",
+        "list_all_multivariate",
+        "metadata",
+        "fee_changes",
+        "fee_changes_all",
+    ],
 )
 
 
@@ -67,6 +76,27 @@ class TestEventsSync:
         assert isinstance(meta, EventMetadata)
         assert_model_fields(meta)
 
+    def test_fee_changes(self, sync_client: KalshiClient) -> None:
+        page = sync_client.events.fee_changes(limit=5)
+        assert isinstance(page, Page)
+        assert isinstance(page.items, list)
+        for change in page.items:
+            # NB: fee_type_override / fee_multiplier_override are legitimately
+            # None on a cleared override, so we don't run assert_model_fields
+            # (its required-field oracle would flag a present-but-null value).
+            assert isinstance(change, EventFeeChange)
+            assert change.id
+            assert change.event_ticker
+
+    def test_fee_changes_all(self, sync_client: KalshiClient) -> None:
+        count = 0
+        for change in sync_client.events.fee_changes_all(limit=2, max_pages=2):
+            assert isinstance(change, EventFeeChange)
+            assert change.event_ticker
+            count += 1  # noqa: SIM113
+            if count >= 2:
+                break
+
 
 @pytest.mark.integration
 class TestEventsAsync:
@@ -114,3 +144,21 @@ class TestEventsAsync:
         meta = await async_client.events.metadata(demo_event_ticker)
         assert isinstance(meta, EventMetadata)
         assert_model_fields(meta)
+
+    async def test_fee_changes(self, async_client: AsyncKalshiClient) -> None:
+        page = await async_client.events.fee_changes(limit=5)
+        assert isinstance(page, Page)
+        assert isinstance(page.items, list)
+        for change in page.items:
+            assert isinstance(change, EventFeeChange)
+            assert change.id
+            assert change.event_ticker
+
+    async def test_fee_changes_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for change in async_client.events.fee_changes_all(limit=2, max_pages=2):
+            assert isinstance(change, EventFeeChange)
+            assert change.event_ticker
+            count += 1
+            if count >= 2:
+                break

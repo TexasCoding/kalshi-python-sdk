@@ -513,6 +513,21 @@ class TestTradeV3180Fields:
         with pytest.raises(ValidationError):
             Trade.model_validate(data)
 
+    def test_parses_is_block_trade(self) -> None:
+        """v3.20.0 (#385): required ``is_block_trade`` bool on ``Trade``."""
+        assert Trade.model_validate(trade_dict(is_block_trade=True)).is_block_trade is True
+        assert Trade.model_validate(trade_dict()).is_block_trade is False
+
+    def test_is_block_trade_missing_raises(self) -> None:
+        """Spec marks ``is_block_trade`` required + non-nullable; a missing key
+        must raise so a schema regression surfaces, not silently default."""
+        from pydantic import ValidationError
+
+        data = trade_dict()
+        data.pop("is_block_trade")
+        with pytest.raises(ValidationError):
+            Trade.model_validate(data)
+
 
 class TestIncentiveProgramV3180Fields:
     """v3.18.0 backfill (issue #160): 1 new optional field on ``IncentiveProgram``."""

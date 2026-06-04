@@ -36,7 +36,7 @@ SDK's perspective on it.
 | `subscribe_ticker` | `ticker` | `ticker` | `TickerMessage` | public |
 | `subscribe_trade` | `trade` | `trade` | `TradeMessage` | public |
 | `subscribe_orderbook_delta` | `orderbook_delta` | `orderbook_snapshot` → `orderbook_delta` | `OrderbookSnapshotMessage` / `OrderbookDeltaMessage` | public |
-| `subscribe_market_lifecycle` | `market_lifecycle_v2` | `market_lifecycle_v2` | `MarketLifecycleMessage` | public |
+| `subscribe_market_lifecycle` | `market_lifecycle_v2` | `market_lifecycle_v2` / `event_fee_update` | `MarketLifecycleMessage` / `EventFeeUpdateMessage` | public |
 | `subscribe_multivariate` | `multivariate` | `multivariate_lookup` | `MultivariateMessage` | public |
 | `subscribe_multivariate_lifecycle` | `multivariate_market_lifecycle` | `multivariate_market_lifecycle` | `MultivariateLifecycleMessage` | public |
 | `subscribe_fill` | `fill` | `fill` | `FillMessage` | private |
@@ -48,6 +48,18 @@ SDK's perspective on it.
 The `type` column matters when filtering raw logs — note the singular forms
 for `user_order`, `market_position`, and the `multivariate_lookup` /
 `multivariate` mismatch.
+
+!!! note "`event_fee_update` rides `market_lifecycle_v2`"
+    Since v3.20.0 the `market_lifecycle_v2` channel also emits
+    `event_fee_update` frames (event-level fee override set or cleared), so
+    `subscribe_market_lifecycle()` yields
+    `MarketLifecycleMessage | EventFeeUpdateMessage`. Discriminate on the
+    `.type` field. This is a second message **type** on the same channel —
+    the channel count stays 11. The override payload mirrors the REST
+    [`EventFeeChange`](resources/events.md#event-fee-changes):
+    `EventFeeUpdatePayload` carries `event_ticker`, `fee_type_override`, and
+    `fee_multiplier_override` (the latter two `None` when the override is
+    cleared).
 
 Two channels carry monotonic `seq` numbers and have built-in sequence-gap
 recovery: `orderbook_delta` (which delivers both snapshot and delta envelopes

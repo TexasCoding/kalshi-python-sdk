@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.19.0
+  version: 3.20.0
   description: >-
     Manually defined OpenAPI spec for endpoints being migrated to spec-first
     approach
@@ -114,7 +114,7 @@ paths:
     get:
       operationId: GetUserDataTimestamp
       summary: Get User Data Timestamp
-      description: ' There is typically a short delay before exchange events are reflected in the API endpoints. Whenever possible, combine API responses to PUT/POST/DELETE requests with websocket data to obtain the most accurate view of the exchange state. This endpoint provides an approximate indication of when the data from the following endpoints was last validated: GetBalance, GetOrder(s), GetFills, GetPositions'
+      description: ' There is typically a short delay before exchange events are reflected in the API endpoints. Whenever possible, combine API responses to PUT/POST/DELETE requests with WebSocket data to obtain the most accurate view of the exchange state. This endpoint provides an approximate indication of when the data from the following endpoints was last validated: GetBalance, GetOrder(s), GetFills, GetPositions'
       tags:
         - exchange
       responses:
@@ -224,11 +224,13 @@ paths:
         Endpoint for getting all trades for all markets. A trade represents a
         completed transaction between two users on a specific market. Each trade
         includes the market ticker, price, quantity, and timestamp information.
-        This endpoint returns a paginated response. Use the 'limit' parameter to
-        control page size (1-1000, defaults to 100). The response includes a
-        'cursor' field - pass this value in the 'cursor' parameter of your next
-        request to get the next page. An empty cursor indicates no more pages
-        are available.
+        Block trades are included in the response by default and identified by
+        the `is_block_trade` field; use the `is_block_trade` query parameter to
+        filter by block / non-block. This endpoint returns a paginated response.
+        Use the 'limit' parameter to control page size (1-1000, defaults to
+        100). The response includes a 'cursor' field - pass this value in the
+        'cursor' parameter of your next request to get the next page. An empty
+        cursor indicates no more pages are available.
       tags:
         - market
       parameters:
@@ -237,6 +239,7 @@ paths:
         - $ref: '#/components/parameters/TickerQuery'
         - $ref: '#/components/parameters/MinTsQuery'
         - $ref: '#/components/parameters/MaxTsQuery'
+        - $ref: '#/components/parameters/IsBlockTradeQuery'
       responses:
         '200':
           description: Trades retrieved successfully
@@ -803,6 +806,36 @@ paths:
           description: Unauthorized
         '500':
           description: Internal server error
+  /events/fee_changes:
+    get:
+      operationId: GetEventFeeChanges
+      summary: Get Event Fee Changes
+      description: >
+        Event fees are an override layered on top of the parent series' fee
+        structure. If `fee_type_override` and `fee_multiplier_override` are
+        null, that indicates the override is cleared.
+      tags:
+        - events
+      parameters:
+        - name: event_ticker
+          in: query
+          required: false
+          schema:
+            type: string
+          x-go-type-skip-optional-pointer: true
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/CursorQuery'
+      responses:
+        '200':
+          description: Event fee changes retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetEventFeeChangesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /events/{event_ticker}:
     get:
       operationId: GetEvent
@@ -1203,6 +1236,16 @@ paths:
       operationId: AmendOrder
       summary: Amend Order
       description: ' Endpoint for amending the max number of fillable contracts and/or price in an existing order. Max fillable contracts is `remaining_count` + `fill_count`.'
+      x-mint:
+        content: >
+          <Note>
+
+          Amending a resting order preserves queue position only when the
+          amendment decreases size. All other amendments — like increasing size
+          or changing price forfeit queue position and place the order at the
+          back of the queue.
+
+          </Note>
       tags:
         - orders
       security:
@@ -1498,6 +1541,16 @@ paths:
         `count` is the updated total/max fillable count, equal to already filled
         count plus desired resting remaining count. This behavior matches the v1
         amend endpoints; only the request/response shape differs.
+      x-mint:
+        content: >
+          <Note>
+
+          Amending a resting order preserves queue position only when the
+          amendment decreases size. All other amendments — like increasing size
+          or changing price forfeit queue position and place the order at the
+          back of the queue.
+
+          </Note>
       tags:
         - orders
       security:
@@ -3732,7 +3785,7 @@ paths:
     get:
       operationId: GetTradesHistorical
       summary: Get Historical Trades
-      description: ' Endpoint for getting all historical trades for all markets. Trades that were filled before the historical cutoff are available via this endpoint. See [Historical Data](https://docs.kalshi.com/getting_started/historical_data) for details.'
+      description: ' Endpoint for getting all historical trades for all markets. Trades that were filled before the historical cutoff are available via this endpoint. Block trades are included by default and identified by the `is_block_trade` field; use the `is_block_trade` query parameter to filter by block / non-block. See [Historical Data](https://docs.kalshi.com/getting_started/historical_data) for details.'
       tags:
         - historical
       parameters:
@@ -3741,6 +3794,7 @@ paths:
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/MarketLimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/IsBlockTradeQuery'
       responses:
         '200':
           description: Historical trades retrieved successfully
@@ -3952,6 +4006,15 @@ components:
       schema:
         type: string
         x-go-type-skip-optional-pointer: true
+    IsBlockTradeQuery:
+      name: is_block_trade
+      in: query
+      description: >
+        Filter trades by whether they are block trades. Omit to return all
+        trades. Set to `true` to return only block trades. Set to `false` to
+        return only non-block trades.
+      schema:
+        type: boolean
     SingleEventTickerQuery:
       name: event_ticker
       in: query
@@ -4176,6 +4239,17 @@ components:
         Identifier for an exchange shard. Defaults to 0 if unspecified. Note:
         currently only 0 supported.
       example: 0
+    FeeType:
+      type: string
+      enum:
+        - quadratic
+        - quadratic_with_maker_fees
+        - flat
+      x-enum-varnames:
+        - FeeTypeQuadratic
+        - FeeTypeQuadraticWithMakerFees
+        - FeeTypeFlat
+      description: Fee type for a series or scheduled fee override.
     GetMarketCandlesticksHistoricalResponse:
       type: object
       required:
@@ -4367,6 +4441,21 @@ components:
       description: >-
         Omit or leave empty to return all results. Use `self` to filter by the
         authenticated user.
+    ApiKeyScope:
+      type: string
+      enum:
+        - read
+        - write
+        - write::transfer
+      x-enum-varnames:
+        - ApiKeyScopeRead
+        - ApiKeyScopeWrite
+        - ApiKeyScopeWriteTransfer
+      description: >-
+        Scope granted to an API key. Parent scopes grant broad access; for
+        example, `read` grants all read endpoints and `write` grants all write
+        endpoints. Child scopes such as `write::transfer` grant only their
+        specific endpoint group and can be granted without the parent scope.
     ApiKey:
       type: object
       required:
@@ -4382,11 +4471,9 @@ components:
           description: User-provided name for the API key
         scopes:
           type: array
-          description: >-
-            List of scopes granted to this API key. Valid values are 'read' and
-            'write'.
+          description: List of scopes granted to this API key.
           items:
-            type: string
+            $ref: '#/components/schemas/ApiKeyScope'
     GetApiKeysResponse:
       type: object
       required:
@@ -4414,11 +4501,12 @@ components:
         scopes:
           type: array
           description: >-
-            List of scopes to grant to the API key. Valid values are 'read' and
-            'write'. If 'write' is included, 'read' must also be included.
-            Defaults to full access (['read', 'write']) if not provided.
+            List of scopes to grant to the API key. If the broad `write` parent
+            scope is included, `read` must also be included. Child write scopes
+            may be granted without the broad parent scope. Defaults to full
+            access (`read`, `write`) if not provided.
           items:
-            type: string
+            $ref: '#/components/schemas/ApiKeyScope'
     CreateApiKeyResponse:
       type: object
       required:
@@ -4438,11 +4526,12 @@ components:
         scopes:
           type: array
           description: >-
-            List of scopes to grant to the API key. Valid values are 'read' and
-            'write'. If 'write' is included, 'read' must also be included.
-            Defaults to full access (['read', 'write']) if not provided.
+            List of scopes to grant to the API key. If the broad `write` parent
+            scope is included, `read` must also be included. Child write scopes
+            may be granted without the broad parent scope. Defaults to full
+            access (`read`, `write`) if not provided.
           items:
-            type: string
+            $ref: '#/components/schemas/ApiKeyScope'
     GenerateApiKeyResponse:
       type: object
       required:
@@ -5834,6 +5923,7 @@ components:
         - taker_outcome_side
         - taker_book_side
         - created_time
+        - is_block_trade
       properties:
         trade_id:
           type: string
@@ -5905,6 +5995,12 @@ components:
           type: string
           format: date-time
           description: Timestamp when this trade was executed
+        is_block_trade:
+          type: boolean
+          description: >-
+            True if this trade was matched off-book as a block trade (e.g. via
+            RFQ / negotiated block proposal); false for trades that filled on
+            the standard order book.
     GetIncentiveProgramsResponse:
       type: object
       required:
@@ -7121,7 +7217,6 @@ components:
       type: object
       required:
         - ticker
-        - client_order_id
         - side
         - count
         - price
@@ -7889,6 +7984,60 @@ components:
           description: >-
             Pagination cursor for the next page. Empty if there are no more
             results.
+    EventFeeChange:
+      type: object
+      required:
+        - id
+        - event_ticker
+        - series_ticker
+        - fee_type_override
+        - fee_multiplier_override
+        - scheduled_ts
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this fee change
+        event_ticker:
+          type: string
+          description: Event ticker this fee change applies to
+        series_ticker:
+          type: string
+          description: Series ticker for the event
+        fee_type_override:
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
+          nullable: true
+          example: quadratic
+          description: >-
+            New fee type override for the event. When null, the event clears any
+            prior override and falls back to the parent series' fee structure.
+        fee_multiplier_override:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            New fee multiplier override for the event. When null, the event
+            clears any prior override and falls back to the parent series' fee
+            multiplier.
+        scheduled_ts:
+          type: string
+          format: date-time
+          description: Timestamp when this fee change is scheduled to take effect
+    GetEventFeeChangesResponse:
+      type: object
+      required:
+        - event_fee_changes
+        - cursor
+      properties:
+        event_fee_changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventFeeChange'
+        cursor:
+          type: string
+          description: >-
+            Pagination cursor for the next page. Empty if there are no more
+            results.
     GetEventResponse:
       type: object
       required:
@@ -8023,7 +8172,6 @@ components:
         - collateral_return_type
         - mutually_exclusive
         - available_on_brokers
-        - product_metadata
       properties:
         event_ticker:
           type: string
@@ -8144,6 +8292,7 @@ components:
           description: Category specifies the category which this series belongs to.
         tags:
           type: array
+          nullable: true
           items:
             type: string
           description: >-
@@ -8151,6 +8300,7 @@ components:
             series from different categories can have the same tags.
         settlement_sources:
           type: array
+          nullable: true
           items:
             $ref: '#/components/schemas/SettlementSource'
           description: >-
@@ -8173,11 +8323,8 @@ components:
           x-omitempty: true
           description: Internal product metadata of the series.
         fee_type:
-          type: string
-          enum:
-            - quadratic
-            - quadratic_with_maker_fees
-            - flat
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
           description: >-
             FeeType is a string representing the series' fee structure. Fee
             structures can be found at
@@ -8224,11 +8371,8 @@ components:
           type: string
           description: Series ticker this fee change applies to
         fee_type:
-          type: string
-          enum:
-            - quadratic
-            - quadratic_with_maker_fees
-            - flat
+          allOf:
+            - $ref: '#/components/schemas/FeeType'
           description: New fee type for the series
         fee_multiplier:
           type: number

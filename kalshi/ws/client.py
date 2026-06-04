@@ -28,6 +28,7 @@ from kalshi.ws.connection import ConnectionManager, ConnectionState
 from kalshi.ws.dispatch import MessageDispatcher
 from kalshi.ws.models.base import ErrorMessage
 from kalshi.ws.models.communications import CommunicationsMessage
+from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
@@ -829,7 +830,13 @@ class KalshiWebSocket:
 
     async def subscribe_market_lifecycle(
         self, *, tickers: list[str] | None = None, maxsize: int = 1000,
-    ) -> AsyncIterator[MarketLifecycleMessage]:
+    ) -> AsyncIterator[MarketLifecycleMessage | EventFeeUpdateMessage]:
+        """Subscribe to the market_lifecycle_v2 channel.
+
+        Yields :class:`MarketLifecycleMessage` for lifecycle events and
+        :class:`EventFeeUpdateMessage` for ``event_fee_update`` frames — both
+        ride this channel. Discriminate on the ``.type`` field.
+        """
         params: dict[str, Any] = {}
         if tickers:
             params["market_tickers"] = tickers

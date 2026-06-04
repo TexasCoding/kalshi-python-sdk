@@ -78,6 +78,7 @@ from kalshi.models import (
     EndpointTokenCost,
     Event,
     EventCandlesticks,
+    EventFeeChange,
     EventMetadata,
     EventPosition,
     EventStatusLiteral,
@@ -236,6 +237,7 @@ __all__ = [
     "EndpointTokenCost",
     "Event",
     "EventCandlesticks",
+    "EventFeeChange",
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",
@@ -351,4 +353,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "3.0.1"
+__version__ = "3.1.0"

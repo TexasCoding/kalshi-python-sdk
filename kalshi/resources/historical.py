@@ -17,6 +17,7 @@ from kalshi.models.orders import Fill, Order
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
+    _bool_param,
     _join_tickers,
     _params,
     _seg,
@@ -78,6 +79,7 @@ def _historical_trades_params(
     ticker: str | None,
     min_ts: int | None,
     max_ts: int | None,
+    is_block_trade: bool | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
@@ -86,6 +88,7 @@ def _historical_trades_params(
         ticker=ticker,
         min_ts=min_ts,
         max_ts=max_ts,
+        is_block_trade=_bool_param(is_block_trade),
     )
 
 
@@ -277,6 +280,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _historical_trades_params(
@@ -285,6 +289,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            is_block_trade=is_block_trade,
         )
         return self._list(
             "/historical/trades", Trade, "trades", params=params, extra_headers=extra_headers
@@ -297,6 +302,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Trade]:
@@ -307,6 +313,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/historical/trades",
@@ -506,6 +513,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _historical_trades_params(
@@ -514,6 +522,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            is_block_trade=is_block_trade,
         )
         return await self._list(
             "/historical/trades", Trade, "trades", params=params, extra_headers=extra_headers
@@ -526,6 +535,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Trade]:
@@ -536,6 +546,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/historical/trades",

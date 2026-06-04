@@ -26,9 +26,10 @@ class Event(BaseModel):
     strike_date: AwareDatetime | None = None
     strike_period: str | None = None
     available_on_brokers: bool
-    # Spec marks `product_metadata` required, but the live demo server omits
-    # it on most events (observed run #26141405845, 2026-05-20). Recorded in
-    # tests/_contract_support.py EXCLUSIONS as `server_omits_despite_required`.
+    # The live demo server omits `product_metadata` on most events (observed
+    # run #26141405845, 2026-05-20). OpenAPI v3.20.0 relaxed it to optional
+    # too (#385), so this is no longer a spec deviation — kept nullable to
+    # match server reality.
     product_metadata: dict[str, Any] | None = None
     last_updated_ts: AwareDatetime | None = None
     markets: NullableList[Market] = []
@@ -41,6 +42,27 @@ class Event(BaseModel):
     exchange_index: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class EventFeeChange(BaseModel):
+    """A scheduled event-level fee override (GET /events/fee_changes).
+
+    Event fees layer on top of the parent series' fee structure.
+    ``fee_type_override`` and ``fee_multiplier_override`` are both ``None``
+    when the override has been cleared (the event falls back to the series
+    fee). Both are spec-required keys (``EventFeeChange.required``) but
+    nullable — the key must be present; ``None`` is a meaningful "override
+    cleared" signal, so neither carries a default.
+    """
+
+    id: str
+    event_ticker: str
+    series_ticker: str
+    fee_type_override: str | None
+    fee_multiplier_override: MultiplierDecimal | None
+    scheduled_ts: AwareDatetime
+
+    model_config = {"extra": "allow"}
 
 
 class MarketMetadata(BaseModel):

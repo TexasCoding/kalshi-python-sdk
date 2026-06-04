@@ -54,4 +54,9 @@ class Trade(BaseModel):
     taker_outcome_side: SideLiteral
     taker_book_side: BookSideLiteral
 
+    # v3.20.0 (#385). Spec marks `is_block_trade` required + non-nullable
+    # (Trade.required). Typed strict `bool` like taker_outcome_side: a missing
+    # key raises ValidationError so a schema regression surfaces, not a default.
+    is_block_trade: bool
+
     model_config = {"extra": "allow", "populate_by_name": True}

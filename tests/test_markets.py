@@ -536,6 +536,20 @@ class TestMarketsListTrades:
             items = list(markets.list_trades_all(limit=1))
         assert [t.trade_id for t in items] == ["t-1"]
 
+    @respx.mock
+    def test_is_block_trade_filter_serializes(self, markets: MarketsResource) -> None:
+        """v3.20.0 (#385): is_block_trade query param. ``False`` must be sent
+        explicitly (not dropped) so callers can request only non-block trades."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [], "cursor": ""}),
+        )
+        markets.list_trades(is_block_trade=False)
+        assert route.calls[0].request.url.params["is_block_trade"] == "false"
+        markets.list_trades(is_block_trade=True)
+        assert route.calls[1].request.url.params["is_block_trade"] == "true"
+        markets.list_trades()
+        assert "is_block_trade" not in route.calls[2].request.url.params
+
 
 class TestMarketsBulkCandlesticks:
     @respx.mock

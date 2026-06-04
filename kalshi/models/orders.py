@@ -463,8 +463,10 @@ class CreateOrderV2Request(BaseModel):
     - ``side`` is ``BookSideLiteral`` (``bid``/``ask``), not ``yes``/``no``.
       V2 narrows the type on the model itself since there is no kwarg
       overload at the resource-method boundary (see model_only V2 surface).
-    - ``client_order_id`` is **required** in V2, unlike V1 where it is
-      optional. The server uses it for idempotency in V2.
+    - ``client_order_id`` is **required** by this model, unlike V1 where it is
+      optional, because the server uses it for idempotency on V2 orders.
+      (OpenAPI v3.20.0 relaxed it to optional server-side, but the SDK keeps
+      it required by design so every V2 order is idempotent.)
     - Price is a single ``price: DollarDecimal`` field rather than the
       paired ``yes_price`` / ``no_price`` from V1.
     """
