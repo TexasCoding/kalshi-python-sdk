@@ -49,13 +49,25 @@ The `type` column matters when filtering raw logs — note the singular forms
 for `user_order`, `market_position`, and the `multivariate_lookup` /
 `multivariate` mismatch.
 
-!!! note "`event_fee_update` rides `market_lifecycle_v2`"
+!!! warning "Migration (v3.1.0): `event_fee_update` rides `market_lifecycle_v2`"
     Since v3.20.0 the `market_lifecycle_v2` channel also emits
     `event_fee_update` frames (event-level fee override set or cleared), so
-    `subscribe_market_lifecycle()` yields
-    `MarketLifecycleMessage | EventFeeUpdateMessage`. Discriminate on the
-    `.type` field. This is a second message **type** on the same channel —
-    the channel count stays 11. The override payload mirrors the REST
+    `subscribe_market_lifecycle()` now yields
+    `MarketLifecycleMessage | EventFeeUpdateMessage`. **Existing consumers must
+    discriminate on `.type` before touching payload fields** — an
+    `EventFeeUpdatePayload` has no `market_ticker`, so naive access raises
+    `AttributeError`:
+
+    ```python
+    async for msg in session.subscribe_market_lifecycle():
+        if msg.type == "event_fee_update":
+            print(msg.msg.event_ticker, msg.msg.fee_type_override)  # None when cleared
+        else:  # market_lifecycle_v2
+            print(msg.msg.market_ticker, msg.msg.event_type)
+    ```
+
+    This is a second message **type** on the same channel — the channel count
+    stays 11. The override payload mirrors the REST
     [`EventFeeChange`](resources/events.md#event-fee-changes):
     `EventFeeUpdatePayload` carries `event_ticker`, `fee_type_override`, and
     `fee_multiplier_override` (the latter two `None` when the override is

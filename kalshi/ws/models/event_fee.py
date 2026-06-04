@@ -36,6 +36,9 @@ class EventFeeUpdateMessage(BaseModel):
 
     type: Literal["event_fee_update"] = "event_fee_update"
     sid: int
+    # The AsyncAPI envelope does not declare `seq` for this message; it is
+    # accepted-if-present for forward-compat and parity with the sibling
+    # MarketLifecycleMessage on the same channel. The server does not emit it.
     seq: int | None = None
     msg: EventFeeUpdatePayload
     model_config = {"extra": "allow", "populate_by_name": True}

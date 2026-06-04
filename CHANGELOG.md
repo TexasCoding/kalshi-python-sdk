@@ -27,9 +27,12 @@ checksum still matches).
 - WebSocket `event_fee_update` message on the existing
   `market_lifecycle_v2` channel (`EventFeeUpdateMessage` /
   `EventFeeUpdatePayload`). `subscribe_market_lifecycle()` now yields
-  `MarketLifecycleMessage | EventFeeUpdateMessage`; discriminate on
-  `.type`. Channel count is unchanged (still 11) — this is a second
-  message type on an existing channel.
+  `MarketLifecycleMessage | EventFeeUpdateMessage`. Channel count is
+  unchanged (still 11) — this is a second message type on an existing
+  channel. **Behavioral note for existing subscribers:** discriminate on
+  `.type` before reading payload fields — an `EventFeeUpdatePayload` has no
+  `market_ticker`, so naive access raises `AttributeError`. See the
+  migration callout in [`docs/websockets.md`](docs/websockets.md).
 
 ### Internal
 
