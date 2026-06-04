@@ -58,6 +58,10 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="Spec uses 'EventData', not 'Event'",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.events.EventFeeChange",
+        spec_schema="EventFeeChange",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.exchange.ExchangeStatus",
         spec_schema="ExchangeStatus",
     ),
@@ -513,6 +517,11 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="marketLifecycleV2Payload",
         notes="SDK conflates lifecycle + event fields. "
         "Spec has additional_metadata, price_level_structure not in SDK.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.event_fee.EventFeeUpdatePayload",
+        spec_schema="eventFeeUpdatePayload",
+        notes="New v3.20.0 message (#385); rides the market_lifecycle_v2 channel.",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.market_positions.MarketPositionsPayload",

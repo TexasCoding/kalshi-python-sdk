@@ -13,7 +13,12 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError
 from kalshi.resources.events import AsyncEventsResource, EventsResource
-from tests._model_fixtures import event_dict, event_metadata_dict, market_dict
+from tests._model_fixtures import (
+    event_dict,
+    event_fee_change_dict,
+    event_metadata_dict,
+    market_dict,
+)
 
 
 @pytest.fixture
@@ -227,6 +232,75 @@ class TestEventsMetadata:
             events.metadata("FAKE")
 
 
+class TestEventsFeeChanges:
+    @respx.mock
+    def test_returns_page_of_fee_changes(self, events: EventsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/fee_changes").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "event_fee_changes": [
+                        event_fee_change_dict(id="efc-1", event_ticker="EVT-A"),
+                        event_fee_change_dict(
+                            id="efc-2",
+                            event_ticker="EVT-B",
+                            fee_type_override=None,
+                            fee_multiplier_override=None,
+                        ),
+                    ],
+                    "cursor": "page2",
+                },
+            )
+        )
+        page = events.fee_changes()
+        assert len(page) == 2
+        assert page.items[0].id == "efc-1"
+        assert page.items[0].fee_type_override == "quadratic"
+        assert page.items[0].fee_multiplier_override == Decimal("1.5")
+        # Cleared override: both fields are present-but-null.
+        assert page.items[1].fee_type_override is None
+        assert page.items[1].fee_multiplier_override is None
+        assert page.has_next is True
+
+    @respx.mock
+    def test_passes_filters(self, events: EventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/fee_changes").mock(
+            return_value=httpx.Response(200, json={"event_fee_changes": [], "cursor": ""})
+        )
+        events.fee_changes(event_ticker="EVT-A", limit=50, cursor="abc")
+        params = dict(route.calls[0].request.url.params)
+        assert params["event_ticker"] == "EVT-A"
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+
+    def test_limit_out_of_range_raises(self, events: EventsResource) -> None:
+        with pytest.raises(ValueError, match=r"limit must be in \[1, 1000\]"):
+            events.fee_changes(limit=1001)
+
+    @respx.mock
+    def test_fee_changes_all_paginates(self, events: EventsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/fee_changes").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "event_fee_changes": [event_fee_change_dict(id="efc-1")],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "event_fee_changes": [event_fee_change_dict(id="efc-2")],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [fc.id for fc in events.fee_changes_all()]
+        assert ids == ["efc-1", "efc-2"]
+
+
 class TestEventsListMultivariate:
     @respx.mock
     def test_list_multivariate(self, events: EventsResource) -> None:
@@ -414,6 +488,42 @@ class TestAsyncEventsListMultivariate:
         )
         tickers = [e.event_ticker async for e in async_events.list_all_multivariate()]
         assert tickers == ["A", "B"]
+
+
+class TestAsyncEventsFeeChanges:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_page(self, async_events: AsyncEventsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/fee_changes").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "event_fee_changes": [event_fee_change_dict(id="efc-1")],
+                    "cursor": "",
+                },
+            )
+        )
+        page = await async_events.fee_changes(event_ticker="EVT-A")
+        assert len(page.items) == 1
+        assert page.items[0].fee_multiplier_override == Decimal("1.5")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_fee_changes_all_paginates(self, async_events: AsyncEventsResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/events/fee_changes").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={"event_fee_changes": [event_fee_change_dict(id="efc-1")], "cursor": "p2"},
+                ),
+                httpx.Response(
+                    200,
+                    json={"event_fee_changes": [event_fee_change_dict(id="efc-2")], "cursor": ""},
+                ),
+            ]
+        )
+        ids = [fc.id async for fc in async_events.fee_changes_all()]
+        assert ids == ["efc-1", "efc-2"]
 
 
 class TestBoolParamSerialization:

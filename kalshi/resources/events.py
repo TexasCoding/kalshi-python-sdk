@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from kalshi.models.common import Page
-from kalshi.models.events import Event, EventMetadata, EventStatusLiteral
+from kalshi.models.events import Event, EventFeeChange, EventMetadata, EventStatusLiteral
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
@@ -57,6 +57,20 @@ def _list_multivariate_events_params(
         series_ticker=series_ticker,
         collection_ticker=collection_ticker,
         with_nested_markets=_bool_param(with_nested_markets),
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+def _event_fee_changes_params(
+    *,
+    event_ticker: str | None,
+    limit: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=1000)
+    return _params(
+        event_ticker=event_ticker,
         limit=limit,
         cursor=cursor,
     )
@@ -197,6 +211,50 @@ class EventsResource(SyncResource):
         )
         return EventMetadata.model_validate(data)
 
+    def fee_changes(
+        self,
+        *,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[EventFeeChange]:
+        params = _event_fee_changes_params(
+            event_ticker=event_ticker,
+            limit=limit,
+            cursor=cursor,
+        )
+        return self._list(
+            "/events/fee_changes",
+            EventFeeChange,
+            "event_fee_changes",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def fee_changes_all(
+        self,
+        *,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[EventFeeChange]:
+        _validate_max_pages(max_pages)
+        params = _event_fee_changes_params(
+            event_ticker=event_ticker,
+            limit=limit,
+            cursor=None,
+        )
+        return self._list_all(
+            "/events/fee_changes",
+            EventFeeChange,
+            "event_fee_changes",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncEventsResource(AsyncResource):
     """Async events API."""
@@ -334,3 +392,48 @@ class AsyncEventsResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return EventMetadata.model_validate(data)
+
+    async def fee_changes(
+        self,
+        *,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[EventFeeChange]:
+        params = _event_fee_changes_params(
+            event_ticker=event_ticker,
+            limit=limit,
+            cursor=cursor,
+        )
+        return await self._list(
+            "/events/fee_changes",
+            EventFeeChange,
+            "event_fee_changes",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def fee_changes_all(
+        self,
+        *,
+        event_ticker: str | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[EventFeeChange]:
+        """Returns an async iterator — use ``async for``."""
+        _validate_max_pages(max_pages)
+        params = _event_fee_changes_params(
+            event_ticker=event_ticker,
+            limit=limit,
+            cursor=None,
+        )
+        return self._list_all(
+            "/events/fee_changes",
+            EventFeeChange,
+            "event_fee_changes",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )

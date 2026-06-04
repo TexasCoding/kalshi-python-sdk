@@ -35,6 +35,7 @@ from kalshi.models.communications import (
 )
 from kalshi.models.events import (
     Event,
+    EventFeeChange,
     EventMetadata,
     EventStatusLiteral,
     MarketMetadata,
@@ -232,6 +233,7 @@ __all__ = [
     "EndpointTokenCost",
     "Event",
     "EventCandlesticks",
+    "EventFeeChange",
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",

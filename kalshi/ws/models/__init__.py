@@ -16,6 +16,10 @@ from kalshi.ws.models.communications import (
     RfqCreatedPayload,
     RfqDeletedPayload,
 )
+from kalshi.ws.models.event_fee import (
+    EventFeeUpdateMessage,
+    EventFeeUpdatePayload,
+)
 from kalshi.ws.models.fill import FillMessage, FillPayload
 from kalshi.ws.models.market_lifecycle import (
     MarketLifecycleMessage,
@@ -52,6 +56,9 @@ __all__ = [
     "CommunicationsMessage",
     "ErrorMessage",
     "ErrorPayload",
+    # Event fee update
+    "EventFeeUpdateMessage",
+    "EventFeeUpdatePayload",
     # Fill
     "FillMessage",
     "FillPayload",

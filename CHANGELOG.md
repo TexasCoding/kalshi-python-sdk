@@ -2,6 +2,54 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 3.1.0 — 2026-06-03
+
+OpenAPI + AsyncAPI spec sync from v3.19.0 → v3.20.0 (`#385`). Adds the
+new `GET /events/fee_changes` endpoint plus three smaller additive
+changes upstream re-published into 3.20.0 after the drift issue was
+filed (the OpenAPI checksum in `#385` is therefore stale; the AsyncAPI
+checksum still matches).
+
+### Added
+
+- `events.fee_changes()` / `fee_changes_all()` (sync + async) for
+  `GET /events/fee_changes` — the new paginated event-level fee-override
+  feed (`event_ticker`, `limit`, `cursor`). Returns `Page[EventFeeChange]`
+  (and an auto-paginating iterator). `EventFeeChange` exposes
+  `fee_type_override` / `fee_multiplier_override`, both present-but-`None`
+  when an override is cleared.
+- `is_block_trade` query param on `markets.list_trades` /
+  `list_all_trades` (+ deprecated `list_trades_all`) and
+  `historical.trades` / `trades_all`. Omit for all trades, `True` for
+  only block trades, `False` for only non-block.
+- `Trade.is_block_trade` (`bool`) — new spec-required, non-nullable
+  response field; a missing key raises so a schema regression surfaces.
+- WebSocket `event_fee_update` message on the existing
+  `market_lifecycle_v2` channel (`EventFeeUpdateMessage` /
+  `EventFeeUpdatePayload`). `subscribe_market_lifecycle()` now yields
+  `MarketLifecycleMessage | EventFeeUpdateMessage`. Channel count is
+  unchanged (still 11) — this is a second message type on an existing
+  channel. **Behavioral note for existing subscribers:** discriminate on
+  `.type` before reading payload fields — an `EventFeeUpdatePayload` has no
+  `market_ticker`, so naive access raises `AttributeError`. See the
+  migration callout in [`docs/websockets.md`](docs/websockets.md).
+
+### Internal
+
+- `specs/openapi.yaml` (sha256
+  `b72a2aa138695d810f6ca85096bfe19e1b66ba5e9b2ed37753be284b5288d271`)
+  and `specs/asyncapi.yaml` (sha256
+  `2f72d0a3fd25fe331210ed300f03ad4c1fedcb561b3ab425046b2dca6f4683ec`)
+  snapshots bumped; `kalshi/_generated/models.py` regenerated.
+- Spec also relaxed `CreateOrderV2Request.client_order_id` and
+  `EventData.product_metadata` from required to optional, and added
+  `ApiKeyScope` / `FeeType` enums. No SDK-facade change: the V2 order
+  keeps `client_order_id` required by design, `Event.product_metadata`
+  already tolerated server omission, and API-key `scopes` stays `str`
+  for forward-compat.
+- README + `docs/index.md` banners bumped to "99 operations … OpenAPI
+  v3.20.0".
+
 ## 3.0.1 — 2026-05-26
 
 OpenAPI spec sync from v3.18.0 → v3.19.0 (`#383`). Single additive

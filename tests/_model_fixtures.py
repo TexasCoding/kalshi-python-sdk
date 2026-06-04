@@ -130,6 +130,7 @@ def trade_dict(**overrides: Any) -> dict[str, Any]:
         "taker_side": "yes",
         "taker_book_side": "bid",
         "taker_outcome_side": "yes",
+        "is_block_trade": False,
     }
     base.update(overrides)
     return base
@@ -157,6 +158,20 @@ def event_metadata_dict(**overrides: Any) -> dict[str, Any]:
         "image_url": "",
         "market_details": [],
         "settlement_sources": [],
+    }
+    base.update(overrides)
+    return base
+
+
+def event_fee_change_dict(**overrides: Any) -> dict[str, Any]:
+    """Spec-shaped EventFeeChange response dict (GET /events/fee_changes)."""
+    base: dict[str, Any] = {
+        "id": "efc-1",
+        "event_ticker": "EVT-A",
+        "series_ticker": "SER-A",
+        "fee_type_override": "quadratic",
+        "fee_multiplier_override": 1.5,
+        "scheduled_ts": "2026-01-01T00:00:00Z",
     }
     base.update(overrides)
     return base

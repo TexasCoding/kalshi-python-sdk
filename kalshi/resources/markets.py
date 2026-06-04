@@ -98,6 +98,7 @@ def _list_trades_params(
     max_ts: int | None,
     limit: int | None,
     cursor: str | None,
+    is_block_trade: bool | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000, lo=0)
     return _params(
@@ -106,6 +107,7 @@ def _list_trades_params(
         max_ts=max_ts,
         limit=limit,
         cursor=cursor,
+        is_block_trade=_bool_param(is_block_trade),
     )
 
 
@@ -346,6 +348,7 @@ class MarketsResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _list_trades_params(
@@ -354,6 +357,7 @@ class MarketsResource(SyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=cursor,
+            is_block_trade=is_block_trade,
         )
         return self._list(
             "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
@@ -366,6 +370,7 @@ class MarketsResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Trade]:
@@ -376,6 +381,7 @@ class MarketsResource(SyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=None,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/markets/trades",
@@ -397,6 +403,7 @@ class MarketsResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Trade]:
@@ -406,6 +413,7 @@ class MarketsResource(SyncResource):
             min_ts=min_ts,
             max_ts=max_ts,
             limit=limit,
+            is_block_trade=is_block_trade,
             max_pages=max_pages,
             extra_headers=extra_headers,
         )
@@ -593,6 +601,7 @@ class AsyncMarketsResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Trade]:
         params = _list_trades_params(
@@ -601,6 +610,7 @@ class AsyncMarketsResource(AsyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=cursor,
+            is_block_trade=is_block_trade,
         )
         return await self._list(
             "/markets/trades", Trade, "trades", params=params, extra_headers=extra_headers
@@ -613,6 +623,7 @@ class AsyncMarketsResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Trade]:
@@ -624,6 +635,7 @@ class AsyncMarketsResource(AsyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=None,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/markets/trades",
@@ -645,6 +657,7 @@ class AsyncMarketsResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Trade]:
@@ -654,6 +667,7 @@ class AsyncMarketsResource(AsyncResource):
             min_ts=min_ts,
             max_ts=max_ts,
             limit=limit,
+            is_block_trade=is_block_trade,
             max_pages=max_pages,
             extra_headers=extra_headers,
         )

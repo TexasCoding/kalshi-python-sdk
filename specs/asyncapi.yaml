@@ -320,6 +320,8 @@ channels:
         $ref: '#/components/messages/marketLifecycleV2'
       eventLifecycle:
         $ref: '#/components/messages/eventLifecycle'
+      eventFeeUpdate:
+        $ref: '#/components/messages/eventFeeUpdate'
   multivariate_market_lifecycle:
     address: multivariate_market_lifecycle
     title: Multivariate Market & Event Lifecycle
@@ -695,6 +697,16 @@ operations:
       $ref: '#/channels/market_lifecycle_v2'
     messages:
       - $ref: '#/channels/market_lifecycle_v2/messages/eventLifecycle'
+    tags:
+      - name: market-data
+  receiveEventFeeUpdate:
+    action: send
+    title: Event Fee Override Update
+    summary: Receive notifications when an event-level fee override is set or cleared
+    channel:
+      $ref: '#/channels/market_lifecycle_v2'
+    messages:
+      - $ref: '#/channels/market_lifecycle_v2/messages/eventFeeUpdate'
     tags:
       - name: market-data
   receiveMultivariateMarketLifecycle:
@@ -1474,6 +1486,33 @@ components:
               subtitle: Jan 25 at 21:50
               collateral_return_type: MECNET
               series_ticker: KXQUICKSETTLE
+    eventFeeUpdate:
+      name: event_fee_update
+      title: Event Fee Override Update
+      summary: Emitted when an event-level fee override is set or cleared
+      description: Delivered on the `market_lifecycle_v2` channel only.
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/eventFeeUpdatePayload'
+      examples:
+        - name: eventFeeOverrideSet
+          summary: Event fee override set
+          payload:
+            type: event_fee_update
+            sid: 5
+            msg:
+              event_ticker: KXBTCD-26MAY2018
+              fee_type_override: quadratic
+              fee_multiplier_override: 1
+        - name: eventFeeOverrideCleared
+          summary: Event fee override cleared
+          payload:
+            type: event_fee_update
+            sid: 5
+            msg:
+              event_ticker: KXBTCD-26MAY2018
+              fee_type_override: null
+              fee_multiplier_override: null
     multivariateLookup:
       name: multivariate_lookup
       title: Multivariate Lookup (Deprecated)
@@ -2770,6 +2809,45 @@ components:
               description: >-
                 Optional - String to indicate the strike period of the event if
                 there is one
+    eventFeeUpdatePayload:
+      type: object
+      required:
+        - type
+        - sid
+        - msg
+      properties:
+        type:
+          type: string
+          const: event_fee_update
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        msg:
+          type: object
+          required:
+            - event_ticker
+            - fee_type_override
+            - fee_multiplier_override
+          properties:
+            event_ticker:
+              type: string
+              description: Unique identifier for the event
+            fee_type_override:
+              type: string
+              nullable: true
+              enum:
+                - quadratic
+                - quadratic_with_maker_fees
+                - flat
+                - null
+              description: >-
+                Event fee type override. `null` when the override has been
+                cleared.
+            fee_multiplier_override:
+              type: number
+              nullable: true
+              description: >-
+                Event fee multiplier override. `null` when the override has been
+                cleared.
     multivariateLookupPayload:
       type: object
       required:

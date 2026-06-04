@@ -253,6 +253,16 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/events/{event_ticker}/metadata",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.events.EventsResource.fee_changes",
+        http_method="GET",
+        path_template="/events/fee_changes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.events.EventsResource.fee_changes_all",
+        http_method="GET",
+        path_template="/events/fee_changes",
+    ),
     # ── exchange ────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.exchange.ExchangeResource.status",
@@ -882,6 +892,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    ("kalshi.resources.events.EventsResource.fee_changes_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on fee_changes_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.historical.HistoricalResource.markets_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1258,17 +1272,12 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     # omits in practice. Each entry MUST cite a demo+prod observation in
     # `reason`. Until the spec is fixed upstream, the SDK keeps the field
     # optional so real-world responses parse cleanly.
-    ("kalshi.models.events.Event", "product_metadata"): Exclusion(
-        reason=(
-            "Spec EventData.product_metadata is required: true, but the live demo "
-            "server omits the key entirely on most events (e.g., Mars trip, Liverpool "
-            "vs Manchester United, 'Bitcoin price on Jan 12'). Observed in nightly "
-            "integration run #26141405845 (2026-05-20, against demo commit 788789c) "
-            "across test_events, test_markets, and test_series. Keep `dict | None` "
-            "until upstream spec or server matches."
-        ),
-        kind="server_omits_despite_required",
-    ),
+    #
+    # (`Event.product_metadata` lived here until v3.20.0 (#385) relaxed
+    # `EventData.product_metadata` to optional upstream. Spec and SDK now
+    # agree it is optional, so there is no deviation left to record — the
+    # field stays `dict | None` and `test_parses_when_server_omits_product_metadata`
+    # still guards the server-omission behavior.)
 }
 
 
@@ -1284,6 +1293,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.milestones.MilestonesResource.list_all",
     "kalshi.resources.events.EventsResource.list_all",
     "kalshi.resources.events.EventsResource.list_all_multivariate",
+    "kalshi.resources.events.EventsResource.fee_changes_all",
     "kalshi.resources.historical.HistoricalResource.markets_all",
     "kalshi.resources.historical.HistoricalResource.fills_all",
     "kalshi.resources.historical.HistoricalResource.orders_all",
@@ -1312,6 +1322,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.milestones.AsyncMilestonesResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all_multivariate",
+    "kalshi.resources.events.AsyncEventsResource.fee_changes_all",
     "kalshi.resources.historical.AsyncHistoricalResource.markets_all",
     "kalshi.resources.historical.AsyncHistoricalResource.fills_all",
     "kalshi.resources.historical.AsyncHistoricalResource.orders_all",

@@ -11,6 +11,7 @@ import pytest
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
+from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
 from kalshi.ws.models.multivariate import MultivariateMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
@@ -120,6 +121,51 @@ class TestMessageDispatcher:
         dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
         raw = json.dumps({"type": "future_type", "sid": 1, "msg": {}})
         await dispatcher.dispatch(json.loads(raw))  # should not crash
+
+    async def test_dispatch_event_fee_update(self) -> None:
+        """v3.20.0 (#385): event_fee_update rides the market_lifecycle_v2 channel."""
+        mgr = FakeSubManager()
+        sub = mgr.add(5, "market_lifecycle_v2")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {
+                "type": "event_fee_update",
+                "sid": 5,
+                "msg": {
+                    "event_ticker": "KXBTCD-26MAY2018",
+                    "fee_type_override": "quadratic",
+                    "fee_multiplier_override": 1,
+                },
+            }
+        )
+        await dispatcher.dispatch(json.loads(raw))
+        msg = await sub.queue.get()
+        assert isinstance(msg, EventFeeUpdateMessage)
+        assert msg.type == "event_fee_update"
+        assert msg.msg.event_ticker == "KXBTCD-26MAY2018"
+        assert msg.msg.fee_type_override == "quadratic"
+
+    async def test_dispatch_event_fee_update_cleared(self) -> None:
+        """Override cleared: both override fields arrive present-but-null."""
+        mgr = FakeSubManager()
+        sub = mgr.add(5, "market_lifecycle_v2")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        raw = json.dumps(
+            {
+                "type": "event_fee_update",
+                "sid": 5,
+                "msg": {
+                    "event_ticker": "KXBTCD-26MAY2018",
+                    "fee_type_override": None,
+                    "fee_multiplier_override": None,
+                },
+            }
+        )
+        await dispatcher.dispatch(json.loads(raw))
+        msg = await sub.queue.get()
+        assert isinstance(msg, EventFeeUpdateMessage)
+        assert msg.msg.fee_type_override is None
+        assert msg.msg.fee_multiplier_override is None
 
     async def test_dispatch_control_message_skipped(self) -> None:
         mgr = FakeSubManager()
@@ -343,6 +389,7 @@ class TestMessageDispatcher:
             "user_order",
             "order_group_updates",
             "market_lifecycle_v2",
+            "event_fee_update",
             "multivariate_lookup",
             "multivariate_market_lifecycle",
             "communications",

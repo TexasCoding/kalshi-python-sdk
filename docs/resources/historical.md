@@ -51,6 +51,7 @@ trades = client.historical.trades(
     ticker="KXPRES-24-DJT",
     min_ts=1_600_000_000,
     max_ts=1_650_000_000,
+    is_block_trade=False,   # v3.20.0: omit for all; True = only block, False = only non-block
     limit=1000,
 )
 ```

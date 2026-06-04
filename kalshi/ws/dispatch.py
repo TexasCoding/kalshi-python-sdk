@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from kalshi.ws.channels import SubscriptionManager
 from kalshi.ws.models.base import ErrorMessage, ErrorPayload
 from kalshi.ws.models.communications import CommunicationsMessage
+from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
@@ -35,6 +36,7 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "user_order": UserOrdersMessage,
     "order_group_updates": OrderGroupMessage,
     "market_lifecycle_v2": MarketLifecycleMessage,
+    "event_fee_update": EventFeeUpdateMessage,
     "multivariate_lookup": MultivariateMessage,
     "multivariate_market_lifecycle": MultivariateLifecycleMessage,
     "communications": CommunicationsMessage,
