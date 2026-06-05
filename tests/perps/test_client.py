@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from kalshi.auth import KalshiAuth
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
-from kalshi.perps.config import PERPS_DEMO_BASE_URL
+from kalshi.perps.config import PERPS_DEMO_BASE_URL, PERPS_DEMO_WS_URL
+
+
+def _encrypted_pem(key: rsa.RSAPrivateKey, password: bytes) -> bytes:
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.BestAvailableEncryption(password),
+    )
 
 _RESOURCE_ATTRS = (
     "exchange",
@@ -141,4 +151,54 @@ class TestAsyncConstruction:
         client = AsyncPerpsClient.from_env(demo=True)
         assert client.is_authenticated is True
         assert client._auth_owned is True
+        await client.close()
+
+
+class TestIssue406ConfigShorthandGuards:
+    """#406: reject config= combined with env-determining shorthand; ws_base_url
+    shorthand reaches the config."""
+
+    def test_config_plus_demo_raises(self) -> None:
+        # The real-money footgun: demo=True silently ignored when config given.
+        with pytest.raises(ValueError, match="not both"):
+            PerpsClient(config=PerpsConfig.production(), demo=True)
+
+    def test_config_plus_base_url_raises(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            PerpsClient(config=PerpsConfig.demo(), base_url=PERPS_DEMO_BASE_URL)
+
+    def test_config_plus_ws_base_url_raises(self) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            PerpsClient(config=PerpsConfig.demo(), ws_base_url=PERPS_DEMO_WS_URL)
+
+    def test_ws_base_url_shorthand_threads_to_config(self) -> None:
+        client = PerpsClient(base_url=PERPS_DEMO_BASE_URL, ws_base_url=PERPS_DEMO_WS_URL)
+        assert client._config.base_url == PERPS_DEMO_BASE_URL
+        assert client._config.ws_base_url == PERPS_DEMO_WS_URL
+        client.close()
+
+
+class TestIssue410EncryptedKeyPassword:
+    """#410: a `password=` for an encrypted private key is threaded to the signer."""
+
+    def test_password_threaded_for_encrypted_pem(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        # Without threading the password, load of the encrypted PEM would raise
+        # at construction — so a successful authenticated client proves the fix.
+        enc = _encrypted_pem(rsa_private_key, b"sekret")
+        client = PerpsClient(
+            key_id="k", private_key=enc, password="sekret", config=PerpsConfig.demo()
+        )
+        assert client.is_authenticated is True
+        client.close()
+
+    async def test_password_threaded_async(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        enc = _encrypted_pem(rsa_private_key, b"sekret")
+        client = AsyncPerpsClient(
+            key_id="k", private_key=enc, password="sekret", config=PerpsConfig.demo()
+        )
+        assert client.is_authenticated is True
         await client.close()

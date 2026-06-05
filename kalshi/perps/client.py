@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from types import TracebackType
 from typing import TypedDict, Unpack
@@ -37,10 +38,12 @@ class PerpsClientInitKwargs(TypedDict, total=False):
     key_id: str | None
     private_key: str | bytes | None
     private_key_path: str | Path | None
+    password: bytes | str | Callable[[], bytes | str] | None
     auth: KalshiAuth | None
     config: PerpsConfig | None
     demo: bool
     base_url: str | None
+    ws_base_url: str | None
     timeout: float | None
     max_retries: int | None
     transport: httpx.BaseTransport | None
@@ -70,10 +73,12 @@ class PerpsClient:
         key_id: str | None = None,
         private_key_path: str | Path | None = None,
         private_key: str | bytes | None = None,
+        password: bytes | str | Callable[[], bytes | str] | None = None,
         auth: KalshiAuth | None = None,
         config: PerpsConfig | None = None,
         demo: bool = False,
         base_url: str | None = None,
+        ws_base_url: str | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         transport: httpx.BaseTransport | None = None,
@@ -88,10 +93,10 @@ class PerpsClient:
             self._auth = auth
             self._auth_owned = False
         elif key_id and private_key_path:
-            self._auth = KalshiAuth.from_key_path(key_id, private_key_path)
+            self._auth = KalshiAuth.from_key_path(key_id, private_key_path, password=password)
             self._auth_owned = True
         elif key_id and private_key:
-            self._auth = KalshiAuth.from_pem(key_id, private_key)
+            self._auth = KalshiAuth.from_pem(key_id, private_key, password=password)
             self._auth_owned = True
         elif key_id or private_key or private_key_path:
             # Partial credentials — fail fast instead of silently building an
@@ -107,21 +112,35 @@ class PerpsClient:
             self._auth_owned = False
 
         if config is not None:
+            # A PerpsConfig fully fixes the REST + WS endpoints. Combining it
+            # with env-determining shorthand would silently ignore that
+            # shorthand — a real-money footgun if an explicit demo=True is
+            # dropped — so reject the combination outright.
+            if demo or base_url is not None or ws_base_url is not None:
+                raise ValueError(
+                    "Pass either `config=` OR the demo/base_url/ws_base_url "
+                    "shorthand, not both. A PerpsConfig already fixes the REST "
+                    "and WS endpoints, so demo=True/base_url/ws_base_url would be "
+                    "silently ignored. Drop whichever you don't need."
+                )
             self._config: PerpsConfig = config
         else:
-            if demo and base_url is not None and base_url.rstrip("/") != PERPS_DEMO_BASE_URL:
+            if demo and (
+                (base_url is not None and base_url.rstrip("/") != PERPS_DEMO_BASE_URL)
+                or (ws_base_url is not None and ws_base_url.rstrip("/") != PERPS_DEMO_WS_URL)
+            ):
                 raise ValueError(
-                    "Conflicting environment: demo=True together with explicit "
-                    f"base_url={base_url!r}. demo=True implies base_url="
-                    f"{PERPS_DEMO_BASE_URL!r}; passing a different REST endpoint "
-                    "would leave ws_base_url pinned to the demo WS feed, producing "
-                    "a split REST/WS environment. Drop demo=True and pass both "
-                    "base_url and ws_base_url via a PerpsConfig, or use "
-                    "PerpsConfig.demo() / PerpsConfig.production()."
+                    "Conflicting environment: demo=True together with an explicit "
+                    f"base_url={base_url!r} / ws_base_url={ws_base_url!r} pointing "
+                    "elsewhere. demo=True implies the demo REST + WS endpoints; "
+                    "pass both base_url and ws_base_url via a PerpsConfig instead, "
+                    "or use PerpsConfig.demo() / PerpsConfig.production()."
                 )
             config_kwargs: dict[str, object] = {}
             if base_url:
                 config_kwargs["base_url"] = base_url
+            if ws_base_url:
+                config_kwargs["ws_base_url"] = ws_base_url
             if demo:
                 config_kwargs.setdefault("base_url", PERPS_DEMO_BASE_URL)
                 config_kwargs.setdefault("ws_base_url", PERPS_DEMO_WS_URL)
@@ -153,12 +172,15 @@ class PerpsClient:
         Reads:
             KALSHI_PERPS_KEY_ID (optional — omit for unauthenticated access)
             KALSHI_PERPS_PRIVATE_KEY (PEM string) or KALSHI_PERPS_PRIVATE_KEY_PATH
+            KALSHI_PERPS_PRIVATE_KEY_PASSPHRASE (optional, for an encrypted key)
             KALSHI_PERPS_API_BASE_URL (optional, overrides base_url)
+            KALSHI_PERPS_WS_BASE_URL (optional, overrides ws_base_url)
             KALSHI_PERPS_DEMO (optional, "true" for the demo environment)
 
         Perps credentials are intentionally separate from the prediction-API
         ``KALSHI_*`` vars — Kalshi recommends a distinct API key for the perps
         exchange. Returns an unauthenticated client if no credentials are set.
+        An explicit ``password=`` (or ``config=``) overrides the env value.
         """
         caller_supplied_auth = (
             "auth" in kwargs
@@ -168,11 +190,15 @@ class PerpsClient:
         )
         env_built_auth: KalshiAuth | None = None
         if not caller_supplied_auth:
-            env_built_auth = try_perps_auth_from_env()
+            env_built_auth = try_perps_auth_from_env(password=kwargs.get("password"))
             if env_built_auth is not None:
                 kwargs["auth"] = env_built_auth
-        kwargs.setdefault("demo", os.environ.get("KALSHI_PERPS_DEMO", "").lower() == "true")
-        kwargs.setdefault("base_url", os.environ.get("KALSHI_PERPS_API_BASE_URL"))
+        # Only inject env endpoint overrides when no explicit config is given —
+        # otherwise __init__'s config-vs-shorthand guard would reject them.
+        if "config" not in kwargs:
+            kwargs.setdefault("demo", os.environ.get("KALSHI_PERPS_DEMO", "").lower() == "true")
+            kwargs.setdefault("base_url", os.environ.get("KALSHI_PERPS_API_BASE_URL"))
+            kwargs.setdefault("ws_base_url", os.environ.get("KALSHI_PERPS_WS_BASE_URL"))
         client = cls(**kwargs)
         if env_built_auth is not None:
             client._auth_owned = True
