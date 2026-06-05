@@ -16,6 +16,8 @@ import builtins
 from typing import Any
 
 from kalshi.perps.models.markets import (
+    GetMarginMarketCandlesticksResponse,
+    GetMarginMarketsResponse,
     MarginMarket,
     MarginMarketCandlestick,
     MarginMarketStatusLiteral,
@@ -67,8 +69,7 @@ class PerpsMarketsResource(SyncResource):
         """
         params = _params(status=status)
         data = self._get("/margin/markets", params=params, extra_headers=extra_headers)
-        raw = data.get("markets") or []
-        return [MarginMarket.model_validate(m) for m in raw]
+        return GetMarginMarketsResponse.model_validate(data).markets
 
     def get(self, ticker: str, *, extra_headers: dict[str, str] | None = None) -> MarginMarket:
         data = self._get(
@@ -114,8 +115,7 @@ class PerpsMarketsResource(SyncResource):
             params=params,
             extra_headers=extra_headers,
         )
-        raw = data.get("candlesticks") or []
-        return [MarginMarketCandlestick.model_validate(c) for c in raw]
+        return GetMarginMarketCandlesticksResponse.model_validate(data).candlesticks
 
 
 class AsyncPerpsMarketsResource(AsyncResource):
@@ -134,8 +134,7 @@ class AsyncPerpsMarketsResource(AsyncResource):
         """
         params = _params(status=status)
         data = await self._get("/margin/markets", params=params, extra_headers=extra_headers)
-        raw = data.get("markets") or []
-        return [MarginMarket.model_validate(m) for m in raw]
+        return GetMarginMarketsResponse.model_validate(data).markets
 
     async def get(
         self, ticker: str, *, extra_headers: dict[str, str] | None = None
@@ -183,5 +182,4 @@ class AsyncPerpsMarketsResource(AsyncResource):
             params=params,
             extra_headers=extra_headers,
         )
-        raw = data.get("candlesticks") or []
-        return [MarginMarketCandlestick.model_validate(c) for c in raw]
+        return GetMarginMarketCandlesticksResponse.model_validate(data).candlesticks

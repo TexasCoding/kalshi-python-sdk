@@ -12,6 +12,7 @@ from decimal import Decimal
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi.errors import KalshiNotFoundError, KalshiServerError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
@@ -135,9 +136,16 @@ class TestList:
         assert perps_client.markets.list() == []
 
     @respx.mock
-    def test_missing_markets_key(self, perps_client: PerpsClient) -> None:
-        respx.get(f"{BASE}/margin/markets").mock(return_value=httpx.Response(200, json={}))
-        assert perps_client.markets.list() == []
+    def test_missing_or_null_markets_raises(self, perps_client: PerpsClient) -> None:
+        # #404: `markets` is spec-required — a missing/null array hard-fails
+        # (surfacing drift) instead of being silently coerced to [].
+        route = respx.get(f"{BASE}/margin/markets")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            perps_client.markets.list()
+        route.mock(return_value=httpx.Response(200, json={"markets": None}))
+        with pytest.raises(ValidationError):
+            perps_client.markets.list()
 
     @respx.mock
     def test_server_error_maps(self, perps_client: PerpsClient) -> None:
@@ -350,6 +358,18 @@ class TestCandlesticks:
         assert c.price.previous is None
         # bid/ask OHLC are still required + present.
         assert c.bid.open == Decimal("0.5500")
+
+    @respx.mock
+    def test_missing_ticker_or_candlesticks_raises(self, perps_client: PerpsClient) -> None:
+        # #404: both `ticker` and `candlesticks` are spec-required on this
+        # response — the envelope validates the previously-discarded `ticker`.
+        route = respx.get(f"{BASE}/margin/markets/BTC-PERP/candlesticks")
+        route.mock(return_value=httpx.Response(200, json={"candlesticks": []}))  # no ticker
+        with pytest.raises(ValidationError):
+            perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
+        route.mock(return_value=httpx.Response(200, json={"ticker": "BTC-PERP"}))  # no array
+        with pytest.raises(ValidationError):
+            perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
 
     @respx.mock
     def test_required_and_optional_params(self, perps_client: PerpsClient) -> None:

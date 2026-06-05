@@ -19,6 +19,8 @@ import builtins
 from typing import Any
 
 from kalshi.perps.models.funding import (
+    GetMarginFundingHistoryResponse,
+    GetMarginHistoricalFundingRatesResponse,
     MarginFundingHistoryEntry,
     MarginFundingRate,
     MarginFundingRateEstimate,
@@ -77,7 +79,7 @@ class FundingResource(SyncResource):
         data = self._get(
             "/margin/funding_rates/historical", params=params, extra_headers=extra_headers
         )
-        return [MarginFundingRate.model_validate(r) for r in data.get("funding_rates", [])]
+        return GetMarginHistoricalFundingRatesResponse.model_validate(data).funding_rates
 
     def history(
         self,
@@ -96,9 +98,7 @@ class FundingResource(SyncResource):
             subaccount=subaccount,
         )
         data = self._get("/margin/funding_history", params=params, extra_headers=extra_headers)
-        return [
-            MarginFundingHistoryEntry.model_validate(e) for e in data.get("funding_history", [])
-        ]
+        return GetMarginFundingHistoryResponse.model_validate(data).funding_history
 
 
 class AsyncFundingResource(AsyncResource):
@@ -126,7 +126,7 @@ class AsyncFundingResource(AsyncResource):
         data = await self._get(
             "/margin/funding_rates/historical", params=params, extra_headers=extra_headers
         )
-        return [MarginFundingRate.model_validate(r) for r in data.get("funding_rates", [])]
+        return GetMarginHistoricalFundingRatesResponse.model_validate(data).funding_rates
 
     async def history(
         self,
@@ -147,6 +147,4 @@ class AsyncFundingResource(AsyncResource):
         data = await self._get(
             "/margin/funding_history", params=params, extra_headers=extra_headers
         )
-        return [
-            MarginFundingHistoryEntry.model_validate(e) for e in data.get("funding_history", [])
-        ]
+        return GetMarginFundingHistoryResponse.model_validate(data).funding_history

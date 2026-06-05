@@ -167,11 +167,15 @@ class TestHistoricalRates:
         assert perps_client.funding.historical_rates() == []
 
     @respx.mock
-    def test_edge_missing_key(self, perps_client: PerpsClient) -> None:
-        respx.get(f"{BASE}/margin/funding_rates/historical").mock(
-            return_value=httpx.Response(200, json={})
-        )
-        assert perps_client.funding.historical_rates() == []
+    def test_edge_missing_or_null_key_raises(self, perps_client: PerpsClient) -> None:
+        # #404: `funding_rates` is spec-required — missing/null hard-fails.
+        route = respx.get(f"{BASE}/margin/funding_rates/historical")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            perps_client.funding.historical_rates()
+        route.mock(return_value=httpx.Response(200, json={"funding_rates": None}))
+        with pytest.raises(ValidationError):
+            perps_client.funding.historical_rates()
 
     @respx.mock
     def test_error_500_maps(self, perps_client: PerpsClient) -> None:
@@ -220,6 +224,15 @@ def _entry(*, funding_amount: str, subaccount_number: int | None) -> dict[str, o
 
 
 class TestHistory:
+    @respx.mock
+    def test_missing_or_null_funding_history_raises(self, perps_client: PerpsClient) -> None:
+        # #404: funding_history is spec-required — missing/null hard-fails.
+        route = respx.get(f"{BASE}/margin/funding_history")
+        for payload in ({}, {"funding_history": None}):
+            route.mock(return_value=httpx.Response(200, json=payload))
+            with pytest.raises(ValidationError):
+                perps_client.funding.history(start_date="2026-06-01", end_date="2026-06-04")
+
     @respx.mock
     def test_happy(self, perps_client: PerpsClient) -> None:
         route = respx.get(f"{BASE}/margin/funding_history").mock(
