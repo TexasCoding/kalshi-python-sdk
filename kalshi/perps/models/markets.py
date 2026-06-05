@@ -16,7 +16,6 @@ The orderbook side is ``bids``/``asks`` (margin), **not** the prediction API's
 
 from __future__ import annotations
 
-import builtins
 from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
@@ -167,12 +166,13 @@ class MarginMarketCandlestick(BaseModel):
 class GetMarginMarketsResponse(BaseModel):
     """Spec ``GetMarginMarketsResponse`` — the ``GET /margin/markets`` envelope.
 
-    ``markets`` is spec-required, so it is modeled non-optional: a missing or
-    ``null`` array surfaces as a ``ValidationError`` rather than being silently
-    coerced to ``[]`` (which would mask server-side spec drift).
+    ``markets`` is spec-required and uses :data:`~kalshi.types.NullableList`: a
+    **missing** key raises ``ValidationError`` (surfacing spec drift instead of a
+    silent ``[]``), while a ``null`` array coerces to ``[]`` (Kalshi's
+    empty-as-null convention). Mirrors the prediction-API list envelopes.
     """
 
-    markets: builtins.list[MarginMarket]
+    markets: NullableList[MarginMarket]
 
     model_config = {"extra": "allow"}
 
@@ -180,12 +180,13 @@ class GetMarginMarketsResponse(BaseModel):
 class GetMarginMarketCandlesticksResponse(BaseModel):
     """Spec ``GetMarginMarketCandlesticksResponse`` — the candlesticks envelope.
 
-    Both ``ticker`` and ``candlesticks`` are spec-required; validating the
-    envelope keeps the required ``ticker`` from being silently dropped and
-    hard-fails on a missing/``null`` ``candlesticks`` array.
+    Both ``ticker`` and ``candlesticks`` are spec-required. Validating the
+    envelope keeps the required ``ticker`` from being silently dropped; the
+    ``candlesticks`` array uses :data:`~kalshi.types.NullableList` (missing key
+    -> error, ``null`` -> ``[]``).
     """
 
     ticker: str
-    candlesticks: builtins.list[MarginMarketCandlestick]
+    candlesticks: NullableList[MarginMarketCandlestick]
 
     model_config = {"extra": "allow"}

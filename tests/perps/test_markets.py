@@ -136,16 +136,16 @@ class TestList:
         assert perps_client.markets.list() == []
 
     @respx.mock
-    def test_missing_or_null_markets_raises(self, perps_client: PerpsClient) -> None:
-        # #404: `markets` is spec-required — a missing/null array hard-fails
-        # (surfacing drift) instead of being silently coerced to [].
+    def test_missing_markets_raises_but_null_tolerated(self, perps_client: PerpsClient) -> None:
+        # `markets` is spec-required: a MISSING key hard-fails (surfacing drift),
+        # while a NULL array coerces to [] via NullableList (Kalshi's
+        # empty-as-null convention; matches the prediction-API envelopes).
         route = respx.get(f"{BASE}/margin/markets")
         route.mock(return_value=httpx.Response(200, json={}))
         with pytest.raises(ValidationError):
             perps_client.markets.list()
         route.mock(return_value=httpx.Response(200, json={"markets": None}))
-        with pytest.raises(ValidationError):
-            perps_client.markets.list()
+        assert perps_client.markets.list() == []
 
     @respx.mock
     def test_server_error_maps(self, perps_client: PerpsClient) -> None:
@@ -370,6 +370,18 @@ class TestCandlesticks:
         route.mock(return_value=httpx.Response(200, json={"ticker": "BTC-PERP"}))  # no array
         with pytest.raises(ValidationError):
             perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
+        # A null candlesticks array coerces to [] (NullableList).
+        route.mock(
+            return_value=httpx.Response(
+                200, json={"ticker": "BTC-PERP", "candlesticks": None}
+            )
+        )
+        assert (
+            perps_client.markets.candlesticks(
+                "BTC-PERP", start_ts=1, end_ts=2, period_interval=1
+            )
+            == []
+        )
 
     @respx.mock
     def test_required_and_optional_params(self, perps_client: PerpsClient) -> None:

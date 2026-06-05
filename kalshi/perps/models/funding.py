@@ -27,11 +27,14 @@ model uses ``extra="allow"`` (tolerate additive server fields) and never
 
 from __future__ import annotations
 
-import builtins
-
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal
+from kalshi.types import (
+    DollarDecimal,
+    FixedPointCount,
+    MultiplierDecimal,
+    NullableList,
+)
 
 
 class MarginFundingRate(BaseModel):
@@ -104,11 +107,12 @@ class MarginFundingRateEstimate(BaseModel):
 class GetMarginHistoricalFundingRatesResponse(BaseModel):
     """Spec ``GetMarginHistoricalFundingRatesResponse`` — historical-rates envelope.
 
-    ``funding_rates`` is spec-required; modeled non-optional so a missing/``null``
-    array hard-fails rather than being silently coerced to ``[]``.
+    ``funding_rates`` is spec-required and uses
+    :data:`~kalshi.types.NullableList`: a missing key raises ``ValidationError``
+    (surfacing drift), while a ``null`` array coerces to ``[]``.
     """
 
-    funding_rates: builtins.list[MarginFundingRate]
+    funding_rates: NullableList[MarginFundingRate]
 
     model_config = {"extra": "allow"}
 
@@ -116,9 +120,10 @@ class GetMarginHistoricalFundingRatesResponse(BaseModel):
 class GetMarginFundingHistoryResponse(BaseModel):
     """Spec ``GetMarginFundingHistoryResponse`` — funding-payment-history envelope.
 
-    ``funding_history`` is spec-required; modeled non-optional (see above).
+    ``funding_history`` is spec-required (NullableList: missing key -> error,
+    ``null`` -> ``[]``).
     """
 
-    funding_history: builtins.list[MarginFundingHistoryEntry]
+    funding_history: NullableList[MarginFundingHistoryEntry]
 
     model_config = {"extra": "allow"}
