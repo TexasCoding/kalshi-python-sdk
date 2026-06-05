@@ -427,7 +427,7 @@ silently corrupting book state.
 | Strategy | Use for | Why |
 |---|---|---|
 | `DROP_OLDEST` | Read-only / coalesced feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate*`, `user_orders` | Newest sample is the one that matters; an evicted old frame is recoverable from the next one. |
-| `ERROR` | Stateful, sequenced feeds: `orderbook_delta` | A dropped delta corrupts the locally-reconstructed book. Surface the backpressure to the consumer rather than continuing on a corrupted book. |
+| `ERROR` | Stateful, sequenced feeds: `orderbook_delta`, `order_group_updates` | A dropped delta corrupts derived state (the reconstructed book / order-group tracking). Surface the backpressure to the consumer rather than continuing on corrupted state. |
 
 `ERROR` is fatal — the recv loop broadcasts sentinels and exits when it fires
 (see [Backpressure](#backpressure)). Wire `on_error=` / `on_state_change=` to

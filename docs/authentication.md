@@ -231,8 +231,9 @@ only from `KALSHI_PRIVATE_KEY_PASSPHRASE`. For programmatic passphrase control,
 build a `KalshiAuth` (above) and pass it as `auth=`. (The perps
 `PerpsClient.from_env()` *does* accept a `password=` kwarg.)
 
-An explicit `password=` argument always wins over
-`KALSHI_PRIVATE_KEY_PASSPHRASE` when both are supplied. A wrong passphrase
+Wherever a `password=` argument is accepted (the `KalshiAuth.from_*`
+constructors and `PerpsClient`), it always wins over an environment passphrase
+when both are supplied. A wrong passphrase
 raises `KalshiAuthError` ("Invalid PEM private key…"); a missing passphrase
 for an encrypted PEM raises `KalshiAuthError` pointing at the `password=`
 parameter.
