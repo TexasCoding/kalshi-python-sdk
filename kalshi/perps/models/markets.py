@@ -16,6 +16,7 @@ The orderbook side is ``bids``/``asks`` (margin), **not** the prediction API's
 
 from __future__ import annotations
 
+import builtins
 from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
@@ -161,3 +162,30 @@ class MarginMarketCandlestick(BaseModel):
     )
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class GetMarginMarketsResponse(BaseModel):
+    """Spec ``GetMarginMarketsResponse`` — the ``GET /margin/markets`` envelope.
+
+    ``markets`` is spec-required, so it is modeled non-optional: a missing or
+    ``null`` array surfaces as a ``ValidationError`` rather than being silently
+    coerced to ``[]`` (which would mask server-side spec drift).
+    """
+
+    markets: builtins.list[MarginMarket]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarginMarketCandlesticksResponse(BaseModel):
+    """Spec ``GetMarginMarketCandlesticksResponse`` — the candlesticks envelope.
+
+    Both ``ticker`` and ``candlesticks`` are spec-required; validating the
+    envelope keeps the required ``ticker`` from being silently dropped and
+    hard-fails on a missing/``null`` ``candlesticks`` array.
+    """
+
+    ticker: str
+    candlesticks: builtins.list[MarginMarketCandlestick]
+
+    model_config = {"extra": "allow"}

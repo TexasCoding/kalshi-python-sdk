@@ -74,10 +74,13 @@ class TestList:
         assert _signed(route.calls.last.request)
 
     @respx.mock
-    def test_empty_when_absent(self, perps_client: PerpsClient) -> None:
-        respx.get(f"{BASE}/margin/order_groups").mock(
-            return_value=httpx.Response(200, json={})
-        )
+    def test_empty_when_absent_or_null(self, perps_client: PerpsClient) -> None:
+        # #404: order_groups is spec-OPTIONAL, so it stays tolerant — a missing
+        # OR null array yields [] (unlike the spec-required perps list endpoints).
+        route = respx.get(f"{BASE}/margin/order_groups")
+        route.mock(return_value=httpx.Response(200, json={}))
+        assert perps_client.order_groups.list() == []
+        route.mock(return_value=httpx.Response(200, json={"order_groups": None}))
         assert perps_client.order_groups.list() == []
 
     @respx.mock

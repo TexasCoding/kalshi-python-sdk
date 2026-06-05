@@ -625,6 +625,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.perps.models.markets.PriceDistributionHistorical",
         spec_schema="PriceDistributionHistorical",
     ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.GetMarginMarketsResponse",
+        spec_schema="GetMarginMarketsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.GetMarginMarketCandlesticksResponse",
+        spec_schema="GetMarginMarketCandlesticksResponse",
+    ),
     # ── perps orders (#391) ──
     ContractEntry(
         sdk_model="kalshi.perps.models.orders.CreateMarginOrderResponse",
@@ -726,6 +734,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.models.funding.MarginFundingRateEstimate",
         spec_schema="GetMarginFundingRateEstimateResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.GetMarginHistoricalFundingRatesResponse",
+        spec_schema="GetMarginHistoricalFundingRatesResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.GetMarginFundingHistoryResponse",
+        spec_schema="GetMarginFundingHistoryResponse",
     ),
     # ── perps transfers (#396) ──
     ContractEntry(

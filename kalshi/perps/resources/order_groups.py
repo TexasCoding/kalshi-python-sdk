@@ -83,7 +83,9 @@ class OrderGroupsResource(SyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         data = self._get("/margin/order_groups", params=params, extra_headers=extra_headers)
-        raw = data.get("order_groups", [])
+        # order_groups is OPTIONAL per spec (no `required` block), so stay
+        # tolerant of a missing OR null array — `or []` covers both (#404).
+        raw = data.get("order_groups") or []
         return [OrderGroup.model_validate(item) for item in raw]
 
     def get(
@@ -236,7 +238,9 @@ class AsyncOrderGroupsResource(AsyncResource):
         self._require_auth()
         params = _params(subaccount=subaccount)
         data = await self._get("/margin/order_groups", params=params, extra_headers=extra_headers)
-        raw = data.get("order_groups", [])
+        # order_groups is OPTIONAL per spec (no `required` block), so stay
+        # tolerant of a missing OR null array — `or []` covers both (#404).
+        raw = data.get("order_groups") or []
         return [OrderGroup.model_validate(item) for item in raw]
 
     async def get(

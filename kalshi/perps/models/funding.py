@@ -27,6 +27,8 @@ model uses ``extra="allow"`` (tolerate additive server fields) and never
 
 from __future__ import annotations
 
+import builtins
+
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal
@@ -97,3 +99,26 @@ class MarginFundingRateEstimate(BaseModel):
         validation_alias=AliasChoices("mark_price_dollars", "mark_price"),
     )
     next_funding_time: AwareDatetime
+
+
+class GetMarginHistoricalFundingRatesResponse(BaseModel):
+    """Spec ``GetMarginHistoricalFundingRatesResponse`` — historical-rates envelope.
+
+    ``funding_rates`` is spec-required; modeled non-optional so a missing/``null``
+    array hard-fails rather than being silently coerced to ``[]``.
+    """
+
+    funding_rates: builtins.list[MarginFundingRate]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarginFundingHistoryResponse(BaseModel):
+    """Spec ``GetMarginFundingHistoryResponse`` — funding-payment-history envelope.
+
+    ``funding_history`` is spec-required; modeled non-optional (see above).
+    """
+
+    funding_history: builtins.list[MarginFundingHistoryEntry]
+
+    model_config = {"extra": "allow"}
