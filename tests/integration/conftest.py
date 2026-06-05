@@ -28,6 +28,9 @@ import pytest_asyncio
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.markets import Market
+from kalshi.perps.async_client import AsyncPerpsClient
+from kalshi.perps.client import PerpsClient
+from kalshi.perps.ws.client import PerpsWebSocket
 from kalshi.ws.client import KalshiWebSocket
 
 
@@ -282,5 +285,160 @@ async def ws_session(sync_client: KalshiClient) -> AsyncIterator[KalshiWebSocket
 
     auth = sync_client._auth
     ws = KalshiWebSocket(auth=auth, config=config)
+    async with ws.connect() as session:
+        yield session
+
+
+# ===========================================================================
+# Perps (margin) integration fixtures
+# ===========================================================================
+# The perps API lives on its own host with a separate credential namespace
+# (``KALSHI_PERPS_*``). These fixtures mirror the prediction-API fixtures above:
+# auto-skip when perps credentials are absent, and hard-fail unless the resolved
+# base/WS URL is the demo host.
+
+PERPS_DEMO_REST_HOST = "external-api.demo.kalshi.co"
+PERPS_DEMO_WS_HOST = "external-api-margin-ws.demo.kalshi.co"
+
+# Session-scoped run ID for perps order isolation (mirrors TEST_RUN_ID).
+PERPS_TEST_RUN_ID = f"perps-test-{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _bridge_perps_env_vars(
+    _monkeypatch_session: pytest.MonkeyPatch,
+) -> None:
+    """Map ``KALSHI_DEMO_*`` env vars to ``KALSHI_PERPS_*`` for from_env().
+
+    Perps ``from_env()`` reads a separate ``KALSHI_PERPS_*`` namespace. To let a
+    single demo credential set drive both suites, bridge the ``.env`` style
+    ``KALSHI_DEMO_*`` vars into the perps namespace when the perps vars are not
+    already set. Bridged through ``_monkeypatch_session`` so mutations roll back
+    at session end (no leak into unit tests reading ``os.environ``).
+    """
+    demo_key_id = os.environ.get("KALSHI_DEMO_KEY_ID")
+    if demo_key_id and not os.environ.get("KALSHI_PERPS_KEY_ID"):
+        _monkeypatch_session.setenv("KALSHI_PERPS_KEY_ID", demo_key_id)
+    demo_path = os.environ.get("KALSHI_DEMO_PRIVATE_KEY_PATH")
+    if demo_path and not os.environ.get("KALSHI_PERPS_PRIVATE_KEY_PATH"):
+        _monkeypatch_session.setenv("KALSHI_PERPS_PRIVATE_KEY_PATH", demo_path)
+    if "KALSHI_PERPS_DEMO" not in os.environ:
+        _monkeypatch_session.setenv("KALSHI_PERPS_DEMO", "true")
+
+
+def _perps_credentials_available() -> bool:
+    return bool(os.environ.get("KALSHI_PERPS_KEY_ID"))
+
+
+def _assert_perps_demo_url(base_url: str, ws_base_url: str | None = None) -> None:
+    """Hard-fail if the perps client is not pointed at the demo environment."""
+    if PERPS_DEMO_REST_HOST not in base_url:
+        pytest.fail(
+            f"SAFETY: Perps integration tests must run against the demo API. "
+            f"Resolved base_url is '{base_url}', expected '{PERPS_DEMO_REST_HOST}'. "
+            f"Check KALSHI_PERPS_API_BASE_URL and KALSHI_PERPS_DEMO env vars."
+        )
+    if ws_base_url is not None and PERPS_DEMO_WS_HOST not in ws_base_url:
+        pytest.fail(
+            f"SAFETY: Perps WS integration tests must run against the demo API. "
+            f"Resolved ws_base_url is '{ws_base_url}', expected "
+            f"'{PERPS_DEMO_WS_HOST}'. "
+            f"Check KALSHI_PERPS_API_BASE_URL and KALSHI_PERPS_DEMO env vars."
+        )
+
+
+@pytest.fixture(scope="session")
+def perps_test_run_id() -> str:
+    return PERPS_TEST_RUN_ID
+
+
+@pytest.fixture(scope="session")
+def perps_sync_client() -> Iterator[PerpsClient]:
+    if not _perps_credentials_available():
+        pytest.skip("KALSHI_PERPS_KEY_ID not set — skipping perps integration tests")
+    os.environ.setdefault("KALSHI_PERPS_DEMO", "true")
+    client = PerpsClient.from_env()
+    _assert_perps_demo_url(client._config.base_url, client._config.ws_base_url)
+    yield client
+    client.close()
+
+
+@pytest_asyncio.fixture
+async def perps_async_client() -> AsyncIterator[AsyncPerpsClient]:
+    if not _perps_credentials_available():
+        pytest.skip("KALSHI_PERPS_KEY_ID not set — skipping perps integration tests")
+    os.environ.setdefault("KALSHI_PERPS_DEMO", "true")
+    client = AsyncPerpsClient.from_env()
+    _assert_perps_demo_url(client._config.base_url, client._config.ws_base_url)
+    yield client
+    with contextlib.suppress(RuntimeError):
+        await client.close()  # Event loop may be closing during teardown
+
+
+def skip_if_not_margin_enabled(client: PerpsClient) -> None:
+    """Skip if the demo account is not margin-enabled (``GetMarginEnabled`` False)."""
+    if not client.is_authenticated:
+        pytest.skip("Perps client unauthenticated — cannot check margin access")
+    if not client.exchange.enabled().enabled:
+        pytest.skip("Demo account is not margin-enabled — skipping perps test")
+
+
+def skip_if_no_margin_markets(client: PerpsClient) -> list[str]:
+    """Return tradable margin market tickers; skip if the demo has none."""
+    markets = client.markets.list()
+    if not markets:
+        pytest.skip("No margin markets on demo server — skipping perps test")
+    return [m.ticker for m in markets]
+
+
+@pytest.fixture(scope="session")
+def perps_market_ticker(perps_sync_client: PerpsClient) -> str:
+    """Find a margin market on the demo server; skip if none exist."""
+    tickers = skip_if_no_margin_markets(perps_sync_client)
+    return tickers[0]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_perps_orders(perps_sync_client: PerpsClient) -> Iterator[None]:
+    """After all tests, cancel any resting margin orders from this test run.
+
+    Mirrors :func:`cleanup_orders` — matches on the ``PERPS_TEST_RUN_ID``-tagged
+    ``client_order_id`` so live perps order tests never leak.
+    """
+    yield
+    if not perps_sync_client.is_authenticated:
+        return
+    try:
+        resp = perps_sync_client.orders.list(status="resting")
+    except Exception:
+        logger.warning("Perps cleanup: failed to list orders for cleanup sweep")
+        return
+    for order in resp.orders:
+        if order.client_order_id and order.client_order_id.startswith(PERPS_TEST_RUN_ID):
+            try:
+                perps_sync_client.orders.cancel(order.order_id)
+                logger.info("Perps cleanup: cancelled order %s", order.order_id)
+            except Exception:
+                logger.warning(
+                    "Perps cleanup: failed to cancel order %s", order.order_id
+                )
+
+
+@pytest_asyncio.fixture
+async def perps_ws_session(
+    perps_sync_client: PerpsClient,
+) -> AsyncIterator[PerpsWebSocket]:
+    """Connect to the demo margin WS, yield an active session, clean up on exit.
+
+    Mirrors :func:`ws_session`. The perps WS requires a (non-None) auth signer,
+    so this skips an unauthenticated perps client.
+    """
+    config = perps_sync_client._config
+    _assert_perps_demo_url(config.base_url, config.ws_base_url)
+
+    auth = perps_sync_client._auth
+    if auth is None:
+        pytest.skip("Perps client unauthenticated — cannot open margin WS")
+    ws = PerpsWebSocket(auth=auth, config=config)
     async with ws.connect() as session:
         yield session

@@ -2,6 +2,59 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 3.2.0 — 2026-06-05
+
+Adds full SDK support for the Kalshi **Perps (margin) API** — a separate
+perpetual-futures exchange — as standalone clients alongside the existing
+prediction-API surface. Additive release: no changes to `KalshiClient`.
+
+### Added
+
+- **`PerpsClient` / `AsyncPerpsClient`** — standalone clients for the perps
+  exchange (`external-api.kalshi.com` / demo `external-api.demo.kalshi.co`,
+  `/trade-api/v2`), with their own `PerpsConfig` and a separate `KALSHI_PERPS_*`
+  credential namespace. They reuse the prediction-API RSA-PSS signer and HTTP
+  transport unchanged. Resource families: `exchange` (status / enabled gate /
+  risk parameters), `markets` (list / get / orderbook / candlesticks), `orders`
+  (create / get / list / cancel / decrease / amend + FCM), `order_groups`,
+  `portfolio` (positions / fills / trades), `margin` (balance / risk /
+  notional risk limit / fee tiers), `funding` (rate estimate / historical /
+  history), and `transfers` (intra-exchange-instance + margin subaccounts).
+  Margin order side is `bid` / `ask`; prices are `DollarDecimal`
+  (FixedPointDollars), counts `FixedPointCount`.
+- **`PerpsWebSocket`** — the perps margin WebSocket
+  (`external-api-margin-ws.kalshi.com`, `/trade-api/ws/v2/margin`) with six typed
+  channels (`subscribe_orderbook_delta`, `subscribe_ticker` — carrying
+  `funding_rate` + `next_funding_time_ms`, `subscribe_trade`, `subscribe_fill`,
+  `subscribe_user_orders`, `subscribe_order_group`). Reuses the event-contract
+  WS connection / sequence-gap / backpressure machinery; perps WS timestamps are
+  Unix epoch **milliseconds** (`*_ms` fields).
+- **`KlearClient` / `AsyncKlearClient`** — the Self-Clearing-Member "Klear"
+  settlement API (`api.klear.kalshi.com` / demo `demo-api.kalshi.co`,
+  `/klear-api/v1`) with a third auth model: **cookie-session + MFA** via
+  `login(email=..., password=..., code=...)`. Resource `margin` covers reports,
+  active/historical obligations, settlement estimate, settlement + guaranty-fund
+  balances, settlement-balance history, and settlement-balance withdrawal.
+  Klear money fields are integer centicents; the single real-money write
+  (`withdraw_settlement_balance`) validates a positive amount at construction.
+  Credentials and the session cookie are never logged or shown in `repr()`.
+- `docs/perps.md` (+ mkdocs nav), README "Perps (margin) trading" section, and
+  runnable `examples/perps_create_order.py` / `perps_stream_ticker.py` /
+  `perps_balance_risk.py`.
+
+### Internal
+
+- Vendored the three perps specs (`specs/perps_openapi.yaml`,
+  `perps_asyncapi.yaml`, `perps_scm_openapi.yaml`); `scripts/sync_spec.py` and the
+  weekly spec-sync workflow now fetch/diff/checksum them and fold their sha256
+  into the drift fingerprint (preserving the `contents: read` + `issues: write`
+  security model).
+- Parameterized the contract-drift harness per spec: `TestPerps*Drift` /
+  `TestPerpsScm*Drift` validate the perps REST + SCM surfaces against their own
+  specs, alongside the existing prediction-API drift suites.
+- README / `docs/index.md` banners note the perps surface (34 REST operations,
+  6 WS channels, 10 SCM operations).
+
 ## 3.1.0 — 2026-06-03
 
 OpenAPI + AsyncAPI spec sync from v3.19.0 → v3.20.0 (`#385`). Adds the

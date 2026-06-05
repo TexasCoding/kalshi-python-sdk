@@ -14,6 +14,10 @@ markets API.
   reconnection (with resubscribe-window frame stashing for high-volume channels),
   backpressure strategies, and an in-memory orderbook builder. Async-only —
   access via `AsyncKalshiClient.ws`.
+- **Perps (margin) API** — standalone `PerpsClient` / `AsyncPerpsClient` +
+  `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
+  channels), and a `KlearClient` for the Self-Clearing-Member settlement API
+  (10 operations, cookie-session + MFA auth). See [Perps](perps.md).
 - **Sync and async parity** — `KalshiClient` and `AsyncKalshiClient` share one
   transport implementation; method names, kwargs, return types, and error behavior
   are identical. The one exception is WebSocket access, which is async-only.
