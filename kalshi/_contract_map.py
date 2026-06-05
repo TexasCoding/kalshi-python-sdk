@@ -283,6 +283,19 @@ CONTRACT_MAP: list[ContractEntry] = [
             "this array-typed schema."
         ),
     ),
+    # -- list-response envelopes (#404) ----------------------------------
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetMarketCandlesticksResponse",
+        spec_schema="GetMarketCandlesticksResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.BatchGetMarketCandlesticksResponse",
+        spec_schema="BatchGetMarketCandlesticksResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetMarketOrderbooksResponse",
+        spec_schema="GetMarketOrderbooksResponse",
+    ),
     # -- orders V2 family (#171) -----------------------------------------
     ContractEntry(
         sdk_model="kalshi.models.orders.AmendOrderRequest",
