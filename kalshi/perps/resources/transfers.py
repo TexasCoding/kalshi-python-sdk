@@ -44,14 +44,19 @@ def _build_instance_transfer_body(
     source: ExchangeInstanceLiteral | None,
     destination: ExchangeInstanceLiteral | None,
     amount: int | None,
-    source_exchange_shard: int,
-    destination_exchange_shard: int,
+    source_exchange_shard: int | None,
+    destination_exchange_shard: int | None,
 ) -> dict[str, Any]:
+    # Shards are part of the kwargs path — included in the exclusivity check so
+    # `request=...` together with an explicit shard raises instead of silently
+    # dropping the shard. They default to 0 only when building from kwargs.
     _check_request_exclusive(
         request,
         source=source,
         destination=destination,
         amount=amount,
+        source_exchange_shard=source_exchange_shard,
+        destination_exchange_shard=destination_exchange_shard,
     )
     if request is None:
         if source is None or destination is None or amount is None:
@@ -63,8 +68,8 @@ def _build_instance_transfer_body(
             source=source,
             destination=destination,
             amount=amount,
-            source_exchange_shard=source_exchange_shard,
-            destination_exchange_shard=destination_exchange_shard,
+            source_exchange_shard=source_exchange_shard or 0,
+            destination_exchange_shard=destination_exchange_shard or 0,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -138,8 +143,8 @@ class TransfersResource(SyncResource):
         source: ExchangeInstanceLiteral | None = None,
         destination: ExchangeInstanceLiteral | None = None,
         amount: int | None = None,
-        source_exchange_shard: int = 0,
-        destination_exchange_shard: int = 0,
+        source_exchange_shard: int | None = None,
+        destination_exchange_shard: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
         """Move funds between exchange instances.
@@ -246,8 +251,8 @@ class AsyncTransfersResource(AsyncResource):
         source: ExchangeInstanceLiteral | None = None,
         destination: ExchangeInstanceLiteral | None = None,
         amount: int | None = None,
-        source_exchange_shard: int = 0,
-        destination_exchange_shard: int = 0,
+        source_exchange_shard: int | None = None,
+        destination_exchange_shard: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
         """Move funds between exchange instances.

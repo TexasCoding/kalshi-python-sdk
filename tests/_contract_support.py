@@ -1665,6 +1665,15 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="client-side paginator safety cap (#98); not a wire param",
         kind="client_only",
     ),
+    ("kalshi.perps.models.orders.GetMarginOrdersResponse", "cursor"): Exclusion(
+        reason=(
+            "spec marks cursor required, but Kalshi omits the key on the final "
+            "page (rather than returning \"\") — kept optional so list_all() "
+            "doesn't crash on the last page. Mirrors the GetMarginFillsResponse/"
+            "GetMarginTradesResponse cursor handling."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # ── perps order_groups (#392) ──
     ("kalshi.perps.models.order_groups.CreateOrderGroupRequest", "contracts_limit_fp"): Exclusion(
         reason=(

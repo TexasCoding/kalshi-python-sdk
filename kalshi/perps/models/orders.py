@@ -74,7 +74,7 @@ class CreateMarginOrderRequest(BaseModel):
     ticker: str
     client_order_id: str
     side: BookSideLiteral
-    count: FixedPointCount
+    count: FixedPointCount = Field(gt=0)
     price: OrderPrice
     time_in_force: TimeInForceLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral
@@ -97,8 +97,11 @@ class DecreaseMarginOrderRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    reduce_by: FixedPointCount | None = None
-    reduce_to: FixedPointCount | None = None
+    # reduce_by is an amount to subtract (must be positive); reduce_to is a
+    # target remaining count, where 0 (decrease to nothing) is valid — so it
+    # only rejects negatives.
+    reduce_by: FixedPointCount | None = Field(default=None, gt=0)
+    reduce_to: FixedPointCount | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _enforce_reduce_xor(self) -> DecreaseMarginOrderRequest:
@@ -126,7 +129,7 @@ class AmendMarginOrderRequest(BaseModel):
     ticker: str
     side: BookSideLiteral
     price: OrderPrice
-    count: FixedPointCount
+    count: FixedPointCount = Field(gt=0)
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
 
@@ -198,7 +201,10 @@ class GetMarginOrdersResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     orders: builtins.list[MarginOrder]
-    cursor: str
+    # Spec marks ``cursor`` required, but Kalshi omits the key on the final page
+    # (rather than returning ``""``) — a bare ``str`` would crash ``list_all()``
+    # on the last page. Optional matches the sibling fills/trades responses.
+    cursor: str | None = None
 
 
 class CancelMarginOrderResponse(BaseModel):

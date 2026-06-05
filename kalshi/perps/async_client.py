@@ -84,6 +84,15 @@ class AsyncPerpsClient:
         elif key_id and private_key:
             self._auth = KalshiAuth.from_pem(key_id, private_key)
             self._auth_owned = True
+        elif key_id or private_key or private_key_path:
+            # Partial credentials — fail fast instead of silently building an
+            # unauthenticated client (which would surface later as confusing
+            # 401s). Reaching here means exactly one half of the pair is set.
+            raise ValueError(
+                "Incomplete credentials: provide BOTH key_id and one of "
+                "private_key / private_key_path to authenticate, or omit all "
+                "of them for unauthenticated access."
+            )
         else:
             self._auth = None
             self._auth_owned = False
