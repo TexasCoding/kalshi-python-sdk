@@ -140,6 +140,45 @@ class TestRequestModel:
         with pytest.raises(ValidationError):
             LogInRequest(email="a", password="b", bogus=1)
 
+    def test_validation_error_redacts_input(self) -> None:
+        # hide_input_in_errors keeps a fat-fingered secret-bearing field out of
+        # the ValidationError text (the repr redaction alone does not cover it).
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError) as ei:
+            LogInRequest(email="a@b.com", password="pw", mfa_secret="TOPSECRET")
+        assert "TOPSECRET" not in str(ei.value)
+
+
+class TestReloginResetsSession:
+    @respx.mock
+    def test_relogin_mfa_challenge_clears_prior_account(
+        self, klear_client: KlearClient
+    ) -> None:
+        respx.post(f"{BASE}/log_in").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={"token": "TOK_A", "user_id": "A"},
+                    headers={"Set-Cookie": "session=COOKIE_A; Path=/"},
+                ),
+                httpx.Response(200, json={"required_mfa_method": "totp"}),
+            ]
+        )
+        # Log in as account A.
+        klear_client.login(email="a@x.com", password="pw")
+        assert klear_client.is_authenticated is True
+
+        # Re-login to account B returns an MFA challenge. The prior session must
+        # be reset BEFORE the attempt so a subsequent real-money call can't be
+        # replayed against account A.
+        resp = klear_client.login(email="b@x.com", password="pw")
+        assert resp.required_mfa_method == "totp"
+        assert klear_client.is_authenticated is False
+        # The stale account-A session cookie was dropped before the re-login.
+        assert klear_client._transport._client.cookies.get("session") is None
+        klear_client.close()
+
 
 class TestAsync:
     @respx.mock

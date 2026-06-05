@@ -20,7 +20,15 @@ class AuthResource(KlearSyncResource):
 
         ``POST /log_in`` is never retried (the transport enforces no-retry on
         POST), so a login is never silently replayed.
+
+        Any prior session is invalidated **before** the attempt: the
+        :class:`KlearAuth` state is reset and the stale ``session`` cookie is
+        dropped, so the client is definitively unauthenticated until a clean
+        (non-MFA-challenge) success — re-logging into a different account that
+        returns an MFA challenge can never leave the previous account active.
         """
+        self._klear_auth.reset()
+        self._transport.clear_cookie("session")
         req = LogInRequest(email=email, password=password, code=code)
         data = self._post(
             "/log_in",
@@ -39,6 +47,8 @@ class AsyncAuthResource(KlearAsyncResource):
         self, *, email: str, password: str, code: str | None = None
     ) -> LogInResponse:
         """Async :meth:`AuthResource.log_in`."""
+        self._klear_auth.reset()
+        self._transport.clear_cookie("session")
         req = LogInRequest(email=email, password=password, code=code)
         data = await self._post(
             "/log_in",

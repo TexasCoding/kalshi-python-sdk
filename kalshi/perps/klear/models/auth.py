@@ -17,7 +17,10 @@ class LogInRequest(BaseModel):
     ``required_mfa_method``, re-call with the same credentials plus ``code``.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    # ``hide_input_in_errors`` keeps the raw email/password/code out of any
+    # Pydantic ``ValidationError`` text (the ``__repr__`` redaction below does
+    # not cover Pydantic's internal error rendering of the offending input).
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     email: str
     password: str
