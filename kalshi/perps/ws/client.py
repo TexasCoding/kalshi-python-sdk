@@ -69,9 +69,11 @@ _PERMANENT_CLOSE_CODES: frozenset[int] = frozenset(
 # Cooperative-pause polling interval for the recv loop.
 _RECV_POLL_S: float = 0.05
 
-# Message types that ride the perps margin order book and carry ``seq``. This
-# set lets the recv loop gate orderbook-apply + stale-sid checks by wire type.
-_ORDERBOOK_TYPES = ("orderbook_snapshot", "orderbook_delta")
+# Sequenced data frames — they carry ``seq`` and advance the per-sid watermark,
+# so the recv loop must stale-sid-gate them for unmapped sids (orderbook frames
+# AND order_group_updates). Non-sequenced channels (ticker/trade/fill/
+# user_orders) carry no seq and are handled at the dispatch layer instead.
+_SEQUENCED_TYPES = ("orderbook_snapshot", "orderbook_delta", "order_group_updates")
 
 
 class PerpsWebSocket:
@@ -348,7 +350,7 @@ class PerpsWebSocket:
         The orderbook-apply seam validates ``orderbook_snapshot`` /
         ``orderbook_delta`` into their concrete payload models and applies them
         to the local book before dispatch; the stale-sid gate and seq tracking
-        below run for orderbook frames.
+        below run for sequenced frames (orderbook_* + order_group_updates).
         """
         assert self._dispatcher is not None
         data = self._json_loads(raw)
@@ -356,15 +358,18 @@ class PerpsWebSocket:
         seq = data.get("seq")
         msg_type = data.get("type", "")
 
-        # Stale orderbook frames arriving after teardown must not be processed.
+        # Stale sequenced frames (orderbook_* + order_group_updates) arriving for
+        # an unmapped sid after teardown must not be processed: tracking their
+        # seq would re-arm the watermark for a dead/recycled sid and manufacture
+        # a spurious gap on a later subscription to that sid.
         if (
-            msg_type in _ORDERBOOK_TYPES
+            msg_type in _SEQUENCED_TYPES
             and isinstance(sid, int)
             and self._sub_mgr is not None
             and self._sub_mgr.get_subscription_by_sid(sid) is None
         ):
             logger.debug(
-                "Dropping stale %s for unmapped sid=%d (post-teardown race)",
+                "Dropping stale sequenced %s for unmapped sid=%d (post-teardown race)",
                 msg_type, sid,
             )
             return

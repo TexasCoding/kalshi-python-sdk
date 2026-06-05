@@ -9,6 +9,7 @@ Also verifies the orderbook-apply seam in ``_process_frame`` feeds the
 from __future__ import annotations
 
 import asyncio
+import json
 from decimal import Decimal
 
 import pytest
@@ -139,6 +140,30 @@ async def test_subscribe_order_group_yields_typed_message(
         frame = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
         assert isinstance(frame, OrderGroupUpdatesMessage)
         assert frame.msg.contracts_limit == Decimal("150.00")
+
+
+async def test_stale_order_group_updates_for_unmapped_sid_dropped(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    # #411: order_group_updates is sequenced (carries `seq`), so a stale frame
+    # for a sid with no current subscription must be dropped BEFORE seq tracking.
+    # Otherwise track_sync() re-arms the watermark for the dead/recycled sid and
+    # manufactures a spurious gap on a later subscription to that sid.
+    ws = PerpsWebSocket(auth=perps_auth, config=perps_ws_config)
+    async with ws.connect() as session:
+        assert session._sub_mgr is not None and session._seq_tracker is not None
+        unmapped_sid = 9999
+        assert session._sub_mgr.get_subscription_by_sid(unmapped_sid) is None
+        raw = json.dumps({
+            "type": "order_group_updates", "sid": unmapped_sid, "seq": 7,
+            "msg": {
+                "event_type": "limit_updated", "order_group_id": "og",
+                "contracts_limit_fp": "10.00", "ts_ms": 1700000000000,
+            },
+        })
+        await session._process_frame(raw)
+        # The stale frame must NOT have armed the watermark for the unmapped sid.
+        assert session._seq_tracker.peek(unmapped_sid) is None
 
 
 async def test_subscribe_orderbook_delta_snapshot_then_delta(
