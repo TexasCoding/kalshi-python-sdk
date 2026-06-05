@@ -1245,6 +1245,30 @@ BODY_MODEL_MAP: dict[str, str] = {
 PERPS_BODY_MODEL_MAP: dict[str, str] = {
     # e.g. "#/components/schemas/CreateMarginOrderRequest":
     #          "kalshi.perps.models.orders.CreateMarginOrderRequest",
+    # ── perps orders (#391) ──
+    "#/components/schemas/CreateMarginOrderRequest": (
+        "kalshi.perps.models.orders.CreateMarginOrderRequest"
+    ),
+    "#/components/schemas/DecreaseMarginOrderRequest": (
+        "kalshi.perps.models.orders.DecreaseMarginOrderRequest"
+    ),
+    "#/components/schemas/AmendMarginOrderRequest": (
+        "kalshi.perps.models.orders.AmendMarginOrderRequest"
+    ),
+    # ── perps order_groups (#392) ──
+    "#/components/schemas/CreateOrderGroupRequest": (
+        "kalshi.perps.models.order_groups.CreateOrderGroupRequest"
+    ),
+    "#/components/schemas/UpdateOrderGroupLimitRequest": (
+        "kalshi.perps.models.order_groups.UpdateOrderGroupLimitRequest"
+    ),
+    # ── perps transfers (#396) ──
+    "#/components/schemas/IntraExchangeInstanceTransferRequest": (
+        "kalshi.perps.models.transfers.IntraExchangeInstanceTransferRequest"
+    ),
+    "#/components/schemas/ApplySubaccountTransferRequest": (
+        "kalshi.perps.models.transfers.ApplySubaccountTransferRequest"
+    ),
 }
 
 PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {

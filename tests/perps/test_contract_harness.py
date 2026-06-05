@@ -42,14 +42,17 @@ class TestPerpsSpecLoaders:
 
 
 class TestPerpsMapsWellFormed:
-    def test_maps_defined_and_empty(self) -> None:
-        # Foundation ships them empty-but-defined; dependent issues append.
-        assert PERPS_METHOD_ENDPOINT_MAP == []
+    def test_rest_maps_populated(self) -> None:
+        # The REST resources (#389-396) populate these; SCM (#399-400) is pending.
+        assert len(PERPS_METHOD_ENDPOINT_MAP) > 0
+        assert len(PERPS_BODY_MODEL_MAP) > 0
+        assert len(PERPS_EXCLUSIONS) > 0
+        assert len(PERPS_CONTRACT_MAP) > 0
+
+    def test_scm_maps_still_empty(self) -> None:
+        # SCM/Klear endpoints land in #399-400; their maps are empty until then.
         assert PERPS_SCM_METHOD_ENDPOINT_MAP == []
-        assert PERPS_BODY_MODEL_MAP == {}
         assert PERPS_SCM_BODY_MODEL_MAP == {}
-        assert PERPS_EXCLUSIONS == {}
-        assert PERPS_CONTRACT_MAP == []
         assert PERPS_SCM_CONTRACT_MAP == []
 
     def test_map_types(self) -> None:
