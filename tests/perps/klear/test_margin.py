@@ -202,6 +202,12 @@ class TestMarginReports:
             auth_klear_client.margin.margin_reports(start_date="nope", end_date="2026-06-01")
         with pytest.raises(ValueError, match="on or after"):
             auth_klear_client.margin.margin_reports(start_date="2026-06-02", end_date="2026-06-01")
+        # #409: fromisoformat is lenient — reject non-canonical forms that would
+        # otherwise be forwarded raw to a server expecting strict YYYY-MM-DD.
+        with pytest.raises(ValueError, match="canonical YYYY-MM-DD"):
+            auth_klear_client.margin.margin_reports(start_date="20260501", end_date="2026-06-01")
+        with pytest.raises(ValueError, match="canonical YYYY-MM-DD"):
+            auth_klear_client.margin.margin_reports(start_date="2026-05-01", end_date="2026-W22-1")
         assert not route.called
         auth_klear_client.close()
 

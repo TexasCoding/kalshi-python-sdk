@@ -63,6 +63,19 @@ def _validate_date_range(start_date: str, end_date: str) -> None:
             f"start_date / end_date must be YYYY-MM-DD strings (got "
             f"start_date={start_date!r}, end_date={end_date!r}): {exc}"
         ) from exc
+    # ``date.fromisoformat`` (3.11+) also accepts non-canonical forms like
+    # "20260605" or ISO week dates ("2026-W23-5"), which the raw string would
+    # then forward to a server expecting strict YYYY-MM-DD. Require the canonical
+    # form so the SDK rejects them here rather than relying on a server 400.
+    for label, raw, parsed in (
+        ("start_date", start_date, start),
+        ("end_date", end_date, end),
+    ):
+        if parsed.isoformat() != raw:
+            raise ValueError(
+                f"{label} must be a canonical YYYY-MM-DD date, got {raw!r} "
+                f"(parsed as {parsed.isoformat()})"
+            )
     if end < start:
         raise ValueError(
             f"end_date ({end_date}) must be on or after start_date ({start_date})"
