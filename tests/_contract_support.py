@@ -1585,58 +1585,58 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     # ── perps SCM/Klear margin endpoints (#400) ──────────────────────────
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.margin_reports",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.margin_reports",
         http_method="GET",
         path_template="/margin/reports",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.active_obligation",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligation",
         http_method="GET",
         path_template="/margin/active_obligation",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.obligation_history",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history",
         http_method="GET",
         path_template="/margin/obligation_history",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.obligation_history_all",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
         http_method="GET",
         path_template="/margin/obligation_history",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.settlement_estimate",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate",
         http_method="GET",
         path_template="/margin/settlement_estimate",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.settlement_balance",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance",
         http_method="GET",
         path_template="/margin/settlement_balance",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.guaranty_fund_balance",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.guaranty_fund_balance",
         http_method="GET",
         path_template="/margin/guaranty_fund_balance",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.settlement_balance_history",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history",
         http_method="GET",
         path_template="/margin/settlement_balance_history",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.settlement_balance_history_all",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
         http_method="GET",
         path_template="/margin/settlement_balance_history",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.withdraw_settlement_balance",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.withdraw_settlement_balance",
         http_method="POST",
         path_template="/margin/withdraw_settlement_balance",
         request_body_schema="#/components/schemas/WithdrawSettlementBalanceRequest",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.margin.MarginResource.settlement_balance_withdrawal",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_withdrawal",
         http_method="GET",
         path_template="/margin/settlement_balance_withdrawal",
     ),
@@ -1702,23 +1702,29 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         kind="client_only",
     ),
     # ── perps SCM/Klear paginators (#400) ──
-    ("kalshi.perps.resources.margin.MarginResource.obligation_history_all", "cursor"): Exclusion(
-        reason="cursor consumed by _list_all paginator, not a caller kwarg",
-        kind="paginator_handled",
-    ),
-    ("kalshi.perps.resources.margin.MarginResource.obligation_history_all", "max_pages"): Exclusion(
-        reason="client-side page cap, no wire counterpart",
-        kind="client_only",
-    ),
     (
-        "kalshi.perps.resources.margin.MarginResource.settlement_balance_history_all",
+        "kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
         "cursor",
     ): Exclusion(
         reason="cursor consumed by _list_all paginator, not a caller kwarg",
         kind="paginator_handled",
     ),
     (
-        "kalshi.perps.resources.margin.MarginResource.settlement_balance_history_all",
+        "kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
         "max_pages",
     ): Exclusion(
         reason="client-side page cap, no wire counterpart",

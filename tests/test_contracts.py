@@ -1276,7 +1276,7 @@ PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/LogInRequest": "kalshi.perps.klear.models.auth.LogInRequest",
     # ── perps SCM/Klear margin (#400) ──
     "#/components/schemas/WithdrawSettlementBalanceRequest": (
-        "kalshi.perps.models.margin.WithdrawSettlementBalanceRequest"
+        "kalshi.perps.klear.models.margin.WithdrawSettlementBalanceRequest"
     ),
 }
 

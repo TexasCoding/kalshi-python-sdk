@@ -48,7 +48,10 @@ class KlearConfig(KalshiConfig):
     def __post_init__(self) -> None:
         # NB: deliberately does NOT call super().__post_init__() — the parent
         # validates the /trade-api/v2 path + prediction hosts and the WS URL,
-        # none of which apply to Klear.
+        # none of which apply to Klear. The checks below manually mirror the
+        # host-agnostic KalshiConfig.__post_init__ guards (base_url slash strip,
+        # scheme + plaintext-to-remote, KALSHI-ACCESS-* rejection, extra_headers
+        # freeze, http2/h2 check); mirror any newly added KalshiConfig guard here.
         if self.base_url.endswith("/"):
             object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
         allow_unknown = self.allow_unknown_host or (

@@ -27,11 +27,11 @@ resource base), NOT the RSA-specific ``_require_auth()``. Every method calls
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
-from kalshi.perps.klear.resources._base import KlearAsyncResource, KlearSyncResource
-from kalshi.perps.models.margin import (
+from kalshi.perps.klear.models.margin import (
     GetActiveMarginObligationResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
@@ -43,8 +43,30 @@ from kalshi.perps.models.margin import (
     WithdrawSettlementBalanceRequest,
     WithdrawSettlementBalanceResponse,
 )
+from kalshi.perps.klear.resources._base import KlearAsyncResource, KlearSyncResource
 from kalshi.resources._base import _params, _validate_limit, _validate_max_pages
 from kalshi.types import DollarDecimal, to_decimal
+
+
+def _validate_date_range(start_date: str, end_date: str) -> None:
+    """Validate ``YYYY-MM-DD`` ``start_date``/``end_date`` at the SDK boundary.
+
+    The spec requires ISO ``date`` strings with ``end_date >= start_date``;
+    catching a malformed or inverted range here surfaces a clear error instead
+    of an opaque server 400.
+    """
+    try:
+        start = datetime.date.fromisoformat(start_date)
+        end = datetime.date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise ValueError(
+            f"start_date / end_date must be YYYY-MM-DD strings (got "
+            f"start_date={start_date!r}, end_date={end_date!r}): {exc}"
+        ) from exc
+    if end < start:
+        raise ValueError(
+            f"end_date ({end_date}) must be on or after start_date ({start_date})"
+        )
 
 
 class MarginResource(KlearSyncResource):
@@ -62,6 +84,7 @@ class MarginResource(KlearSyncResource):
         ``start_date`` / ``end_date`` are required ``YYYY-MM-DD`` strings.
         """
         self._require_session()
+        _validate_date_range(start_date, end_date)
         params = _params(start_date=start_date, end_date=end_date)
         data = self._get("/margin/reports", params=params, extra_headers=extra_headers)
         return GetMarginReportsResponse.model_validate(data)
@@ -225,6 +248,7 @@ class AsyncMarginResource(KlearAsyncResource):
     ) -> GetMarginReportsResponse:
         """Async :meth:`MarginResource.margin_reports`."""
         self._require_session()
+        _validate_date_range(start_date, end_date)
         params = _params(start_date=start_date, end_date=end_date)
         data = await self._get("/margin/reports", params=params, extra_headers=extra_headers)
         return GetMarginReportsResponse.model_validate(data)

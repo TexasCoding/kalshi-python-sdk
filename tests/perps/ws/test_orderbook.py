@@ -50,9 +50,9 @@ def test_apply_snapshot_builds_bid_ask_book() -> None:
         )
     )
     assert book.ticker == "BTC-PERP"
-    # Levels emitted price-ascending.
-    assert [lvl.price for lvl in book.bids] == [Decimal("0.40"), Decimal("0.41")]
-    assert [lvl.quantity for lvl in book.bids] == [Decimal("10"), Decimal("5")]
+    # Best-first ordering (spec MarginOrderbookCount): bids descending, asks ascending.
+    assert [lvl.price for lvl in book.bids] == [Decimal("0.41"), Decimal("0.40")]
+    assert [lvl.quantity for lvl in book.bids] == [Decimal("5"), Decimal("10")]
     assert [lvl.price for lvl in book.asks] == [Decimal("0.60")]
 
 

@@ -69,6 +69,11 @@ class PerpsConfig(KalshiConfig):
     def __post_init__(self) -> None:
         # NB: deliberately does NOT call super().__post_init__() — that would
         # validate against the prediction-API host set and reject perps hosts.
+        # The checks below manually mirror KalshiConfig.__post_init__ (minus the
+        # host/path specifics): base_url/ws_base_url trailing-slash strip, scheme
+        # + plaintext-to-remote guards, KALSHI-ACCESS-* rejection in extra_headers,
+        # extra_headers freeze to MappingProxyType, and the http2/h2 check. When
+        # KalshiConfig.__post_init__ gains a new guard, mirror it here too.
         if self.base_url.endswith("/"):
             object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
         if self.ws_base_url.endswith("/"):

@@ -54,3 +54,5 @@ class LogInResponse(BaseModel):
             f"access_level={self.access_level!r}, "
             f"required_mfa_method={self.required_mfa_method!r}, token=<redacted>)"
         )
+
+    __str__ = __repr__

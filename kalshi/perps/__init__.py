@@ -32,6 +32,31 @@ from kalshi.perps.klear import (
     LogInRequest,
     LogInResponse,
 )
+from kalshi.perps.klear.models.margin import (
+    GetActiveMarginObligationResponse,
+    GetGuarantyFundBalanceResponse,
+    GetMarginReportsResponse,
+    GetObligationHistoryResponse,
+    GetSettlementBalanceHistoryResponse,
+    GetSettlementBalanceResponse,
+    GetSettlementBalanceWithdrawalResponse,
+    GetSettlementEstimateResponse,
+    MaintenanceMarginDetail,
+    MarginReport,
+    MarginReportTypeLiteral,
+    ObligationEntry,
+    ObligationReceiveInfo,
+    SettlementBalanceHistoryEntry,
+    SettlementDetail,
+    SettlementEstimate,
+    WithdrawalStatusLiteral,
+    WithdrawSettlementBalanceRequest,
+    WithdrawSettlementBalanceResponse,
+)
+from kalshi.perps.klear.resources.margin import (
+    AsyncMarginResource,
+    MarginResource,
+)
 from kalshi.perps.models.common import (
     BookSide,
     EmptyResponse,
@@ -53,27 +78,6 @@ from kalshi.perps.models.funding import (
     MarginFundingHistoryEntry,
     MarginFundingRate,
     MarginFundingRateEstimate,
-)
-from kalshi.perps.models.margin import (
-    GetActiveMarginObligationResponse,
-    GetGuarantyFundBalanceResponse,
-    GetMarginReportsResponse,
-    GetObligationHistoryResponse,
-    GetSettlementBalanceHistoryResponse,
-    GetSettlementBalanceResponse,
-    GetSettlementBalanceWithdrawalResponse,
-    GetSettlementEstimateResponse,
-    MaintenanceMarginDetail,
-    MarginReport,
-    MarginReportTypeLiteral,
-    ObligationEntry,
-    ObligationReceiveInfo,
-    SettlementBalanceHistoryEntry,
-    SettlementDetail,
-    SettlementEstimate,
-    WithdrawalStatusLiteral,
-    WithdrawSettlementBalanceRequest,
-    WithdrawSettlementBalanceResponse,
 )
 from kalshi.perps.models.margin_account import (
     GetMarginBalanceResponse,
@@ -138,10 +142,6 @@ from kalshi.perps.resources.exchange import (
 from kalshi.perps.resources.funding import (
     AsyncFundingResource,
     FundingResource,
-)
-from kalshi.perps.resources.margin import (
-    AsyncMarginResource,
-    MarginResource,
 )
 from kalshi.perps.resources.margin_account import (
     AsyncMarginAccountResource,

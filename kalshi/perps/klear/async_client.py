@@ -12,7 +12,7 @@ from kalshi.perps.klear.auth import KlearAuth
 from kalshi.perps.klear.config import DEMO_KLEAR_URL, KlearConfig
 from kalshi.perps.klear.models.auth import LogInResponse
 from kalshi.perps.klear.resources.auth import AsyncAuthResource
-from kalshi.perps.resources.margin import AsyncMarginResource
+from kalshi.perps.klear.resources.margin import AsyncMarginResource
 
 
 class AsyncKlearClient:
@@ -69,11 +69,12 @@ class AsyncKlearClient:
         base_url: str | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> AsyncKlearClient:
         """Create an async Klear client, reading only environment routing.
 
         See :meth:`kalshi.perps.klear.KlearClient.from_env` — credentials are
-        never read from the environment.
+        never read from the environment. ``transport`` is forwarded for tests.
         """
         resolved_demo = (
             demo if demo is not None else os.environ.get("KALSHI_KLEAR_DEMO", "").lower() == "true"
@@ -86,6 +87,7 @@ class AsyncKlearClient:
             base_url=resolved_base_url,
             timeout=timeout,
             max_retries=max_retries,
+            transport=transport,
         )
 
     async def login(

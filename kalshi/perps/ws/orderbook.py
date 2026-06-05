@@ -62,15 +62,19 @@ class _PerpsBookState:
     def to_orderbook(self) -> MarginOrderbook:
         """Build (or return the cached) :class:`MarginOrderbook` from current state.
 
-        Levels are emitted price-ascending. Materialized via ``model_construct``
-        (the dicts are already SDK-canonical ``Decimal`` -> ``Decimal``), so the
-        per-level validators don't re-run on this hot path.
+        Bids are emitted **best-first (price descending)** and asks **best-first
+        (price ascending)**, matching the spec's ``MarginOrderbookCount`` ordering
+        ("bids ordered from best bid downward, asks from best ask upward") so the
+        WS-produced book matches the REST ``GET /margin/markets/{ticker}/orderbook``
+        ordering for the same :class:`MarginOrderbook` model. Materialized via
+        ``model_construct`` (the dicts are already SDK-canonical ``Decimal`` ->
+        ``Decimal``), so the per-level validators don't re-run on this hot path.
         """
         if self._cached is not None:
             return self._cached
         bid_levels = [
             MarginOrderbookLevel.model_construct(price=price, quantity=qty)
-            for price, qty in sorted(self.bid.items())
+            for price, qty in sorted(self.bid.items(), reverse=True)
         ]
         ask_levels = [
             MarginOrderbookLevel.model_construct(price=price, quantity=qty)
@@ -173,11 +177,19 @@ class PerpsOrderbookManager:
 
         price = msg.msg.price
         delta = msg.msg.delta
-        side = msg.msg.side
+        side = str(msg.msg.side)
 
-        # Compare against the enum's value so both ``PerpsBookSide.BID`` and the
-        # raw wire string ``"bid"`` route to the bid dict.
-        levels = state.bid if str(side) == "bid" else state.ask
+        # Route by exact side. An unknown side (new wire value, parse error) must
+        # NOT silently corrupt the ask book — drop the delta and warn instead.
+        if side == "bid":
+            levels = state.bid
+        elif side == "ask":
+            levels = state.ask
+        else:
+            logger.warning(
+                "Unknown perps orderbook side %r for %s; dropping delta", side, ticker
+            )
+            return False
         existing_qty = levels.get(price)
 
         if existing_qty is not None:

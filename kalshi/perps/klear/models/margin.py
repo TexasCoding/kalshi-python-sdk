@@ -91,6 +91,16 @@ class MarginReport(BaseModel):
 
     model_config = {"extra": "allow"}
 
+    def __repr__(self) -> str:
+        # The presigned `url` grants download access — redact it from repr/logs.
+        return (
+            f"MarginReport(report_type={self.report_type!r}, date={self.date!r}, "
+            f"created_ts={self.created_ts!r}, is_end_of_day={self.is_end_of_day!r}, "
+            f"url=<redacted>)"
+        )
+
+    __str__ = __repr__
+
 
 class GetMarginReportsResponse(BaseModel):
     """Spec ``GetMarginReportsResponse`` — flat array of reports (not paginated)."""

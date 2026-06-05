@@ -166,11 +166,7 @@ class PerpsWebSocket:
             if self._connection is not None:
                 with contextlib.suppress(Exception):
                     await self._connection.close()
-            self._connection = None
-            self._sub_mgr = None
-            self._seq_tracker = None
-            self._orderbook_mgr = None
-            self._dispatcher = None
+            self._clear_session_state()
             self._running = False
             raise
 
@@ -199,13 +195,7 @@ class PerpsWebSocket:
                         await self._recv_task
             await self._broadcast_sentinels()
 
-        self._connection = None
-        self._sub_mgr = None
-        self._seq_tracker = None
-        self._orderbook_mgr = None
-        self._dispatcher = None
-        self._recv_task = None
-        self._pause_pending = False
+        self._clear_session_state()
         self._pause_granted.clear()
         self._resume_signal.clear()
         self._resume_ack.clear()
@@ -215,6 +205,23 @@ class PerpsWebSocket:
         if self._sub_mgr is not None:
             for sub in self._sub_mgr.active_subscriptions.values():
                 await sub.queue.put_sentinel()
+
+    def _clear_session_state(self) -> None:
+        """Nil the per-session managers + recv task.
+
+        Shared by ``_start`` (failure), ``_stop``, and the recv-loop fatal-error
+        teardown so they cannot diverge — the fatal path previously left
+        ``_recv_task`` dangling. Callers own ``_running`` and the pause/resume
+        event set/clear (which differs by path: ``_stop`` clears them, the
+        fatal path sets them to wake parked waiters).
+        """
+        self._connection = None
+        self._sub_mgr = None
+        self._seq_tracker = None
+        self._orderbook_mgr = None
+        self._dispatcher = None
+        self._recv_task = None
+        self._pause_pending = False
 
     async def _ensure_recv_loop(self) -> None:
         """Start the recv_loop background task or resume a parked one.
@@ -311,12 +318,7 @@ class PerpsWebSocket:
                 if self._connection is not None:
                     with contextlib.suppress(Exception):
                         await self._connection.close()
-                self._connection = None
-                self._sub_mgr = None
-                self._seq_tracker = None
-                self._orderbook_mgr = None
-                self._dispatcher = None
-                self._pause_pending = False
+                self._clear_session_state()
                 self._pause_granted.set()
                 self._resume_signal.set()
                 self._resume_ack.set()

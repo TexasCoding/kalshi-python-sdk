@@ -31,7 +31,7 @@ from kalshi.errors import (
     KalshiValidationError,
 )
 from kalshi.perps.klear import AsyncKlearClient, KlearClient, KlearConfig
-from kalshi.perps.models.margin import (
+from kalshi.perps.klear.models.margin import (
     GetSettlementBalanceWithdrawalResponse,
     MarginReport,
     ObligationEntry,
@@ -190,12 +190,19 @@ class TestMarginReports:
         auth_klear_client.close()
 
     @respx.mock
-    def test_400_bad_dates(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/reports").mock(
-            return_value=httpx.Response(400, json={"code": "bad", "message": "bad start_date"})
+    def test_rejects_malformed_or_inverted_dates_client_side(
+        self, auth_klear_client: KlearClient
+    ) -> None:
+        # Date-range guard rejects bad/inverted ranges at the SDK boundary,
+        # before any HTTP — clearer than an opaque server 400.
+        route = respx.get(f"{BASE}/margin/reports").mock(
+            return_value=httpx.Response(200, json={"reports": []})
         )
-        with pytest.raises(KalshiValidationError):
+        with pytest.raises(ValueError, match="YYYY-MM-DD"):
             auth_klear_client.margin.margin_reports(start_date="nope", end_date="2026-06-01")
+        with pytest.raises(ValueError, match="on or after"):
+            auth_klear_client.margin.margin_reports(start_date="2026-06-02", end_date="2026-06-01")
+        assert not route.called
         auth_klear_client.close()
 
     @respx.mock
