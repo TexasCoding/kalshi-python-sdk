@@ -170,7 +170,7 @@ from kalshi.models import (
     WeeklySchedule,
     Withdrawal,
 )
-from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
+from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig, PerpsWebSocket
 from kalshi.resources.communications import (
     AsyncQuotesResource,
     AsyncRFQsResource,
@@ -320,6 +320,7 @@ __all__ = [
     "PercentilePoint",
     "PerpsClient",
     "PerpsConfig",
+    "PerpsWebSocket",
     "PlayByPlay",
     "PlayByPlayPeriod",
     "PositionsResponse",
