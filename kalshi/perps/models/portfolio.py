@@ -24,7 +24,12 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount, NullableList
+from kalshi.types import (
+    DollarDecimal,
+    FixedPointCount,
+    MultiplierDecimal,
+    NullableList,
+)
 
 # Spec ``BookSide`` is ``enum: [bid, ask]`` — surfaced as a Literal alias
 # (mirroring ``SettlementStatusLiteral`` in kalshi/models/portfolio.py).
@@ -52,7 +57,7 @@ class MarginPosition(BaseModel):
     unrealized_pnl: DollarDecimal
     margin_used: DollarDecimal
     fees: DollarDecimal
-    return_on_equity: float | None = Field(
+    return_on_equity: MultiplierDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("roe", "return_on_equity"),
     )

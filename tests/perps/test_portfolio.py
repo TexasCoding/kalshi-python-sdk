@@ -99,9 +99,10 @@ class TestPositions:
         assert long.position == Decimal("100.00")
         assert short.position == Decimal("-40.00")
         assert short.unrealized_pnl == Decimal("-5.5000")
-        # roe wire name surfaces as return_on_equity.
-        assert long.return_on_equity == 24.68
-        assert short.return_on_equity == -27.5
+        # roe wire name surfaces as return_on_equity (MultiplierDecimal).
+        assert long.return_on_equity == Decimal("24.68")
+        assert isinstance(long.return_on_equity, Decimal)
+        assert short.return_on_equity == Decimal("-27.5")
         assert route.called
 
     @respx.mock

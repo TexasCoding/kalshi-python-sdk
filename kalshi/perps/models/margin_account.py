@@ -12,14 +12,21 @@ Money fields use :data:`~kalshi.types.DollarDecimal` (the perps spec's
 :data:`~kalshi.types.FixedPointCount`. Wire field names already match the short
 Python names (no ``_dollars`` suffix on this surface), so no ``validation_alias``
 is used here. The fee-rate maps and leverage ratios are spec ``number/double``
-and are kept as plain ``float`` (decimal fractions of notional, not money).
+and use :data:`~kalshi.types.MultiplierDecimal` (exact ``Decimal``,
+string-serialized) — consistent with the perps exchange + WS ticker surfaces
+and so callers can do exact fee/leverage math without binary-float drift.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import (
+    DollarDecimal,
+    FixedPointCount,
+    MultiplierDecimal,
+    NullableList,
+)
 
 
 class MarginSubaccountBalance(BaseModel):
@@ -41,7 +48,7 @@ class GetMarginBalanceResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    subaccount_balances: list[MarginSubaccountBalance]
+    subaccount_balances: NullableList[MarginSubaccountBalance]
     settled_funds: DollarDecimal
 
 
@@ -56,7 +63,7 @@ class MarginRiskPosition(BaseModel):
     mark_price: DollarDecimal
     position_notional: DollarDecimal
     maintenance_margin_required: DollarDecimal | None = None
-    position_leverage: float | None = None
+    position_leverage: MultiplierDecimal | None = None
     estimated_liquidation_price: DollarDecimal | None = None
 
 
@@ -65,10 +72,10 @@ class GetMarginRiskResponse(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    account_leverage: float | None = None
+    account_leverage: MultiplierDecimal | None = None
     total_position_notional: DollarDecimal
     total_maintenance_margin: DollarDecimal
-    positions: list[MarginRiskPosition]
+    positions: NullableList[MarginRiskPosition]
 
 
 class NotionalRiskLimitResponse(BaseModel):
@@ -83,11 +90,12 @@ class NotionalRiskLimitResponse(BaseModel):
 class GetMarginFeeTiersResponse(BaseModel):
     """Spec ``GetMarginFeeTiersResponse`` — maker/taker fee-rate maps by ticker.
 
-    Values are decimal fractions of notional (e.g. ``0.0005`` = 5 bps), kept as
-    plain ``float`` per the spec's ``number/double`` typing — not money fields.
+    Values are decimal fractions of notional (e.g. ``0.0005`` = 5 bps), spec
+    ``number/double``. They use :data:`~kalshi.types.MultiplierDecimal` (exact
+    ``Decimal``) so ``notional * fee_rate`` stays exact for the caller.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    maker_fee_rates: dict[str, float]
-    taker_fee_rates: dict[str, float]
+    maker_fee_rates: dict[str, MultiplierDecimal]
+    taker_fee_rates: dict[str, MultiplierDecimal]

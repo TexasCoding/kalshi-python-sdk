@@ -86,8 +86,8 @@ class TestList:
         assert isinstance(m.contract_size, Decimal)
         assert m.tick_size == Decimal("0.0100")
         assert isinstance(m.tick_size, Decimal)
-        assert m.leverage_estimate == 2.5
-        assert isinstance(m.leverage_estimate, float)
+        assert m.leverage_estimate == Decimal("2.5")
+        assert isinstance(m.leverage_estimate, Decimal)
         assert m.volume == Decimal("1000.00")
 
     @respx.mock
