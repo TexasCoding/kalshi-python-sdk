@@ -101,3 +101,33 @@ class TestPerpsConfigGuards:
             ws_base_url="ws://localhost/trade-api/ws/v2/margin",
         )
         assert c.base_url == "http://localhost/trade-api/v2"
+
+
+class TestPerpsConfigHostSplit:
+    """#412: base_url validates against REST hosts, ws_base_url against WS hosts;
+    ws_base_url also requires the /trade-api/ws/v2/margin path."""
+
+    def test_base_url_rejects_ws_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The perps test conftest sets the allow-unknown-host escape hatch
+        # process-wide; clear it so the host check hard-fails.
+        monkeypatch.delenv("KALSHI_PERPS_ALLOW_UNKNOWN_HOST", raising=False)
+        with pytest.raises(ValueError, match="not a known"):
+            PerpsConfig(
+                base_url="https://external-api-margin-ws.kalshi.com/trade-api/v2",
+                ws_base_url=PERPS_PRODUCTION_WS_URL,
+            )
+
+    def test_ws_base_url_rejects_rest_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("KALSHI_PERPS_ALLOW_UNKNOWN_HOST", raising=False)
+        with pytest.raises(ValueError, match="not a known"):
+            PerpsConfig(
+                base_url=PERPS_PRODUCTION_BASE_URL,
+                ws_base_url="wss://external-api.kalshi.com/trade-api/ws/v2/margin",
+            )
+
+    def test_ws_base_url_rejects_wrong_path(self) -> None:
+        with pytest.raises(ValueError, match="/trade-api/ws/v2/margin"):
+            PerpsConfig(
+                base_url=PERPS_PRODUCTION_BASE_URL,
+                ws_base_url="wss://external-api-margin-ws.kalshi.com/trade-api/v2",
+            )

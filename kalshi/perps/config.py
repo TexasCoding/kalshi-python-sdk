@@ -28,15 +28,15 @@ PERPS_DEMO_BASE_URL = "https://external-api.demo.kalshi.co/trade-api/v2"
 PERPS_PRODUCTION_WS_URL = "wss://external-api-margin-ws.kalshi.com/trade-api/ws/v2/margin"
 PERPS_DEMO_WS_URL = "wss://external-api-margin-ws.demo.kalshi.co/trade-api/ws/v2/margin"
 
-# REST + WS hosts both validate against this union (the perps WS host differs
-# from the perps REST host, unlike the prediction API where both share a host).
+# Each surface validates against its OWN host set — the perps WS host differs
+# from the perps REST host (unlike the prediction API where both share a host),
+# so base_url must use a REST host and ws_base_url a WS host.
 _PERPS_REST_HOSTS = frozenset(
     {"external-api.kalshi.com", "external-api.demo.kalshi.co"}
 )
 _PERPS_WS_HOSTS = frozenset(
     {"external-api-margin-ws.kalshi.com", "external-api-margin-ws.demo.kalshi.co"}
 )
-_PERPS_KNOWN_HOSTS = _PERPS_REST_HOSTS | _PERPS_WS_HOSTS
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 # Perps prod/demo host pairs, used by the split REST/WS environment guard.
@@ -81,11 +81,15 @@ class PerpsConfig(KalshiConfig):
         allow_unknown = self.allow_unknown_host or (
             os.environ.get("KALSHI_PERPS_ALLOW_UNKNOWN_HOST", "").strip() == "1"
         )
+        # Validate each field against its OWN host set — a REST URL must use a
+        # REST host and a WS URL a WS host (they differ for perps), so a swapped
+        # host is rejected rather than silently accepted via the union.
         PerpsConfig._validate_perps_url(
             self.base_url,
             "base_url",
             secure="https",
             plaintext="http",
+            known_hosts=_PERPS_REST_HOSTS,
             allow_unknown_host=allow_unknown,
         )
         PerpsConfig._validate_perps_url(
@@ -93,6 +97,7 @@ class PerpsConfig(KalshiConfig):
             "ws_base_url",
             secure="wss",
             plaintext="ws",
+            known_hosts=_PERPS_WS_HOSTS,
             allow_unknown_host=allow_unknown,
         )
         # Enforce the /trade-api/v2 REST path component (identical to the
@@ -102,6 +107,14 @@ class PerpsConfig(KalshiConfig):
             raise ValueError(
                 f"PerpsConfig.base_url must include the /trade-api/v2 path "
                 f"component, got base_url={self.base_url!r}"
+            )
+        # Enforce the /trade-api/ws/v2/margin WS path component (mirrors the REST
+        # path check above).
+        ws_path = urlparse(self.ws_base_url).path
+        if ws_path != "/trade-api/ws/v2/margin":
+            raise ValueError(
+                f"PerpsConfig.ws_base_url must include the /trade-api/ws/v2/margin "
+                f"path component, got ws_base_url={self.ws_base_url!r}"
             )
         # Reject a split REST/WS environment (prod REST + demo WS, or vice
         # versa) — the same real-money-vs-demo footgun KalshiConfig guards.
@@ -148,6 +161,7 @@ class PerpsConfig(KalshiConfig):
         *,
         secure: str,
         plaintext: str,
+        known_hosts: frozenset[str],
         allow_unknown_host: bool,
     ) -> None:
         """Reject URLs that would expose credentials (bad scheme or plaintext-to-remote)."""
@@ -169,11 +183,11 @@ class PerpsConfig(KalshiConfig):
                 f"(url={url!r}). Plaintext to a remote host would "
                 f"expose the KALSHI-ACCESS-KEY header and request signature."
             )
-        if host not in _PERPS_KNOWN_HOSTS and host not in _LOCAL_HOSTS:
+        if host not in known_hosts and host not in _LOCAL_HOSTS:
             if not allow_unknown_host:
                 raise ValueError(
                     f"PerpsConfig.{field_name} host {host!r} is not a known "
-                    f"Kalshi perps endpoint. Known hosts: {sorted(_PERPS_KNOWN_HOSTS)}. "
+                    f"Kalshi perps endpoint. Known hosts: {sorted(known_hosts)}. "
                     "If this is an intentional mock server, proxy, or alternate "
                     "perps region, opt in with PerpsConfig(allow_unknown_host=True) "
                     "or set the environment variable KALSHI_PERPS_ALLOW_UNKNOWN_HOST=1."
@@ -185,7 +199,7 @@ class PerpsConfig(KalshiConfig):
                 "KALSHI_PERPS_ALLOW_UNKNOWN_HOST=1 silenced the default error.)",
                 field_name,
                 host,
-                sorted(_PERPS_KNOWN_HOSTS),
+                sorted(known_hosts),
             )
 
     @classmethod
