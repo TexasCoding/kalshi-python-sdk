@@ -31,6 +31,9 @@ from kalshi.fix.enums import MsgType
 # MGF1(SHA-256) / salt_length = digest length). Kept as a local copy rather than
 # importing kalshi.auth's private module constants so the scheme is explicit at
 # the FIX call site; if kalshi.auth ever changes its padding, update both.
+# ``hashes.SHA256()`` is a stateless algorithm *descriptor* (not a live hashing
+# context), so a single module-level instance is safe to reuse for both MGF1 and
+# the outer sign() call — the same pattern kalshi.auth uses.
 _FIX_SHA256 = hashes.SHA256()
 _FIX_PSS_PADDING = padding.PSS(
     mgf=padding.MGF1(_FIX_SHA256),

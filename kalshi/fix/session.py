@@ -27,22 +27,23 @@ import asyncio
 import contextlib
 import logging
 import random
+import ssl
 import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from enum import Enum
 from types import TracebackType
-from typing import Any
 
 from pydantic import ValidationError
 
+from kalshi.fix._timefmt import format_utc_timestamp
 from kalshi.fix.auth import FixSigner
 from kalshi.fix.codec import RawMessage, encode
 from kalshi.fix.config import FixConfig, FixSessionType
 from kalshi.fix.connection import FixConnection
 from kalshi.fix.enums import MsgType
 from kalshi.fix.errors import FixConnectionError, FixLogonError, FixSequenceError, FixSessionError
-from kalshi.fix.messages.base import FixMessage, _format_utc_timestamp
+from kalshi.fix.messages.base import FixMessage
 from kalshi.fix.messages.session import (
     Heartbeat,
     Logon,
@@ -111,7 +112,7 @@ class FixSession:
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
-        ssl_context: Any = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         config._check_session(session_type)
         self._signer = signer
@@ -251,13 +252,18 @@ class FixSession:
             # different message on the next reconnect.
             self._out_seq += 1
             sending_time = self._now_sending_time()
-            # Logon's RawData signature is bound to this exact seq + sending_time,
-            # so (re)sign here rather than trusting any preset value.
+            # Logon's RawData signature is bound to this exact seq + sending_time.
+            # Sign onto a COPY rather than mutating the caller's object (which a
+            # caller might reuse across reconnects or inspect after send()).
             if isinstance(message, Logon):
-                message.raw_data = self._signer.sign_logon(
-                    sending_time=sending_time,
-                    msg_seq_num=seq,
-                    target_comp_id=self._target,
+                message = message.model_copy(
+                    update={
+                        "raw_data": self._signer.sign_logon(
+                            sending_time=sending_time,
+                            msg_seq_num=seq,
+                            target_comp_id=self._target,
+                        )
+                    }
                 )
             header: list[tuple[int, str]] = [
                 (int(Tag.MSG_TYPE), type(message).MSG_TYPE.value),
@@ -301,7 +307,7 @@ class FixSession:
             self._last_send = time.monotonic()
 
     def _now_sending_time(self) -> str:
-        return _format_utc_timestamp(datetime.now(UTC))
+        return format_utc_timestamp(datetime.now(UTC))
 
     # ------------------------------------------------------------------
     # Connect + logon
@@ -566,7 +572,9 @@ class FixSession:
             await self._set_state(FixSessionState.CLOSED)
             return
         if mt == MsgType.LOGON:
-            # Mid-session Logon is unexpected once ACTIVE; ignore.
+            # A mid-session Logon is a protocol anomaly once ACTIVE; log and
+            # ignore (Kalshi's gateway drives session lifecycle via Logout).
+            logger.warning("unexpected mid-session Logon from peer; ignoring")
             return
         if mt == MsgType.REJECT:
             rj = Reject.from_raw(raw)

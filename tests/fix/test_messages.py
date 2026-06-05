@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from kalshi.fix._timefmt import format_utc_timestamp, parse_utc_timestamp
 from kalshi.fix.codec import decode, encode
 from kalshi.fix.enums import ApplVerID, EncryptMethod, MsgType
 from kalshi.fix.messages import (
@@ -18,12 +19,7 @@ from kalshi.fix.messages import (
     SequenceReset,
     TestRequest,
 )
-from kalshi.fix.messages.base import (
-    FixType,
-    _format_utc_timestamp,
-    _from_wire,
-    _parse_utc_timestamp,
-)
+from kalshi.fix.messages.base import FixType, _from_wire
 from kalshi.fix.tags import Tag
 
 
@@ -138,9 +134,9 @@ def test_heartbeat_optional_test_req_id() -> None:
 
 def test_utc_timestamp_format_and_parse() -> None:
     dt = datetime(2025, 9, 26, 21, 54, 7, 1000, tzinfo=UTC)
-    assert _format_utc_timestamp(dt) == "20250926-21:54:07.001"
-    assert _parse_utc_timestamp("20250926-21:54:07.001") == dt
-    assert _parse_utc_timestamp("20250926-21:54:07") == datetime(
+    assert format_utc_timestamp(dt) == "20250926-21:54:07.001"
+    assert parse_utc_timestamp("20250926-21:54:07.001") == dt
+    assert parse_utc_timestamp("20250926-21:54:07") == datetime(
         2025, 9, 26, 21, 54, 7, tzinfo=UTC
     )
 
@@ -149,14 +145,14 @@ def test_utc_timestamp_truncates_sub_millisecond() -> None:
     # Millisecond precision via floor truncation (not rounding) — the SendingTime
     # in the logon pre-hash must be byte-identical to tag 52.
     assert (
-        _format_utc_timestamp(datetime(2025, 9, 26, 21, 54, 7, 123456, tzinfo=UTC))
+        format_utc_timestamp(datetime(2025, 9, 26, 21, 54, 7, 123456, tzinfo=UTC))
         == "20250926-21:54:07.123"
     )
     assert (
-        _format_utc_timestamp(datetime(2025, 9, 26, 21, 54, 7, 999999, tzinfo=UTC))
+        format_utc_timestamp(datetime(2025, 9, 26, 21, 54, 7, 999999, tzinfo=UTC))
         == "20250926-21:54:07.999"
     )
-    assert _parse_utc_timestamp("20250926-21:54:07.123456").microsecond == 123456
+    assert parse_utc_timestamp("20250926-21:54:07.123456").microsecond == 123456
 
 
 def test_boolean_parsing_is_strict() -> None:

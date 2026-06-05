@@ -22,13 +22,13 @@ Scope note: scalar fields only. Repeating groups (``NoPartyIDs``, ``NoMiscFees``
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any, ClassVar, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from kalshi.fix._timefmt import format_utc_timestamp, parse_utc_timestamp
 from kalshi.fix.codec import RawMessage
 from kalshi.fix.enums import MsgType
 from kalshi.fix.tags import DATA_LENGTH_FIELDS
@@ -83,7 +83,7 @@ def _to_wire(value: Any, fix_type: FixType) -> str:
         # value is a Decimal; ``f"{d:f}"`` avoids scientific notation and float drift.
         return f"{value:f}"
     if fix_type is FixType.UTCTIMESTAMP:
-        return _format_utc_timestamp(value)
+        return format_utc_timestamp(value)
     if fix_type is FixType.LOCALMKTDATE:
         return value if isinstance(value, str) else value.strftime("%Y%m%d")
     # STRING / CHAR / MULTIPLEVALUESTRING / INT-likes / enums. ``str()`` of a
@@ -108,19 +108,16 @@ def _from_wire(raw: str, fix_type: FixType) -> Any:
     if fix_type in _DECIMAL_TYPES:
         return Decimal(raw)
     if fix_type is FixType.UTCTIMESTAMP:
-        return _parse_utc_timestamp(raw)
+        return parse_utc_timestamp(raw)
     return raw
 
 
-def _format_utc_timestamp(dt: datetime) -> str:
-    """FIX UTCTimestamp with millisecond precision: ``YYYYMMDD-HH:MM:SS.sss``."""
-    return dt.strftime("%Y%m%d-%H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
-
-
-def _parse_utc_timestamp(value: str) -> datetime:
-    """Parse a FIX UTCTimestamp (with or without fractional seconds) as UTC-aware."""
-    fmt = "%Y%m%d-%H:%M:%S.%f" if "." in value else "%Y%m%d-%H:%M:%S"
-    return datetime.strptime(value, fmt).replace(tzinfo=UTC)
+# Per-class cache of the introspected FIX field map. The map is deterministic
+# per message class and, once application messages land, is read on every
+# encode/decode of every order and execution report — so caching it avoids
+# re-walking ``model_fields`` on the hot path. Classes live for the process
+# lifetime, so a plain dict keyed by class is fine.
+_FIX_FIELDS_CACHE: dict[type[FixMessage], list[tuple[str, int, FixType]]] = {}
 
 
 class FixMessage(BaseModel):
@@ -139,7 +136,14 @@ class FixMessage(BaseModel):
 
     @classmethod
     def _fix_fields(cls) -> list[tuple[str, int, FixType]]:
-        """``(attr_name, tag, fix_type)`` for each FIX-mapped field, in declaration order."""
+        """``(attr_name, tag, fix_type)`` for each FIX-mapped field, in declaration order.
+
+        Cached per class (see :data:`_FIX_FIELDS_CACHE`). Callers iterate the
+        result and must not mutate it.
+        """
+        cached = _FIX_FIELDS_CACHE.get(cls)
+        if cached is not None:
+            return cached
         out: list[tuple[str, int, FixType]] = []
         for name, field in cls.model_fields.items():
             extra = field.json_schema_extra
@@ -147,6 +151,7 @@ class FixMessage(BaseModel):
                 tag = int(extra["fix_tag"])  # type: ignore[arg-type]
                 fix_type = FixType(str(extra["fix_type"]))
                 out.append((name, tag, fix_type))
+        _FIX_FIELDS_CACHE[cls] = out
         return out
 
     def to_body_fields(self) -> list[tuple[int, str]]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import itertools
 from collections.abc import Awaitable, Callable
 
 import pytest
@@ -260,6 +261,31 @@ async def test_context_manager(
     async with FixSession(fix_signer, fix_config, FixSessionType.ORDER_ENTRY_NR) as session:
         assert session.state is FixSessionState.ACTIVE
     assert session.state is FixSessionState.CLOSED
+
+
+async def test_on_state_change_callback_fires(
+    fix_signer: FixSigner, fix_config: FixConfig, acceptor: MockAcceptor
+) -> None:
+    transitions: list[tuple[FixSessionState, FixSessionState]] = []
+
+    async def on_change(old: FixSessionState, new: FixSessionState) -> None:
+        transitions.append((old, new))
+
+    session = FixSession(
+        fix_signer, fix_config, FixSessionType.ORDER_ENTRY_NR, on_state_change=on_change
+    )
+    await session.start()
+    await session.close()
+
+    news = [new for _, new in transitions]
+    # Logon drives CONNECTING -> LOGGING_ON -> ACTIVE; close ends at CLOSED.
+    assert FixSessionState.CONNECTING in news
+    assert FixSessionState.LOGGING_ON in news
+    assert FixSessionState.ACTIVE in news
+    assert news[-1] is FixSessionState.CLOSED
+    # Each transition's "old" chains from the previous "new".
+    for prev, cur in itertools.pairwise(transitions):
+        assert cur[0] is prev[1]
 
 
 async def test_inbound_resend_request_replies_with_gap_fill(

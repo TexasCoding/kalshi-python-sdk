@@ -8,6 +8,7 @@ prediction client is :class:`FixClient`; the margin client lives in
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import Callable
 from typing import ClassVar, Self
 
@@ -33,7 +34,7 @@ class _BaseFixClient:
         *,
         environment: FixEnvironment = FixEnvironment.PRODUCTION,
         config: FixConfig | None = None,
-        ssl_context: object | None = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         self._signer = signer
         self._ssl_context = ssl_context
@@ -53,7 +54,7 @@ class _BaseFixClient:
         *,
         environment: FixEnvironment = FixEnvironment.PRODUCTION,
         config: FixConfig | None = None,
-        ssl_context: object | None = None,
+        ssl_context: ssl.SSLContext | None = None,
     ) -> Self:
         """Build a client reusing an existing :class:`KalshiAuth`'s key."""
         return cls(
@@ -145,7 +146,7 @@ class FixClient(_BaseFixClient):
         *,
         environment: FixEnvironment = FixEnvironment.PRODUCTION,
         config: FixConfig | None = None,
-        ssl_context: object | None = None,
+        ssl_context: ssl.SSLContext | None = None,
         password: bytes | str | Callable[[], bytes | str] | None = None,
     ) -> FixClient:
         """Build a prediction FIX client from the ``KALSHI_*`` environment vars.

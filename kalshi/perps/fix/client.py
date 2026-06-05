@@ -14,6 +14,7 @@ same codec / session engine / message models; it differs only in:
 
 from __future__ import annotations
 
+import ssl
 from collections.abc import Callable
 
 from kalshi.errors import KalshiAuthError
@@ -40,7 +41,7 @@ class MarginFixClient(_BaseFixClient):
         *,
         environment: FixEnvironment = FixEnvironment.PRODUCTION,
         config: FixConfig | None = None,
-        ssl_context: object | None = None,
+        ssl_context: ssl.SSLContext | None = None,
         password: bytes | str | Callable[[], bytes | str] | None = None,
     ) -> MarginFixClient:
         """Build a margin FIX client from the ``KALSHI_PERPS_*`` environment vars."""

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -164,7 +164,7 @@ class MockAcceptor:
 
 
 @pytest.fixture
-async def acceptor() -> object:
+async def acceptor() -> AsyncIterator[MockAcceptor]:
     a = MockAcceptor()
     await a.start()
     try:
