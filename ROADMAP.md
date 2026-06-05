@@ -2,6 +2,17 @@
 
 ## Shipped
 
+- **v3.2.0 (2026-06-05)** — full **Perps (margin) API** support: standalone
+  `PerpsClient` / `AsyncPerpsClient` (REST), `PerpsWebSocket`, and the
+  Self-Clearing-Member `KlearClient` (cookie-session + MFA settlement API),
+  alongside the unchanged prediction-API surface. Also hardened the prediction
+  and perps list endpoints to validate typed response envelopes (a missing
+  spec-required array now surfaces as a `ValidationError`). Additive for
+  existing `KalshiClient` users.
+- **v3.1.0 (2026-06-04)** — OpenAPI sync v3.19.0 → v3.20.0: `events.fee_changes`,
+  `is_block_trade`, and the `event_fee_update` frame on the `market_lifecycle_v2`
+  WebSocket channel.
+- **v3.0.1 (2026-05-26)** — OpenAPI sync v3.18.0 → v3.19.0.
 - **v3.0.0 (2026-05-22)** — first major release in the v3 line. Three
   breaking-rename issues (`#348`, `#349`, `#351`) deferred from the v2.7.0
   audit closure land with one-release deprecation aliases:

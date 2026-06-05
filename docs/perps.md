@@ -42,7 +42,9 @@ never collide with the prediction-API `KALSHI_*` vars:
 |---|---|
 | `KALSHI_PERPS_KEY_ID` | perps API key id (omit for an unauthenticated client) |
 | `KALSHI_PERPS_PRIVATE_KEY` / `KALSHI_PERPS_PRIVATE_KEY_PATH` | RSA private key (PEM string or file) |
-| `KALSHI_PERPS_API_BASE_URL` | optional base-URL override |
+| `KALSHI_PERPS_PRIVATE_KEY_PASSPHRASE` | optional passphrase for an encrypted PEM (a `password=` kwarg overrides it) |
+| `KALSHI_PERPS_API_BASE_URL` | optional REST base-URL override |
+| `KALSHI_PERPS_WS_BASE_URL` | optional WS base-URL override (keeps the WS feed off production when overriding REST) |
 | `KALSHI_PERPS_DEMO` | `"true"` routes to the demo exchange |
 
 ```python

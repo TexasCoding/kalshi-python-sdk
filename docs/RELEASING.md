@@ -31,6 +31,8 @@ from this repo can publish without further configuration.
 ## Cutting a release
 
 1. Bump `version` in `pyproject.toml` and `__version__` in `kalshi/__init__.py`.
+   The `## <version>` heading in `CHANGELOG.md` must use the same version (the
+   workflow extracts the section by that heading for the release body).
 2. Add a section to `CHANGELOG.md` for the new version. The release workflow
    extracts the section between `## <version>` and the next `## ` heading
    and uses it as the GitHub Release body, so write it for that audience.

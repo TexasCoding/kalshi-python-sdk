@@ -7,8 +7,8 @@ duplicate orders happen.
 
 | Verb | Retries on |
 |---|---|
-| `GET`, `HEAD`, `OPTIONS` | `429`, `500`, `502`, `503`, `504` |
-| `POST`, `DELETE`, `PUT`, `PATCH` | **never** |
+| `GET`, `HEAD`, `OPTIONS` | `408`, `425`, `429`, `500`, `502`, `503`, `504`, `520`, `521`, `522`, `523`, `524` |
+| `POST`, `PUT`, `DELETE` | **never** |
 
 POST/DELETE/PUT are write paths. Retrying them risks duplicate orders,
 duplicate cancels, duplicate transfers — even with `client_order_id`, you

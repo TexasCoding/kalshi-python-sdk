@@ -50,8 +50,9 @@ for `user_order`, `market_position`, and the `multivariate_lookup` /
 `multivariate` mismatch.
 
 !!! warning "Migration (v3.1.0): `event_fee_update` rides `market_lifecycle_v2`"
-    Since v3.20.0 the `market_lifecycle_v2` channel also emits
-    `event_fee_update` frames (event-level fee override set or cleared), so
+    Since the v3.20.0 spec sync (SDK v3.1.0) the `market_lifecycle_v2` channel
+    also emits `event_fee_update` frames (event-level fee override set or
+    cleared), so
     `subscribe_market_lifecycle()` now yields
     `MarketLifecycleMessage | EventFeeUpdateMessage`. **Existing consumers must
     discriminate on `.type` before touching payload fields** — an
@@ -425,8 +426,8 @@ silently corrupting book state.
 
 | Strategy | Use for | Why |
 |---|---|---|
-| `DROP_OLDEST` | Read-only / latest-wins feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate*` | Newest snapshot is always correct; an evicted old tick is recoverable from the next one. |
-| `ERROR` | Stateful, sequenced feeds: `orderbook_delta`, `order_group_updates`, `user_orders` | A dropped delta corrupts derived state. Surface the backpressure to the consumer rather than continuing on a corrupted book. |
+| `DROP_OLDEST` | Read-only / coalesced feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate*`, `user_orders` | Newest sample is the one that matters; an evicted old frame is recoverable from the next one. |
+| `ERROR` | Stateful, sequenced feeds: `orderbook_delta`, `order_group_updates` | A dropped delta corrupts derived state (the reconstructed book / order-group tracking). Surface the backpressure to the consumer rather than continuing on corrupted state. |
 
 `ERROR` is fatal — the recv loop broadcasts sentinels and exits when it fires
 (see [Backpressure](#backpressure)). Wire `on_error=` / `on_state_change=` to

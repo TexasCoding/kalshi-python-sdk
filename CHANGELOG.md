@@ -14,7 +14,12 @@ prediction-API surface. Additive release: no changes to `KalshiClient`.
   exchange (`external-api.kalshi.com` / demo `external-api.demo.kalshi.co`,
   `/trade-api/v2`), with their own `PerpsConfig` and a separate `KALSHI_PERPS_*`
   credential namespace. They reuse the prediction-API RSA-PSS signer and HTTP
-  transport unchanged. Resource families: `exchange` (status / enabled gate /
+  transport unchanged. The constructors and `from_env()` also accept
+  `ws_base_url` (set the WS endpoint independently from REST) and `password`
+  (passphrase for an encrypted key), and read `KALSHI_PERPS_WS_BASE_URL` /
+  `KALSHI_PERPS_PRIVATE_KEY_PASSPHRASE` from the environment; passing `config=`
+  together with `demo`/`base_url`/`ws_base_url` is rejected. Resource families:
+  `exchange` (status / enabled gate /
   risk parameters), `markets` (list / get / orderbook / candlesticks), `orders`
   (create / get / list / cancel / decrease / amend + FCM), `order_groups`,
   `portfolio` (positions / fills / trades), `margin` (balance / risk /
@@ -52,8 +57,16 @@ prediction-API surface. Additive release: no changes to `KalshiClient`.
   spec-required array key raises `ValidationError` (surfacing spec drift instead
   of silently returning `[]`), while a **null** array coerces to `[]` (Kalshi's
   empty-as-null convention — the prior `data.get(...)` extraction would
-  `TypeError` on a null array). The equivalent perps endpoints were hardened the
-  same way (markets/funding list responses).
+  `TypeError` on a null array). The perps `markets.list` / `markets.candlesticks`
+  / `funding.historical_rates` / `funding.history` responses use the same
+  `NullableList` envelopes, so null-handling is consistent across both surfaces.
+  The optional `order_groups.list` stays tolerant of a missing/null array.
+
+### Fixed
+
+- `KalshiWebSocket._stop()` now retrieves an already-finished receive-loop's
+  exception, so a session torn down after a permanent close no longer logs
+  asyncio's "Task exception was never retrieved" on garbage collection.
 
 ### Internal
 

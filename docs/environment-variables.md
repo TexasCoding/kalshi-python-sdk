@@ -8,7 +8,8 @@ these:
 | `KALSHI_KEY_ID` | unset | Key ID. If unset, `from_env()` returns an unauthenticated client. |
 | `KALSHI_PRIVATE_KEY` | unset | PEM string. **Conflicts** with `KALSHI_PRIVATE_KEY_PATH` — set exactly one. |
 | `KALSHI_PRIVATE_KEY_PATH` | unset | Path to PEM file. `~` is expanded. Conflicts with `KALSHI_PRIVATE_KEY`. |
-| `KALSHI_DEMO` | `false` | Truthy values (`true`, `1`, `yes`, `on`, case-insensitive) flip the client to the demo URLs. |
+| `KALSHI_PRIVATE_KEY_PASSPHRASE` | unset | Passphrase for an encrypted PEM (read by `try_from_env()`). |
+| `KALSHI_DEMO` | `false` | The exact string `true` (case-insensitive) selects the demo URLs. Other values (`1`, `yes`, `on`) are **not** recognized. |
 | `KALSHI_API_BASE_URL` | unset | Overrides `base_url` entirely. Wins over `KALSHI_DEMO`. |
 | `KALSHI_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow `base_url`/`ws_base_url` hosts outside `{api.elections.kalshi.com, demo-api.kalshi.co, localhost}`. Default-fail prevents typos like `kalsi.com` from silently signing to an attacker (#250). |
 
@@ -52,3 +53,30 @@ config = (
 with KalshiClient.from_env(config=config) as client:
     ...
 ```
+
+## Perps environment variables
+
+`PerpsClient.from_env()` / `AsyncPerpsClient.from_env()` read a **separate**
+`KALSHI_PERPS_*` namespace — perps requires a key issued for the perps exchange:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `KALSHI_PERPS_KEY_ID` | unset | Perps key ID. Omit for an unauthenticated client. |
+| `KALSHI_PERPS_PRIVATE_KEY` | unset | PEM string. Conflicts with `KALSHI_PERPS_PRIVATE_KEY_PATH`. |
+| `KALSHI_PERPS_PRIVATE_KEY_PATH` | unset | Path to a PEM file. |
+| `KALSHI_PERPS_PRIVATE_KEY_PASSPHRASE` | unset | Passphrase for an encrypted perps PEM. A `password=` kwarg to the client overrides it. |
+| `KALSHI_PERPS_DEMO` | `false` | `true` (case-insensitive) selects the demo REST + WS endpoints. |
+| `KALSHI_PERPS_API_BASE_URL` | unset | Overrides the perps REST `base_url`. |
+| `KALSHI_PERPS_WS_BASE_URL` | unset | Overrides the perps `ws_base_url`, so a REST override doesn't leave the WS feed on production. |
+| `KALSHI_PERPS_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow non-Kalshi perps hosts (mock servers / proxies). |
+
+## Klear (SCM) environment variables
+
+`KlearClient` / `AsyncKlearClient` use cookie-session auth (no RSA keys), so they
+read only environment selectors:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `KALSHI_KLEAR_DEMO` | `false` | `true` (case-insensitive) selects the demo Klear endpoint. |
+| `KALSHI_KLEAR_API_BASE_URL` | unset | Overrides the Klear `base_url`. |
+| `KALSHI_KLEAR_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow non-Kalshi Klear hosts. |
