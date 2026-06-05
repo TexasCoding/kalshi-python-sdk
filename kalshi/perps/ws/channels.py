@@ -181,6 +181,13 @@ class PerpsSubscriptionManager:
             if self._stashing:
                 self._maybe_stash(raw, data)
             else:
+                # By design (#405): non-matching data frames are stashed only
+                # during resubscribe_all (rebuilding a book from scratch, where a
+                # lost frame would corrupt the fresh book with no baseline to
+                # gap-detect against). During a normal command the book is
+                # already established, so a dropped sequenced frame surfaces as a
+                # sequence gap on the next frame and is recovered — not silently
+                # lost. Discarding here avoids accumulating stale state.
                 logger.debug(
                     "Discarding non-matching frame during command: type=%s",
                     data.get("type"),

@@ -215,6 +215,12 @@ class KalshiWebSocket:
                     self._recv_task.cancel()
                     with contextlib.suppress(asyncio.CancelledError, Exception):
                         await self._recv_task
+            elif self._recv_task is not None:
+                # #413: task already finished (e.g. the recv loop raised on a
+                # permanent close code). Retrieve the stored exception so asyncio
+                # doesn't log "Task exception was never retrieved" when it is GC'd.
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    self._recv_task.exception()
 
             # Sentinels last (#357): iterator consumers have already seen
             # the post-close drained frames; the sentinel now terminates

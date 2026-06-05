@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+import logging
 from typing import Any
 
 import pytest
 
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiSubscriptionError
+from kalshi.errors import KalshiConnectionError, KalshiSubscriptionError
 from kalshi.ws.client import KalshiWebSocket, _WebSocketSession
 from kalshi.ws.connection import ConnectionState
 from tests._model_fixtures import (
@@ -1084,3 +1086,31 @@ class TestIssue357StopOrdering:
             "Sentinels must broadcast even when _connection.close() raises; "
             "otherwise iterator consumers hang waiting on the closed queue."
         )
+
+
+class TestIssue413StopRetrievesException:
+    """#413: ``_stop()`` retrieves an already-finished recv task's exception."""
+
+    async def test_stop_retrieves_dead_recv_task_exception(
+        self,
+        test_auth,  # type: ignore[no-untyped-def]
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        # When the recv loop already finished with an exception (e.g. a permanent
+        # close code), _stop must retrieve it — otherwise asyncio logs "Task
+        # exception was never retrieved" when the task is garbage-collected.
+        ws = KalshiWebSocket(auth=test_auth, config=KalshiConfig(timeout=5.0))
+
+        async def _boom() -> None:
+            raise KalshiConnectionError("permanent close")
+
+        task: asyncio.Task[None] = asyncio.ensure_future(_boom())
+        await asyncio.sleep(0)  # let it finish; exception now stored, unretrieved
+        assert task.done()
+        ws._recv_task = task
+
+        with caplog.at_level(logging.ERROR, logger="asyncio"):
+            await ws._stop()  # nils ws._recv_task, releasing its only other ref
+            del task
+            gc.collect()
+        assert "never retrieved" not in caplog.text.lower()
