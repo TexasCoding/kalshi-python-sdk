@@ -261,3 +261,43 @@ class MarketCandlesticks(BaseModel):
     candlesticks: NullableList[Candlestick]
 
     model_config = {"extra": "allow"}
+
+
+class GetMarketCandlesticksResponse(BaseModel):
+    """Spec ``GetMarketCandlesticksResponse`` — single-market candlesticks envelope.
+
+    ``ticker`` and ``candlesticks`` are spec-required. ``candlesticks`` uses
+    :data:`~kalshi.types.NullableList` so a **missing** key hard-fails (surfacing
+    spec drift instead of silently returning ``[]``) while a ``null`` value —
+    Kalshi's observed "empty-as-null" convention — coerces to ``[]`` (the prior
+    ``data.get(...)`` extraction would ``TypeError`` on a null array).
+    """
+
+    ticker: str
+    candlesticks: NullableList[Candlestick]
+
+    model_config = {"extra": "allow"}
+
+
+class BatchGetMarketCandlesticksResponse(BaseModel):
+    """Spec ``BatchGetMarketCandlesticksResponse`` — bulk-candlesticks envelope.
+
+    ``markets`` is spec-required (NullableList: missing key -> error, null -> []).
+    """
+
+    markets: NullableList[MarketCandlesticks]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarketOrderbooksResponse(BaseModel):
+    """Spec ``GetMarketOrderbooksResponse`` — bulk-orderbooks envelope.
+
+    ``orderbooks`` is spec-required (NullableList: missing key -> error, null ->
+    []). Items stay raw dicts — the resource transforms each via
+    ``_orderbook_from_item`` (the yes/no FixedPoint parsing it already owns).
+    """
+
+    orderbooks: NullableList[dict[str, Any]]
+
+    model_config = {"extra": "allow"}

@@ -7,6 +7,7 @@ from decimal import Decimal
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
@@ -329,6 +330,7 @@ class TestMarketsCandlesticks:
             return_value=httpx.Response(
                 200,
                 json={
+                    "ticker": "MKT",
                     "candlesticks": [
                         {
                             "end_period_ts": 1700000000,
@@ -373,12 +375,30 @@ class TestMarketsCandlesticks:
     @respx.mock
     def test_empty_candlesticks(self, markets: MarketsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks").mock(
-            return_value=httpx.Response(200, json={"candlesticks": []})
+            return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []})
         )
         candles = markets.candlesticks(
             "SER", "MKT", start_ts=1700000000, end_ts=1700100000, period_interval=60
         )
         assert candles == []
+
+    @respx.mock
+    def test_missing_key_raises_but_null_tolerated(self, markets: MarketsResource) -> None:
+        # #404: a MISSING ticker/candlesticks key hard-fails (surfacing drift);
+        # a NULL candlesticks array coerces to [] (Kalshi's empty-as-null — the
+        # prior `data.get(...)` extraction would TypeError on a null array).
+        url = "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
+        route = respx.get(url)
+        route.mock(return_value=httpx.Response(200, json={"ticker": "MKT"}))  # no array
+        with pytest.raises(ValidationError):
+            markets.candlesticks("SER", "MKT", start_ts=1, end_ts=2, period_interval=60)
+        route.mock(return_value=httpx.Response(200, json={"candlesticks": []}))  # no ticker
+        with pytest.raises(ValidationError):
+            markets.candlesticks("SER", "MKT", start_ts=1, end_ts=2, period_interval=60)
+        route.mock(
+            return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": None})
+        )
+        assert markets.candlesticks("SER", "MKT", start_ts=1, end_ts=2, period_interval=60) == []
 
     @respx.mock
     def test_candlesticks_with_include_latest_before_start_true(
@@ -387,7 +407,7 @@ class TestMarketsCandlesticks:
         """v0.7.0 ADD: include_latest_before_start=True sends 'true' on wire."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         markets.candlesticks(
             "SER",
             "MKT",
@@ -403,7 +423,7 @@ class TestMarketsCandlesticks:
         """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         markets.candlesticks(
             "SER",
             "MKT",
@@ -419,7 +439,7 @@ class TestMarketsCandlesticks:
         """Tri-state bool: None drops the param entirely."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         markets.candlesticks(
             "SER",
             "MKT",
@@ -552,6 +572,23 @@ class TestMarketsListTrades:
 
 
 class TestMarketsBulkCandlesticks:
+    @respx.mock
+    def test_missing_markets_raises_but_null_tolerated(self, markets: MarketsResource) -> None:
+        # #404: a missing `markets` key hard-fails (drift); a null array -> [].
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets/candlesticks")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            markets.bulk_candlesticks(
+                market_tickers=["A"], start_ts=1, end_ts=2, period_interval=60
+            )
+        route.mock(return_value=httpx.Response(200, json={"markets": None}))
+        assert (
+            markets.bulk_candlesticks(
+                market_tickers=["A"], start_ts=1, end_ts=2, period_interval=60
+            )
+            == []
+        )
+
     @respx.mock
     def test_returns_per_market_bundles(self, markets: MarketsResource) -> None:
         route = respx.get(
@@ -733,6 +770,18 @@ class TestMarketsBulkEmptyValidation:
 
 
 class TestMarketsBulkOrderbooks:
+    @respx.mock
+    def test_missing_orderbooks_raises_but_null_tolerated(
+        self, markets: MarketsResource
+    ) -> None:
+        # #404: a missing `orderbooks` key hard-fails (drift); a null array -> [].
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets/orderbooks")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            markets.bulk_orderbooks(tickers=["A"])
+        route.mock(return_value=httpx.Response(200, json={"orderbooks": None}))
+        assert markets.bulk_orderbooks(tickers=["A"]) == []
+
     @respx.mock
     def test_returns_list_of_orderbooks(self, markets: MarketsResource) -> None:
         route = respx.get(

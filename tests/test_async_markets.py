@@ -282,6 +282,7 @@ class TestAsyncMarketsCandlesticks:
             return_value=httpx.Response(
                 200,
                 json={
+                    "ticker": "MKT",
                     "candlesticks": [
                         {
                             "end_period_ts": 1700000000,
@@ -329,7 +330,7 @@ class TestAsyncMarketsCandlesticks:
         """v0.7.0 ADD: include_latest_before_start=True sends 'true' on wire."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         await markets.candlesticks(
             "SER",
             "MKT",
@@ -346,7 +347,7 @@ class TestAsyncMarketsCandlesticks:
         """Tri-state bool: False must send 'false' (opt-out survives server default flips)."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         await markets.candlesticks(
             "SER",
             "MKT",
@@ -365,7 +366,7 @@ class TestAsyncMarketsCandlesticks:
         """Tri-state bool: None drops the param entirely."""
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/series/SER/markets/MKT/candlesticks"
-        ).mock(return_value=httpx.Response(200, json={"candlesticks": []}))
+        ).mock(return_value=httpx.Response(200, json={"ticker": "MKT", "candlesticks": []}))
         await markets.candlesticks(
             "SER",
             "MKT",

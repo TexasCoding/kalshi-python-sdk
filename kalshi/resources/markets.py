@@ -12,7 +12,10 @@ from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.historical import Trade
 from kalshi.models.markets import (
+    BatchGetMarketCandlesticksResponse,
     Candlestick,
+    GetMarketCandlesticksResponse,
+    GetMarketOrderbooksResponse,
     Market,
     MarketCandlesticks,
     MarketStatusLiteral,
@@ -337,8 +340,7 @@ class MarketsResource(SyncResource):
             params=params,
             extra_headers=extra_headers,
         )
-        raw = data.get("candlesticks", [])
-        return [Candlestick.model_validate(c) for c in raw]
+        return GetMarketCandlesticksResponse.model_validate(data).candlesticks
 
     def list_trades(
         self,
@@ -442,8 +444,7 @@ class MarketsResource(SyncResource):
             include_latest_before_start=include_latest_before_start,
         )
         data = self._get("/markets/candlesticks", params=params, extra_headers=extra_headers)
-        raw = data.get("markets", [])
-        return [MarketCandlesticks.model_validate(m) for m in raw]
+        return BatchGetMarketCandlesticksResponse.model_validate(data).markets
 
     def bulk_orderbooks(
         self, *, tickers: builtins.list[str], extra_headers: dict[str, str] | None = None
@@ -457,7 +458,7 @@ class MarketsResource(SyncResource):
         self._require_auth()
         params = _bulk_orderbooks_params(tickers=tickers)
         data = self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
-        raw = data.get("orderbooks", [])
+        raw = GetMarketOrderbooksResponse.model_validate(data).orderbooks
         return [_orderbook_from_item(item) for item in raw]
 
 
@@ -590,8 +591,7 @@ class AsyncMarketsResource(AsyncResource):
             params=params,
             extra_headers=extra_headers,
         )
-        raw = data.get("candlesticks", [])
-        return [Candlestick.model_validate(c) for c in raw]
+        return GetMarketCandlesticksResponse.model_validate(data).candlesticks
 
     async def list_trades(
         self,
@@ -696,8 +696,7 @@ class AsyncMarketsResource(AsyncResource):
             include_latest_before_start=include_latest_before_start,
         )
         data = await self._get("/markets/candlesticks", params=params, extra_headers=extra_headers)
-        raw = data.get("markets", [])
-        return [MarketCandlesticks.model_validate(m) for m in raw]
+        return BatchGetMarketCandlesticksResponse.model_validate(data).markets
 
     async def bulk_orderbooks(
         self, *, tickers: builtins.list[str], extra_headers: dict[str, str] | None = None
@@ -711,5 +710,5 @@ class AsyncMarketsResource(AsyncResource):
         self._require_auth()
         params = _bulk_orderbooks_params(tickers=tickers)
         data = await self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
-        raw = data.get("orderbooks", [])
+        raw = GetMarketOrderbooksResponse.model_validate(data).orderbooks
         return [_orderbook_from_item(item) for item in raw]

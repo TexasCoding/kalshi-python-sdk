@@ -45,6 +45,16 @@ prediction-API surface. Additive release: no changes to `KalshiClient`.
   runnable `examples/perps_create_order.py` / `perps_stream_ticker.py` /
   `perps_balance_risk.py`.
 
+### Changed
+
+- Prediction-API list endpoints `markets.candlesticks` / `bulk_candlesticks` /
+  `bulk_orderbooks` now validate a typed response envelope: a **missing**
+  spec-required array key raises `ValidationError` (surfacing spec drift instead
+  of silently returning `[]`), while a **null** array coerces to `[]` (Kalshi's
+  empty-as-null convention — the prior `data.get(...)` extraction would
+  `TypeError` on a null array). The equivalent perps endpoints were hardened the
+  same way (markets/funding list responses).
+
 ### Internal
 
 - Vendored the three perps specs (`specs/perps_openapi.yaml`,
