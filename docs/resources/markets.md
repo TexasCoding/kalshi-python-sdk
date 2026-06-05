@@ -43,10 +43,9 @@ for market in page:
 for the wire (this endpoint uses comma-join form, **not** the explode form
 used by `bulk_orderbooks`).
 
-All the `*_ts` filters (`min_close_ts`, `max_close_ts`, `min_open_ts`,
-`max_open_ts`, `min_settle_ts`, `max_settle_ts`, `min_volume_24h`,
-`min_total_volume`, `min_total_open_interest`) are Unix-second ints. Pair them
-with `min_open_ts`/`max_open_ts` etc. as needed.
+All seven `*_ts` filters (`min_created_ts`, `max_created_ts`, `min_updated_ts`,
+`min_close_ts`, `max_close_ts`, `min_settled_ts`, `max_settled_ts`) are
+Unix-second ints.
 
 `list_all(...)` walks cursors and returns an iterator — see
 [Pagination](../pagination.md).
@@ -94,7 +93,7 @@ candles = client.markets.candlesticks(
     period_interval=60,            # seconds: 60, 3600, 86400
     include_latest_before_start=True,
 )
-for c in candles.candlesticks:
+for c in candles:                      # list[Candlestick]
     print(c.end_period_ts, c.yes_bid)
 ```
 
@@ -106,7 +105,6 @@ for c in candles.candlesticks:
 ```python
 batches = client.markets.bulk_candlesticks(
     market_tickers=["KXPRES-24-DJT", "KXPRES-24-KH"],   # 1–100 tickers
-    series_ticker="KXPRES",                              # optional shard hint
     start_ts=1_700_000_000,
     end_ts=1_700_100_000,
     period_interval=3600,

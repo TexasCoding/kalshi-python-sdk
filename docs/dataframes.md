@@ -25,8 +25,11 @@ print(df[["ticker", "yes_bid", "yes_ask", "volume_24h"]].head())
 
 ## How it works
 
-Both methods walk `page.items` and call `item.model_dump(mode="python")` on
-each, then hand the records to `pd.DataFrame(...)` / `pl.DataFrame(...)`.
+Both methods build a column-oriented `dict[field, list[value]]` over
+`page.items` (`getattr` per field — deliberately avoiding a per-row
+`model_dump`) and hand it to `pd.DataFrame(...)` / `pl.DataFrame(...)`. Nested
+model cells are dumped to dicts per column (so polars can infer a `Struct`
+dtype) while scalar cells pass through unchanged.
 
 This means:
 

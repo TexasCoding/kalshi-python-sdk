@@ -50,12 +50,12 @@ below).
 
 ```python
 resp = client.subaccounts.list_balances()
-for bal in resp.balances:
-    print(bal.subaccount_number, bal.balance, bal.portfolio_value, bal.updated_ts)
+for bal in resp.subaccount_balances:
+    print(bal.subaccount_number, bal.balance, bal.updated_ts)
 ```
 
-`bal.balance` and `bal.portfolio_value` are **integer cents**.
-`bal.updated_ts` is Unix seconds (not ISO datetime).
+`bal.balance` is a `DollarDecimal` (dollars). `bal.updated_ts` is Unix seconds
+(not ISO datetime).
 
 ## List transfers
 

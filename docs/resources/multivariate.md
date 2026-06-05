@@ -8,6 +8,13 @@ with a list of leg selections mints a derived YES/NO contract.
 Public listing, auth-required minting. Attribute name on the client:
 `multivariate_collections`.
 
+!!! warning "Deprecated methods"
+    `create_market()`, `lookup_tickers()`, and `lookup_history()` are
+    deprecated — "This endpoint predates RFQs and should not be used for new
+    integrations." Calling them emits a `DeprecationWarning`. Use the
+    [Communications (RFQ/Quote)](communications.md) surface instead. `list()` /
+    `list_all()` / `get()` remain supported.
+
 ## Quick reference
 
 | Method | Endpoint | Auth |
@@ -15,7 +22,7 @@ Public listing, auth-required minting. Attribute name on the client:
 | `list(...)` / `list_all(...)` | `GET /multivariate_event_collections` | no |
 | `get(collection_ticker)` | `GET /multivariate_event_collections/{ticker}` | no |
 | `create_market(collection_ticker, *, selected_markets, with_market_payload=False)` | `POST /multivariate_event_collections/{ticker}` | yes |
-| `lookup_tickers(collection_ticker, *, selected_markets)` | `PUT /multivariate_event_collections/{ticker}/lookup` | no |
+| `lookup_tickers(collection_ticker, *, selected_markets)` | `PUT /multivariate_event_collections/{ticker}/lookup` | yes |
 | `lookup_history(collection_ticker, *, lookback_seconds)` | `GET /multivariate_event_collections/{ticker}/lookup` (with `lookback_seconds` query param) | no |
 
 ## List collections

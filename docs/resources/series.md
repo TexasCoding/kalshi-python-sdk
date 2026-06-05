@@ -72,7 +72,7 @@ hist = client.series.forecast_percentile_history(
     end_ts=1_700_100_000,
     period_interval=86400,
 )
-for point in hist.forecast_percentiles:
+for point in hist:                   # list[ForecastPercentilesPoint]
     print(point.ts, point.percentile, point.value)
 ```
 
