@@ -75,13 +75,15 @@ class FakePerpsWS:
     ) -> None:
         cmd = msg.get("cmd")
         msg_id = msg.get("id", 0)
+        if self.force_error:
+            # Error-frame ack for ANY command (subscribe/unsubscribe/update/
+            # list) so tests can exercise the centralized error handling.
+            await ws.send(json.dumps({
+                "id": msg_id, "type": "error",
+                "msg": {"code": self.error_code, "msg": "Forced error"},
+            }))
+            return
         if cmd == "subscribe":
-            if self.force_error:
-                await ws.send(json.dumps({
-                    "id": msg_id, "type": "error",
-                    "msg": {"code": self.error_code, "msg": "Forced error"},
-                }))
-                return
             channels: builtins.list[str] = msg.get("params", {}).get("channels", [])
             for channel in channels:
                 sid = self._next_sid

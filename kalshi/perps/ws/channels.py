@@ -133,6 +133,11 @@ class PerpsSubscriptionManager:
 
         Non-matching frames are stashed by sid during ``resubscribe_all``
         (``_stashing``) for replay, otherwise discarded.
+
+        A matching frame whose ``type`` is ``error`` raises
+        :class:`~kalshi.errors.KalshiSubscriptionError` here so *every* command
+        (subscribe / unsubscribe / update / list) fails loudly on a server-side
+        error instead of mutating local state as if it had succeeded.
         """
         deadline = asyncio.get_running_loop().time() + timeout
         while True:
@@ -161,6 +166,17 @@ class PerpsSubscriptionManager:
                 ) from None
             data: dict[str, Any] = self._json_loads(raw)
             if data.get("id") == msg_id:
+                if data.get("type") == "error":
+                    raw_msg = data.get("msg", {})
+                    detail = raw_msg.get("msg") if isinstance(raw_msg, dict) else None
+                    code = raw_msg.get("code") if isinstance(raw_msg, dict) else None
+                    raise KalshiSubscriptionError(
+                        str(detail or f"{op or 'command'} failed"),
+                        error_code=code,
+                        channel=channel,
+                        client_id=client_id,
+                        op=op,  # type: ignore[arg-type]
+                    )
                 return data
             if self._stashing:
                 self._maybe_stash(raw, data)
@@ -227,19 +243,11 @@ class PerpsSubscriptionManager:
             cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
         )
 
+        # An error ack is raised inside _wait_for_response (centralized), so a
+        # returned frame here is always a success.
         data = await self._wait_for_response(
             msg_id, channel=channel, client_id=client_id, op="subscribe",
         )
-        if data.get("type") == "error":
-            error_msg = data.get("msg", {})
-            raise KalshiSubscriptionError(
-                str(error_msg.get("msg", "Subscribe failed")),
-                error_code=error_msg.get("code"),
-                channel=channel,
-                client_id=client_id,
-                op="subscribe",
-            )
-
         server_sid = data.get("msg", {}).get("sid")
         if server_sid is not None:
             sub.server_sid = server_sid
@@ -275,6 +283,28 @@ class PerpsSubscriptionManager:
         logger.debug(
             "Unsubscribed client_id=%d (server_sid=%d)", client_id, sub.server_sid
         )
+
+    @staticmethod
+    def _apply_market_delta(
+        sub: PerpsSubscription,
+        action: str,
+        market_tickers: builtins.list[str] | None,
+    ) -> None:
+        """Persist an add/remove of markets onto ``sub.params``.
+
+        Without this, a later :meth:`resubscribe_all` rebuilds the subscribe
+        command from the *original* ``params`` and silently reverts the update
+        after a reconnect (added markets vanish, removed markets return).
+        """
+        if not market_tickers:
+            return
+        current: builtins.list[str] = list(sub.params.get("market_tickers") or [])
+        if action == UpdateSubscriptionAction.ADD_MARKETS:
+            current.extend(t for t in market_tickers if t not in current)
+            sub.params["market_tickers"] = current
+        elif action == UpdateSubscriptionAction.DELETE_MARKETS:
+            remove = set(market_tickers)
+            sub.params["market_tickers"] = [t for t in current if t not in remove]
 
     async def update_subscription(
         self,
@@ -314,6 +344,7 @@ class PerpsSubscriptionManager:
             msg_id, channel=sub.channel, client_id=client_id,
             op="update_subscription",
         )
+        self._apply_market_delta(sub, action, market_tickers)
         logger.debug(
             "Updated subscription (sids) client_id=%d action=%s", client_id, action
         )
@@ -357,6 +388,7 @@ class PerpsSubscriptionManager:
             msg_id, channel=sub.channel, client_id=client_id,
             op="update_subscription",
         )
+        self._apply_market_delta(sub, action, market_tickers)
         logger.debug(
             "Updated subscription (single sid) client_id=%d action=%s",
             client_id, action,
@@ -375,14 +407,7 @@ class PerpsSubscriptionManager:
         await self._connection.send(
             cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
         )
-        data = await self._wait_for_response(msg_id, op="subscribe")
-        if data.get("type") == "error":
-            error_msg = data.get("msg", {})
-            raise KalshiSubscriptionError(
-                str(error_msg.get("msg", "list_subscriptions failed")),
-                error_code=error_msg.get("code"),
-                op="subscribe",
-            )
+        data = await self._wait_for_response(msg_id, op="list_subscriptions")
         raw_entries = data.get("msg")
         if not isinstance(raw_entries, list):
             return []
@@ -421,19 +446,12 @@ class PerpsSubscriptionManager:
                         )
                     )
 
+                    # An error ack raises inside _wait_for_response and is caught
+                    # by the per-sub ``except`` below (sentinel + drop).
                     data = await self._wait_for_response(
                         msg_id, channel=sub.channel,
                         client_id=client_id, op="subscribe",
                     )
-                    if data.get("type") == "error":
-                        error_msg = data.get("msg", {})
-                        raise KalshiSubscriptionError(
-                            str(error_msg.get("msg", "Resubscribe failed")),
-                            error_code=error_msg.get("code"),
-                            channel=sub.channel,
-                            client_id=client_id,
-                            op="subscribe",
-                        )
                     new_sid = data.get("msg", {}).get("sid")
                     if new_sid is not None:
                         sub.server_sid = new_sid

@@ -539,18 +539,21 @@ class PerpsWebSocket:
             )
         async with self._subscribe_lock:
             await self._pause_recv_loop()
-            if (
-                not self._running
-                or self._sub_mgr is None
-                or self._connection is None
-            ):
-                raise RuntimeError(
-                    "PerpsWebSocket session is not active. The recv loop tore "
-                    "down after a fatal error (e.g. KalshiBackpressureError); "
-                    "exit the current `async with ws.connect()` block and start "
-                    "a fresh session before subscribing again."
-                )
+            # Precondition check lives INSIDE the try so the finally always
+            # resumes the recv loop — an early raise here while the loop is
+            # parked would otherwise abandon it (permanent inbound deadlock).
             try:
+                if (
+                    not self._running
+                    or self._sub_mgr is None
+                    or self._connection is None
+                ):
+                    raise RuntimeError(
+                        "PerpsWebSocket session is not active. The recv loop tore "
+                        "down after a fatal error (e.g. KalshiBackpressureError); "
+                        "exit the current `async with ws.connect()` block and start "
+                        "a fresh session before subscribing again."
+                    )
                 sub = await self._sub_mgr.subscribe(
                     channel, params=params, overflow=overflow, maxsize=maxsize,
                 )
@@ -717,9 +720,9 @@ class PerpsWebSocket:
             return
         async with self._subscribe_lock:
             await self._pause_recv_loop()
-            if self._sub_mgr is None:
-                return
             try:
+                if self._sub_mgr is None:
+                    return
                 sub = self._sub_mgr.get_subscription(client_id)
                 if sub is None:
                     return
@@ -756,9 +759,9 @@ class PerpsWebSocket:
             raise RuntimeError("PerpsWebSocket session is not active.")
         async with self._subscribe_lock:
             await self._pause_recv_loop()
-            if not self._running or self._sub_mgr is None:
-                raise RuntimeError("PerpsWebSocket session is not active.")
             try:
+                if not self._running or self._sub_mgr is None:
+                    raise RuntimeError("PerpsWebSocket session is not active.")
                 await self._sub_mgr.update_subscription(
                     client_id,
                     action,
@@ -781,9 +784,9 @@ class PerpsWebSocket:
             raise RuntimeError("PerpsWebSocket session is not active.")
         async with self._subscribe_lock:
             await self._pause_recv_loop()
-            if not self._running or self._sub_mgr is None:
-                raise RuntimeError("PerpsWebSocket session is not active.")
             try:
+                if not self._running or self._sub_mgr is None:
+                    raise RuntimeError("PerpsWebSocket session is not active.")
                 await self._sub_mgr.update_subscription_single_sid(
                     client_id,
                     action,
@@ -799,9 +802,9 @@ class PerpsWebSocket:
             raise RuntimeError("PerpsWebSocket session is not active.")
         async with self._subscribe_lock:
             await self._pause_recv_loop()
-            if not self._running or self._sub_mgr is None:
-                raise RuntimeError("PerpsWebSocket session is not active.")
             try:
+                if not self._running or self._sub_mgr is None:
+                    raise RuntimeError("PerpsWebSocket session is not active.")
                 return await self._sub_mgr.list_subscriptions()
             finally:
                 await self._ensure_recv_loop()

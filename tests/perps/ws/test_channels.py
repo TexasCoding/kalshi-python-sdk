@@ -122,6 +122,78 @@ async def test_update_subscription_no_active_sub_raises(
     await conn.close()
 
 
+# ── F8: error-frame acks raise on EVERY command (not just subscribe) ─────────
+
+
+async def test_unsubscribe_raises_on_error_ack(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker")
+    fake_perps_ws.force_error = True
+    fake_perps_ws.error_code = 8
+    with pytest.raises(KalshiSubscriptionError) as ei:
+        await mgr.unsubscribe(sub.client_id)
+    assert ei.value.error_code == 8
+    await conn.close()
+
+
+async def test_update_raises_on_error_ack(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker")
+    fake_perps_ws.force_error = True
+    with pytest.raises(KalshiSubscriptionError):
+        await mgr.update_subscription(
+            sub.client_id, "add_markets", market_tickers=["ETH-PERP"]
+        )
+    await conn.close()
+
+
+# ── F7: update_subscription persists the market change to sub.params ─────────
+
+
+async def test_update_add_markets_persists_to_params(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker", params={"market_tickers": ["A"]})
+    await mgr.update_subscription(sub.client_id, "add_markets", market_tickers=["B"])
+    persisted = mgr.get_subscription(sub.client_id)
+    assert persisted is not None
+    assert persisted.params["market_tickers"] == ["A", "B"]
+    await conn.close()
+
+
+async def test_update_delete_markets_persists_to_params(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker", params={"market_tickers": ["A", "B"]})
+    await mgr.update_subscription_single_sid(
+        sub.client_id, "delete_markets", market_tickers=["A"]
+    )
+    persisted = mgr.get_subscription(sub.client_id)
+    assert persisted is not None
+    assert persisted.params["market_tickers"] == ["B"]
+    await conn.close()
+
+
+async def test_resubscribe_replays_updated_market_set(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    # The whole point of F7: a reconnect must replay the UPDATED markets.
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker", params={"market_tickers": ["A"]})
+    await mgr.update_subscription(sub.client_id, "add_markets", market_tickers=["B"])
+    await mgr.resubscribe_all()
+    cmd = fake_perps_ws.received_commands[-1]
+    assert cmd["cmd"] == "subscribe"
+    assert cmd["params"]["market_tickers"] == ["A", "B"]
+    await conn.close()
+
+
 async def test_list_subscriptions_parses_array_msg(
     fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
 ) -> None:
