@@ -468,6 +468,30 @@ async def test_sequence_reset_never_rewinds(
         await session.close()
 
 
+async def test_out_of_order_gapfill_sequence_reset_is_buffered_on_rt(
+    fix_signer: FixSigner,
+    fix_config: FixConfig,
+    acceptor: MockAcceptor,
+    until: Callable[..., Awaitable[None]],
+) -> None:
+    session = FixSession(fix_signer, fix_config, FixSessionType.ORDER_ENTRY_RT)
+    await session.start()
+    try:
+        # A gap-fill SequenceReset arrives AHEAD of expected (seq 5, expected 2):
+        # it must be buffered and applied only once the preceding gap is filled.
+        await acceptor.push(
+            "4", [(int(Tag.GAP_FILL_FLAG), "Y"), (int(Tag.NEW_SEQ_NO), "7")], seq=5
+        )
+        await until(lambda: acceptor.first("2") is not None)  # resend requested
+        # Fill 2,3,4; then the buffered reset at 5 applies NewSeqNo -> in_seq == 7.
+        await acceptor.push("0", seq=2, poss_dup=True)
+        await acceptor.push("0", seq=3, poss_dup=True)
+        await acceptor.push("0", seq=4, poss_dup=True)
+        await until(lambda: session.inbound_seq_num == 7)
+    finally:
+        await session.close()
+
+
 async def test_on_message_exception_does_not_kill_session(
     fix_signer: FixSigner,
     fix_config: FixConfig,

@@ -86,6 +86,10 @@ class MockAcceptor:
                     await self._respond(msg, writer)
         except (ConnectionResetError, asyncio.CancelledError, OSError):
             pass
+        finally:
+            # Clear so wait_connected() blocks until the *next* connection after a
+            # drop/reconnect, rather than returning on the stale prior connect.
+            self._connected.clear()
 
     async def _respond(self, msg: RawMessage, writer: asyncio.StreamWriter) -> None:
         mt = msg.msg_type

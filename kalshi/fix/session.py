@@ -290,6 +290,9 @@ class FixSession:
         async with self._send_lock:
             if self._connection is None or not self._connection.is_open:
                 return
+            # Deliberately NOT via _send(): a gap-fill must carry begin_seq_no as
+            # its MsgSeqNum (not the next outbound slot) and must not consume an
+            # outbound sequence number — _send() always assigns + increments _out_seq.
             sending_time = self._now_sending_time()
             new_seq_no = max(self._out_seq, begin_seq_no + 1)
             sr = SequenceReset(gap_fill_flag=True, new_seq_no=new_seq_no)
@@ -504,7 +507,11 @@ class FixSession:
 
         seq = raw.seq_num
         if bool(sr.gap_fill_flag) and seq is not None and seq > self._in_seq:
+            # Out-of-order gap-fill: it is itself ahead of the expected seq.
+            # Buffer it so _drain_pending applies its NewSeqNo jump once the
+            # preceding gap is recovered (RT/PT); otherwise it is unrecoverable.
             if self._supports_retransmission:
+                self._pending[seq] = raw
                 await self._request_resend()
                 return
             raise FixSequenceError(
@@ -514,21 +521,40 @@ class FixSession:
                 received=seq,
             )
 
+        self._apply_sequence_reset_forward(sr)
+        await self._drain_pending()
+
+    def _apply_sequence_reset_forward(self, sr: SequenceReset) -> None:
+        """Advance the expected inbound counter to ``NewSeqNo`` (forward only).
+
+        Never rewinds (a stale/duplicate reset must not re-process delivered
+        messages); drops any buffered messages now behind the watermark.
+        """
         if sr.new_seq_no > self._in_seq:
             self._in_seq = sr.new_seq_no
-        # Drop any buffered messages now behind the watermark.
         for s in [s for s in self._pending if s < self._in_seq]:
             del self._pending[s]
         if not self._pending:
             self._resend_requested = False
-        await self._drain_pending()
 
     async def _drain_pending(self) -> None:
         """Process buffered out-of-order messages now made contiguous."""
         while self._in_seq in self._pending:
             raw = self._pending.pop(self._in_seq)
-            await self._safe_process(raw, raw.msg_type, self._in_seq)
-            self._in_seq += 1
+            if raw.msg_type == MsgType.SEQUENCE_RESET:
+                # A buffered gap-fill SequenceReset applies its own NewSeqNo jump
+                # (it does not consume a single slot), so route it through the
+                # reset logic rather than _safe_process.
+                try:
+                    sr = SequenceReset.from_raw(raw)
+                except (ValidationError, ValueError):
+                    logger.warning("malformed buffered SequenceReset; skipping", exc_info=True)
+                    self._in_seq += 1
+                    continue
+                self._apply_sequence_reset_forward(sr)
+            else:
+                await self._safe_process(raw, raw.msg_type, self._in_seq)
+                self._in_seq += 1
         if not self._pending:
             self._resend_requested = False
 

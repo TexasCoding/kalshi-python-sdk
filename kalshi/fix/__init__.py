@@ -76,6 +76,7 @@ from kalshi.fix.messages import (
 from kalshi.fix.session import FixSession, FixSessionState
 from kalshi.fix.tags import Tag
 
+# Sorted (ruff RUF022); grouping is by the imports above, not by ``__all__`` order.
 __all__ = [
     "BEGIN_STRING_FIXT11",
     "SOH",
@@ -83,16 +84,13 @@ __all__ = [
     "EncryptMethod",
     "ExecInst",
     "ExecType",
-    # Clients / sessions
     "FixClient",
     "FixCodecError",
-    # Config
     "FixConfig",
     "FixConnection",
     "FixConnectionError",
     "FixEnvironment",
     "FixLogonError",
-    # Messages
     "FixMessage",
     "FixParser",
     "FixProduct",
@@ -102,14 +100,11 @@ __all__ = [
     "FixSessionError",
     "FixSessionState",
     "FixSessionType",
-    # Auth
     "FixSigner",
     "Heartbeat",
-    # Errors
     "KalshiFixError",
     "Logon",
     "Logout",
-    # Enums
     "MsgType",
     "OrdStatus",
     "OrdType",
@@ -124,6 +119,5 @@ __all__ = [
     "TestRequest",
     "TimeInForce",
     "decode",
-    # Codec
     "encode",
 ]

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ssl
 from collections.abc import Callable
+from typing import Self
 
 from kalshi.errors import KalshiAuthError
 from kalshi.fix.auth import FixSigner
@@ -43,7 +44,7 @@ class MarginFixClient(_BaseFixClient):
         config: FixConfig | None = None,
         ssl_context: ssl.SSLContext | None = None,
         password: bytes | str | Callable[[], bytes | str] | None = None,
-    ) -> MarginFixClient:
+    ) -> Self:
         """Build a margin FIX client from the ``KALSHI_PERPS_*`` environment vars."""
         auth = try_perps_auth_from_env(password=password)
         if auth is None:

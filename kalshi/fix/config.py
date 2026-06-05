@@ -117,6 +117,11 @@ class FixConfig:
     mock server or a local TLS proxy (stunnel) and, when set, apply to every
     session.
 
+    A non-loopback ``host`` override outside the known Kalshi FIX endpoints is
+    rejected unless ``allow_unknown_host=True`` or the process-wide
+    ``KALSHI_FIX_ALLOW_UNKNOWN_HOST=1`` environment variable is set (an escape
+    hatch for CI / staging proxies).
+
     Use :meth:`prediction` / :meth:`margin` for the canonical environments.
     """
 

@@ -148,7 +148,7 @@ class FixClient(_BaseFixClient):
         config: FixConfig | None = None,
         ssl_context: ssl.SSLContext | None = None,
         password: bytes | str | Callable[[], bytes | str] | None = None,
-    ) -> FixClient:
+    ) -> Self:
         """Build a prediction FIX client from the ``KALSHI_*`` environment vars.
 
         ``password`` (or ``KALSHI_PRIVATE_KEY_PASSPHRASE``) decrypts a
