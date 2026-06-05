@@ -171,6 +171,14 @@ from kalshi.models import (
     Withdrawal,
 )
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig, PerpsWebSocket
+from kalshi.perps.klear import (
+    AsyncKlearClient,
+    KlearAuth,
+    KlearClient,
+    KlearConfig,
+    LogInRequest,
+    LogInResponse,
+)
 from kalshi.resources.communications import (
     AsyncQuotesResource,
     AsyncRFQsResource,
@@ -194,6 +202,7 @@ __all__ = [
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncKalshiClient",
+    "AsyncKlearClient",
     "AsyncPerpsClient",
     "AsyncQuotesResource",
     "AsyncRFQsResource",
@@ -291,7 +300,12 @@ __all__ = [
     "KalshiTimeoutError",
     "KalshiValidationError",
     "KalshiWebSocketError",
+    "KlearAuth",
+    "KlearClient",
+    "KlearConfig",
     "LiveData",
+    "LogInRequest",
+    "LogInResponse",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",

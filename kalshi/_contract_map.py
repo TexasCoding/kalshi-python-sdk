@@ -738,4 +738,63 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ),
 ]
 
-PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = []
+PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
+    # ── perps SCM/Klear (#400) ──────────────────────────────────────────
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.MarginReport",
+        spec_schema="MarginReport",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetMarginReportsResponse",
+        spec_schema="GetMarginReportsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.ObligationReceiveInfo",
+        spec_schema="ObligationReceiveInfo",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.SettlementDetail",
+        spec_schema="SettlementDetail",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.MaintenanceMarginDetail",
+        spec_schema="MaintenanceMarginDetail",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.ObligationEntry",
+        spec_schema="ObligationEntry",
+        notes="Folds spec allOf[ObligationInfo, inline] into one model",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetActiveMarginObligationResponse",
+        spec_schema="GetActiveMarginObligationResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.SettlementEstimate",
+        spec_schema="SettlementEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetSettlementEstimateResponse",
+        spec_schema="GetSettlementEstimateResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetSettlementBalanceResponse",
+        spec_schema="GetSettlementBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetGuarantyFundBalanceResponse",
+        spec_schema="GetGuarantyFundBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.WithdrawSettlementBalanceResponse",
+        spec_schema="WithdrawSettlementBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.GetSettlementBalanceWithdrawalResponse",
+        spec_schema="GetSettlementBalanceWithdrawalResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin.SettlementBalanceHistoryEntry",
+        spec_schema="SettlementBalanceHistoryEntry",
+    ),
+]

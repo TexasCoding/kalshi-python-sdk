@@ -43,17 +43,17 @@ class TestPerpsSpecLoaders:
 
 class TestPerpsMapsWellFormed:
     def test_rest_maps_populated(self) -> None:
-        # The REST resources (#389-396) populate these; SCM (#399-400) is pending.
+        # The REST resources (#389-396) populate these.
         assert len(PERPS_METHOD_ENDPOINT_MAP) > 0
         assert len(PERPS_BODY_MODEL_MAP) > 0
         assert len(PERPS_EXCLUSIONS) > 0
         assert len(PERPS_CONTRACT_MAP) > 0
 
-    def test_scm_maps_still_empty(self) -> None:
-        # SCM/Klear endpoints land in #399-400; their maps are empty until then.
-        assert PERPS_SCM_METHOD_ENDPOINT_MAP == []
-        assert PERPS_SCM_BODY_MODEL_MAP == {}
-        assert PERPS_SCM_CONTRACT_MAP == []
+    def test_scm_maps_populated(self) -> None:
+        # The SCM/Klear endpoints (#399 auth, #400 margin) populate these.
+        assert len(PERPS_SCM_METHOD_ENDPOINT_MAP) > 0
+        assert len(PERPS_SCM_BODY_MODEL_MAP) > 0
+        assert len(PERPS_SCM_CONTRACT_MAP) > 0
 
     def test_map_types(self) -> None:
         assert isinstance(PERPS_METHOD_ENDPOINT_MAP, list)
