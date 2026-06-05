@@ -12,6 +12,7 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
 - **Full coverage** of the Kalshi REST API (99 operations across 19 resources, OpenAPI v3.20.0) and WebSocket API (11 typed `subscribe_*` channels + 2 escape-hatch).
+- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (10 operations). See [Perps (margin) trading](#perps-margin-trading).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
@@ -201,6 +202,53 @@ AsyncAPI-declared `control_frames` and `root` channels are reachable
 through the generic `subscribe(channel, ...)` escape hatch. See
 [docs/websockets.md](docs/websockets.md#the-11-channels) for the full
 channel table.
+
+## Perps (margin) trading
+
+Kalshi's **Perps** (perpetual futures / margin) API is a separate exchange on its
+own host. The SDK exposes it through standalone `PerpsClient` / `AsyncPerpsClient`
+(and `PerpsWebSocket`), reusing the same RSA-PSS auth as `KalshiClient` but with
+**separate API keys** issued for the perps exchange — prod base URL
+`https://external-api.kalshi.com/trade-api/v2`, demo
+`https://external-api.demo.kalshi.co/trade-api/v2`.
+
+```python
+from kalshi import PerpsClient
+
+# Reads KALSHI_PERPS_KEY_ID + KALSHI_PERPS_PRIVATE_KEY[_PATH] (separate from KALSHI_*).
+with PerpsClient.from_env(demo=True) as perps:
+    print(perps.exchange.status())            # is the margin exchange trading?
+    for m in perps.markets.list(status="active"):
+        print(m.ticker, m.bid, m.ask)
+    print(perps.margin.balance())             # per-subaccount balance breakdown
+```
+
+```python
+import asyncio
+from kalshi import AsyncPerpsClient
+
+async def main() -> None:
+    async with AsyncPerpsClient.from_env(demo=True) as perps:
+        async for order in perps.orders.list_all():
+            print(order.order_id, order.price, order.remaining_count)
+
+asyncio.run(main())
+```
+
+Resource families on the perps client: `exchange`, `markets`, `orders`,
+`order_groups`, `portfolio`, `margin` (balance/risk/fees), `funding`, `transfers`.
+Real-time streaming via `PerpsWebSocket` — `subscribe_ticker` (carries
+`funding_rate` + `next_funding_time_ms`), `subscribe_orderbook_delta`,
+`subscribe_trade`, `subscribe_fill`, `subscribe_user_orders`,
+`subscribe_order_group`.
+
+Prices are `DollarDecimal` (FixedPointDollars, up to 6 decimals); counts are
+`FixedPointCount` (2 decimals, `_fp` wire suffix). REST timestamps are RFC3339;
+**WebSocket timestamps are Unix epoch milliseconds** (`*_ms` fields). The
+Self-Clearing-Member "Klear" settlement API (margin reports, settlement balances,
+obligations, withdrawals) is a third surface exposed via `KlearClient`, which uses
+**cookie-session + MFA** login (`client.login(email=..., password=..., code=...)`)
+rather than RSA-PSS. Full guide: [docs/perps.md](docs/perps.md).
 
 ## Error handling
 

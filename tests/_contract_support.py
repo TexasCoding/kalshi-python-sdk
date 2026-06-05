@@ -1350,6 +1350,398 @@ for _fqn in _MAX_PAGES_FQNS:
     )
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# Perps (margin) API contract maps
+#
+# The perps API uses its own spec files: ``specs/perps_openapi.yaml`` (REST) and
+# ``specs/perps_scm_openapi.yaml`` (the Self-Clearing-Member "Klear" surface).
+# These parallel maps are consumed by the ``TestPerps*Drift`` classes in
+# ``test_contracts.py`` and resolved against those specs instead of the
+# prediction-API ``specs/openapi.yaml``. Keying each map to its own spec file
+# sidesteps the schema-ref name collisions across specs (e.g. perps and core
+# both define ``ApplySubaccountTransferRequest``).
+#
+# The foundation issue (#388) ships these empty-but-defined; each per-resource
+# perps issue appends its entries.
+# ════════════════════════════════════════════════════════════════════════════
+
+# Perps REST endpoints — validated against ``specs/perps_openapi.yaml``.
+PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
+    # ── perps exchange (#389) ────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.status",
+        http_method="GET",
+        path_template="/margin/exchange/status",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.enabled",
+        http_method="GET",
+        path_template="/margin/enabled",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.exchange.PerpsExchangeResource.risk_parameters",
+        http_method="GET",
+        path_template="/margin/risk_parameters",
+    ),
+    # ── perps markets (#390) ───────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.list",
+        http_method="GET",
+        path_template="/margin/markets",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.get",
+        http_method="GET",
+        path_template="/margin/markets/{ticker}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.orderbook",
+        http_method="GET",
+        path_template="/margin/markets/{ticker}/orderbook",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.candlesticks",
+        http_method="GET",
+        path_template="/margin/markets/{ticker}/candlesticks",
+    ),
+    # ── perps orders (#391) ────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.create",
+        http_method="POST",
+        path_template="/margin/orders",
+        request_body_schema="#/components/schemas/CreateMarginOrderRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list",
+        http_method="GET",
+        path_template="/margin/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list_all",
+        http_method="GET",
+        path_template="/margin/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.get",
+        http_method="GET",
+        path_template="/margin/orders/{order_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.cancel",
+        http_method="DELETE",
+        path_template="/margin/orders/{order_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.decrease",
+        http_method="POST",
+        path_template="/margin/orders/{order_id}/decrease",
+        request_body_schema="#/components/schemas/DecreaseMarginOrderRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.amend",
+        http_method="POST",
+        path_template="/margin/orders/{order_id}/amend",
+        request_body_schema="#/components/schemas/AmendMarginOrderRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list_fcm",
+        http_method="GET",
+        path_template="/margin/fcm/orders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm",
+        http_method="GET",
+        path_template="/margin/fcm/orders",
+    ),
+    # ── perps order_groups (#392) ──────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.list",
+        http_method="GET",
+        path_template="/margin/order_groups",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.create",
+        http_method="POST",
+        path_template="/margin/order_groups/create",
+        request_body_schema="#/components/schemas/CreateOrderGroupRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.get",
+        http_method="GET",
+        path_template="/margin/order_groups/{order_group_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.delete",
+        http_method="DELETE",
+        path_template="/margin/order_groups/{order_group_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.reset",
+        http_method="PUT",
+        path_template="/margin/order_groups/{order_group_id}/reset",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.trigger",
+        http_method="PUT",
+        path_template="/margin/order_groups/{order_group_id}/trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.update_limit",
+        http_method="PUT",
+        path_template="/margin/order_groups/{order_group_id}/limit",
+        request_body_schema="#/components/schemas/UpdateOrderGroupLimitRequest",
+    ),
+    # ── perps portfolio (#393) ─────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.positions",
+        http_method="GET",
+        path_template="/margin/positions",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.fills",
+        http_method="GET",
+        path_template="/margin/fills",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.fills_all",
+        http_method="GET",
+        path_template="/margin/fills",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.trades",
+        http_method="GET",
+        path_template="/margin/trades",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.trades_all",
+        http_method="GET",
+        path_template="/margin/trades",
+    ),
+    # ── perps margin_account (#394) ────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.balance",
+        http_method="GET",
+        path_template="/margin/balance",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.risk",
+        http_method="GET",
+        path_template="/margin/risk",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.notional_risk_limit",
+        http_method="GET",
+        path_template="/margin/notional_risk_limit",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.fee_tiers",
+        http_method="GET",
+        path_template="/margin/fee_tiers",
+    ),
+    # ── perps funding (#395) ───────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.funding.FundingResource.rate_estimate",
+        http_method="GET",
+        path_template="/margin/funding_rates/estimate",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.funding.FundingResource.historical_rates",
+        http_method="GET",
+        path_template="/margin/funding_rates/historical",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.funding.FundingResource.history",
+        http_method="GET",
+        path_template="/margin/funding_history",
+    ),
+    # ── perps transfers (#396) ─────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.transfers.TransfersResource.transfer_instance",
+        http_method="POST",
+        path_template="/portfolio/intra_exchange_instance_transfer",
+        request_body_schema="#/components/schemas/IntraExchangeInstanceTransferRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.transfers.TransfersResource.create_subaccount",
+        http_method="POST",
+        path_template="/portfolio/margin/subaccounts",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.transfers.TransfersResource.transfer_subaccount",
+        http_method="POST",
+        path_template="/portfolio/margin/subaccounts/transfer",
+        request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
+    ),
+]
+
+# SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
+PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
+    # ── perps SCM/Klear auth (#399) ──────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.auth.AuthResource.log_in",
+        http_method="POST",
+        path_template="/log_in",
+        request_body_schema="#/components/schemas/LogInRequest",
+    ),
+    # ── perps SCM/Klear margin endpoints (#400) ──────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.margin_reports",
+        http_method="GET",
+        path_template="/margin/reports",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligation",
+        http_method="GET",
+        path_template="/margin/active_obligation",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history",
+        http_method="GET",
+        path_template="/margin/obligation_history",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
+        http_method="GET",
+        path_template="/margin/obligation_history",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate",
+        http_method="GET",
+        path_template="/margin/settlement_estimate",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance",
+        http_method="GET",
+        path_template="/margin/settlement_balance",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.guaranty_fund_balance",
+        http_method="GET",
+        path_template="/margin/guaranty_fund_balance",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history",
+        http_method="GET",
+        path_template="/margin/settlement_balance_history",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
+        http_method="GET",
+        path_template="/margin/settlement_balance_history",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.withdraw_settlement_balance",
+        http_method="POST",
+        path_template="/margin/withdraw_settlement_balance",
+        request_body_schema="#/components/schemas/WithdrawSettlementBalanceRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_withdrawal",
+        http_method="GET",
+        path_template="/margin/settlement_balance_withdrawal",
+    ),
+]
+
+# Shared perps exclusion allowlist (same ``(sdk_fqn, field) → Exclusion`` shape
+# as ``EXCLUSIONS``). Covers both the perps REST and SCM drift checks — FQNs are
+# globally unique, so one map serves both. Dependent issues add their
+# ``paginator_handled`` / ``client_only`` / ``wire_normalization`` entries here
+# with a required ``reason``.
+PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
+    # ── perps orders (#391) ──
+    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all_fcm",
+        kind="paginator_handled",
+    ),
+    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all", "max_pages"): Exclusion(
+        reason="client-side paginator safety cap (#98); not a wire param",
+        kind="client_only",
+    ),
+    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm", "max_pages"): Exclusion(
+        reason="client-side paginator safety cap (#98); not a wire param",
+        kind="client_only",
+    ),
+    ("kalshi.perps.models.orders.GetMarginOrdersResponse", "cursor"): Exclusion(
+        reason=(
+            "spec marks cursor required, but Kalshi omits the key on the final "
+            "page (rather than returning \"\") — kept optional so list_all() "
+            "doesn't crash on the last page. Mirrors the GetMarginFillsResponse/"
+            "GetMarginTradesResponse cursor handling."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    # ── perps order_groups (#392) ──
+    ("kalshi.perps.models.order_groups.CreateOrderGroupRequest", "contracts_limit_fp"): Exclusion(
+        reason=(
+            "spec body offers a contracts_limit_fp FixedPointCount-string variant; "
+            "the SDK emits the integer contracts_limit only (Kalshi accepts either). "
+            "Mirrors the portfolio order-groups handling (#392)."
+        ),
+        kind="wire_normalization",
+    ),
+    (
+        "kalshi.perps.models.order_groups.UpdateOrderGroupLimitRequest",
+        "contracts_limit_fp",
+    ): Exclusion(
+        reason=(
+            "contracts_limit_fp FixedPointCount-string variant on PUT /limit; "
+            "the SDK emits the integer contracts_limit only (#392)."
+        ),
+        kind="wire_normalization",
+    ),
+    # ── perps portfolio (#393) ──
+    ("kalshi.perps.resources.portfolio.PerpsPortfolioResource.fills_all", "cursor"): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    ("kalshi.perps.resources.portfolio.PerpsPortfolioResource.fills_all", "max_pages"): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    ("kalshi.perps.resources.portfolio.PerpsPortfolioResource.trades_all", "cursor"): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    ("kalshi.perps.resources.portfolio.PerpsPortfolioResource.trades_all", "max_pages"): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    # ── perps SCM/Klear paginators (#400) ──
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+}
+
+
 def _resolve_ref(
     spec: dict[str, Any],
     ref: str,

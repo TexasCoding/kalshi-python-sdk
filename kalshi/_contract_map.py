@@ -581,3 +581,220 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     # - multivariateMarketLifecyclePayload: allOf with marketLifecycleV2Payload, covered by base
     # - Control envelopes (SubscriptionInfo, OkMessage): structural, low drift risk
 ]
+
+
+# ── Perps (margin) API response-side contract maps ──────────────────────────
+# Map perps SDK response models to their schema names in the perps specs. These
+# are consumed by ``TestPerpsSpecDrift`` / ``TestPerpsScmSpecDrift`` and resolved
+# against ``specs/perps_openapi.yaml`` / ``specs/perps_scm_openapi.yaml`` rather
+# than the prediction-API spec. The foundation issue (#388) ships them empty;
+# the per-resource perps issues append their entries.
+#
+# NOTE: ``TestSpecDrift.test_contract_map_completeness`` only scans the
+# prediction-API ``kalshi.models.*`` modules, so perps models under
+# ``kalshi.perps.models.*`` are not subject to that completeness gate — these
+# maps are additive coverage, populated as response models land.
+PERPS_CONTRACT_MAP: list[ContractEntry] = [
+    # ── perps exchange (#389) ───────────────────────────────────────────
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.ExchangeStatus",
+        spec_schema="ExchangeStatus",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.MarginEnabledResponse",
+        spec_schema="MarginEnabledResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.exchange.GetMarginRiskParametersResponse",
+        spec_schema="GetMarginRiskParametersResponse",
+    ),
+    # ── perps markets (#390) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginMarket",
+        spec_schema="MarginMarket",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginMarketCandlestick",
+        spec_schema="MarginMarketCandlestick",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.BidAskDistributionHistorical",
+        spec_schema="BidAskDistributionHistorical",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.PriceDistributionHistorical",
+        spec_schema="PriceDistributionHistorical",
+    ),
+    # ── perps orders (#391) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.CreateMarginOrderResponse",
+        spec_schema="CreateMarginOrderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.MarginOrder",
+        spec_schema="MarginOrder",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.GetMarginOrderResponse",
+        spec_schema="GetMarginOrderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.GetMarginOrdersResponse",
+        spec_schema="GetMarginOrdersResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.CancelMarginOrderResponse",
+        spec_schema="CancelMarginOrderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.DecreaseMarginOrderResponse",
+        spec_schema="DecreaseMarginOrderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.orders.AmendMarginOrderResponse",
+        spec_schema="AmendMarginOrderResponse",
+    ),
+    # ── perps order_groups (#392) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.order_groups.OrderGroup",
+        spec_schema="OrderGroup",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.order_groups.GetOrderGroupResponse",
+        spec_schema="GetOrderGroupResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.order_groups.CreateOrderGroupResponse",
+        spec_schema="CreateOrderGroupResponse",
+    ),
+    # ── perps portfolio (#393) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.MarginPosition",
+        spec_schema="MarginPosition",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.GetMarginPositionsResponse",
+        spec_schema="GetMarginPositionsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.MarginFill",
+        spec_schema="MarginFill",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.MarginTrade",
+        spec_schema="MarginTrade",
+    ),
+    # NOTE: GetMarginFillsResponse / GetMarginTradesResponse are intentionally
+    # NOT response-drift-mapped — their `cursor` is spec-`required` but the SDK
+    # keeps it Optional for safe terminal-page parsing (the leaf MarginFill /
+    # MarginTrade above carry the field coverage). Mirrors how the prediction-API
+    # Page envelopes are excluded from CONTRACT_MAP.
+    # ── perps margin_account (#394) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginSubaccountBalance",
+        spec_schema="MarginSubaccountBalance",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginBalanceResponse",
+        spec_schema="GetMarginBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginRiskPosition",
+        spec_schema="MarginRiskPosition",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginRiskResponse",
+        spec_schema="GetMarginRiskResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.NotionalRiskLimitResponse",
+        spec_schema="NotionalRiskLimitResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginFeeTiersResponse",
+        spec_schema="GetMarginFeeTiersResponse",
+    ),
+    # ── perps funding (#395) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.MarginFundingRate",
+        spec_schema="MarginFundingRate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.MarginFundingHistoryEntry",
+        spec_schema="MarginFundingHistoryEntry",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.MarginFundingRateEstimate",
+        spec_schema="GetMarginFundingRateEstimateResponse",
+    ),
+    # ── perps transfers (#396) ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.transfers.IntraExchangeInstanceTransferResponse",
+        spec_schema="IntraExchangeInstanceTransferResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.transfers.CreateSubaccountResponse",
+        spec_schema="CreateSubaccountResponse",
+    ),
+]
+
+PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
+    # ── perps SCM/Klear (#400) ──────────────────────────────────────────
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MarginReport",
+        spec_schema="MarginReport",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetMarginReportsResponse",
+        spec_schema="GetMarginReportsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.ObligationReceiveInfo",
+        spec_schema="ObligationReceiveInfo",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.SettlementDetail",
+        spec_schema="SettlementDetail",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MaintenanceMarginDetail",
+        spec_schema="MaintenanceMarginDetail",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.ObligationEntry",
+        spec_schema="ObligationEntry",
+        notes="Folds spec allOf[ObligationInfo, inline] into one model",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetActiveMarginObligationResponse",
+        spec_schema="GetActiveMarginObligationResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.SettlementEstimate",
+        spec_schema="SettlementEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetSettlementEstimateResponse",
+        spec_schema="GetSettlementEstimateResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetSettlementBalanceResponse",
+        spec_schema="GetSettlementBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetGuarantyFundBalanceResponse",
+        spec_schema="GetGuarantyFundBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.WithdrawSettlementBalanceResponse",
+        spec_schema="WithdrawSettlementBalanceResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetSettlementBalanceWithdrawalResponse",
+        spec_schema="GetSettlementBalanceWithdrawalResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
+        spec_schema="SettlementBalanceHistoryEntry",
+    ),
+]

@@ -1,0 +1,151 @@
+"""Pydantic models for the Kalshi Perps (margin) API.
+
+Shared enums and value-objects live in :mod:`kalshi.perps.models.common` and are
+imported (never redefined) by the per-area model modules. The shared
+``BookSideLiteral`` / ``OrderSourceLiteral`` aliases are re-exported once (from
+``orders``); ``portfolio`` defines its own structurally-identical copies.
+"""
+
+from __future__ import annotations
+
+from kalshi.perps.models.common import (
+    BookSide,
+    EmptyResponse,
+    ErrorResponse,
+    ExchangeIndex,
+    ExchangeInstance,
+    LastUpdateReason,
+    MarginMarketStatus,
+    OrderSource,
+    PriceLevelDollarsCountFp,
+    SelfTradePreventionType,
+)
+from kalshi.perps.models.exchange import (
+    ExchangeStatus,
+    GetMarginRiskParametersResponse,
+    MarginEnabledResponse,
+)
+from kalshi.perps.models.funding import (
+    MarginFundingHistoryEntry,
+    MarginFundingRate,
+    MarginFundingRateEstimate,
+)
+from kalshi.perps.models.margin_account import (
+    GetMarginBalanceResponse,
+    GetMarginFeeTiersResponse,
+    GetMarginRiskResponse,
+    MarginRiskPosition,
+    MarginSubaccountBalance,
+    NotionalRiskLimitResponse,
+)
+from kalshi.perps.models.markets import (
+    BidAskDistributionHistorical,
+    MarginMarket,
+    MarginMarketCandlestick,
+    MarginMarketStatusLiteral,
+    MarginOrderbook,
+    MarginOrderbookLevel,
+    PriceDistributionHistorical,
+)
+from kalshi.perps.models.order_groups import (
+    CreateOrderGroupRequest,
+    CreateOrderGroupResponse,
+    GetOrderGroupResponse,
+    OrderGroup,
+    UpdateOrderGroupLimitRequest,
+)
+from kalshi.perps.models.orders import (
+    AmendMarginOrderRequest,
+    AmendMarginOrderResponse,
+    BookSideLiteral,
+    CancelMarginOrderResponse,
+    CreateMarginOrderRequest,
+    CreateMarginOrderResponse,
+    DecreaseMarginOrderRequest,
+    DecreaseMarginOrderResponse,
+    GetMarginOrderResponse,
+    GetMarginOrdersResponse,
+    LastUpdateReasonLiteral,
+    MarginOrder,
+    OrderSourceLiteral,
+    SelfTradePreventionTypeLiteral,
+    TimeInForceLiteral,
+)
+from kalshi.perps.models.portfolio import (
+    GetMarginFillsResponse,
+    GetMarginPositionsResponse,
+    GetMarginTradesResponse,
+    MarginFill,
+    MarginPosition,
+    MarginTrade,
+)
+from kalshi.perps.models.transfers import (
+    ApplySubaccountTransferRequest,
+    CreateSubaccountResponse,
+    ExchangeInstanceLiteral,
+    IntraExchangeInstanceTransferRequest,
+    IntraExchangeInstanceTransferResponse,
+)
+
+__all__ = [
+    "AmendMarginOrderRequest",
+    "AmendMarginOrderResponse",
+    "ApplySubaccountTransferRequest",
+    "BidAskDistributionHistorical",
+    "BookSide",
+    "BookSideLiteral",
+    "CancelMarginOrderResponse",
+    "CreateMarginOrderRequest",
+    "CreateMarginOrderResponse",
+    "CreateOrderGroupRequest",
+    "CreateOrderGroupResponse",
+    "CreateSubaccountResponse",
+    "DecreaseMarginOrderRequest",
+    "DecreaseMarginOrderResponse",
+    "EmptyResponse",
+    "ErrorResponse",
+    "ExchangeIndex",
+    "ExchangeInstance",
+    "ExchangeInstanceLiteral",
+    "ExchangeStatus",
+    "GetMarginBalanceResponse",
+    "GetMarginFeeTiersResponse",
+    "GetMarginFillsResponse",
+    "GetMarginOrderResponse",
+    "GetMarginOrdersResponse",
+    "GetMarginPositionsResponse",
+    "GetMarginRiskParametersResponse",
+    "GetMarginRiskResponse",
+    "GetMarginTradesResponse",
+    "GetOrderGroupResponse",
+    "IntraExchangeInstanceTransferRequest",
+    "IntraExchangeInstanceTransferResponse",
+    "LastUpdateReason",
+    "LastUpdateReasonLiteral",
+    "MarginEnabledResponse",
+    "MarginFill",
+    "MarginFundingHistoryEntry",
+    "MarginFundingRate",
+    "MarginFundingRateEstimate",
+    "MarginMarket",
+    "MarginMarketCandlestick",
+    "MarginMarketStatus",
+    "MarginMarketStatusLiteral",
+    "MarginOrder",
+    "MarginOrderbook",
+    "MarginOrderbookLevel",
+    "MarginPosition",
+    "MarginRiskPosition",
+    "MarginSubaccountBalance",
+    "MarginTrade",
+    "NotionalRiskLimitResponse",
+    "OrderGroup",
+    "OrderSource",
+    "OrderSourceLiteral",
+    "PriceDistributionHistorical",
+    "PriceLevelDollarsCountFp",
+    "SelfTradePreventionType",
+    "SelfTradePreventionTypeLiteral",
+    "TimeInForceLiteral",
+    "UpdateOrderGroupLimitRequest",
+]

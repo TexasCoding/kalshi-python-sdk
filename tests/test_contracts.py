@@ -35,10 +35,19 @@ from pydantic import BaseModel as PydanticBase
 from pydantic import NaiveDatetime as _PydNaive
 from pydantic.fields import FieldInfo
 
-from kalshi._contract_map import CONTRACT_MAP, WS_CONTRACT_MAP, ContractEntry
+from kalshi._contract_map import (
+    CONTRACT_MAP,
+    PERPS_CONTRACT_MAP,
+    PERPS_SCM_CONTRACT_MAP,
+    WS_CONTRACT_MAP,
+    ContractEntry,
+)
 from tests._contract_support import (
     EXCLUSIONS,
     METHOD_ENDPOINT_MAP,
+    PERPS_EXCLUSIONS,
+    PERPS_METHOD_ENDPOINT_MAP,
+    PERPS_SCM_METHOD_ENDPOINT_MAP,
     Exclusion,
     MethodEndpointEntry,
     _resolve_path_params,
@@ -260,6 +269,31 @@ def _load_spec() -> dict[str, Any]:
         return yaml.safe_load(f)
 
 
+# Perps specs — the perps API ships its own REST + SCM/Klear OpenAPI documents.
+PERPS_SPEC_FILE = Path(__file__).parent.parent / "specs" / "perps_openapi.yaml"
+PERPS_SCM_SPEC_FILE = Path(__file__).parent.parent / "specs" / "perps_scm_openapi.yaml"
+
+
+def _load_perps_spec() -> dict[str, Any]:
+    """Load the perps REST OpenAPI spec (``specs/perps_openapi.yaml``)."""
+    if yaml is None:
+        pytest.skip("pyyaml not installed. Run: uv sync --dev")
+    if not PERPS_SPEC_FILE.exists():
+        pytest.skip("Perps OpenAPI spec not found. Run: uv run python scripts/sync_spec.py")
+    with open(PERPS_SPEC_FILE) as f:
+        return yaml.safe_load(f)
+
+
+def _load_perps_scm_spec() -> dict[str, Any]:
+    """Load the perps SCM/Klear OpenAPI spec (``specs/perps_scm_openapi.yaml``)."""
+    if yaml is None:
+        pytest.skip("pyyaml not installed. Run: uv sync --dev")
+    if not PERPS_SCM_SPEC_FILE.exists():
+        pytest.skip("Perps SCM OpenAPI spec not found. Run: uv run python scripts/sync_spec.py")
+    with open(PERPS_SCM_SPEC_FILE) as f:
+        return yaml.safe_load(f)
+
+
 def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     """Resolve a $ref pointer in the OpenAPI spec."""
     parts = ref.lstrip("#/").split("/")
@@ -431,6 +465,8 @@ def _classify_drift(
     spec: dict[str, Any],
     spec_fields: dict[str, dict[str, Any]],
     model_class: type[PydanticBase],
+    *,
+    exclusions: dict[tuple[str, str], Exclusion] = EXCLUSIONS,
 ) -> tuple[list[str], list[str]]:
     """Compare spec fields against SDK model fields.
 
@@ -439,8 +475,12 @@ def _classify_drift(
 
     Per-field skips are honored in this order:
       1. ``entry.ignored_fields`` — per-contract-entry allowlist (legacy).
-      2. ``EXCLUSIONS[(entry.sdk_model, field_name)]`` — typed, reasoned
+      2. ``exclusions[(entry.sdk_model, field_name)]`` — typed, reasoned
          allowlist shared with the request-side drift checks (#157).
+
+    ``exclusions`` defaults to the prediction-API ``EXCLUSIONS``; the perps
+    drift classes pass ``PERPS_EXCLUSIONS`` so perps deviations resolve against
+    their own allowlist.
     """
     additive: list[str] = []
     required_issues: list[str] = []
@@ -451,7 +491,7 @@ def _classify_drift(
     for spec_field_name in spec_fields:
         if spec_field_name in entry.ignored_fields:
             continue
-        if (entry.sdk_model, spec_field_name) in EXCLUSIONS:
+        if (entry.sdk_model, spec_field_name) in exclusions:
             continue
         if spec_field_name not in reverse_map:
             additive.append(f"Spec field '{spec_field_name}' has no SDK mapping")
@@ -461,7 +501,7 @@ def _classify_drift(
     for req_field in required_fields:
         if req_field in entry.ignored_fields:
             continue
-        if (entry.sdk_model, req_field) in EXCLUSIONS:
+        if (entry.sdk_model, req_field) in exclusions:
             continue
         sdk_name = reverse_map.get(req_field)
         if sdk_name and sdk_name in model_class.model_fields:
@@ -1198,6 +1238,49 @@ BODY_MODEL_MAP: dict[str, str] = {
 }
 
 
+# Perps request-body maps — keyed per spec so the shared ref strings (e.g.
+# ``ApplySubaccountTransferRequest``) that collide across the perps and core
+# specs resolve to the correct model. Foundation ships them empty; the
+# per-resource perps issues append their ``spec-ref → perps-model-FQN`` entries.
+PERPS_BODY_MODEL_MAP: dict[str, str] = {
+    # e.g. "#/components/schemas/CreateMarginOrderRequest":
+    #          "kalshi.perps.models.orders.CreateMarginOrderRequest",
+    # ── perps orders (#391) ──
+    "#/components/schemas/CreateMarginOrderRequest": (
+        "kalshi.perps.models.orders.CreateMarginOrderRequest"
+    ),
+    "#/components/schemas/DecreaseMarginOrderRequest": (
+        "kalshi.perps.models.orders.DecreaseMarginOrderRequest"
+    ),
+    "#/components/schemas/AmendMarginOrderRequest": (
+        "kalshi.perps.models.orders.AmendMarginOrderRequest"
+    ),
+    # ── perps order_groups (#392) ──
+    "#/components/schemas/CreateOrderGroupRequest": (
+        "kalshi.perps.models.order_groups.CreateOrderGroupRequest"
+    ),
+    "#/components/schemas/UpdateOrderGroupLimitRequest": (
+        "kalshi.perps.models.order_groups.UpdateOrderGroupLimitRequest"
+    ),
+    # ── perps transfers (#396) ──
+    "#/components/schemas/IntraExchangeInstanceTransferRequest": (
+        "kalshi.perps.models.transfers.IntraExchangeInstanceTransferRequest"
+    ),
+    "#/components/schemas/ApplySubaccountTransferRequest": (
+        "kalshi.perps.models.transfers.ApplySubaccountTransferRequest"
+    ),
+}
+
+PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
+    # ── perps SCM/Klear auth (#399) ──
+    "#/components/schemas/LogInRequest": "kalshi.perps.klear.models.auth.LogInRequest",
+    # ── perps SCM/Klear margin (#400) ──
+    "#/components/schemas/WithdrawSettlementBalanceRequest": (
+        "kalshi.perps.klear.models.margin.WithdrawSettlementBalanceRequest"
+    ),
+}
+
+
 def _get_model_class_from_fqn(fqn: str) -> type[PydanticBase]:
     module_name, _, cls_name = fqn.rpartition(".")
     module = importlib.import_module(module_name)
@@ -1285,6 +1368,7 @@ def _check_model_drift(
     spec_schema: dict[str, Any],
     errors: list[str],
     context: str | None = None,
+    exclusions: dict[tuple[str, str], Exclusion] = EXCLUSIONS,
 ) -> None:
     """Compare SDK model wire names to spec schema properties, append errors.
 
@@ -1292,16 +1376,19 @@ def _check_model_drift(
     top-level body model AND on any nested ``BaseModel`` field one level
     down (issue #52). ``context`` prefixes nested-pair errors so the failure
     message points at the parent field that owns the nested model.
+
+    ``exclusions`` defaults to the prediction-API ``EXCLUSIONS``; the perps body
+    drift class passes ``PERPS_EXCLUSIONS``.
     """
     spec_props = set(spec_schema.get("properties", {}).keys())
     sdk_wire_names = _model_aliases(model_cls)
 
     # ADD drift: spec has property SDK model doesn't emit
     missing = spec_props - sdk_wire_names
-    missing_unallowed = {p for p in missing if (model_fqn, p) not in EXCLUSIONS}
+    missing_unallowed = {p for p in missing if (model_fqn, p) not in exclusions}
     # REMOVE drift: SDK emits wire name spec doesn't have
     extra = sdk_wire_names - spec_props
-    extra_unallowed = {p for p in extra if (model_fqn, p) not in EXCLUSIONS}
+    extra_unallowed = {p for p in extra if (model_fqn, p) not in exclusions}
 
     prefix = f"[nested {context} -> {model_fqn}] " if context else ""
     if missing_unallowed:
@@ -1625,3 +1712,252 @@ def test_nested_body_drift_detects_phantom_field_on_nested_model() -> None:
         "the nested model. _check_model_drift / _iter_nested_body_models is "
         "no longer recursing into nested BaseModel fields. errors=" + repr(errors)
     )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Perps (margin) API drift tests
+#
+# Structurally identical to the prediction-API drift classes above, but each
+# perps entry resolves against its own spec (``specs/perps_openapi.yaml`` for the
+# REST surface, ``specs/perps_scm_openapi.yaml`` for the SCM/Klear surface) and
+# consults ``PERPS_EXCLUSIONS`` instead of ``EXCLUSIONS``. The shared spec-walking
+# helpers (``_resolve_path_params``, ``_resolve_request_body_schema``,
+# ``_get_schema_fields``, ``_classify_drift``, ``_check_model_drift``) are reused
+# unchanged — they already take the spec dict (and now the ``exclusions`` map) as
+# parameters, so there is no drift-logic duplication.
+#
+# Foundation (#388) ships the perps maps empty, so these classes collect a single
+# skipped placeholder until the per-resource perps issues append entries.
+# ════════════════════════════════════════════════════════════════════════════
+
+
+def _perps_param_ids(entries: list[MethodEndpointEntry]) -> tuple[list[Any], list[str]]:
+    """Return ``(argvalues, ids)`` for parametrize; a skip-placeholder when empty."""
+    if entries:
+        return list(entries), [e.sdk_method.rsplit(".", 1)[1] for e in entries]
+    return [None], ["none_registered"]
+
+
+def _perps_contract_ids(entries: list[ContractEntry]) -> tuple[list[Any], list[str]]:
+    """Return ``(argvalues, ids)`` for response-side parametrize; skip when empty."""
+    if entries:
+        return list(entries), [e.sdk_model.rsplit(".", 1)[1] for e in entries]
+    return [None], ["none_registered"]
+
+
+def _assert_perps_params_match(
+    entry: MethodEndpointEntry,
+    spec: dict[str, Any],
+    *,
+    async_: bool,
+) -> None:
+    """Param-drift assertion for one perps GET/DELETE entry (mirrors the core check)."""
+    sdk_fqn = entry.sdk_method
+    if async_:
+        parts = sdk_fqn.split(".")
+        parts[-2] = f"Async{parts[-2]}"
+        sdk_fqn = ".".join(parts)
+        module_name = ".".join(parts[:-2])
+        cls_name = parts[-2]
+        module = importlib.import_module(module_name)
+        assert hasattr(module, cls_name), f"Missing async sibling {cls_name} in {module_name}"
+
+    sdk_params = _signature_params(sdk_fqn)
+    sdk_params.discard("extra_headers")
+    spec_params_list = _resolve_path_params(spec, entry.path_template, entry.http_method)
+    spec_params = {p["name"] for p in spec_params_list if p.get("in") in ("query", "path")}
+    spec_params |= _path_params_from_template(entry.path_template)
+
+    lookup_fqn = entry.sdk_method
+    missing = spec_params - sdk_params
+    missing_unallowed = {p for p in missing if (lookup_fqn, p) not in PERPS_EXCLUSIONS}
+    extra = sdk_params - spec_params
+    extra_unallowed = {p for p in extra if (lookup_fqn, p) not in PERPS_EXCLUSIONS}
+
+    errors: list[str] = []
+    if missing_unallowed:
+        errors.append(f"[ADD drift] spec has params SDK missing: {sorted(missing_unallowed)}")
+    if extra_unallowed:
+        errors.append(f"[REMOVE drift] SDK has params spec doesn't: {sorted(extra_unallowed)}")
+    if errors:
+        pytest.fail(
+            f"{sdk_fqn} <-> {entry.http_method} {entry.path_template}\n"
+            + "\n".join(errors)
+            + f"\n(Allowlist via PERPS_EXCLUSIONS[({lookup_fqn!r}, '...')])"
+        )
+
+
+def _assert_perps_body_match(
+    entry: MethodEndpointEntry,
+    spec: dict[str, Any],
+    body_map: dict[str, str],
+) -> None:
+    """Body-drift assertion for one perps body entry (mirrors the core check)."""
+    assert entry.request_body_schema is not None
+    model_fqn = body_map.get(entry.request_body_schema)
+    assert model_fqn is not None, (
+        f"No request model registered in the perps body map for "
+        f"{entry.request_body_schema!r}. Add the mapping."
+    )
+    model_cls = _get_model_class_from_fqn(model_fqn)
+    schema = _resolve_request_body_schema(spec, entry.path_template, entry.http_method)
+    assert schema is not None, (
+        f"Spec has no body schema for {entry.http_method} {entry.path_template}"
+    )
+    errors: list[str] = []
+    _check_model_drift(
+        model_cls=model_cls,
+        model_fqn=model_fqn,
+        spec_schema=schema,
+        errors=errors,
+        exclusions=PERPS_EXCLUSIONS,
+    )
+    for field_name, nested_cls, nested_schema in _iter_nested_body_models(model_cls, schema, spec):
+        nested_fqn = f"{nested_cls.__module__}.{nested_cls.__qualname__}"
+        _check_model_drift(
+            model_cls=nested_cls,
+            model_fqn=nested_fqn,
+            spec_schema=nested_schema,
+            errors=errors,
+            context=f"{model_fqn}.{field_name}",
+            exclusions=PERPS_EXCLUSIONS,
+        )
+    if errors:
+        pytest.fail(f"{model_fqn} <-> {entry.request_body_schema}\n" + "\n".join(errors))
+
+
+def _assert_perps_response_drift(entry: ContractEntry, spec: dict[str, Any]) -> None:
+    """Response-side drift assertion for one perps contract entry."""
+    spec_fields = _get_schema_fields(spec, entry.spec_schema)
+    model_class = _get_sdk_model_class(entry.sdk_model)
+    additive, required_issues = _classify_drift(
+        entry, spec, spec_fields, model_class, exclusions=PERPS_EXCLUSIONS
+    )
+    problems = additive + required_issues
+    if problems:
+        pytest.fail(
+            f"Perps spec drift in {entry.sdk_model}:\n"
+            + "\n".join(f"  - {p}" for p in problems)
+        )
+
+
+_PERPS_PARAM_VALS, _PERPS_PARAM_IDS = _perps_param_ids(
+    [e for e in PERPS_METHOD_ENDPOINT_MAP if e.http_method in ("GET", "DELETE")]
+)
+_PERPS_BODY_VALS, _PERPS_BODY_IDS = _perps_param_ids(
+    [e for e in PERPS_METHOD_ENDPOINT_MAP if e.request_body_schema is not None]
+)
+_PERPS_RESP_VALS, _PERPS_RESP_IDS = _perps_contract_ids(PERPS_CONTRACT_MAP)
+_PERPS_SCM_PARAM_VALS, _PERPS_SCM_PARAM_IDS = _perps_param_ids(
+    [e for e in PERPS_SCM_METHOD_ENDPOINT_MAP if e.http_method in ("GET", "DELETE")]
+)
+_PERPS_SCM_BODY_VALS, _PERPS_SCM_BODY_IDS = _perps_param_ids(
+    [e for e in PERPS_SCM_METHOD_ENDPOINT_MAP if e.request_body_schema is not None]
+)
+_PERPS_SCM_RESP_VALS, _PERPS_SCM_RESP_IDS = _perps_contract_ids(PERPS_SCM_CONTRACT_MAP)
+
+
+@pytest.mark.parametrize("entry", _PERPS_PARAM_VALS, ids=_PERPS_PARAM_IDS)
+class TestPerpsRequestParamDrift:
+    """Verify perps REST resource signatures match ``specs/perps_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_spec()
+
+    def test_sync_params_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps REST GET/DELETE endpoints registered yet")
+        _assert_perps_params_match(entry, self.spec, async_=False)
+
+    def test_async_params_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps REST GET/DELETE endpoints registered yet")
+        _assert_perps_params_match(entry, self.spec, async_=True)
+
+
+@pytest.mark.parametrize("entry", _PERPS_BODY_VALS, ids=_PERPS_BODY_IDS)
+class TestPerpsRequestBodyDrift:
+    """Verify perps REST request-body models match ``specs/perps_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_spec()
+
+    def test_body_properties_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps REST body endpoints registered yet")
+        _assert_perps_body_match(entry, self.spec, PERPS_BODY_MODEL_MAP)
+
+
+@pytest.mark.parametrize("entry", _PERPS_RESP_VALS, ids=_PERPS_RESP_IDS)
+class TestPerpsSpecDrift:
+    """Verify perps REST response models match ``specs/perps_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_spec()
+
+    def test_response_drift(self, entry: ContractEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps REST response models registered yet")
+        _assert_perps_response_drift(entry, self.spec)
+
+
+@pytest.mark.parametrize("entry", _PERPS_SCM_PARAM_VALS, ids=_PERPS_SCM_PARAM_IDS)
+class TestPerpsScmRequestParamDrift:
+    """Verify perps SCM/Klear signatures match ``specs/perps_scm_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_scm_spec()
+
+    def test_sync_params_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps SCM GET/DELETE endpoints registered yet")
+        _assert_perps_params_match(entry, self.spec, async_=False)
+
+    def test_async_params_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps SCM GET/DELETE endpoints registered yet")
+        _assert_perps_params_match(entry, self.spec, async_=True)
+
+
+@pytest.mark.parametrize("entry", _PERPS_SCM_BODY_VALS, ids=_PERPS_SCM_BODY_IDS)
+class TestPerpsScmRequestBodyDrift:
+    """Verify perps SCM/Klear request-body models match ``specs/perps_scm_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_scm_spec()
+
+    def test_body_properties_match_spec(self, entry: MethodEndpointEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps SCM body endpoints registered yet")
+        _assert_perps_body_match(entry, self.spec, PERPS_SCM_BODY_MODEL_MAP)
+
+
+@pytest.mark.parametrize("entry", _PERPS_SCM_RESP_VALS, ids=_PERPS_SCM_RESP_IDS)
+class TestPerpsScmSpecDrift:
+    """Verify perps SCM/Klear response models match ``specs/perps_scm_openapi.yaml``."""
+
+    spec: dict[str, Any]
+
+    @pytest.fixture(autouse=True)
+    def _load(self) -> None:
+        self.spec = _load_perps_scm_spec()
+
+    def test_response_drift(self, entry: ContractEntry | None) -> None:
+        if entry is None:
+            pytest.skip("no perps SCM response models registered yet")
+        _assert_perps_response_drift(entry, self.spec)

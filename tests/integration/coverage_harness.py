@@ -78,3 +78,60 @@ def discover_public_methods() -> dict[str, list[str]]:
 def register(resource_name: str, methods: list[str]) -> None:
     """Register methods as covered by integration tests."""
     SCENARIO_REGISTRY[resource_name] = sorted(methods)
+
+
+# ---------------------------------------------------------------------------
+# Perps (margin) parallel registry
+# ---------------------------------------------------------------------------
+# Perps resources live under ``kalshi.perps.resources.*`` and subclass the same
+# ``SyncResource`` base as the prediction-API resources. They are tracked in a
+# **separate** registry so the existing ``discover_public_methods`` /
+# ``SCENARIO_REGISTRY`` and its ``test_discovery_finds_all_resources`` exact-set
+# assertion stay untouched.
+PERPS_SCENARIO_REGISTRY: dict[str, list[str]] = {}
+
+PERPS_RESOURCE_MODULES = [
+    "kalshi.perps.resources.exchange",
+    "kalshi.perps.resources.funding",
+    "kalshi.perps.resources.margin_account",
+    "kalshi.perps.resources.markets",
+    "kalshi.perps.resources.orders",
+    "kalshi.perps.resources.portfolio",
+]
+
+
+def discover_perps_public_methods() -> dict[str, list[str]]:
+    """Discover public methods on the perps sync resource classes.
+
+    Mirrors :func:`discover_public_methods` but introspects
+    :data:`PERPS_RESOURCE_MODULES`.
+    """
+    result: dict[str, list[str]] = {}
+
+    for mod_name in PERPS_RESOURCE_MODULES:
+        mod = importlib.import_module(mod_name)
+        for name, cls in inspect.getmembers(mod, inspect.isclass):
+            if not issubclass(cls, SyncResource):
+                continue
+            if cls is SyncResource:
+                continue
+            if name.startswith("Async"):
+                continue
+
+            methods: list[str] = []
+            for method_name, method_obj in inspect.getmembers(cls, predicate=inspect.isfunction):
+                if method_name.startswith("_"):
+                    continue
+                qualname = getattr(method_obj, "__qualname__", "")
+                if qualname.startswith(f"{name}."):
+                    methods.append(method_name)
+
+            if methods:
+                result[name] = sorted(methods)
+
+    return result
+
+
+def register_perps(resource_name: str, methods: list[str]) -> None:
+    """Register methods as covered by perps integration tests."""
+    PERPS_SCENARIO_REGISTRY[resource_name] = sorted(methods)

@@ -170,6 +170,15 @@ from kalshi.models import (
     WeeklySchedule,
     Withdrawal,
 )
+from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig, PerpsWebSocket
+from kalshi.perps.klear import (
+    AsyncKlearClient,
+    KlearAuth,
+    KlearClient,
+    KlearConfig,
+    LogInRequest,
+    LogInResponse,
+)
 from kalshi.resources.communications import (
     AsyncQuotesResource,
     AsyncRFQsResource,
@@ -193,6 +202,8 @@ __all__ = [
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncKalshiClient",
+    "AsyncKlearClient",
+    "AsyncPerpsClient",
     "AsyncQuotesResource",
     "AsyncRFQsResource",
     "AuthRequiredError",
@@ -289,7 +300,12 @@ __all__ = [
     "KalshiTimeoutError",
     "KalshiValidationError",
     "KalshiWebSocketError",
+    "KlearAuth",
+    "KlearClient",
+    "KlearConfig",
     "LiveData",
+    "LogInRequest",
+    "LogInResponse",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
@@ -316,6 +332,9 @@ __all__ = [
     "PaymentStatusLiteral",
     "PaymentTypeLiteral",
     "PercentilePoint",
+    "PerpsClient",
+    "PerpsConfig",
+    "PerpsWebSocket",
     "PlayByPlay",
     "PlayByPlayPeriod",
     "PositionsResponse",
@@ -353,4 +372,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"

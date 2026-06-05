@@ -52,18 +52,20 @@ jobs:
         id: snapshot
         run: |
           set -euo pipefail
-          had_old_openapi=false
-          had_old_asyncapi=false
-          if [ -f specs/openapi.yaml ]; then
-            cp specs/openapi.yaml /tmp/openapi.yaml.old
-            had_old_openapi=true
-          fi
-          if [ -f specs/asyncapi.yaml ]; then
-            cp specs/asyncapi.yaml /tmp/asyncapi.yaml.old
-            had_old_asyncapi=true
-          fi
-          echo "had_old_openapi=${had_old_openapi}" >> "$GITHUB_OUTPUT"
-          echo "had_old_asyncapi=${had_old_asyncapi}" >> "$GITHUB_OUTPUT"
+          snapshot_one() {
+            # $1 = spec filename, $2 = GITHUB_OUTPUT key
+            if [ -f "specs/$1" ]; then
+              cp "specs/$1" "/tmp/$1.old"
+              echo "$2=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$2=false" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          snapshot_one openapi.yaml had_old_openapi
+          snapshot_one asyncapi.yaml had_old_asyncapi
+          snapshot_one perps_openapi.yaml had_old_perps_openapi
+          snapshot_one perps_asyncapi.yaml had_old_perps_asyncapi
+          snapshot_one perps_scm_openapi.yaml had_old_perps_scm_openapi
 
       - name: Download latest specs
         run: uv run python scripts/sync_spec.py
@@ -72,24 +74,34 @@ jobs:
         id: diff
         run: |
           set -euo pipefail
-          openapi_changed=true
-          asyncapi_changed=true
-          if [ "${{ steps.snapshot.outputs.had_old_openapi }}" = "true" ] \
-             && cmp -s /tmp/openapi.yaml.old specs/openapi.yaml; then
-            openapi_changed=false
-          fi
-          if [ "${{ steps.snapshot.outputs.had_old_asyncapi }}" = "true" ] \
-             && cmp -s /tmp/asyncapi.yaml.old specs/asyncapi.yaml; then
-            asyncapi_changed=false
-          fi
-          if $openapi_changed || $asyncapi_changed; then
+          # changed_one: echoes "false" when a prior snapshot exists and is
+          # byte-identical to the freshly downloaded spec; "true" otherwise
+          # (changed, or first-ever fetch).
+          changed_one() {
+            # $1 = spec filename, $2 = had_old flag
+            if [ "$2" = "true" ] && cmp -s "/tmp/$1.old" "specs/$1"; then
+              echo false
+            else
+              echo true
+            fi
+          }
+          openapi_changed=$(changed_one openapi.yaml "${{ steps.snapshot.outputs.had_old_openapi }}")
+          asyncapi_changed=$(changed_one asyncapi.yaml "${{ steps.snapshot.outputs.had_old_asyncapi }}")
+          perps_openapi_changed=$(changed_one perps_openapi.yaml "${{ steps.snapshot.outputs.had_old_perps_openapi }}")
+          perps_asyncapi_changed=$(changed_one perps_asyncapi.yaml "${{ steps.snapshot.outputs.had_old_perps_asyncapi }}")
+          perps_scm_changed=$(changed_one perps_scm_openapi.yaml "${{ steps.snapshot.outputs.had_old_perps_scm_openapi }}")
+          if $openapi_changed || $asyncapi_changed || $perps_openapi_changed \
+             || $perps_asyncapi_changed || $perps_scm_changed; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "openapi_changed=${openapi_changed}" >> "$GITHUB_OUTPUT"
             echo "asyncapi_changed=${asyncapi_changed}" >> "$GITHUB_OUTPUT"
-            echo "Spec changes detected — openapi=${openapi_changed}, asyncapi=${asyncapi_changed}"
+            echo "perps_openapi_changed=${perps_openapi_changed}" >> "$GITHUB_OUTPUT"
+            echo "perps_asyncapi_changed=${perps_asyncapi_changed}" >> "$GITHUB_OUTPUT"
+            echo "perps_scm_changed=${perps_scm_changed}" >> "$GITHUB_OUTPUT"
+            echo "Spec changes detected — openapi=${openapi_changed}, asyncapi=${asyncapi_changed}, perps_openapi=${perps_openapi_changed}, perps_asyncapi=${perps_asyncapi_changed}, perps_scm=${perps_scm_changed}"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Both specs unchanged — nothing to do."
+            echo "All specs unchanged — nothing to do."
           fi
 
       - name: Extract spec metadata for report
@@ -154,8 +166,14 @@ jobs:
           set -euo pipefail
           openapi_sha=$(sha256sum specs/openapi.yaml | awk '{print $1}')
           asyncapi_sha=$(sha256sum specs/asyncapi.yaml | awk '{print $1}')
+          perps_openapi_sha=$(sha256sum specs/perps_openapi.yaml | awk '{print $1}')
+          perps_asyncapi_sha=$(sha256sum specs/perps_asyncapi.yaml | awk '{print $1}')
+          perps_scm_sha=$(sha256sum specs/perps_scm_openapi.yaml | awk '{print $1}')
           echo "openapi_sha=${openapi_sha}" >> "$GITHUB_OUTPUT"
           echo "asyncapi_sha=${asyncapi_sha}" >> "$GITHUB_OUTPUT"
+          echo "perps_openapi_sha=${perps_openapi_sha}" >> "$GITHUB_OUTPUT"
+          echo "perps_asyncapi_sha=${perps_asyncapi_sha}" >> "$GITHUB_OUTPUT"
+          echo "perps_scm_sha=${perps_scm_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure spec-drift label exists
         if: steps.diff.outputs.changed == 'true'
@@ -189,13 +207,22 @@ jobs:
           REMOVED_CHANNELS: ${{ steps.meta.outputs.removed_channels }}
           OPENAPI_SHA: ${{ steps.checksums.outputs.openapi_sha }}
           ASYNCAPI_SHA: ${{ steps.checksums.outputs.asyncapi_sha }}
+          PERPS_OPENAPI_CHANGED: ${{ steps.diff.outputs.perps_openapi_changed }}
+          PERPS_ASYNCAPI_CHANGED: ${{ steps.diff.outputs.perps_asyncapi_changed }}
+          PERPS_SCM_CHANGED: ${{ steps.diff.outputs.perps_scm_changed }}
+          PERPS_OPENAPI_SHA: ${{ steps.checksums.outputs.perps_openapi_sha }}
+          PERPS_ASYNCAPI_SHA: ${{ steps.checksums.outputs.perps_asyncapi_sha }}
+          PERPS_SCM_SHA: ${{ steps.checksums.outputs.perps_scm_sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
 
-          # Drift fingerprint: sha256(openapi_sha || asyncapi_sha). Stable across
-          # re-runs against the same upstream; changes the moment either spec does.
-          FINGERPRINT=$(printf '%s%s' "${OPENAPI_SHA}" "${ASYNCAPI_SHA}" | sha256sum | awk '{print $1}')
+          # Drift fingerprint: sha256 over every spec's sha. Stable across re-runs
+          # against the same upstream; changes the moment ANY spec does (so a
+          # perps-only change still opens a fresh drift issue).
+          FINGERPRINT=$(printf '%s%s%s%s%s' \
+            "${OPENAPI_SHA}" "${ASYNCAPI_SHA}" "${PERPS_OPENAPI_SHA}" \
+            "${PERPS_ASYNCAPI_SHA}" "${PERPS_SCM_SHA}" | sha256sum | awk '{print $1}')
           export FINGERPRINT
 
           # Dedup: skip if an open spec-drift issue already embeds this fingerprint.

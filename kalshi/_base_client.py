@@ -452,6 +452,14 @@ class SyncTransport:
         self._closed = True
         self._client.close()
 
+    def clear_cookie(self, name: str) -> None:
+        """Drop a cookie (all domains/paths) from the httpx jar.
+
+        Used by the Klear session client to invalidate a stale ``session``
+        cookie before a re-login, so a prior account's cookie is never replayed.
+        """
+        self._client.cookies.delete(name)
+
 
 class AsyncTransport:
     """Asynchronous HTTP transport using httpx.AsyncClient."""
@@ -669,3 +677,11 @@ class AsyncTransport:
             return
         await self._client.aclose()
         self._closed = True
+
+    def clear_cookie(self, name: str) -> None:
+        """Drop a cookie (all domains/paths) from the httpx jar.
+
+        Used by the Klear session client to invalidate a stale ``session``
+        cookie before a re-login, so a prior account's cookie is never replayed.
+        """
+        self._client.cookies.delete(name)

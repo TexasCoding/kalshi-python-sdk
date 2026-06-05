@@ -31,8 +31,21 @@ Upstream specs changed since the last sync. This workflow runs with
 
 - `specs/openapi.yaml`: `${OPENAPI_SHA}`
 - `specs/asyncapi.yaml`: `${ASYNCAPI_SHA}`
+- `specs/perps_openapi.yaml`: `${PERPS_OPENAPI_SHA}`
+- `specs/perps_asyncapi.yaml`: `${PERPS_ASYNCAPI_SHA}`
+- `specs/perps_scm_openapi.yaml`: `${PERPS_SCM_SHA}`
 
 Reproduce locally and verify the same hashes before generating models.
+
+### Perps (margin) specs
+
+- perps OpenAPI changed: `${PERPS_OPENAPI_CHANGED}`
+- perps AsyncAPI changed: `${PERPS_ASYNCAPI_CHANGED}`
+- perps SCM/Klear changed: `${PERPS_SCM_CHANGED}`
+
+A perps-spec change reds the perps contract-drift suites in
+`tests/test_contracts.py` (the `TestPerps*Drift` classes). Re-vendor with
+`scripts/sync_spec.py` and reconcile the perps models/maps under `kalshi/perps/`.
 
 ## OpenAPI
 
