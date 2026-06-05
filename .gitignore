@@ -44,3 +44,6 @@ site/
 
 # Agent worktrees (claude-code's isolation: "worktree" mode)
 .claude/worktrees/
+
+# Multi-LLM review outputs (scripts/llm_review.py)
+reviews/
