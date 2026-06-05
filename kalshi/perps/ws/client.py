@@ -6,14 +6,13 @@ Same session lifecycle (``connect()`` async context manager, ``_start`` /
 pause recv loop, ``_PERMANENT_CLOSE_CODES`` fast-fail, reconnect + resubscribe
 + stash replay, seq-gap resync).
 
-This foundation issue (#397) exposes only the **generic** command surface —
-``subscribe(channel, params)``, ``unsubscribe``, ``update_subscription``,
-``update_subscription_single_sid``, ``list_subscriptions``. Per-channel typed
-``subscribe_*`` convenience helpers (and the orderbook iterator) are deferred to
-the ``perps: WS channels`` issue (#398), which also populates the dispatcher's
-``MESSAGE_MODELS`` and the orderbook-apply seam wired here.
+Exposes both the **generic** command surface — ``subscribe(channel, params)``,
+``unsubscribe``, ``update_subscription``, ``update_subscription_single_sid``,
+``list_subscriptions`` — and the per-channel typed ``subscribe_*`` convenience
+helpers, with the dispatcher's ``MESSAGE_MODELS`` and the orderbook-apply seam
+fully wired.
 
-Timestamp convention: the recv path never coerces timestamps; #398's channel
+Timestamp convention: the recv path never coerces timestamps; the channel
 payloads carry epoch-ms ``int`` ``*_ms`` fields that flow through as-is.
 """
 
@@ -70,9 +69,8 @@ _PERMANENT_CLOSE_CODES: frozenset[int] = frozenset(
 # Cooperative-pause polling interval for the recv loop.
 _RECV_POLL_S: float = 0.05
 
-# Message types that ride the perps margin order book and carry ``seq``. #398's
-# concrete payload models plug into the dispatcher; this set lets the recv loop
-# gate orderbook-apply + stale-sid checks without importing those models yet.
+# Message types that ride the perps margin order book and carry ``seq``. This
+# set lets the recv loop gate orderbook-apply + stale-sid checks by wire type.
 _ORDERBOOK_TYPES = ("orderbook_snapshot", "orderbook_delta")
 
 
@@ -193,6 +191,12 @@ class PerpsWebSocket:
                     self._recv_task.cancel()
                     with contextlib.suppress(asyncio.CancelledError, Exception):
                         await self._recv_task
+            elif self._recv_task is not None:
+                # Task already finished (e.g. the recv loop raised on a permanent
+                # close code). Retrieve the stored exception so asyncio doesn't
+                # log "Task exception was never retrieved" when it is GC'd.
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    self._recv_task.exception()
             await self._broadcast_sentinels()
 
         self._clear_session_state()
@@ -341,10 +345,10 @@ class PerpsWebSocket:
         ``KalshiBackpressureError`` the watermark is rolled back so the dropped
         seq surfaces as a future gap rather than being treated as already-seen.
 
-        The orderbook-apply seam (validate + ``_apply_*_inplace``) is wired for
-        #398's concrete snapshot/delta payload models. Until those land,
-        ``MESSAGE_MODELS`` is empty and there is no typed pre-validation to do;
-        the stale-sid gate and seq tracking below still run for orderbook frames.
+        The orderbook-apply seam validates ``orderbook_snapshot`` /
+        ``orderbook_delta`` into their concrete payload models and applies them
+        to the local book before dispatch; the stale-sid gate and seq tracking
+        below run for orderbook frames.
         """
         assert self._dispatcher is not None
         data = self._json_loads(raw)
@@ -519,7 +523,7 @@ class PerpsWebSocket:
         )
 
     # ------------------------------------------------------------------
-    # Generic command surface (per-channel typed helpers deferred to #398)
+    # Generic command surface (per-channel typed helpers are defined below)
     # ------------------------------------------------------------------
 
     async def _do_subscribe(
@@ -571,10 +575,10 @@ class PerpsWebSocket:
     ) -> AsyncIterator[BaseModel]:
         """Subscribe to a perps channel. Returns an async iterator of frames.
 
-        Per-channel typed ``subscribe_*`` helpers are deferred to #398; use this
-        generic entry point with ``channel`` (one of :class:`PerpsChannel`) and
+        Generic entry point: pass ``channel`` (one of :class:`PerpsChannel`) and
         an optional ``params`` dict (``market_ticker`` / ``market_tickers`` /
-        ``send_initial_snapshot`` / ``skip_ticker_ack``).
+        ``send_initial_snapshot`` / ``skip_ticker_ack``). Prefer the per-channel
+        typed ``subscribe_*`` helpers below when one fits.
         """
         return await self._do_subscribe(
             channel, params=params, overflow=overflow, maxsize=maxsize,
@@ -747,7 +751,7 @@ class PerpsWebSocket:
         client_id: int,
         action: str,
         *,
-        market_tickers: list[str] | None = None,
+        market_tickers: builtins.list[str] | None = None,
         send_initial_snapshot: bool | None = None,
     ) -> None:
         """Add/remove markets on an existing subscription (array-``sids`` form).
@@ -776,7 +780,7 @@ class PerpsWebSocket:
         client_id: int,
         action: str,
         *,
-        market_tickers: list[str] | None = None,
+        market_tickers: builtins.list[str] | None = None,
         send_initial_snapshot: bool | None = None,
     ) -> None:
         """Add/remove markets using the scalar-``sid`` form."""

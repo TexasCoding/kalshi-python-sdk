@@ -2,12 +2,11 @@
 
 Mirrors :class:`kalshi.ws.dispatch.MessageDispatcher`. ``CONTROL_TYPES`` is
 ``{"subscribed", "unsubscribed", "ok", "error"}`` (same control surface as the
-prediction API). ``MESSAGE_MODELS`` is an **empty stub here** — the per-channel
-data payload models (``ticker``, ``trade``, ``fill``, ``user_order``,
-``orderbook_*``, ``order_group_updates``) land in the ``perps: WS channels``
-issue (#398), which will register them in this map. This foundation issue only
-needs control-frame routing (orphan-subscribed cleanup, server-initiated
-unsubscribe teardown) plus the "unknown message type" path.
+prediction API). ``MESSAGE_MODELS`` maps each data ``type`` (``ticker``,
+``trade``, ``fill``, ``user_order``, ``orderbook_*``, ``order_group_updates``)
+to its Pydantic payload model. The dispatcher also handles control-frame
+routing (orphan-subscribed cleanup, server-initiated unsubscribe teardown) and
+the "unknown message type" path.
 
 ``type: "ok"`` collision: the perps ``list_subscriptions`` reply and the
 ``update_subscription`` ack BOTH use ``type: "ok"``. They are disambiguated by
@@ -32,7 +31,11 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from kalshi.perps.ws.channels import PerpsSubscriptionManager
-from kalshi.perps.ws.models.control import PerpsErrorResponse
+from kalshi.perps.ws.models.control import (
+    PerpsErrorResponse,
+    UnsubscribeCommand,
+    UnsubscribeParams,
+)
 from kalshi.perps.ws.models.fill import MarginFillMessage
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
 from kalshi.perps.ws.models.orderbook import (
@@ -207,12 +210,12 @@ class PerpsMessageDispatcher:
         )
         try:
             msg_id = self._sub_mgr._get_msg_id()
-            cmd = {
-                "id": msg_id,
-                "cmd": "unsubscribe",
-                "params": {"sids": [sid]},
-            }
-            await self._sub_mgr._connection.send(cmd)
+            # Build through the extra="forbid" model (like every other command
+            # path) so a key typo fails here instead of silently on the wire.
+            cmd = UnsubscribeCommand(id=msg_id, params=UnsubscribeParams(sids=[sid]))
+            await self._sub_mgr._connection.send(
+                cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
+            )
         except Exception:
             logger.warning(
                 "Failed to send orphan-unsubscribe for sid=%d", sid, exc_info=True
@@ -247,7 +250,7 @@ class PerpsMessageDispatcher:
                 await self._handle_orphan_subscribed(data)
             return
 
-        # Parse into typed model (empty until #398 populates MESSAGE_MODELS).
+        # Parse into the typed payload model registered for this wire ``type``.
         model_cls = MESSAGE_MODELS.get(msg_type)
         if model_cls is None:
             logger.warning("Unknown message type: %s", msg_type)
