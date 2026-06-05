@@ -264,6 +264,17 @@ class KalshiAuth:
     def key_id(self) -> str:
         return self._key_id
 
+    @property
+    def private_key(self) -> rsa.RSAPrivateKey:
+        """The loaded RSA private key.
+
+        Exposed (read-only) so other signing surfaces in the SDK can reuse the
+        same key without re-loading the PEM — notably the FIX logon signer
+        (:class:`kalshi.fix.auth.FixSigner`), which signs a different payload
+        (the FIX Logon pre-hash string) with the identical RSA-PSS scheme.
+        """
+        return self._private_key
+
     def sign_request(
         self, method: str, path: str, timestamp_ms: int | None = None
     ) -> dict[str, str]:
