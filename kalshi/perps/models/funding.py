@@ -10,7 +10,9 @@ Response models for the three read-only perps **funding** endpoints (#395):
 Field-type rules (verified against ``specs/perps_openapi.yaml``):
 
 - ``funding_rate`` is ``type: number, format: double`` and is **not** a price —
-  it is a plain :class:`float` (NOT :data:`~kalshi.types.DollarDecimal`).
+  it uses :data:`~kalshi.types.MultiplierDecimal` (exact ``Decimal``,
+  string-serialized), matching the perps WS ticker's ``funding_rate``, NOT
+  :data:`~kalshi.types.DollarDecimal`.
 - ``mark_price`` / ``funding_amount`` are ``$ref FixedPointDollars`` strings →
   :data:`~kalshi.types.DollarDecimal`.
 - ``quantity`` is ``$ref FixedPointCount`` → :data:`~kalshi.types.FixedPointCount`.
@@ -27,7 +29,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal
 
 
 class MarginFundingRate(BaseModel):
@@ -41,7 +43,7 @@ class MarginFundingRate(BaseModel):
 
     market_ticker: str
     funding_time: AwareDatetime
-    funding_rate: float
+    funding_rate: MultiplierDecimal
     mark_price: DollarDecimal = Field(
         validation_alias=AliasChoices("mark_price_dollars", "mark_price"),
     )
@@ -61,7 +63,7 @@ class MarginFundingHistoryEntry(BaseModel):
 
     market_ticker: str
     funding_time: AwareDatetime
-    funding_rate: float
+    funding_rate: MultiplierDecimal
     mark_price: DollarDecimal = Field(
         validation_alias=AliasChoices("mark_price_dollars", "mark_price"),
     )
@@ -89,7 +91,7 @@ class MarginFundingRateEstimate(BaseModel):
 
     market_ticker: str | None = None
     computed_time: AwareDatetime | None = None
-    funding_rate: float | None = None
+    funding_rate: MultiplierDecimal | None = None
     mark_price: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("mark_price_dollars", "mark_price"),

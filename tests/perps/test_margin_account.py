@@ -79,6 +79,16 @@ class TestBalance:
         assert "compute_available_balance" not in route.calls.last.request.url.params
 
     @respx.mock
+    def test_null_subaccount_balances_tolerated(self, perps_client: PerpsClient) -> None:
+        # #407: NullableList coerces a server-returned null array to [].
+        respx.get(f"{BASE}/margin/balance").mock(
+            return_value=httpx.Response(
+                200, json={"subaccount_balances": None, "settled_funds": "0.0000"}
+            )
+        )
+        assert perps_client.margin.balance().subaccount_balances == []
+
+    @respx.mock
     def test_flag_true_sends_query_param(self, perps_client: PerpsClient) -> None:
         route = respx.get(f"{BASE}/margin/balance").mock(
             return_value=httpx.Response(
@@ -195,7 +205,9 @@ class TestRisk:
             )
         )
         resp = perps_client.margin.risk()
-        assert resp.account_leverage == 2.5
+        assert resp.account_leverage == Decimal("2.5")
+        assert isinstance(resp.account_leverage, Decimal)
+        assert isinstance(resp.positions[0].position_leverage, Decimal)
         assert resp.total_position_notional == Decimal("10000.0000")
         assert isinstance(resp.total_maintenance_margin, Decimal)
         first = resp.positions[0]
@@ -225,6 +237,22 @@ class TestRisk:
         resp = perps_client.margin.risk()
         assert resp.account_leverage is None
         assert resp.positions == []
+
+    @respx.mock
+    def test_null_positions_array_tolerated(self, perps_client: PerpsClient) -> None:
+        # #407: Kalshi may send JSON null for a spec-required array; NullableList
+        # coerces it to [] rather than raising ValidationError.
+        respx.get(f"{BASE}/margin/risk").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "total_position_notional": "0.0000",
+                    "total_maintenance_margin": "0.0000",
+                    "positions": None,
+                },
+            )
+        )
+        assert perps_client.margin.risk().positions == []
 
     @respx.mock
     def test_server_error_maps(self, perps_client: PerpsClient) -> None:
@@ -365,10 +393,10 @@ class TestFeeTiers:
             )
         )
         resp = perps_client.margin.fee_tiers()
-        assert resp.maker_fee_rates["BTC-PERP"] == 0.0005
-        assert isinstance(resp.maker_fee_rates["BTC-PERP"], float)
-        assert resp.taker_fee_rates["ETH-PERP"] == 0.0015
-        assert isinstance(resp.taker_fee_rates["ETH-PERP"], float)
+        assert resp.maker_fee_rates["BTC-PERP"] == Decimal("0.0005")
+        assert isinstance(resp.maker_fee_rates["BTC-PERP"], Decimal)
+        assert resp.taker_fee_rates["ETH-PERP"] == Decimal("0.0015")
+        assert isinstance(resp.taker_fee_rates["ETH-PERP"], Decimal)
 
     @respx.mock
     def test_edge_empty_maps(self, perps_client: PerpsClient) -> None:
@@ -409,7 +437,7 @@ class TestFeeTiers:
             )
         )
         resp = await async_perps_client.margin.fee_tiers()
-        assert resp.taker_fee_rates["X"] == 0.002
+        assert resp.taker_fee_rates["X"] == Decimal("0.002")
         await async_perps_client.close()
 
 

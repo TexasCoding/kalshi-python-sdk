@@ -48,11 +48,11 @@ class TestRateEstimate:
             )
         )
         est = perps_client.funding.rate_estimate("BTC-PERP")
-        # mark_price -> Decimal, funding_rate -> float, next_funding_time aware.
+        # mark_price -> Decimal, funding_rate -> Decimal, next_funding_time aware.
         assert isinstance(est.mark_price, Decimal)
         assert est.mark_price == Decimal("65000.50")
-        assert isinstance(est.funding_rate, float)
-        assert est.funding_rate == 0.000125
+        assert isinstance(est.funding_rate, Decimal)
+        assert est.funding_rate == Decimal("0.000125")
         assert isinstance(est.next_funding_time, datetime)
         assert est.next_funding_time.tzinfo is not None
         assert est.market_ticker == "BTC-PERP"
@@ -141,8 +141,8 @@ class TestHistoricalRates:
         assert all(isinstance(r, MarginFundingRate) for r in rates)
         assert isinstance(rates[0].mark_price, Decimal)
         assert rates[0].mark_price == Decimal("64000.00")
-        assert isinstance(rates[1].funding_rate, float)
-        assert rates[1].funding_rate == -0.0002
+        assert isinstance(rates[1].funding_rate, Decimal)
+        assert rates[1].funding_rate == Decimal("-0.0002")
         params = route.calls.last.request.url.params
         assert params["ticker"] == "BTC-PERP"
         assert params["start_ts"] == "1000"

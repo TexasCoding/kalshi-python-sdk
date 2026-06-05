@@ -21,7 +21,10 @@ prediction-API surface. Additive release: no changes to `KalshiClient`.
   notional risk limit / fee tiers), `funding` (rate estimate / historical /
   history), and `transfers` (intra-exchange-instance + margin subaccounts).
   Margin order side is `bid` / `ask`; prices are `DollarDecimal`
-  (FixedPointDollars), counts `FixedPointCount`.
+  (FixedPointDollars), counts `FixedPointCount`, and `number/double` ratios
+  (leverage, funding rate, ROE, fee tiers) are `MultiplierDecimal` (exact
+  `Decimal`, string-serialized) — consistent across the REST, WS, and exchange
+  surfaces. Margin-account list responses tolerate a server-returned `null`.
 - **`PerpsWebSocket`** — the perps margin WebSocket
   (`external-api-margin-ws.kalshi.com`, `/trade-api/ws/v2/margin`) with six typed
   channels (`subscribe_orderbook_delta`, `subscribe_ticker` — carrying

@@ -20,7 +20,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
-from kalshi.types import DollarDecimal, FixedPointCount, NullableList
+from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal, NullableList
 
 MarginMarketStatusLiteral = Literal["inactive", "active", "closed"]
 """Status filter for GET /margin/markets and ``MarginMarket.status``.
@@ -48,7 +48,7 @@ class MarginMarket(BaseModel):
     tick_size: DollarDecimal
     fractional_trading_enabled: bool
 
-    leverage_estimate: float | None = None
+    leverage_estimate: MultiplierDecimal | None = None
     price: DollarDecimal | None = None
     bid: DollarDecimal | None = None
     ask: DollarDecimal | None = None
