@@ -137,6 +137,8 @@ class ExecutionReport(FixMessage):
 
     order_id: str | None = fixfield(Tag.ORDER_ID, FixType.STRING, default=None)
     cl_ord_id: str | None = fixfield(Tag.CL_ORD_ID, FixType.STRING, default=None)
+    # Kalshi compound "int;int" exec id (e.g. "4;7"; "-1;-1" for PENDING reports);
+    # kept as the raw string, not normalized.
     exec_id: str | None = fixfield(Tag.EXEC_ID, FixType.STRING, default=None)
     exec_type: str | None = fixfield(Tag.EXEC_TYPE, FixType.CHAR, default=None)
     ord_status: str | None = fixfield(Tag.ORD_STATUS, FixType.CHAR, default=None)

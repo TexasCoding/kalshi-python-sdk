@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated
 
-from kalshi.fix.codec import SOH, decode, encode
+from kalshi.fix.codec import SOH, RawMessage, decode, encode
 from kalshi.fix.enums import MsgType
 from kalshi.fix.messages.base import (
     FixGroupMeta,
@@ -159,6 +159,39 @@ def test_nested_group_roundtrip() -> None:
     # Second party: collateral only, empty nested misc-fees group.
     assert back.parties[1].misc_fees == []
     assert back.parties[1].collateral_amount_changes[0].collateral_amount_type == "PAYOUT"
+
+
+def test_short_numingroup_parses_available_entries() -> None:
+    # NumInGroup promises 3 entries but only 1 is delivered — parse the one present
+    # (the short-count debug path in _parse_group) and keep the trailing scalar.
+    raw = RawMessage(
+        [
+            (int(Tag.MSG_TYPE), "D"),
+            (int(Tag.CL_ORD_ID), "x"),
+            (int(Tag.NO_PARTY_IDS), "3"),
+            (int(Tag.PARTY_ID), "0"),
+            (int(Tag.PARTY_ROLE), "24"),
+            (int(Tag.SYMBOL), "Y"),
+        ]
+    )
+    msg = _OrderWithParties.from_raw(raw)
+    assert len(msg.parties) == 1
+    assert msg.symbol == "Y"
+
+
+def test_non_integer_numingroup_drops_group() -> None:
+    # A non-integer NumInGroup drops the group (debug path) but keeps scalars.
+    raw = RawMessage(
+        [
+            (int(Tag.MSG_TYPE), "D"),
+            (int(Tag.CL_ORD_ID), "x"),
+            (int(Tag.NO_PARTY_IDS), "abc"),
+            (int(Tag.SYMBOL), "Y"),
+        ]
+    )
+    msg = _OrderWithParties.from_raw(raw)
+    assert msg.parties == []
+    assert msg.symbol == "Y"
 
 
 def test_nested_group_wire_structure() -> None:

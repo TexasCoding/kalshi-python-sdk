@@ -230,6 +230,50 @@ def test_decode_app_message_dispatch() -> None:
     assert decode_app_message(heartbeat) is None
 
 
+def test_decode_app_message_all_inbound_types() -> None:
+    for msg in (
+        OrderCancelReject(cl_ord_id="c", cxl_rej_reason=1, text="UNKNOWN_ORDER"),
+        OrderMassCancelReport(cl_ord_id="m", mass_cancel_response="6"),
+        BusinessMessageReject(business_reject_reason=3, text="x"),
+    ):
+        raw = decode(
+            encode(
+                [
+                    (int(Tag.MSG_TYPE), msg.MSG_TYPE.value),
+                    (int(Tag.MSG_SEQ_NUM), "2"),
+                    (int(Tag.SENDING_TIME), "20250101-00:00:00.000"),
+                    *msg.to_body_fields(),
+                ]
+            )
+        )
+        decoded = decode_app_message(raw)
+        assert type(decoded) is type(msg)
+        assert decoded == msg
+
+
+def test_cancel_replace_without_price_is_qty_only() -> None:
+    # Kalshi allows a quantity-only amend (Price is required only when changing it).
+    msg = OrderCancelReplaceRequest(
+        cl_ord_id="r", orig_cl_ord_id="o", order_qty=Decimal("5"), side=Side.BUY_YES, symbol="Y"
+    )
+    assert int(Tag.PRICE) not in {t for t, _ in msg.to_body_fields()}
+    back = _roundtrip(msg)
+    assert back == msg
+    assert back.price is None
+
+
+def test_new_order_parties_default_empty() -> None:
+    order = NewOrderSingle(
+        cl_ord_id="x",
+        order_qty=Decimal("1"),
+        price=Decimal("0.5"),
+        side=Side.BUY_YES,
+        symbol="Y",
+    )
+    assert order.parties == []
+    assert int(Tag.NO_PARTY_IDS) not in {t for t, _ in order.to_body_fields()}
+
+
 async def test_send_order_and_receive_execution_report(
     fix_signer: FixSigner,
     fix_config: FixConfig,

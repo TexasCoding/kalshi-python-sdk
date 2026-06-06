@@ -64,6 +64,7 @@ from kalshi.fix.errors import (
     KalshiFixError,
 )
 from kalshi.fix.messages import (
+    APP_MESSAGE_MODELS,
     BusinessMessageReject,
     CollateralAmountChange,
     ExecutionReport,
@@ -95,6 +96,7 @@ from kalshi.fix.tags import Tag
 
 # Sorted (ruff RUF022); grouping is by the imports above, not by ``__all__`` order.
 __all__ = [
+    "APP_MESSAGE_MODELS",
     "BEGIN_STRING_FIXT11",
     "SOH",
     "ApplVerID",
