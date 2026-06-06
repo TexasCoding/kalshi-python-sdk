@@ -248,6 +248,16 @@ class PartyRole(IntEnum):
     CUSTOMER_ACCOUNT = 24
 
 
+class OrderGroupAction(IntEnum):
+    """Tag 20131 — order-group lifecycle operation (35=UOG)."""
+
+    CREATE = 1
+    RESET = 2
+    DELETE = 3
+    TRIGGER_CANCEL = 4
+    UPDATE = 5
+
+
 class EventResendRejectReason(IntEnum):
     """Tag 21004 — why a drop-copy EventResendRequest (35=U3) was rejected."""
 
