@@ -2,6 +2,47 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 3.3.0 — 2026-06-06
+
+Adds a complete **FIX protocol** subsystem (FIXT.1.1 / FIX50SP2) for both the
+prediction and perps products. Additive release: no changes to the existing REST,
+WebSocket, or Perps surfaces.
+
+### Added
+
+- **FIX engine (`kalshi.fix`)** — a hand-rolled, async-first FIX client for both
+  products: `FixClient` (prediction) and `MarginFixClient` (margin, in
+  `kalshi.perps.fix`), re-exported from the top-level `kalshi` package alongside
+  `FixConfig`, `FixEnvironment`, and `FixSessionType`. Covers six session types —
+  order entry (NR/RT), drop copy, market data, order groups, post-trade
+  settlement (prediction), and RFQ (prediction) — on a session state machine with
+  RSA-PSS logon (reusing the REST key), heartbeat / test-request liveness,
+  sequence tracking with gap-fill / resend on the retransmission sessions, and
+  AWS-style full-jitter reconnect. (Epic #402.)
+- **Typed FIX messages** — Pydantic v2 models for every Kalshi FIX message across
+  order entry, order groups, market data, RFQ/quoting, drop copy, and market
+  settlement, with `DollarDecimal` / `FixedPointCount` money types (no float
+  drift) and a central inbound dispatch via `decode_app_message`.
+- **`FixOrderBook`** — aggregated order-book reconstruction from market-data
+  snapshots + incrementals; **`SettlementReassembler`** — paginated
+  settlement-report reassembly.
+- **`FixSession.on_decode_error`** hook + `decode_app_message_strict` — surface a
+  registered-but-malformed inbound message instead of silently dropping it (#432).
+- **FIX documentation** — new `docs/fix.md` guide, plus FIX coverage in the
+  README, errors, authentication, configuration, environment-variables, and the
+  API reference.
+- **FIX dictionary drift test** — `specs/kalshi-fix-dictionary.xml` checked in
+  with a model↔dictionary drift test, the FIX analogue of the REST contract-drift
+  suite (#437).
+
+### Fixed
+
+- Documentation accuracy pass: `fcm.positions_all()` is now documented (the FCM
+  page previously stated it did not exist); the `portfolio` reads document their
+  `subaccount` parameter; the `markets.is_block_trade` version note is corrected
+  to SDK v3.1.0; the `OrderPrice` and `MultiplierDecimal` types are documented;
+  and the docs landing page's WebSocket channel count is corrected to 11.
+
 ## 3.2.0 — 2026-06-05
 
 Adds full SDK support for the Kalshi **Perps (margin) API** — a separate
@@ -81,7 +122,7 @@ prediction-API surface. Additive release: no changes to `KalshiClient`.
 - README / `docs/index.md` banners note the perps surface (34 REST operations,
   6 WS channels, 10 SCM operations).
 
-## 3.1.0 — 2026-06-03
+## 3.1.0 — 2026-06-04
 
 OpenAPI + AsyncAPI spec sync from v3.19.0 → v3.20.0 (`#385`). Adds the
 new `GET /events/fee_changes` endpoint plus three smaller additive

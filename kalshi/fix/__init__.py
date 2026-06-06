@@ -8,14 +8,15 @@ decisions (hand-rolled codec + typed Pydantic message models + async session
 engine; shared core in ``kalshi.fix`` with a thin margin facade in
 ``kalshi.perps.fix``).
 
-This package is the *foundation* layer — codec, typed message models, the
-session/recovery state machine, the RSA-PSS logon signer, and connectivity
-config. Order-entry, drop-copy, market-data, and RFQ/settlement message flows
-land in later phases.
+The subsystem is complete: codec, typed message models, the session/recovery
+state machine, the RSA-PSS logon signer, connectivity config, and every message
+flow — order entry, drop copy, market data, order groups, RFQ (prediction), and
+market settlement (prediction). ``FixClient`` / ``FixConfig`` / ``FixEnvironment``
+/ ``FixSessionType`` are also re-exported from the top-level ``kalshi`` package.
 
 Usage::
 
-    from kalshi.fix import FixClient, FixEnvironment, FixSessionType
+    from kalshi import FixClient, FixEnvironment
 
     client = FixClient.from_env(environment=FixEnvironment.DEMO)
     async with client.order_entry(on_message=handle) as session:

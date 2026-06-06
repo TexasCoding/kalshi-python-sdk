@@ -10,7 +10,7 @@ markets API.
   keeps working; deprecation no earlier than May 6, 2026.
 - **Funding + cost introspection** — `portfolio.deposits()`,
   `portfolio.withdrawals()`, `account.endpoint_costs()`.
-- **Full WebSocket coverage** — 13 channels with sequence-gap detection, automatic
+- **Full WebSocket coverage** — 11 channels with sequence-gap detection, automatic
   reconnection (with resubscribe-window frame stashing for high-volume channels),
   backpressure strategies, and an in-memory orderbook builder. Async-only —
   access via `AsyncKalshiClient.ws`.
@@ -18,6 +18,11 @@ markets API.
   `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
   (10 operations, cookie-session + MFA auth). See [Perps](perps.md).
+- **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)
+  for both products: order-entry, drop-copy, market-data, order-groups, post-trade
+  (prediction), and RFQ (prediction) sessions with typed message models, automatic
+  sequence recovery, and order-book / settlement reassembly. `from kalshi import
+  FixClient` (prediction) / `MarginFixClient` (margin). See [FIX](fix.md).
 - **Sync and async parity** — `KalshiClient` and `AsyncKalshiClient` share one
   transport implementation; method names, kwargs, return types, and error behavior
   are identical. The one exception is WebSocket access, which is async-only.
@@ -63,6 +68,7 @@ No credentials needed for most market data. To place orders, see
 | Tune timeouts, retries, HTTP/2 | [Configuration](configuration.md) |
 | Walk pages or convert to DataFrames | [Pagination](pagination.md) · [DataFrames](dataframes.md) |
 | Build a live-data app | [WebSocket](websockets.md) |
+| Trade over FIX (low latency) | [FIX](fix.md) |
 | Catch the right exception | [Errors](errors.md) · [Retries & idempotency](retries.md) |
 | Find every method on a resource | [Resources](resources/index.md) |
 | Test your code without hitting the API | [Testing](testing.md) |

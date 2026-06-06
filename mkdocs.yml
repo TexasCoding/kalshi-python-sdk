@@ -101,6 +101,7 @@ nav:
     - Incentive programs: resources/incentive-programs.md
     - Live data: resources/live-data.md
   - WebSocket: websockets.md
+  - FIX protocol: fix.md
   - Perps: perps.md
   - Testing: testing.md
   - Migration:

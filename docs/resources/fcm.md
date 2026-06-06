@@ -51,8 +51,17 @@ for mp in resp.market_positions:
 ```
 
 `positions()` returns a `PositionsResponse` (same shape as
-[`portfolio.positions`](portfolio.md#positions)), **not** a `Page`. There is
-no `positions_all()` helper — walk it manually if you need cursor traversal.
+[`portfolio.positions`](portfolio.md#positions)), **not** a `Page`. For cursor
+traversal use `positions_all()`, which auto-paginates `/fcm/positions` and yields
+each `MarketPosition` (it mirrors `portfolio.positions_all()` and takes the same
+filters — `subtrader_id`, `ticker`, `event_ticker`, `count_filter`,
+`settlement_status`, `limit`, `max_pages`):
+
+```python
+for mp in client.fcm.positions_all(subtrader_id="st_alpha", settlement_status="unsettled"):
+    print(mp.ticker, mp.position)
+# async: `async for mp in client.fcm.positions_all(...)`
+```
 
 `settlement_status` is the FCM-specific kwarg that does **not** exist on
 `portfolio.positions()`.

@@ -23,6 +23,7 @@ from kalshi.errors import (
     KalshiValidationError,
     KalshiWebSocketError,
 )
+from kalshi.fix import FixClient, FixConfig, FixEnvironment, FixSessionType
 from kalshi.models import (
     RFQ,
     AcceptQuoteRequest,
@@ -171,6 +172,7 @@ from kalshi.models import (
     Withdrawal,
 )
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig, PerpsWebSocket
+from kalshi.perps.fix import MarginFixClient
 from kalshi.perps.klear import (
     AsyncKlearClient,
     KlearAuth,
@@ -254,6 +256,10 @@ __all__ = [
     "EventStatusLiteral",
     "ExchangeStatus",
     "Fill",
+    "FixClient",
+    "FixConfig",
+    "FixEnvironment",
+    "FixSessionType",
     "ForecastPercentilesPoint",
     "GenerateApiKeyRequest",
     "GenerateApiKeyResponse",
@@ -310,6 +316,7 @@ __all__ = [
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
+    "MarginFixClient",
     "Market",
     "MarketCandlesticks",
     "MarketMetadata",
@@ -372,4 +379,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"

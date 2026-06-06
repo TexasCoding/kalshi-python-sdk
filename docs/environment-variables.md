@@ -8,7 +8,7 @@ these:
 | `KALSHI_KEY_ID` | unset | Key ID. If unset, `from_env()` returns an unauthenticated client. |
 | `KALSHI_PRIVATE_KEY` | unset | PEM string. **Conflicts** with `KALSHI_PRIVATE_KEY_PATH` — set exactly one. |
 | `KALSHI_PRIVATE_KEY_PATH` | unset | Path to PEM file. `~` is expanded. Conflicts with `KALSHI_PRIVATE_KEY`. |
-| `KALSHI_PRIVATE_KEY_PASSPHRASE` | unset | Passphrase for an encrypted PEM (read by `try_from_env()`). |
+| `KALSHI_PRIVATE_KEY_PASSPHRASE` | unset | Passphrase for an encrypted PEM (read by `from_env()` / `try_from_env()`, and by `FixClient.from_env()`). |
 | `KALSHI_DEMO` | `false` | The exact string `true` (case-insensitive) selects the demo URLs. Other values (`1`, `yes`, `on`) are **not** recognized. |
 | `KALSHI_API_BASE_URL` | unset | Overrides `base_url` entirely. Wins over `KALSHI_DEMO`. |
 | `KALSHI_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow `base_url`/`ws_base_url` hosts outside `{api.elections.kalshi.com, demo-api.kalshi.co, localhost}`. Default-fail prevents typos like `kalsi.com` from silently signing to an attacker (#250). |
@@ -80,3 +80,13 @@ read only environment selectors:
 | `KALSHI_KLEAR_DEMO` | `false` | `true` (case-insensitive) selects the demo Klear endpoint. |
 | `KALSHI_KLEAR_API_BASE_URL` | unset | Overrides the Klear `base_url`. |
 | `KALSHI_KLEAR_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow non-Kalshi Klear hosts. |
+
+## FIX
+
+The [FIX subsystem](fix.md) reuses the credential variables above:
+`FixClient.from_env()` reads the prediction `KALSHI_KEY_ID` /
+`KALSHI_PRIVATE_KEY[_PATH]` / `KALSHI_PRIVATE_KEY_PASSPHRASE`, and
+`MarginFixClient.from_env()` reads the perps `KALSHI_PERPS_*` set. FIX host/port is
+resolved by `FixConfig` (not an env var); use a `host=`/`port=` override plus
+`allow_unknown_host=True` or `KALSHI_FIX_ALLOW_UNKNOWN_HOST=1` only for a mock or
+local TLS proxy.

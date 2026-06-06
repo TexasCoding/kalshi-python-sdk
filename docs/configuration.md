@@ -178,6 +178,13 @@ async with AsyncKalshiClient.from_env() as client:
     ...
 ```
 
+## FIX connectivity
+
+The [FIX subsystem](fix.md) has its own `FixConfig` (host/port per product +
+environment + session type, TLS, heartbeat, retry policy, and FIX logon options).
+It is independent of `KalshiConfig`; see [FIX → Connectivity &
+configuration](fix.md#connectivity-configuration).
+
 ## Reference
 
 ::: kalshi.config.KalshiConfig

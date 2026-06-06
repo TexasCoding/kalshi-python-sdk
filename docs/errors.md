@@ -162,6 +162,31 @@ client-side id. You won't see `KalshiConnectionError` from inside `async for`;
 you'll see it from the `connect()` context manager if the socket can't be
 re-established at all.
 
+## FIX errors
+
+The [FIX subsystem](fix.md) has its own sub-hierarchy under `KalshiFixError`
+(itself a subclass of `KalshiError`, so `except KalshiError` still catches it).
+Import them from `kalshi.fix`. FIX is a TCP/TLS protocol with no HTTP status, so
+`status_code` is always `None`.
+
+- **`FixConnectionError`** — TCP/TLS connect failed, was refused, or the
+  reconnect attempts were exhausted. Original transport error via `__cause__`.
+- **`FixLogonError`** — the gateway rejected the logon; `.reason` carries the
+  `Text` from the Logout when present (bad signature, CompID, SendingTime skew, a
+  missing `ResetSeqNumFlag=Y`).
+- **`FixSequenceError`** — an unrecoverable sequence condition (a backwards
+  `MsgSeqNum`, or a forward gap on a non-retransmission session); carries
+  `.expected` / `.received`.
+- **`FixCodecError`** — a malformed frame (`BeginString` / `BodyLength` /
+  `CheckSum` / `tag=value`); `.raw` holds the offending bytes when available.
+- **`FixDecodeError`** — a *registered* inbound message failed schema validation
+  (one off-spec field); carries `.raw` + `.msg_type`, original via `__cause__`.
+  See [FIX → Error handling](fix.md#error-handling).
+- **`FixRejectError`** — the gateway rejected a message we sent (session Reject
+  35=3 or BusinessMessageReject 35=j); carries the structured reject fields.
+- **`FixSessionError`** — a session-level protocol violation or unexpected
+  lifecycle event.
+
 ## See also
 
 - [Retries & idempotency](retries.md) — what does and doesn't get retried, why
@@ -202,3 +227,19 @@ re-established at all.
 ::: kalshi.errors.KalshiOrderbookUnavailableError
 
 ::: kalshi.errors.KalshiSubscriptionError
+
+::: kalshi.fix.KalshiFixError
+
+::: kalshi.fix.FixConnectionError
+
+::: kalshi.fix.FixLogonError
+
+::: kalshi.fix.FixSequenceError
+
+::: kalshi.fix.FixCodecError
+
+::: kalshi.fix.FixDecodeError
+
+::: kalshi.fix.FixRejectError
+
+::: kalshi.fix.FixSessionError
