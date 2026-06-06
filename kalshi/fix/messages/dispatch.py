@@ -42,6 +42,7 @@ from kalshi.fix.messages.rfq import (
     QuoteStatusReport,
     RFQCancelStatus,
 )
+from kalshi.fix.messages.settlement import MarketSettlementReport
 
 logger = logging.getLogger("kalshi.fix")
 
@@ -70,6 +71,8 @@ APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
         MsgType.QUOTE_CANCEL_STATUS.value: QuoteCancelStatus,
         MsgType.RFQ_CANCEL_STATUS.value: RFQCancelStatus,
         MsgType.ACCEPT_QUOTE_STATUS.value: AcceptQuoteStatus,
+        # Market settlement (post trade)
+        MsgType.MARKET_SETTLEMENT_REPORT.value: MarketSettlementReport,
     }
 )
 

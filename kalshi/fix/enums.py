@@ -258,6 +258,21 @@ class OrderGroupAction(IntEnum):
     UPDATE = 5
 
 
+class MarketResult(StrEnum):
+    """Tag 20107 — market outcome on a MarketSettlementReport (35=UMS)."""
+
+    YES_OUTCOME = "yes"
+    NO_OUTCOME = "no"
+    SCALAR_VALUE = "scalar"
+
+
+class CollateralAmountType(StrEnum):
+    """Tag 1705 — kind of collateral change in a settlement collateral entry."""
+
+    BALANCE = "BALANCE"
+    PAYOUT = "PAYOUT"
+
+
 class EventResendRejectReason(IntEnum):
     """Tag 21004 — why a drop-copy EventResendRequest (35=U3) was rejected."""
 

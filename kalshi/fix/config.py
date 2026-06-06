@@ -140,6 +140,10 @@ class FixConfig:
     # an order-entry capability. Valid on NR/RT and requires skip_pending_exec_reports.
     listener_session: bool = False
     skip_pending_exec_reports: bool = False
+    # Settlement-report stream (tag 20127), applies to RT/PT logon. ``None`` omits
+    # the flag — the gateway then applies its default (on for KalshiPT, off for
+    # KalshiRT). Set ``True`` to opt KalshiRT in, ``False`` to opt KalshiPT out.
+    receive_settlement_reports: bool | None = None
     # ``None`` derives from the product: margin always uses fixed-point dollars,
     # prediction defaults to integer cents (opt into dollars by setting True).
     use_dollars: bool | None = None
@@ -207,6 +211,7 @@ class FixConfig:
         cancel_orders_on_disconnect: bool = False,
         listener_session: bool = False,
         skip_pending_exec_reports: bool = False,
+        receive_settlement_reports: bool | None = None,
         use_dollars: bool | None = None,
         allow_unknown_host: bool = False,
     ) -> FixConfig:
@@ -225,6 +230,7 @@ class FixConfig:
             cancel_orders_on_disconnect=cancel_orders_on_disconnect,
             listener_session=listener_session,
             skip_pending_exec_reports=skip_pending_exec_reports,
+            receive_settlement_reports=receive_settlement_reports,
             use_dollars=use_dollars,
             allow_unknown_host=allow_unknown_host,
         )
@@ -245,6 +251,7 @@ class FixConfig:
         cancel_orders_on_disconnect: bool = False,
         listener_session: bool = False,
         skip_pending_exec_reports: bool = False,
+        receive_settlement_reports: bool | None = None,
         use_dollars: bool = True,
         allow_unknown_host: bool = False,
     ) -> FixConfig:
@@ -263,6 +270,7 @@ class FixConfig:
             cancel_orders_on_disconnect=cancel_orders_on_disconnect,
             listener_session=listener_session,
             skip_pending_exec_reports=skip_pending_exec_reports,
+            receive_settlement_reports=receive_settlement_reports,
             use_dollars=use_dollars,
             allow_unknown_host=allow_unknown_host,
         )

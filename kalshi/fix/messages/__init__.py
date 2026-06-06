@@ -75,6 +75,7 @@ from kalshi.fix.messages.session import (
     SequenceReset,
     TestRequest,
 )
+from kalshi.fix.messages.settlement import MarketSettlementReport
 
 __all__ = [
     "APP_MESSAGE_MODELS",
@@ -100,6 +101,7 @@ __all__ = [
     "MarketDataRequestReject",
     "MarketDataSnapshotFullRefresh",
     "MarketSettlementParty",
+    "MarketSettlementReport",
     "MiscFee",
     "MultivariateSelectedLeg",
     "NewOrderSingle",
