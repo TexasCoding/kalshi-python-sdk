@@ -98,6 +98,20 @@ def test_settlement_report_nested_roundtrip() -> None:
     assert _roundtrip(msg) == msg
 
 
+@pytest.mark.parametrize(
+    ("result", "wire"),
+    [(MarketResult.YES, "yes"), (MarketResult.NO, "no"), (MarketResult.SCALAR, "scalar")],
+)
+def test_settlement_report_market_result_values(result: MarketResult, wire: str) -> None:
+    msg = MarketSettlementReport(
+        symbol=SYM, market_result=wire, settlement_price=Decimal("30.60"), last_fragment=True
+    )
+    assert dict(msg.to_body_fields())[int(Tag.MARKET_RESULT)] == wire
+    rt = _roundtrip(msg)
+    assert isinstance(rt, MarketSettlementReport)
+    assert rt.market_result == result
+
+
 def test_settlement_report_two_parties_with_nested_groups_roundtrip() -> None:
     # Each party carries its own collateral + misc-fee groups; the positional
     # decoder must keep them separated (no cross-party leakage). Exercises negative
@@ -217,12 +231,15 @@ def _frag(symbol: str | None, party_ids: list[str], last: bool | None) -> Market
     )
 
 
-def test_reassembler_multi_fragment() -> None:
+@pytest.mark.parametrize("terminal", [True, None])
+def test_reassembler_multi_fragment(terminal: bool | None) -> None:
+    # The terminal page may carry LastFragment=Y or omit it (absent == Y); both
+    # must merge the buffered fragments.
     r = SettlementReassembler()
     assert r.add(_frag(SYM, ["a"], False)) is None
     assert r.add(_frag(SYM, ["b"], False)) is None
     assert r.pending_symbols() == {SYM}
-    done = r.add(_frag(SYM, ["c"], True))
+    done = r.add(_frag(SYM, ["c"], terminal))
     assert done is not None
     assert [p.party_id for p in done.parties] == ["a", "b", "c"]
     assert r.pending_symbols() == set()
@@ -251,10 +268,14 @@ def test_reassembler_routes_by_symbol() -> None:
     assert [p.party_id for p in done_b.parties] == ["b1", "b2"]
 
 
-def test_reassembler_non_final_without_symbol_dropped() -> None:
+def test_reassembler_non_final_without_symbol_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     r = SettlementReassembler()
-    assert r.add(_frag(None, ["a"], False)) is None
+    with caplog.at_level(logging.WARNING, logger="kalshi.fix"):
+        assert r.add(_frag(None, ["a"], False)) is None
     assert r.pending_symbols() == set()
+    assert any("without Symbol" in rec.message for rec in caplog.records)
 
 
 def test_reassembler_sequential_same_symbol_batches() -> None:
@@ -322,7 +343,11 @@ async def test_post_trade_settlement_stream(
         await acceptor.push("UMS", f1.to_body_fields(), seq=2)
         await acceptor.push("UMS", f2.to_body_fields(), seq=3)
         await until(lambda: len(received) == 2)
-        results = [reasm.add(decode_app_message(r)) for r in received]  # type: ignore[arg-type]
+        results: list[MarketSettlementReport | None] = []
+        for raw in received:
+            decoded = decode_app_message(raw)
+            assert isinstance(decoded, MarketSettlementReport)  # dispatch routed UMS correctly
+            results.append(reasm.add(decoded))
         assert results[0] is None  # first fragment buffered
         assert results[1] is not None
         assert [p.party_id for p in results[1].parties] == ["u1", "u2"]

@@ -34,10 +34,13 @@ class MarketSettlementReport(FixMessage):
     """MarketSettlementReport (35=UMS) — a market's settlement detail.
 
     ``market_result`` is a raw str (compare against
-    :class:`~kalshi.fix.enums.MarketResult`). ``settlement_price`` is in cents
-    (e.g. ``Decimal("100.00")``). ``clearing_business_date`` is the raw
-    ``YYYYMMDD`` string. ``last_fragment`` is ``False`` on non-final pages of a
-    paginated batch, ``True`` (or absent) on the last.
+    :class:`~kalshi.fix.enums.MarketResult`). ``settlement_price`` rides the FIX
+    ``Price`` field as a no-float ``Decimal`` (``DollarDecimal`` is just the
+    coercion type); the value is in *cents*, 2 dp — ``Decimal("100.00")`` is 100c
+    (full YES payout) and ``Decimal("30.60")`` a scalar market — not dollars.
+    ``clearing_business_date`` is the raw ``YYYYMMDD`` string. ``last_fragment``
+    is ``False`` on non-final pages of a paginated batch, ``True`` (or absent) on
+    the last.
     """
 
     MSG_TYPE = MsgType.MARKET_SETTLEMENT_REPORT
