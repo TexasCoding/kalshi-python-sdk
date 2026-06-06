@@ -15,7 +15,12 @@ from typing import ClassVar, Self
 from kalshi.auth import KalshiAuth
 from kalshi.fix.auth import FixSigner
 from kalshi.fix.config import FixConfig, FixEnvironment, FixProduct, FixSessionType
-from kalshi.fix.session import FixSession, MessageHandler, StateChangeHandler
+from kalshi.fix.session import (
+    DecodeErrorHandler,
+    FixSession,
+    MessageHandler,
+    StateChangeHandler,
+)
 
 
 class _BaseFixClient:
@@ -80,6 +85,7 @@ class _BaseFixClient:
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """Construct (but do not start) a :class:`FixSession` for ``session_type``."""
         return FixSession(
@@ -88,6 +94,7 @@ class _BaseFixClient:
             session_type,
             on_message=on_message,
             on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
             ssl_context=self._ssl_context,
         )
 
@@ -97,13 +104,17 @@ class _BaseFixClient:
         retransmission: bool = False,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """An order-entry session (KalshiNR, or KalshiRT when ``retransmission``)."""
         session_type = (
             FixSessionType.ORDER_ENTRY_RT if retransmission else FixSessionType.ORDER_ENTRY_NR
         )
         return self.session(
-            session_type, on_message=on_message, on_state_change=on_state_change
+            session_type,
+            on_message=on_message,
+            on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
         )
 
     def drop_copy(
@@ -111,10 +122,14 @@ class _BaseFixClient:
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """A drop-copy (KalshiDC) session for historical execution-report queries."""
         return self.session(
-            FixSessionType.DROP_COPY, on_message=on_message, on_state_change=on_state_change
+            FixSessionType.DROP_COPY,
+            on_message=on_message,
+            on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
         )
 
     def market_data(
@@ -122,10 +137,14 @@ class _BaseFixClient:
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """A market-data (KalshiMD) session for order-book snapshots and updates."""
         return self.session(
-            FixSessionType.MARKET_DATA, on_message=on_message, on_state_change=on_state_change
+            FixSessionType.MARKET_DATA,
+            on_message=on_message,
+            on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
         )
 
 
@@ -166,10 +185,14 @@ class FixClient(_BaseFixClient):
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """A post-trade (KalshiPT) session for market-settlement reports."""
         return self.session(
-            FixSessionType.POST_TRADE, on_message=on_message, on_state_change=on_state_change
+            FixSessionType.POST_TRADE,
+            on_message=on_message,
+            on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
         )
 
     def rfq(
@@ -177,8 +200,12 @@ class FixClient(_BaseFixClient):
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
     ) -> FixSession:
         """An RFQ (KalshiRFQ) market-maker session."""
         return self.session(
-            FixSessionType.RFQ, on_message=on_message, on_state_change=on_state_change
+            FixSessionType.RFQ,
+            on_message=on_message,
+            on_state_change=on_state_change,
+            on_decode_error=on_decode_error,
         )

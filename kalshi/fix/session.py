@@ -42,8 +42,15 @@ from kalshi.fix.codec import RawMessage, encode
 from kalshi.fix.config import FixConfig, FixSessionType
 from kalshi.fix.connection import FixConnection
 from kalshi.fix.enums import MsgType
-from kalshi.fix.errors import FixConnectionError, FixLogonError, FixSequenceError, FixSessionError
+from kalshi.fix.errors import (
+    FixConnectionError,
+    FixDecodeError,
+    FixLogonError,
+    FixSequenceError,
+    FixSessionError,
+)
 from kalshi.fix.messages.base import FixMessage
+from kalshi.fix.messages.dispatch import decode_app_message_strict
 from kalshi.fix.messages.session import (
     Heartbeat,
     Logon,
@@ -59,6 +66,7 @@ logger = logging.getLogger("kalshi.fix")
 
 MessageHandler = Callable[[RawMessage], Awaitable[None]]
 StateChangeHandler = Callable[["FixSessionState", "FixSessionState"], Awaitable[None]]
+DecodeErrorHandler = Callable[[RawMessage, FixDecodeError], Awaitable[None]]
 
 
 def _heartbeat_due(now: float, last_send: float, interval: float) -> bool:
@@ -112,6 +120,7 @@ class FixSession:
         *,
         on_message: MessageHandler | None = None,
         on_state_change: StateChangeHandler | None = None,
+        on_decode_error: DecodeErrorHandler | None = None,
         ssl_context: ssl.SSLContext | None = None,
     ) -> None:
         config._check_session(session_type)
@@ -122,6 +131,11 @@ class FixSession:
         self._supports_retransmission = config.supports_retransmission(session_type)
         self._on_message = on_message
         self._on_state_change = on_state_change
+        # When set, the session decodes each inbound application message to detect
+        # a registered-but-malformed one and routes it here (a genuine message lost
+        # to one off-spec field is otherwise silently dropped). Costs one decode
+        # per app message; pair with on_message for the happy path. See GH #432.
+        self._on_decode_error = on_decode_error
         self._ssl_context = ssl_context
 
         self._hb = config.heartbeat_interval
@@ -619,6 +633,16 @@ class FixSession:
         # Application message. Isolate consumer callback failures so a buggy
         # handler cannot tear down the session (the message's seq is already
         # accounted for by the caller).
+        if self._on_decode_error is not None:
+            # Detect a registered-but-malformed message and route it, so a fill
+            # lost to one off-spec field is observable rather than silently None.
+            try:
+                decode_app_message_strict(raw)
+            except FixDecodeError as exc:
+                try:
+                    await self._on_decode_error(raw, exc)
+                except Exception:
+                    logger.exception("FIX on_decode_error callback raised; continuing session")
         if self._on_message is not None:
             try:
                 await self._on_message(raw)

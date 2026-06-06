@@ -73,6 +73,7 @@ from kalshi.fix.enums import (
 from kalshi.fix.errors import (
     FixCodecError,
     FixConnectionError,
+    FixDecodeError,
     FixLogonError,
     FixRejectError,
     FixSequenceError,
@@ -133,6 +134,7 @@ from kalshi.fix.messages import (
     SequenceReset,
     TestRequest,
     decode_app_message,
+    decode_app_message_strict,
     groupfield,
 )
 from kalshi.fix.orderbook import BookLevel, FixOrderBook, MarketDataBook
@@ -166,6 +168,7 @@ __all__ = [
     "FixConfig",
     "FixConnection",
     "FixConnectionError",
+    "FixDecodeError",
     "FixEnvironment",
     "FixGroup",
     "FixGroupMeta",
@@ -248,6 +251,7 @@ __all__ = [
     "TimeInForce",
     "decode",
     "decode_app_message",
+    "decode_app_message_strict",
     "encode",
     "groupfield",
 ]
