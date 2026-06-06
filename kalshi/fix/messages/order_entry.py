@@ -16,8 +16,13 @@ Quantities are fractional decimals.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
 from datetime import datetime
+from types import MappingProxyType
 from typing import Annotated
+
+from pydantic import ValidationError
 
 from kalshi.fix.codec import RawMessage
 from kalshi.fix.enums import (
@@ -40,13 +45,20 @@ from kalshi.fix.messages.components import CollateralAmountChange, MiscFee, Part
 from kalshi.fix.tags import Tag
 from kalshi.types import DollarDecimal, FixedPointCount
 
+logger = logging.getLogger("kalshi.fix")
+
 # ---------------------------------------------------------------------------
 # Outbound requests
 # ---------------------------------------------------------------------------
 
 
 class NewOrderSingle(FixMessage):
-    """NewOrderSingle (35=D) — submit a new order."""
+    """NewOrderSingle (35=D) — submit a new order.
+
+    ``TransactTime`` (60) is intentionally not sent: the Kalshi dictionary v1.03
+    does not include it on 35=D (the gateway stamps its own time), unlike the
+    generic FIX 5.0SP2 message.
+    """
 
     MSG_TYPE = MsgType.NEW_ORDER_SINGLE
 
@@ -73,6 +85,8 @@ class NewOrderSingle(FixMessage):
     max_execution_cost: DollarDecimal | None = fixfield(
         Tag.MAX_EXECUTION_COST, FixType.DECIMAL, default=None
     )
+    # Kalshi dictionary v1.03 types AllocAccount (79) as INT — the subaccount
+    # number (0 primary, 1-32) — not the FIX-standard STRING.
     alloc_account: int | None = fixfield(Tag.ALLOC_ACCOUNT, FixType.INT, default=None)
 
 
@@ -224,19 +238,31 @@ class BusinessMessageReject(FixMessage):
 
 # Inbound application-message dispatch: MsgType -> model. Lets a consumer turn an
 # inbound RawMessage (delivered to FixSession.on_message) into a typed model.
-APP_MESSAGE_MODELS: dict[str, type[FixMessage]] = {
-    MsgType.EXECUTION_REPORT.value: ExecutionReport,
-    MsgType.ORDER_CANCEL_REJECT.value: OrderCancelReject,
-    MsgType.ORDER_MASS_CANCEL_REPORT.value: OrderMassCancelReport,
-    MsgType.BUSINESS_MESSAGE_REJECT.value: BusinessMessageReject,
-}
+# Read-only (MappingProxyType) so application code cannot corrupt dispatch.
+APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
+    {
+        MsgType.EXECUTION_REPORT.value: ExecutionReport,
+        MsgType.ORDER_CANCEL_REJECT.value: OrderCancelReject,
+        MsgType.ORDER_MASS_CANCEL_REPORT.value: OrderMassCancelReport,
+        MsgType.BUSINESS_MESSAGE_REJECT.value: BusinessMessageReject,
+    }
+)
 
 
 def decode_app_message(raw: RawMessage) -> FixMessage | None:
     """Decode an inbound application :class:`RawMessage` to its typed model.
 
-    Returns ``None`` for message types without a registered model (e.g. an admin
-    message or a not-yet-implemented application flow).
+    Returns ``None`` for message types without a registered model (an admin
+    message or a not-yet-implemented application flow), and also ``None`` if the
+    payload fails schema validation — a malformed inbound message is logged and
+    swallowed rather than raised into the consumer's ``on_message`` handler.
     """
     model = APP_MESSAGE_MODELS.get(raw.msg_type or "")
-    return model.from_raw(raw) if model is not None else None
+    if model is None:
+        return None
+    try:
+        return model.from_raw(raw)
+    except (ValidationError, ValueError, ArithmeticError):
+        # ValueError: bad bool / int; ArithmeticError: bad Decimal (InvalidOperation).
+        logger.warning("failed to decode inbound %s; returning None", raw.msg_type, exc_info=True)
+        return None

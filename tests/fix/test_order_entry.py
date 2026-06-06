@@ -251,6 +251,16 @@ def test_decode_app_message_all_inbound_types() -> None:
         assert decoded == msg
 
 
+def test_decode_app_message_returns_none_on_malformed() -> None:
+    # A malformed inbound payload is swallowed (logged) rather than raised into
+    # the consumer's on_message — bad bool (ValueError) and bad Decimal
+    # (ArithmeticError) both yield None.
+    bad_bool = RawMessage([(int(Tag.MSG_TYPE), "8"), (int(Tag.AGGRESSOR_INDICATOR), "X")])
+    assert decode_app_message(bad_bool) is None
+    bad_decimal = RawMessage([(int(Tag.MSG_TYPE), "8"), (int(Tag.AVG_PX), "notanumber")])
+    assert decode_app_message(bad_decimal) is None
+
+
 def test_cancel_replace_without_price_is_qty_only() -> None:
     # Kalshi allows a quantity-only amend (Price is required only when changing it).
     msg = OrderCancelReplaceRequest(
