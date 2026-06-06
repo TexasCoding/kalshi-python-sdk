@@ -267,6 +267,70 @@ class EventResendRejectReason(IntEnum):
     END_EXECID_TOO_LARGE = 4
 
 
+class QuoteRequestType(IntEnum):
+    """Tag 303 — QuoteRequestAck (35=b) request type."""
+
+    MANUAL = 1
+    AUTOMATIC = 2
+
+
+class QuoteStatus(IntEnum):
+    """Tag 297 — QuoteStatusReport (35=AI) quote status."""
+
+    ACCEPTED = 0
+    REJECTED = 5
+    PENDING = 10
+    CANCELLED = 17
+
+
+class QuoteRequestRejectReason(IntEnum):
+    """Tag 658 — QuoteRequestReject (35=AG) reason."""
+
+    UNKNOWN_SYMBOL = 1
+    QUOTE_REQUEST_EXCEEDS_LIMIT = 3
+    INSUFFICIENT_CREDIT = 11
+    OTHER = 99
+
+
+# The next four enums use a ``Result`` suffix to avoid colliding with the
+# same-named status *messages* (the Kalshi dictionary names the status field and
+# its carrying message identically, e.g. tag 21010 and 35=U8 are both
+# "QuoteConfirmStatus"); the message keeps the spec name, the value-enum is suffixed.
+
+
+class QuoteConfirmResult(IntEnum):
+    """Tag 21010 — QuoteConfirmStatus (35=U8) outcome."""
+
+    ACCEPTED = 0
+    REJECTED = 1
+
+
+class QuoteCancelResult(IntEnum):
+    """Tag 298 — QuoteCancelStatus (35=U9) outcome."""
+
+    CANCELLED = 0
+    REJECTED = 1
+
+
+class RFQCancelResult(IntEnum):
+    """Tag 21013 — RFQCancelStatus (35=UB) outcome.
+
+    Spelled ``CANCELLED`` to match :class:`QuoteCancelResult` / :class:`QuoteStatus`
+    even though the dictionary describes tag 21013 value 0 as "CANCELED" — the
+    member name is SDK-chosen and not wire-significant (the wire value is ``0``).
+    """
+
+    CANCELLED = 0
+    REJECTED = 1
+
+
+class AcceptQuoteResult(IntEnum):
+    """Tag 21025 — AcceptQuoteStatus (35=UC) outcome."""
+
+    ACCEPTED = 0
+    REJECTED = 1
+
+
 class SubscriptionRequestType(StrEnum):
     """Tag 263 — market-data / security-status subscription action.
 

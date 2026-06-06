@@ -31,6 +31,17 @@ from kalshi.fix.messages.order_entry import (
     OrderMassCancelReport,
 )
 from kalshi.fix.messages.order_groups import OrderGroupResponse
+from kalshi.fix.messages.rfq import (
+    AcceptQuoteStatus,
+    Quote,
+    QuoteCancelStatus,
+    QuoteConfirmStatus,
+    QuoteRequest,
+    QuoteRequestAck,
+    QuoteRequestReject,
+    QuoteStatusReport,
+    RFQCancelStatus,
+)
 
 logger = logging.getLogger("kalshi.fix")
 
@@ -48,6 +59,17 @@ APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
         MsgType.MARKET_DATA_REQUEST_REJECT.value: MarketDataRequestReject,
         MsgType.SECURITY_STATUS.value: SecurityStatus,
         MsgType.ORDER_GROUP_RESPONSE.value: OrderGroupResponse,
+        # RFQ / quoting. R and S are bidirectional — a client acting as market
+        # maker (or creator) receives them as notifications, so they decode too.
+        MsgType.QUOTE_REQUEST.value: QuoteRequest,
+        MsgType.QUOTE.value: Quote,
+        MsgType.QUOTE_REQUEST_ACK.value: QuoteRequestAck,
+        MsgType.QUOTE_STATUS_REPORT.value: QuoteStatusReport,
+        MsgType.QUOTE_REQUEST_REJECT.value: QuoteRequestReject,
+        MsgType.QUOTE_CONFIRM_STATUS.value: QuoteConfirmStatus,
+        MsgType.QUOTE_CANCEL_STATUS.value: QuoteCancelStatus,
+        MsgType.RFQ_CANCEL_STATUS.value: RFQCancelStatus,
+        MsgType.ACCEPT_QUOTE_STATUS.value: AcceptQuoteStatus,
     }
 )
 
