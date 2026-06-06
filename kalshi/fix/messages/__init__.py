@@ -51,6 +51,21 @@ from kalshi.fix.messages.order_entry import (
     OrderMassCancelRequest,
 )
 from kalshi.fix.messages.order_groups import OrderGroupRequest, OrderGroupResponse
+from kalshi.fix.messages.rfq import (
+    AcceptQuote,
+    AcceptQuoteStatus,
+    Quote,
+    QuoteCancel,
+    QuoteCancelStatus,
+    QuoteConfirm,
+    QuoteConfirmStatus,
+    QuoteRequest,
+    QuoteRequestAck,
+    QuoteRequestReject,
+    QuoteStatusReport,
+    RFQCancel,
+    RFQCancelStatus,
+)
 from kalshi.fix.messages.session import (
     Heartbeat,
     Logon,
@@ -63,6 +78,8 @@ from kalshi.fix.messages.session import (
 
 __all__ = [
     "APP_MESSAGE_MODELS",
+    "AcceptQuote",
+    "AcceptQuoteStatus",
     "BusinessMessageReject",
     "CollateralAmountChange",
     "EventResendComplete",
@@ -94,6 +111,17 @@ __all__ = [
     "OrderMassCancelReport",
     "OrderMassCancelRequest",
     "Party",
+    "Quote",
+    "QuoteCancel",
+    "QuoteCancelStatus",
+    "QuoteConfirm",
+    "QuoteConfirmStatus",
+    "QuoteRequest",
+    "QuoteRequestAck",
+    "QuoteRequestReject",
+    "QuoteStatusReport",
+    "RFQCancel",
+    "RFQCancelStatus",
     "Reject",
     "RelatedSymbol",
     "ResendRequest",
