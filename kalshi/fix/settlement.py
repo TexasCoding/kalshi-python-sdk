@@ -59,12 +59,17 @@ class SettlementReassembler:
         Returns ``None`` while more fragments are expected (``LastFragment=N``).
         A terminal fragment (``LastFragment`` ``True`` or absent) returns the
         report with every accumulated party; a standalone report is returned
-        unchanged.
+        unchanged. The assembled report carries the *terminal* fragment's
+        ``MarketSettlementReportID`` (each page has its own — there is no canonical
+        batch id), so key any dedup off ``Symbol`` + clearing date, not that id.
         """
         if report.last_fragment is False:
             # Non-final page: must have a Symbol to correlate the batch.
             if report.symbol is None:
-                logger.warning("settlement fragment without Symbol; cannot reassemble")
+                logger.warning(
+                    "settlement fragment without Symbol; dropping %d parties",
+                    len(report.parties),
+                )
                 return None
             self._pending.setdefault(report.symbol, []).extend(report.parties)
             return None

@@ -173,7 +173,7 @@ def test_settlement_report_decodes_doc_example_with_trailing_last_fragment() -> 
     msg = decode_app_message(raw)
     assert isinstance(msg, MarketSettlementReport)
     assert msg.symbol == SYM
-    assert msg.market_result == MarketResult.YES_OUTCOME
+    assert msg.market_result == MarketResult.YES
     assert msg.settlement_price == Decimal("100.00")
     assert msg.last_fragment is True
     assert len(msg.parties) == 1

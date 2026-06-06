@@ -261,9 +261,9 @@ class OrderGroupAction(IntEnum):
 class MarketResult(StrEnum):
     """Tag 20107 — market outcome on a MarketSettlementReport (35=UMS)."""
 
-    YES_OUTCOME = "yes"
-    NO_OUTCOME = "no"
-    SCALAR_VALUE = "scalar"
+    YES = "yes"
+    NO = "no"
+    SCALAR = "scalar"
 
 
 class CollateralAmountType(StrEnum):
