@@ -109,13 +109,11 @@ class FixDecodeError(KalshiFixError):
     collapses both to ``None``;
     :func:`~kalshi.fix.messages.decode_app_message_strict` raises this for the
     former so the failure is observable (see ``FixSession``'s ``on_decode_error``
-    hook). ``raw`` carries the offending message; the underlying validation error
-    is chained via ``__cause__``.
+    hook). ``raw`` carries the offending message and ``msg_type`` its ``MsgType``
+    (both always present); the underlying validation error chains via ``__cause__``.
     """
 
-    def __init__(
-        self, message: str, *, raw: RawMessage | None = None, msg_type: str | None = None
-    ) -> None:
+    def __init__(self, message: str, *, raw: RawMessage, msg_type: str) -> None:
         self.raw = raw
         self.msg_type = msg_type
         super().__init__(message)

@@ -110,6 +110,16 @@ class FixSession:
                              on_message=handle)
         async with session:
             ...  # send order-entry messages, receive execution reports
+
+    ``on_message`` receives every inbound application message as a raw
+    :class:`~kalshi.fix.codec.RawMessage` (decode it with
+    :func:`~kalshi.fix.messages.decode_app_message`). Setting ``on_decode_error``
+    additionally routes a *registered-but-malformed* message (a real message lost
+    to one off-spec field) — but it makes the session run a full Pydantic
+    validation on **every** inbound application message to detect failures, so on a
+    high-rate session that is real per-message overhead (and the consumer's own
+    decode in ``on_message`` is then a second pass). Leave it unset unless you
+    need malformed messages surfaced; there is no cost when it is ``None``.
     """
 
     def __init__(
@@ -131,10 +141,8 @@ class FixSession:
         self._supports_retransmission = config.supports_retransmission(session_type)
         self._on_message = on_message
         self._on_state_change = on_state_change
-        # When set, the session decodes each inbound application message to detect
-        # a registered-but-malformed one and routes it here (a genuine message lost
-        # to one off-spec field is otherwise silently dropped). Costs one decode
-        # per app message; pair with on_message for the happy path. See GH #432.
+        # Routes registered-but-malformed inbound messages; see the class docstring
+        # for the per-message decode cost this opts into. GH #432.
         self._on_decode_error = on_decode_error
         self._ssl_context = ssl_context
 

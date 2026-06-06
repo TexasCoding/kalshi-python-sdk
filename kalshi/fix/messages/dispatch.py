@@ -88,16 +88,16 @@ def decode_app_message_strict(raw: RawMessage) -> FixMessage | None:
     a single off-spec field is observable. Used by ``FixSession``'s
     ``on_decode_error`` hook; direct callers wanting the distinction can call this.
     """
-    model = APP_MESSAGE_MODELS.get(raw.msg_type or "")
+    mt = raw.msg_type or ""
+    model = APP_MESSAGE_MODELS.get(mt)
     if model is None:
         return None
     try:
         return model.from_raw(raw)
     except (ValidationError, ValueError, ArithmeticError) as exc:
         # ValueError: bad bool / int; ArithmeticError: bad Decimal (InvalidOperation).
-        raise FixDecodeError(
-            f"failed to decode inbound {raw.msg_type}", raw=raw, msg_type=raw.msg_type
-        ) from exc
+        # mt is the registered key here, so it is a real (non-empty) MsgType.
+        raise FixDecodeError(f"failed to decode inbound {mt}", raw=raw, msg_type=mt) from exc
 
 
 def decode_app_message(raw: RawMessage) -> FixMessage | None:

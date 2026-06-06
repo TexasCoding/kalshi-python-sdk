@@ -145,9 +145,42 @@ async def test_session_no_decode_error_on_valid_message(
     )
     await session.start()
     try:
-        await acceptor.push("8", [(int(Tag.ORDER_ID), "OID-1")], seq=2)
+        await acceptor.push("8", [(int(Tag.AVG_PX), "0.66")], seq=2)
         await until(lambda: bool(received))
         assert errors == []  # a valid ExecutionReport does not trigger the hook
+    finally:
+        await session.close()
+
+
+async def test_session_survives_raising_decode_error_callback(
+    fix_signer: FixSigner,
+    fix_config: FixConfig,
+    acceptor: MockAcceptor,
+    until: Callable[..., Awaitable[None]],
+) -> None:
+    # A buggy on_decode_error must not tear down the session — the raw is still
+    # delivered to on_message and the session stays active.
+    received: list[RawMessage] = []
+
+    async def on_message(raw: RawMessage) -> None:
+        received.append(raw)
+
+    async def on_decode_error(raw: RawMessage, exc: FixDecodeError) -> None:
+        raise RuntimeError("buggy consumer hook")
+
+    session = FixSession(
+        fix_signer,
+        fix_config,
+        FixSessionType.ORDER_ENTRY_NR,
+        on_message=on_message,
+        on_decode_error=on_decode_error,
+    )
+    await session.start()
+    try:
+        await acceptor.push("8", [(int(Tag.AVG_PX), "notanumber")], seq=2)
+        await until(lambda: bool(received))
+        assert received[0].msg_type == "8"
+        assert session.state.value == "active"
     finally:
         await session.close()
 
