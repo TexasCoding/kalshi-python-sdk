@@ -23,8 +23,13 @@ from kalshi.fix.messages.components import (
     MultivariateSelectedLeg,
     Party,
 )
+from kalshi.fix.messages.dispatch import APP_MESSAGE_MODELS, decode_app_message
+from kalshi.fix.messages.drop_copy import (
+    EventResendComplete,
+    EventResendReject,
+    EventResendRequest,
+)
 from kalshi.fix.messages.order_entry import (
-    APP_MESSAGE_MODELS,
     BusinessMessageReject,
     ExecutionReport,
     NewOrderSingle,
@@ -33,7 +38,6 @@ from kalshi.fix.messages.order_entry import (
     OrderCancelRequest,
     OrderMassCancelReport,
     OrderMassCancelRequest,
-    decode_app_message,
 )
 from kalshi.fix.messages.session import (
     Heartbeat,
@@ -49,6 +53,9 @@ __all__ = [
     "APP_MESSAGE_MODELS",
     "BusinessMessageReject",
     "CollateralAmountChange",
+    "EventResendComplete",
+    "EventResendReject",
+    "EventResendRequest",
     "ExecutionReport",
     "FixGroup",
     "FixGroupMeta",

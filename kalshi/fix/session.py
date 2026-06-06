@@ -345,6 +345,8 @@ class FixSession:
             reset_seq_num_flag=True if reset else None,
             use_dollars=True if self._config.effective_use_dollars else None,
             cancel_orders_on_disconnect=True if self._config.cancel_orders_on_disconnect else None,
+            listener_session=True if self._config.listener_session else None,
+            skip_pending_exec_reports=True if self._config.skip_pending_exec_reports else None,
         )
         await self._send(logon)
 
