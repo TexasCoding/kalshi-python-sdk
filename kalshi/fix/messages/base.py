@@ -25,6 +25,7 @@ first-occurrence without confusion with a same-tagged field inside a group.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -36,6 +37,8 @@ from kalshi.fix._timefmt import format_utc_timestamp, parse_utc_timestamp
 from kalshi.fix.codec import RawMessage
 from kalshi.fix.enums import MsgType
 from kalshi.fix.tags import DATA_LENGTH_FIELDS
+
+logger = logging.getLogger("kalshi.fix")
 
 # Reverse of DATA_LENGTH_FIELDS: data_tag -> length_tag. Used by to_body_fields
 # to auto-emit the length field immediately before a data field.
@@ -77,7 +80,7 @@ class FixGroupMeta:
     """
 
     num_in_group_tag: int
-    entry_model: type[_FixFieldModel]
+    entry_model: type[FixGroup]
 
 
 @dataclass(frozen=True)
@@ -91,7 +94,7 @@ class _ScalarSpec:
 class _GroupSpec:
     name: str
     count_tag: int
-    entry_model: type[_FixFieldModel]
+    entry_model: type[FixGroup]
 
 
 _FieldSpec = _ScalarSpec | _GroupSpec
@@ -173,8 +176,8 @@ def _parse_group(
     pairs: list[tuple[int, str]],
     start: int,
     count: int,
-    entry_model: type[_FixFieldModel],
-) -> tuple[list[_FixFieldModel], int]:
+    entry_model: type[FixGroup],
+) -> tuple[list[FixGroup], int]:
     """Parse up to ``count`` group entries from ``pairs`` beginning at ``start``.
 
     Each entry begins at the entry model's delimiter (first) tag and runs until
@@ -184,7 +187,7 @@ def _parse_group(
     """
     delim = entry_model._first_tag()
     member_tags = entry_model._member_tags()
-    entries: list[_FixFieldModel] = []
+    entries: list[FixGroup] = []
     i = start
     n = len(pairs)
     while len(entries) < count and i < n and pairs[i][0] == delim:
@@ -194,6 +197,14 @@ def _parse_group(
             entry_pairs.append(pairs[i])
             i += 1
         entries.append(entry_model._from_pairs(entry_pairs))
+    if len(entries) < count:
+        # Malformed FIX: NumInGroup promised more entries than were delivered.
+        logger.debug(
+            "FIX group %s: NumInGroup=%d but only %d entries parsed",
+            entry_model.__name__,
+            count,
+            len(entries),
+        )
     return entries, i
 
 
@@ -258,7 +269,12 @@ class _FixFieldModel(BaseModel):
 
     @classmethod
     def _first_tag(cls) -> int:
-        """The delimiter tag — the first declared field's tag (group entry start)."""
+        """The delimiter tag — the first declared field's tag (group entry start).
+
+        Falls back to a leading group's ``NumInGroup`` tag, but no FIX group
+        places a nested group as an entry's first field, so in practice this is
+        always a scalar tag.
+        """
         for spec in cls._layout():
             return spec.tag if isinstance(spec, _ScalarSpec) else spec.count_tag
         raise ValueError(f"{cls.__name__} declares no FIX fields")
@@ -309,6 +325,11 @@ class _FixFieldModel(BaseModel):
                 try:
                     count = int(pairs[idx][1])
                 except ValueError:
+                    logger.debug(
+                        "FIX group %s: non-integer NumInGroup %r",
+                        spec.entry_model.__name__,
+                        pairs[idx][1],
+                    )
                     continue
                 entries, _ = _parse_group(pairs, idx + 1, count, spec.entry_model)
                 kwargs[spec.name] = entries
