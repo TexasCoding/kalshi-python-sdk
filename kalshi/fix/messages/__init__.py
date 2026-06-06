@@ -50,6 +50,7 @@ from kalshi.fix.messages.order_entry import (
     OrderMassCancelReport,
     OrderMassCancelRequest,
 )
+from kalshi.fix.messages.order_groups import OrderGroupRequest, OrderGroupResponse
 from kalshi.fix.messages.session import (
     Heartbeat,
     Logon,
@@ -88,6 +89,8 @@ __all__ = [
     "OrderCancelReject",
     "OrderCancelReplaceRequest",
     "OrderCancelRequest",
+    "OrderGroupRequest",
+    "OrderGroupResponse",
     "OrderMassCancelReport",
     "OrderMassCancelRequest",
     "Party",

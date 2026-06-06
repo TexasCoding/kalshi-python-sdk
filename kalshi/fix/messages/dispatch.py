@@ -30,6 +30,7 @@ from kalshi.fix.messages.order_entry import (
     OrderCancelReject,
     OrderMassCancelReport,
 )
+from kalshi.fix.messages.order_groups import OrderGroupResponse
 
 logger = logging.getLogger("kalshi.fix")
 
@@ -46,6 +47,7 @@ APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
         MsgType.MARKET_DATA_INCREMENTAL_REFRESH.value: MarketDataIncrementalRefresh,
         MsgType.MARKET_DATA_REQUEST_REJECT.value: MarketDataRequestReject,
         MsgType.SECURITY_STATUS.value: SecurityStatus,
+        MsgType.ORDER_GROUP_RESPONSE.value: OrderGroupResponse,
     }
 )
 
