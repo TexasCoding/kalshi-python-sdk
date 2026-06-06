@@ -82,8 +82,11 @@ def test_decode_app_message_drop_copy_types() -> None:
 
 
 def test_listener_session_requires_skip_pending() -> None:
+    # Both factories feed the same __post_init__ validator.
     with pytest.raises(ValueError, match="skip_pending_exec_reports"):
         FixConfig.prediction(listener_session=True)
+    with pytest.raises(ValueError, match="skip_pending_exec_reports"):
+        FixConfig.margin(listener_session=True)
 
 
 async def test_drop_copy_query_returns_execution_reports(
@@ -135,7 +138,9 @@ async def test_drop_copy_query_returns_execution_reports(
 
 
 async def test_listener_logon_emits_flags(
-    fix_signer: FixSigner, acceptor: MockAcceptor
+    fix_signer: FixSigner,
+    acceptor: MockAcceptor,
+    until: Callable[..., Awaitable[None]],
 ) -> None:
     config = FixConfig.prediction(
         environment=FixEnvironment.DEMO,
@@ -150,6 +155,10 @@ async def test_listener_logon_emits_flags(
     session = FixSession(fix_signer, config, FixSessionType.ORDER_ENTRY_NR)
     await session.start()
     try:
+        # start() returns only after the Logon round-trips (the acceptor records
+        # before it responds), so the Logon is already landed — poll anyway to
+        # match the file's idiom and stay robust to acceptor changes.
+        await until(lambda: acceptor.first("A") is not None)
         logon = acceptor.first("A")
         assert logon is not None
         assert logon.get(Tag.LISTENER_SESSION) == "Y"
