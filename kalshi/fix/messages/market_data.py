@@ -44,12 +44,14 @@ class MDSnapshotEntry(FixGroup):
     """One ``NoMDEntries`` (268) entry in a snapshot — delimiter ``MDEntryType`` (269).
 
     ``md_entry_type`` is a raw char (compare against
-    :class:`~kalshi.fix.enums.MDEntryType`: ``0``=bid, ``1``=offer).
+    :class:`~kalshi.fix.enums.MDEntryType`: ``0``=bid, ``1``=offer). Price/size
+    are optional for inbound robustness (parse an off-spec entry rather than
+    rejecting the whole message), matching the order-entry inbound convention.
     """
 
     md_entry_type: str = fixfield(Tag.MD_ENTRY_TYPE, FixType.CHAR)
-    md_entry_px: DollarDecimal = fixfield(Tag.MD_ENTRY_PX, FixType.PRICE)
-    md_entry_size: FixedPointCount = fixfield(Tag.MD_ENTRY_SIZE, FixType.QTY)
+    md_entry_px: DollarDecimal | None = fixfield(Tag.MD_ENTRY_PX, FixType.PRICE, default=None)
+    md_entry_size: FixedPointCount | None = fixfield(Tag.MD_ENTRY_SIZE, FixType.QTY, default=None)
 
 
 class MDIncrementalEntry(FixGroup):
@@ -58,13 +60,15 @@ class MDIncrementalEntry(FixGroup):
     ``md_update_action`` / ``md_entry_type`` are raw chars (compare against
     :class:`~kalshi.fix.enums.MDUpdateAction` / ``MDEntryType``). ``md_entry_size``
     is the *new* absolute size at the level (``0`` when the level is deleted).
+    Price/size are optional for inbound robustness (a ``Delete`` that omits them
+    still parses), matching the order-entry inbound convention.
     """
 
     md_update_action: str = fixfield(Tag.MD_UPDATE_ACTION, FixType.CHAR)
     symbol: str = fixfield(Tag.SYMBOL, FixType.STRING)
     md_entry_type: str = fixfield(Tag.MD_ENTRY_TYPE, FixType.CHAR)
-    md_entry_px: DollarDecimal = fixfield(Tag.MD_ENTRY_PX, FixType.PRICE)
-    md_entry_size: FixedPointCount = fixfield(Tag.MD_ENTRY_SIZE, FixType.QTY)
+    md_entry_px: DollarDecimal | None = fixfield(Tag.MD_ENTRY_PX, FixType.PRICE, default=None)
+    md_entry_size: FixedPointCount | None = fixfield(Tag.MD_ENTRY_SIZE, FixType.QTY, default=None)
 
 
 # ---------------------------------------------------------------------------

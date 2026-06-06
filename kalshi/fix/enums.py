@@ -278,7 +278,11 @@ class MDEntryType(StrEnum):
 
 
 class MDUpdateAction(StrEnum):
-    """Tag 279 — action for an incremental market-data entry (35=X)."""
+    """Tag 279 — action for an incremental market-data entry (35=X).
+
+    FIX 5.0SP2 also defines New=0; Kalshi MD does not emit it, so it is
+    intentionally absent (an action='0' is dropped as unknown).
+    """
 
     CHANGE = "1"
     DELETE = "2"

@@ -116,7 +116,9 @@ class FixOrderBook:
                     "FIX MD snapshot %s: unknown MDEntryType %r", symbol, entry.md_entry_type
                 )
                 continue
-            if entry.md_entry_size <= 0:
+            # A level needs a price and a positive size; a 0/absent size is "no
+            # level" (parity with an incremental Delete).
+            if entry.md_entry_px is None or entry.md_entry_size is None or entry.md_entry_size <= 0:
                 continue
             levels[entry.md_entry_px] = entry.md_entry_size
         self._books[symbol] = state
@@ -145,16 +147,23 @@ class FixOrderBook:
                     entry.md_entry_type,
                 )
                 continue
+            px = entry.md_entry_px
+            if px is None:
+                logger.debug(
+                    "FIX MD incremental %s: entry without MDEntryPx; dropping", entry.symbol
+                )
+                continue
             # Check the action FIRST: an unknown action carrying size 0 must be
             # dropped, not routed into Delete by a leading size guard.
             action = entry.md_update_action
             if action == MDUpdateAction.DELETE.value:
-                levels.pop(entry.md_entry_px, None)
+                levels.pop(px, None)
             elif action == MDUpdateAction.CHANGE.value:
-                if entry.md_entry_size <= 0:
-                    levels.pop(entry.md_entry_px, None)  # a 0-size Change clears the level
+                size = entry.md_entry_size
+                if size is None or size <= 0:
+                    levels.pop(px, None)  # absent / 0 size clears the level
                 else:
-                    levels[entry.md_entry_px] = entry.md_entry_size
+                    levels[px] = size
             else:
                 # Out-of-spec action: don't silently mutate the book.
                 logger.debug(

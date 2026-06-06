@@ -64,8 +64,9 @@ def _wire(msg: FixMessage) -> str:
 
 
 def test_golden_wire_market_data_request() -> None:
-    # docs market-data.md: snapshot request body, and cancel-all body.
+    # docs market-data.md: snapshot, subscribe, and cancel-all request bodies.
     assert _wire(MarketDataRequest.snapshot([TICKER])) == f"263=0|146=1|55={TICKER}"
+    assert _wire(MarketDataRequest.subscribe([TICKER])) == f"263=1|146=1|55={TICKER}"
     assert _wire(MarketDataRequest.unsubscribe_all()) == "263=2"
 
 
@@ -139,7 +140,7 @@ def test_market_data_request_subscribe_multi() -> None:
 def test_market_data_request_unsubscribe() -> None:
     msg = MarketDataRequest.unsubscribe([TICKER])
     body = dict(msg.to_body_fields())
-    assert body[int(Tag.SUBSCRIPTION_REQUEST_TYPE)] == SubscriptionRequestType.DISABLE.value
+    assert body[int(Tag.SUBSCRIPTION_REQUEST_TYPE)] == SubscriptionRequestType.DISABLE
     assert body[int(Tag.NO_RELATED_SYM)] == "1"
 
 
@@ -169,7 +170,7 @@ def test_security_status_request_subscribe() -> None:
 def test_security_status_request_unsubscribe() -> None:
     msg = SecurityStatusRequest.unsubscribe(TICKER)
     body = dict(msg.to_body_fields())
-    assert body[int(Tag.SUBSCRIPTION_REQUEST_TYPE)] == SubscriptionRequestType.DISABLE.value
+    assert body[int(Tag.SUBSCRIPTION_REQUEST_TYPE)] == SubscriptionRequestType.DISABLE
     assert body[int(Tag.SYMBOL)] == TICKER
 
 
@@ -504,6 +505,35 @@ def test_orderbook_incremental_unknown_action_dropped(size: str) -> None:
     view = book.get(TICKER)
     assert view is not None
     assert [(lvl.price, lvl.size) for lvl in view.bids] == [(Decimal("0.35"), Decimal("20"))]
+
+
+def test_orderbook_incremental_delete_without_size_parses_and_applies() -> None:
+    # FIX permits a Delete to omit MDEntrySize(271); the inbound entry must parse
+    # (price/size optional) and the level must still be removed.
+    book = FixOrderBook()
+    book.apply_snapshot(_snapshot((MDEntryType.BID.value, "0.35", "20")))
+    raw = decode(
+        encode(
+            [
+                (int(Tag.MSG_TYPE), "X"),
+                (int(Tag.MSG_SEQ_NUM), "2"),
+                (int(Tag.SENDING_TIME), "20250101-00:00:00.000"),
+                (int(Tag.NO_MD_ENTRIES), "1"),
+                (int(Tag.MD_UPDATE_ACTION), MDUpdateAction.DELETE.value),
+                (int(Tag.SYMBOL), TICKER),
+                (int(Tag.MD_ENTRY_TYPE), MDEntryType.BID.value),
+                (int(Tag.MD_ENTRY_PX), "0.35"),
+                # MDEntrySize (271) intentionally omitted.
+            ]
+        )
+    )
+    msg = decode_app_message(raw)
+    assert isinstance(msg, MarketDataIncrementalRefresh)
+    assert msg.entries[0].md_entry_size is None
+    assert book.apply_incremental(msg) == 1
+    view = book.get(TICKER)
+    assert view is not None
+    assert view.bids == ()
 
 
 def test_orderbook_resubscribe_without_clear_leaves_stale_book() -> None:
