@@ -13,9 +13,10 @@ WebSocket, or Perps surfaces.
 - **FIX engine (`kalshi.fix`)** — a hand-rolled, async-first FIX client for both
   products: `FixClient` (prediction) and `MarginFixClient` (margin, in
   `kalshi.perps.fix`), re-exported from the top-level `kalshi` package alongside
-  `FixConfig`, `FixEnvironment`, and `FixSessionType`. Covers six session types —
-  order entry (NR/RT), drop copy, market data, order groups, post-trade
-  settlement (prediction), and RFQ (prediction) — on a session state machine with
+  `FixConfig`, `FixEnvironment`, and `FixSessionType`. Covers five session types —
+  order entry (NR/RT), drop copy, market data, post-trade settlement (prediction),
+  and RFQ (prediction), plus order-group management over the order-entry session —
+  on a session state machine with
   RSA-PSS logon (reusing the REST key), heartbeat / test-request liveness,
   sequence tracking with gap-fill / resend on the retransmission sessions, and
   AWS-style full-jitter reconnect. (Epic #402.)

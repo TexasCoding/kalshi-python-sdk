@@ -13,7 +13,7 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 
 - **Full coverage** of the Kalshi REST API (99 operations across 19 resources, OpenAPI v3.20.0) and WebSocket API (11 typed `subscribe_*` channels + 2 escape-hatch).
 - **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (10 operations). See [Perps (margin) trading](#perps-margin-trading).
-- **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, order-groups, post-trade (prediction), and RFQ (prediction) sessions with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
+- **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, post-trade (prediction), and RFQ (prediction) sessions (plus order-group management over the order-entry session) with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
@@ -255,10 +255,11 @@ rather than RSA-PSS. Full guide: [docs/perps.md](docs/perps.md).
 
 For persistent, low-latency sessions the SDK includes a hand-rolled, **async-first**
 FIX engine (FIXT.1.1 / FIX50SP2) for both products: order-entry, drop-copy,
-market-data, order-groups, post-trade (prediction), and RFQ (prediction) sessions
-with typed message models, automatic logon/heartbeat/sequence recovery, and
-order-book / settlement reassembly. It reuses the same RSA-PSS key as the REST
-client (`KALSHI_*` for prediction, `KALSHI_PERPS_*` for margin).
+market-data, post-trade (prediction), and RFQ (prediction) sessions — plus
+order-group management over the order-entry session — with typed message models,
+automatic logon/heartbeat/sequence recovery, and order-book / settlement
+reassembly. It reuses the same RSA-PSS key as the REST client (`KALSHI_*` for
+prediction, `KALSHI_PERPS_*` for margin).
 
 ```python
 import asyncio

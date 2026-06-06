@@ -19,10 +19,11 @@ markets API.
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
   (10 operations, cookie-session + MFA auth). See [Perps](perps.md).
 - **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)
-  for both products: order-entry, drop-copy, market-data, order-groups, post-trade
-  (prediction), and RFQ (prediction) sessions with typed message models, automatic
-  sequence recovery, and order-book / settlement reassembly. `from kalshi import
-  FixClient` (prediction) / `MarginFixClient` (margin). See [FIX](fix.md).
+  for both products: order-entry, drop-copy, market-data, post-trade (prediction),
+  and RFQ (prediction) sessions — plus order-group management over the order-entry
+  session — with typed message models, automatic sequence recovery, and order-book
+  / settlement reassembly. `from kalshi import FixClient` (prediction) /
+  `MarginFixClient` (margin). See [FIX](fix.md).
 - **Sync and async parity** — `KalshiClient` and `AsyncKalshiClient` share one
   transport implementation; method names, kwargs, return types, and error behavior
   are identical. The one exception is WebSocket access, which is async-only.

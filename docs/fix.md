@@ -59,6 +59,9 @@ entered and logs out + disconnects when exited.
 | `post_trade()` | `KalshiPT` | market-settlement reports | ✅ | — |
 | `rfq()` | `KalshiRFQ` | request-for-quote / market making | ✅ | — |
 
+Order groups are **not** a separate session — `OrderGroupRequest` /
+`OrderGroupResponse` are exchanged over the order-entry session.
+
 Every factory takes the same callbacks:
 
 - `on_message(raw)` — each inbound **application** message as a raw
@@ -100,10 +103,15 @@ async def main() -> None:
                 price=Decimal("0.55"),   # prediction: dollars or integer cents per UseDollars
             )
         )
-        await asyncio.sleep(2)  # let execution reports arrive
+        await asyncio.sleep(2)  # illustration only — see note below
 
 asyncio.run(main())
 ```
+
+The `asyncio.sleep(2)` just keeps the session alive long enough for the example to
+print; in real code coordinate on an `asyncio.Event` (or your own run loop) that
+your `on_message` handler sets when it has seen what it's waiting for, rather than
+a fixed delay.
 
 The typed message families are exported from `kalshi.fix` (and
 `kalshi.fix.messages`): order entry (`NewOrderSingle`, `OrderCancelRequest`,
@@ -126,11 +134,19 @@ by default, dollars when enabled); on margin they are fixed-point dollars.
 `FixOrderBook` reconstructs an aggregated book from a `W` snapshot plus `X`
 incrementals:
 
+The `on_message` callback is awaited, so it must be an `async def` (a plain
+`def`/`lambda` will fail). `FixOrderBook.apply()` accepts any decoded message and
+ignores anything that isn't a market-data snapshot/incremental:
+
 ```python
 from kalshi.fix import FixOrderBook, MarketDataRequest, decode_app_message
 
 book = FixOrderBook()
-async with client.market_data(on_message=lambda raw: book.apply(decode_app_message(raw))) as md:
+
+async def on_message(raw) -> None:
+    book.apply(decode_app_message(raw))
+
+async with client.market_data(on_message=on_message) as md:
     await md.send(MarketDataRequest.subscribe(["KXNBAGAME-26MAY25NYKCLE-NYK"]))
     ...
     view = book.get("KXNBAGAME-26MAY25NYKCLE-NYK")  # MarketDataBook | None (bids/offers)
@@ -146,14 +162,20 @@ opted in via `FixConfig.receive_settlement_reports=True`. Large batches paginate
 across fragments correlated by `Symbol`; `SettlementReassembler` accumulates them
 into one report:
 
+`SettlementReassembler.add()` expects a `MarketSettlementReport`, so guard the
+decode (other message types, and an unrecognized frame, decode to a different
+model or `None`):
+
 ```python
-from kalshi.fix import SettlementReassembler, decode_app_message
+from kalshi.fix import MarketSettlementReport, SettlementReassembler, decode_app_message
 
 reasm = SettlementReassembler()
-async def on_message(raw):
-    complete = reasm.add(decode_app_message(raw))  # MarketSettlementReport | None until whole
-    if complete is not None:
-        ...  # complete.parties has every party for the batch
+async def on_message(raw) -> None:
+    msg = decode_app_message(raw)
+    if isinstance(msg, MarketSettlementReport):
+        complete = reasm.add(msg)  # MarketSettlementReport | None until the batch is whole
+        if complete is not None:
+            ...  # complete.parties has every party for the batch
 
 async with client.post_trade(on_message=on_message) as session:
     ...
