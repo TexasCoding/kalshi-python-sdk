@@ -201,7 +201,9 @@ class RFQCancel(FixMessage):
     """RFQCancel (35=UE) — creator cancels an active RFQ.
 
     Identify the RFQ by either ``quote_req_id`` (client id) or ``rfq_id`` (server
-    id); use :meth:`for_req_id` / :meth:`for_rfq_id`.
+    id); use :meth:`for_req_id` / :meth:`for_rfq_id`. The helpers cover the common
+    case; an FCM on-behalf-of cancel sets ``parties`` via direct construction,
+    e.g. ``RFQCancel(quote_req_id=..., parties=[Party(...)])``.
     """
 
     MSG_TYPE = MsgType.RFQ_CANCEL
@@ -212,8 +214,9 @@ class RFQCancel(FixMessage):
 
     @model_validator(mode="after")
     def _require_identifier(self) -> RFQCancel:
-        # Outbound-only message (never decoded inbound), so this guard is safe:
-        # an RFQCancel with neither identifier is rejected by the exchange.
+        # The validator enforces the outbound contract (at least one identifier).
+        # RFQCancel is outbound-only — do NOT add it to dispatch/APP_MESSAGE_MODELS
+        # without revisiting this, or it would reject inbound messages lacking both.
         if self.quote_req_id is None and self.rfq_id is None:
             raise ValueError("RFQCancel requires quote_req_id or rfq_id")
         return self

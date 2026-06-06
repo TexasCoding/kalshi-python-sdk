@@ -313,9 +313,14 @@ class QuoteCancelResult(IntEnum):
 
 
 class RFQCancelResult(IntEnum):
-    """Tag 21013 — RFQCancelStatus (35=UB) outcome."""
+    """Tag 21013 — RFQCancelStatus (35=UB) outcome.
 
-    CANCELED = 0
+    Spelled ``CANCELLED`` to match :class:`QuoteCancelResult` / :class:`QuoteStatus`
+    even though the dictionary describes tag 21013 value 0 as "CANCELED" — the
+    member name is SDK-chosen and not wire-significant (the wire value is ``0``).
+    """
+
+    CANCELLED = 0
     REJECTED = 1
 
 

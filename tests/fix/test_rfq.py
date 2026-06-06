@@ -14,6 +14,7 @@ from kalshi.fix.enums import (
     AcceptQuoteResult,
     QuoteCancelResult,
     QuoteConfirmResult,
+    QuoteRequestType,
     QuoteStatus,
     RFQCancelResult,
     Side,
@@ -206,7 +207,7 @@ def test_status_field_enum_comparisons() -> None:
         QuoteConfirmResult.ACCEPTED
     )
     assert RFQCancelStatus(quote_req_id=REQ, rfq_cancel_status=0).rfq_cancel_status == (
-        RFQCancelResult.CANCELED
+        RFQCancelResult.CANCELLED
     )
     assert AcceptQuoteStatus(quote_id=QID, accept_quote_status=1).accept_quote_status == (
         AcceptQuoteResult.REJECTED
@@ -227,6 +228,36 @@ def test_rfq_cancel_requires_an_identifier() -> None:
     # Direct construction with neither identifier is rejected (outbound-only guard).
     with pytest.raises(ValueError, match="quote_req_id or rfq_id"):
         RFQCancel()
+
+
+def test_quote_request_type_enum_comparison() -> None:
+    msg = QuoteRequestAck(quote_req_id=REQ, quote_request_type=1, rfq_id=RFQ)
+    assert msg.quote_request_type == QuoteRequestType.MANUAL
+
+
+@pytest.mark.parametrize(
+    ("status", "wire"),
+    [
+        (QuoteStatus.ACCEPTED, "0"),
+        (QuoteStatus.REJECTED, "5"),
+        (QuoteStatus.PENDING, "10"),
+        (QuoteStatus.CANCELLED, "17"),
+    ],
+)
+def test_quote_status_report_status_values(status: QuoteStatus, wire: str) -> None:
+    # Pin every QuoteStatus wire value (catches enum-value drift on 297).
+    msg = QuoteStatusReport(quote_id=QID, quote_req_id=RFQ, quote_status=int(status))
+    assert _wire(msg) == f"117={QID}|131={RFQ}|297={wire}"
+    rt = _roundtrip(msg)
+    assert isinstance(rt, QuoteStatusReport)
+    assert rt.quote_status == status
+
+
+def test_accept_quote_side_inverted_wire_values() -> None:
+    # AcceptQuote.side is inverted per spec: BUY_YES(1) accepts the maker's NO
+    # quote, SELL_NO(2) accepts the YES quote. Pin the wire values either way.
+    assert dict(AcceptQuote(quote_id=QID, side=Side.BUY_YES).to_body_fields())[int(Tag.SIDE)] == "1"
+    assert dict(AcceptQuote(quote_id=QID, side=Side.SELL_NO).to_body_fields())[int(Tag.SIDE)] == "2"
 
 
 def test_fix_public_api_exports_are_importable() -> None:
@@ -390,6 +421,6 @@ async def test_rfq_creator_lifecycle(
         await until(lambda: len(received) == 4)
         cancel_status = decode_app_message(received[3])
         assert isinstance(cancel_status, RFQCancelStatus)
-        assert cancel_status.rfq_cancel_status == RFQCancelResult.CANCELED
+        assert cancel_status.rfq_cancel_status == RFQCancelResult.CANCELLED
     finally:
         await session.close()
