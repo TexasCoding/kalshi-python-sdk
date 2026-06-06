@@ -9,7 +9,12 @@ message strings.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from kalshi.errors import KalshiError
+
+if TYPE_CHECKING:
+    from kalshi.fix.codec import RawMessage
 
 
 class KalshiFixError(KalshiError):
@@ -92,6 +97,25 @@ class FixSequenceError(KalshiFixError):
     ) -> None:
         self.expected = expected
         self.received = received
+        super().__init__(message)
+
+
+class FixDecodeError(KalshiFixError):
+    """A registered inbound application message failed schema validation.
+
+    Distinguishes a *malformed* known message (a real message with an off-spec
+    field — e.g. a bad ``DollarDecimal`` / ``FixedPointCount``) from an
+    *unregistered* message type. :func:`~kalshi.fix.messages.decode_app_message`
+    collapses both to ``None``;
+    :func:`~kalshi.fix.messages.decode_app_message_strict` raises this for the
+    former so the failure is observable (see ``FixSession``'s ``on_decode_error``
+    hook). ``raw`` carries the offending message and ``msg_type`` its ``MsgType``
+    (both always present); the underlying validation error chains via ``__cause__``.
+    """
+
+    def __init__(self, message: str, *, raw: RawMessage, msg_type: str) -> None:
+        self.raw = raw
+        self.msg_type = msg_type
         super().__init__(message)
 
 

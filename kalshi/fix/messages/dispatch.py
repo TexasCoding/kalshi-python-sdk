@@ -16,6 +16,7 @@ from pydantic import ValidationError
 
 from kalshi.fix.codec import RawMessage
 from kalshi.fix.enums import MsgType
+from kalshi.fix.errors import FixDecodeError
 from kalshi.fix.messages.base import FixMessage
 from kalshi.fix.messages.drop_copy import EventResendComplete, EventResendReject
 from kalshi.fix.messages.market_data import (
@@ -77,21 +78,41 @@ APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
 )
 
 
+def decode_app_message_strict(raw: RawMessage) -> FixMessage | None:
+    """Decode an inbound application :class:`RawMessage`, raising on a malformed one.
+
+    Returns ``None`` only for an *unregistered* message type (an admin message or
+    a not-yet-implemented flow). A registered model whose payload fails schema
+    validation raises :class:`~kalshi.fix.errors.FixDecodeError` (chaining the
+    underlying error) rather than returning ``None``, so a genuine message lost to
+    a single off-spec field is observable. Used by ``FixSession``'s
+    ``on_decode_error`` hook; direct callers wanting the distinction can call this.
+    """
+    mt = raw.msg_type or ""
+    model = APP_MESSAGE_MODELS.get(mt)
+    if model is None:
+        return None
+    try:
+        return model.from_raw(raw)
+    except (ValidationError, ValueError, ArithmeticError) as exc:
+        # ValueError: bad bool / int; ArithmeticError: bad Decimal (InvalidOperation).
+        # mt is the registered key here, so it is a real (non-empty) MsgType.
+        raise FixDecodeError(f"failed to decode inbound {mt}", raw=raw, msg_type=mt) from exc
+
+
 def decode_app_message(raw: RawMessage) -> FixMessage | None:
     """Decode an inbound application :class:`RawMessage` to its typed model.
 
     Returns ``None`` for message types without a registered model (an admin
     message or a not-yet-implemented application flow), and also ``None`` if the
     payload fails schema validation — a malformed inbound message is logged and
-    swallowed rather than raised into the consumer's ``on_message`` handler.
-    See GH #432 for surfacing decode failures to consumers.
+    swallowed rather than raised into the consumer's ``on_message`` handler. To
+    distinguish those two cases (e.g. to route a malformed known message to a
+    dead-letter), use :func:`decode_app_message_strict` or ``FixSession``'s
+    ``on_decode_error`` hook.
     """
-    model = APP_MESSAGE_MODELS.get(raw.msg_type or "")
-    if model is None:
-        return None
     try:
-        return model.from_raw(raw)
-    except (ValidationError, ValueError, ArithmeticError):
-        # ValueError: bad bool / int; ArithmeticError: bad Decimal (InvalidOperation).
+        return decode_app_message_strict(raw)
+    except FixDecodeError:
         logger.warning("failed to decode inbound %s; returning None", raw.msg_type, exc_info=True)
         return None

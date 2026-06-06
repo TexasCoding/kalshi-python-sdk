@@ -23,7 +23,11 @@ from kalshi.fix.messages.components import (
     MultivariateSelectedLeg,
     Party,
 )
-from kalshi.fix.messages.dispatch import APP_MESSAGE_MODELS, decode_app_message
+from kalshi.fix.messages.dispatch import (
+    APP_MESSAGE_MODELS,
+    decode_app_message,
+    decode_app_message_strict,
+)
 from kalshi.fix.messages.drop_copy import (
     EventResendComplete,
     EventResendReject,
@@ -132,6 +136,7 @@ __all__ = [
     "SequenceReset",
     "TestRequest",
     "decode_app_message",
+    "decode_app_message_strict",
     "fixfield",
     "groupfield",
 ]
