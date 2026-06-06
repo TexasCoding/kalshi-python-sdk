@@ -246,3 +246,12 @@ class PartyRole(IntEnum):
     """Tag 452 — role of a party in the NoPartyIDs group."""
 
     CUSTOMER_ACCOUNT = 24
+
+
+class EventResendRejectReason(IntEnum):
+    """Tag 21004 — why a drop-copy EventResendRequest (35=U3) was rejected."""
+
+    RATE_LIMITED = 1
+    SERVER_ERROR = 2
+    BEGIN_EXECID_TOO_SMALL = 3
+    END_EXECID_TOO_LARGE = 4

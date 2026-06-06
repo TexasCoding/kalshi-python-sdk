@@ -136,6 +136,10 @@ class FixConfig:
     retry_base_delay: float = 0.5
     retry_max_delay: float = 30.0
     cancel_orders_on_disconnect: bool = False
+    # Listener (read-only streaming) session: receive execution reports without
+    # an order-entry capability. Valid on NR/RT and requires skip_pending_exec_reports.
+    listener_session: bool = False
+    skip_pending_exec_reports: bool = False
     # ``None`` derives from the product: margin always uses fixed-point dollars,
     # prediction defaults to integer cents (opt into dollars by setting True).
     use_dollars: bool | None = None
@@ -152,6 +156,11 @@ class FixConfig:
             )
         if self.port is not None and not (0 < self.port < 65536):
             raise ValueError(f"FixConfig.port must be 1..65535, got {self.port}")
+        if self.listener_session and not self.skip_pending_exec_reports:
+            raise ValueError(
+                "FixConfig.listener_session=True requires skip_pending_exec_reports=True "
+                "(per the Kalshi FIX spec)."
+            )
 
         allow_unknown = self.allow_unknown_host or (
             os.environ.get("KALSHI_FIX_ALLOW_UNKNOWN_HOST", "").strip() == "1"
@@ -196,6 +205,8 @@ class FixConfig:
         retry_base_delay: float = 0.5,
         retry_max_delay: float = 30.0,
         cancel_orders_on_disconnect: bool = False,
+        listener_session: bool = False,
+        skip_pending_exec_reports: bool = False,
         use_dollars: bool | None = None,
         allow_unknown_host: bool = False,
     ) -> FixConfig:
@@ -212,6 +223,8 @@ class FixConfig:
             retry_base_delay=retry_base_delay,
             retry_max_delay=retry_max_delay,
             cancel_orders_on_disconnect=cancel_orders_on_disconnect,
+            listener_session=listener_session,
+            skip_pending_exec_reports=skip_pending_exec_reports,
             use_dollars=use_dollars,
             allow_unknown_host=allow_unknown_host,
         )
@@ -230,6 +243,8 @@ class FixConfig:
         retry_base_delay: float = 0.5,
         retry_max_delay: float = 30.0,
         cancel_orders_on_disconnect: bool = False,
+        listener_session: bool = False,
+        skip_pending_exec_reports: bool = False,
         use_dollars: bool = True,
         allow_unknown_host: bool = False,
     ) -> FixConfig:
@@ -246,6 +261,8 @@ class FixConfig:
             retry_base_delay=retry_base_delay,
             retry_max_delay=retry_max_delay,
             cancel_orders_on_disconnect=cancel_orders_on_disconnect,
+            listener_session=listener_session,
+            skip_pending_exec_reports=skip_pending_exec_reports,
             use_dollars=use_dollars,
             allow_unknown_host=allow_unknown_host,
         )
