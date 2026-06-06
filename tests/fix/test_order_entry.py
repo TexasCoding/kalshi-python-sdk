@@ -175,7 +175,9 @@ def test_execution_report_trade_roundtrip() -> None:
 def test_inbound_report_tolerates_minimal_fields() -> None:
     # A sparse report (e.g. PENDING_NEW) still parses; absent fields are None.
     report = ExecutionReport(
-        cl_ord_id="abc", exec_id="-1;-1", exec_type=ExecType.PENDING_NEW.value,
+        cl_ord_id="abc",
+        exec_id="-1;-1",
+        exec_type=ExecType.PENDING_NEW.value,
         ord_status=OrdStatus.PENDING_NEW.value,
     )
     back = _roundtrip(report)
@@ -228,6 +230,8 @@ def test_decode_app_message_dispatch() -> None:
     # Admin / unregistered message types return None.
     heartbeat = RawMessage([(int(Tag.MSG_TYPE), "0"), (int(Tag.MSG_SEQ_NUM), "3")])
     assert decode_app_message(heartbeat) is None
+    # A message with no MsgType at all also returns None (no dispatch key).
+    assert decode_app_message(RawMessage([])) is None
 
 
 def test_decode_app_message_all_inbound_types() -> None:
