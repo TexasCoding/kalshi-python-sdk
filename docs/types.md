@@ -37,6 +37,24 @@ Same machinery as `DollarDecimal`, used for count-like fields the API
 fixed-points (e.g. queue position, `count_fp`). You shouldn't need to touch it
 directly.
 
+### `OrderPrice`
+
+Request-side dollar price fields (`CreateOrderRequest.yes_price` / `no_price`,
+`AmendOrderRequest`, and the V2 order equivalents) use `OrderPrice` — the same
+wire form and coercion as `DollarDecimal`, plus two construction-time guards: the
+price must be **non-negative** and aligned to the **$0.0001 tick**. A negative or
+sub-tick value (`Decimal("-0.65")`, `Decimal("0.12345")`) raises `ValueError` at
+construction instead of round-tripping to a server `400`. Response-side price
+fields (PnL, fees, settlements) keep plain `DollarDecimal`, where negatives are
+legitimate.
+
+### `MultiplierDecimal`
+
+A `Decimal` for fee/rate multipliers (e.g. `Series.fee_multiplier` and the perps
+exchange parameters). Same no-float-drift coercion as `DollarDecimal` — the wire
+form is a JSON number coerced via `str(value)`, so binary-float artifacts never
+reach a model.
+
 ### Integer cents
 
 Some fields are plain `int` cents, **not** `DollarDecimal`:

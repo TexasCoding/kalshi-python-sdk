@@ -284,4 +284,11 @@ API is unchanged for sync-transport callers.
 directly if you construct `KalshiAuth` standalone (e.g. for the WebSocket
 with no REST client alongside).
 
+## FIX authentication
+
+The [FIX subsystem](fix.md) reuses this same RSA-PSS key — the logon signature
+rides the FIX `RawData` field. `FixClient` reads the same `KALSHI_*` variables (or
+`from_auth(auth)` reuses an existing `KalshiAuth`); the margin `MarginFixClient`
+uses the separate `KALSHI_PERPS_*` key. No FIX-specific credentials are needed.
+
 See the [API reference](reference.md) for the full surface.

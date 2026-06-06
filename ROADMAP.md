@@ -2,6 +2,14 @@
 
 ## Shipped
 
+- **v3.3.0 (2026-06-06)** — complete **FIX protocol** subsystem (FIXT.1.1 /
+  FIX50SP2) for both products: `FixClient` (prediction) + `MarginFixClient`
+  (margin) over a hand-rolled async session engine, with five session types
+  (order entry, drop copy, market data, post-trade settlement, RFQ; order groups
+  ride the order-entry session), typed message models, order-book / settlement
+  reassembly, and a
+  model↔dictionary drift test (epic #402; follow-ups #432, #437). New
+  [FIX guide](docs/fix.md). Additive — no changes to REST / WebSocket / Perps.
 - **v3.2.0 (2026-06-05)** — full **Perps (margin) API** support: standalone
   `PerpsClient` / `AsyncPerpsClient` (REST), `PerpsWebSocket`, and the
   Self-Clearing-Member `KlearClient` (cookie-session + MFA settlement API),

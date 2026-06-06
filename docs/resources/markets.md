@@ -129,8 +129,9 @@ for trade in page:
     print(trade.trade_id, trade.taker_side, trade.yes_price, trade.count, trade.is_block_trade)
 ```
 
-`is_block_trade` (v3.20.0) filters by whether a trade is a block trade. Omit it
-to return all trades. Each `Trade` also carries an `is_block_trade: bool`.
+`is_block_trade` (SDK v3.1.0; OpenAPI v3.20.0) filters by whether a trade is a
+block trade. Omit it to return all trades. Each `Trade` also carries an
+`is_block_trade: bool`.
 
 !!! warning "Deprecated since v3.0.0"
     `list_trades_all` is the legacy name; it still works but emits

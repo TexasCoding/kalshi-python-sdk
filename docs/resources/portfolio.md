@@ -15,6 +15,11 @@ Auth required throughout.
 | `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
 
+`balance()`, `positions()` / `positions_all()`, `settlements()` /
+`settlements_all()`, and `fills()` / `fills_all()` all take an optional
+`subaccount: int` to scope the read to a specific subaccount (omit for the
+primary account).
+
 ## Balance
 
 ```python

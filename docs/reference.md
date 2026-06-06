@@ -134,6 +134,26 @@ See [WebSocket](websockets.md) for the narrative version.
 
 ::: kalshi.ws.models
 
+## FIX protocol
+
+See [FIX protocol](fix.md) for the narrative version.
+
+::: kalshi.fix.client.FixClient
+
+::: kalshi.perps.fix.MarginFixClient
+
+::: kalshi.fix.config.FixConfig
+
+::: kalshi.fix.session.FixSession
+
+::: kalshi.fix.orderbook.FixOrderBook
+
+::: kalshi.fix.settlement.SettlementReassembler
+
+::: kalshi.fix.messages
+
+::: kalshi.fix.enums
+
 ## Testing helpers
 
 See [Testing](testing.md) for the narrative version.

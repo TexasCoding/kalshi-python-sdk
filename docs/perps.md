@@ -155,3 +155,11 @@ Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as
 positive at construction (the single real-money write) before any request is sent.
 Credentials and the session cookie are never logged or shown in `repr()`.
+
+## Perps over FIX
+
+The margin product is also reachable over the FIX protocol via `MarginFixClient`
+(`from kalshi import MarginFixClient`), which reuses the shared FIX core with the
+`KALSHI_PERPS_*` key and fixed-point-dollar pricing. Margin supports the
+order-entry, drop-copy, and market-data sessions (no RFQ / post-trade). See
+[FIX protocol](fix.md).

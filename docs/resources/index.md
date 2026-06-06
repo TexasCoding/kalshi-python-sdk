@@ -1,5 +1,9 @@
 # Resources
 
+These are the REST resources. For the streaming and session interfaces see
+[WebSocket](../websockets.md), [FIX protocol](../fix.md), and
+[Perps](../perps.md).
+
 A **resource** in this SDK is a thin client over a group of related Kalshi
 endpoints. You reach each one as an attribute on the client:
 
