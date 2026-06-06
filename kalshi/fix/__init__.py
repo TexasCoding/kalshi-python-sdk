@@ -44,10 +44,12 @@ from kalshi.fix.connection import FixConnection
 from kalshi.fix.enums import (
     AcceptQuoteResult,
     ApplVerID,
+    CollateralAmountType,
     EncryptMethod,
     EventResendRejectReason,
     ExecInst,
     ExecType,
+    MarketResult,
     MDEntryType,
     MDReqRejReason,
     MDUpdateAction,
@@ -98,6 +100,7 @@ from kalshi.fix.messages import (
     MarketDataRequestReject,
     MarketDataSnapshotFullRefresh,
     MarketSettlementParty,
+    MarketSettlementReport,
     MDIncrementalEntry,
     MDSnapshotEntry,
     MiscFee,
@@ -134,6 +137,7 @@ from kalshi.fix.messages import (
 )
 from kalshi.fix.orderbook import BookLevel, FixOrderBook, MarketDataBook
 from kalshi.fix.session import FixSession, FixSessionState
+from kalshi.fix.settlement import SettlementReassembler
 from kalshi.fix.tags import Tag
 
 # Sorted (ruff RUF022); grouping is by the imports above, not by ``__all__`` order.
@@ -148,6 +152,7 @@ __all__ = [
     "BookLevel",
     "BusinessMessageReject",
     "CollateralAmountChange",
+    "CollateralAmountType",
     "EncryptMethod",
     "EventResendComplete",
     "EventResendReject",
@@ -190,7 +195,9 @@ __all__ = [
     "MarketDataRequest",
     "MarketDataRequestReject",
     "MarketDataSnapshotFullRefresh",
+    "MarketResult",
     "MarketSettlementParty",
+    "MarketSettlementReport",
     "MiscFee",
     "MsgType",
     "MultivariateSelectedLeg",
@@ -233,6 +240,7 @@ __all__ = [
     "SelfTradePreventionType",
     "SequenceReset",
     "SessionRejectReason",
+    "SettlementReassembler",
     "Side",
     "SubscriptionRequestType",
     "Tag",

@@ -347,6 +347,9 @@ class FixSession:
             cancel_orders_on_disconnect=True if self._config.cancel_orders_on_disconnect else None,
             listener_session=True if self._config.listener_session else None,
             skip_pending_exec_reports=True if self._config.skip_pending_exec_reports else None,
+            # Pass through directly: None omits the tag (gateway default), True/False
+            # explicitly opt in (RT) / out (PT).
+            receive_settlement_reports=self._config.receive_settlement_reports,
         )
         await self._send(logon)
 
