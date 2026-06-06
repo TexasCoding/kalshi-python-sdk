@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from typing import Annotated
 
+from pydantic import model_validator
+
 from kalshi.fix.enums import MsgType, Side
 from kalshi.fix.messages.base import (
     FixGroupMeta,
@@ -135,7 +137,10 @@ class Quote(FixMessage):
         """Build a maker quote for ``quote_req_id`` on ``symbol``.
 
         At least one of ``bid_px`` / ``offer_px`` is required (a quote with neither
-        side is rejected by the exchange).
+        side is rejected by the exchange). The maker does not send sizes — the
+        exchange derives size from the RFQ's ``OrderQty`` — so ``bid_size`` /
+        ``offer_size`` / ``order_qty`` are not parameters here; they appear on the
+        model only for the inbound (Exchange -> Creator) quote notification.
         """
         if bid_px is None and offer_px is None:
             raise ValueError("Quote.submit requires at least one of bid_px / offer_px")
@@ -204,6 +209,14 @@ class RFQCancel(FixMessage):
     quote_req_id: str | None = fixfield(Tag.QUOTE_REQ_ID, FixType.STRING, default=None)
     rfq_id: str | None = fixfield(Tag.RFQ_ID, FixType.STRING, default=None)
     parties: Annotated[list[Party], FixGroupMeta(Tag.NO_PARTY_IDS, Party)] = groupfield()
+
+    @model_validator(mode="after")
+    def _require_identifier(self) -> RFQCancel:
+        # Outbound-only message (never decoded inbound), so this guard is safe:
+        # an RFQCancel with neither identifier is rejected by the exchange.
+        if self.quote_req_id is None and self.rfq_id is None:
+            raise ValueError("RFQCancel requires quote_req_id or rfq_id")
+        return self
 
     @classmethod
     def for_req_id(cls, quote_req_id: str) -> RFQCancel:

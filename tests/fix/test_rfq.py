@@ -223,6 +223,12 @@ def test_quote_request_create_requires_a_size() -> None:
         QuoteRequest.create(REQ, SYM)
 
 
+def test_rfq_cancel_requires_an_identifier() -> None:
+    # Direct construction with neither identifier is rejected (outbound-only guard).
+    with pytest.raises(ValueError, match="quote_req_id or rfq_id"):
+        RFQCancel()
+
+
 def test_fix_public_api_exports_are_importable() -> None:
     # Every name in kalshi.fix.__all__ must actually be bound (guards the
     # __all__-without-import class of bug, which mypy cannot catch).
@@ -344,7 +350,9 @@ async def test_rfq_creator_lifecycle(
         # Create the RFQ; exchange acks with the server RFQ id.
         await session.send(QuoteRequest.create(REQ, symbol=SYM, order_qty=Decimal("100")))
         await until(lambda: acceptor.first("R") is not None)
-        assert acceptor.first("R").get(Tag.QUOTE_REQ_ID) == REQ  # type: ignore[union-attr]
+        r = acceptor.first("R")
+        assert r is not None
+        assert r.get(Tag.QUOTE_REQ_ID) == REQ
         ack = QuoteRequestAck(quote_req_id=REQ, quote_request_type=1, rfq_id=RFQ)
         await acceptor.push("b", ack.to_body_fields(), seq=2)
 
