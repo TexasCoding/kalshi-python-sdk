@@ -1,31 +1,15 @@
 """Market-data FIX messages (GH #426).
 
-Market data rides the dedicated ``KalshiMD`` session (port 8233). It is identical
-on both products; only the price *units* differ — prediction quotes dollars
-(e.g. ``0.3500``) and margin quotes fixed-point dollars under ``UseDollars`` —
-and both ride the FIX ``Price`` field, so :data:`~kalshi.types.DollarDecimal`
-parses either without float drift.
+Market data rides the dedicated ``KalshiMD`` session and is identical on both
+products; only the price units differ (prediction dollars vs margin fixed-point
+dollars under ``UseDollars``), and both ride the FIX ``Price`` field, so
+:data:`~kalshi.types.DollarDecimal` parses either without float drift.
 
-Outbound (client -> ``KalshiMD``):
-
-* :class:`MarketDataRequest` (35=V) — request a book snapshot, a snapshot-plus-
-  updates subscription, or cancel a subscription. Build via the
-  :meth:`~MarketDataRequest.snapshot` / :meth:`~MarketDataRequest.subscribe` /
-  :meth:`~MarketDataRequest.unsubscribe` / :meth:`~MarketDataRequest.unsubscribe_all`
-  helpers, which encode the ``SubscriptionRequestType`` / ``NoRelatedSym`` rules.
-* :class:`SecurityStatusRequest` (35=e) — subscribe/unsubscribe a single market's
-  trading-status stream.
-
-Inbound (``KalshiMD`` -> client; code fields kept raw for robustness, compare
-against :mod:`kalshi.fix.enums`):
-
-* :class:`MarketDataSnapshotFullRefresh` (35=W) — the full aggregated book.
-* :class:`MarketDataIncrementalRefresh` (35=X) — subsequent level changes.
-* :class:`MarketDataRequestReject` (35=Y) — a request could not be accepted.
-* :class:`SecurityStatus` (35=f) — a market's trading-status change.
-
-:class:`~kalshi.fix.orderbook.FixOrderBook` reconstructs a live book from a W
-snapshot plus X incrementals.
+Outbound: :class:`MarketDataRequest` (35=V), :class:`SecurityStatusRequest`
+(35=e). Inbound (code fields kept raw — compare against :mod:`kalshi.fix.enums`):
+:class:`MarketDataSnapshotFullRefresh` (35=W), :class:`MarketDataIncrementalRefresh`
+(35=X), :class:`MarketDataRequestReject` (35=Y), :class:`SecurityStatus` (35=f).
+:class:`~kalshi.fix.orderbook.FixOrderBook` reconstructs a book from W + X.
 """
 
 from __future__ import annotations
@@ -94,6 +78,10 @@ class MarketDataRequest(FixMessage):
     Prefer the :meth:`snapshot` / :meth:`subscribe` / :meth:`unsubscribe` /
     :meth:`unsubscribe_all` constructors: ``NoRelatedSym``/``Symbol`` are required
     for snapshot and subscribe, and a cancel-all request omits them entirely.
+
+    ``MDReqID`` (262) is intentionally omitted: the Kalshi MD docs do not define
+    it on 35=V/W/X/Y (subscriptions and rejects correlate by ``Symbol``, not a
+    request id), unlike generic FIX 5.0SP2.
     """
 
     MSG_TYPE = MsgType.MARKET_DATA_REQUEST

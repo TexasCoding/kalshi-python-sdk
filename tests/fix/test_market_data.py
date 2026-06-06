@@ -493,11 +493,13 @@ def test_orderbook_empty_snapshot_clears_book() -> None:
     assert TICKER in book.symbols()  # still seeded, just empty
 
 
-def test_orderbook_incremental_unknown_action_dropped() -> None:
-    # An out-of-spec MDUpdateAction must not be silently applied as a Change.
+@pytest.mark.parametrize("size", ["5", "0"])
+def test_orderbook_incremental_unknown_action_dropped(size: str) -> None:
+    # An out-of-spec MDUpdateAction must not mutate the book — neither applied as
+    # a Change (size>0) nor routed into Delete by a leading size guard (size=0).
     book = FixOrderBook()
     book.apply_snapshot(_snapshot((MDEntryType.BID.value, "0.35", "20")))
-    applied = book.apply_incremental(_incr(TICKER, "9", MDEntryType.BID.value, "0.35", "5"))
+    applied = book.apply_incremental(_incr(TICKER, "9", MDEntryType.BID.value, "0.35", size))
     assert applied == 0
     view = book.get(TICKER)
     assert view is not None

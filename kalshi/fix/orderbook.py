@@ -145,13 +145,18 @@ class FixOrderBook:
                     entry.md_entry_type,
                 )
                 continue
+            # Check the action FIRST: an unknown action carrying size 0 must be
+            # dropped, not routed into Delete by a leading size guard.
             action = entry.md_update_action
-            if action == MDUpdateAction.DELETE.value or entry.md_entry_size <= 0:
+            if action == MDUpdateAction.DELETE.value:
                 levels.pop(entry.md_entry_px, None)
             elif action == MDUpdateAction.CHANGE.value:
-                levels[entry.md_entry_px] = entry.md_entry_size
+                if entry.md_entry_size <= 0:
+                    levels.pop(entry.md_entry_px, None)  # a 0-size Change clears the level
+                else:
+                    levels[entry.md_entry_px] = entry.md_entry_size
             else:
-                # Out-of-spec action: don't silently apply it as a Change.
+                # Out-of-spec action: don't silently mutate the book.
                 logger.debug(
                     "FIX MD incremental %s: unknown MDUpdateAction %r; dropping entry",
                     entry.symbol,
