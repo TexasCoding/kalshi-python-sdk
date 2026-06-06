@@ -189,6 +189,16 @@ class Tag(IntEnum):
     RESEND_EVENT_COUNT = 21003
     EVENT_RESEND_REJECT_REASON = 21004
 
+    # --- Market data --- (NoRelatedSym/Symbol/Text reuse the tags above)
+    SUBSCRIPTION_REQUEST_TYPE = 263
+    NO_MD_ENTRIES = 268
+    MD_ENTRY_TYPE = 269
+    MD_ENTRY_PX = 270
+    MD_ENTRY_SIZE = 271
+    MD_UPDATE_ACTION = 279
+    MD_REQ_REJ_REASON = 281
+    SECURITY_TRADING_STATUS = 326
+
 
 # Length-prefixed data fields: ``length_tag -> data_tag``. The data field's value
 # may legally contain the SOH (\x01) delimiter, so the decoder reads exactly

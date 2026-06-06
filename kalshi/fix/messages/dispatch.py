@@ -18,6 +18,12 @@ from kalshi.fix.codec import RawMessage
 from kalshi.fix.enums import MsgType
 from kalshi.fix.messages.base import FixMessage
 from kalshi.fix.messages.drop_copy import EventResendComplete, EventResendReject
+from kalshi.fix.messages.market_data import (
+    MarketDataIncrementalRefresh,
+    MarketDataRequestReject,
+    MarketDataSnapshotFullRefresh,
+    SecurityStatus,
+)
 from kalshi.fix.messages.order_entry import (
     BusinessMessageReject,
     ExecutionReport,
@@ -36,6 +42,10 @@ APP_MESSAGE_MODELS: Mapping[str, type[FixMessage]] = MappingProxyType(
         MsgType.BUSINESS_MESSAGE_REJECT.value: BusinessMessageReject,
         MsgType.EVENT_RESEND_COMPLETE.value: EventResendComplete,
         MsgType.EVENT_RESEND_REJECT.value: EventResendReject,
+        MsgType.MARKET_DATA_SNAPSHOT_FULL_REFRESH.value: MarketDataSnapshotFullRefresh,
+        MsgType.MARKET_DATA_INCREMENTAL_REFRESH.value: MarketDataIncrementalRefresh,
+        MsgType.MARKET_DATA_REQUEST_REJECT.value: MarketDataRequestReject,
+        MsgType.SECURITY_STATUS.value: SecurityStatus,
     }
 )
 

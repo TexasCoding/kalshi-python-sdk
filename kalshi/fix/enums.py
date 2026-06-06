@@ -255,3 +255,46 @@ class EventResendRejectReason(IntEnum):
     SERVER_ERROR = 2
     BEGIN_EXECID_TOO_SMALL = 3
     END_EXECID_TOO_LARGE = 4
+
+
+class SubscriptionRequestType(StrEnum):
+    """Tag 263 — market-data / security-status subscription action.
+
+    For ``MarketDataRequest`` (35=V): ``0``=snapshot, ``1``=snapshot plus updates,
+    ``2``=disable a previous subscription. For ``SecurityStatusRequest`` (35=e)
+    only ``1`` (subscribe) and ``2`` (unsubscribe) are valid.
+    """
+
+    SNAPSHOT = "0"
+    SNAPSHOT_PLUS_UPDATES = "1"
+    DISABLE = "2"
+
+
+class MDEntryType(StrEnum):
+    """Tag 269 — side of a market-data book level."""
+
+    BID = "0"
+    OFFER = "1"
+
+
+class MDUpdateAction(StrEnum):
+    """Tag 279 — action for an incremental market-data entry (35=X)."""
+
+    CHANGE = "1"
+    DELETE = "2"
+
+
+class MDReqRejReason(StrEnum):
+    """Tag 281 — why a MarketDataRequest (35=V) was rejected (35=Y)."""
+
+    INSUFFICIENT_BANDWIDTH = "2"
+    UNSUPPORTED_SUBSCRIPTION_REQUEST_TYPE = "4"
+
+
+class SecurityTradingStatus(IntEnum):
+    """Tag 326 — per-market trading-status change streamed via SecurityStatus (35=f)."""
+
+    TRADING_HALT = 2
+    RESUME = 3
+    KALSHI_DETERMINED = 100
+    KALSHI_SETTLED = 101
