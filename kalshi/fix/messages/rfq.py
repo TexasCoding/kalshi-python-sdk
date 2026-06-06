@@ -137,7 +137,9 @@ class Quote(FixMessage):
         """Build a maker quote for ``quote_req_id`` on ``symbol``.
 
         At least one of ``bid_px`` / ``offer_px`` is required (a quote with neither
-        side is rejected by the exchange). The maker does not send sizes — the
+        side is rejected by the exchange) — ``None`` means that side is absent,
+        distinct from ``Decimal(0)`` (an explicit zero = no quote for that side).
+        The maker does not send sizes — the
         exchange derives size from the RFQ's ``OrderQty`` — so ``bid_size`` /
         ``offer_size`` / ``order_qty`` are not parameters here; they appear on the
         model only for the inbound (Exchange -> Creator) quote notification.
@@ -257,8 +259,8 @@ class QuoteStatusReport(FixMessage):
     """QuoteStatusReport (35=AI) — quote lifecycle update to the maker.
 
     ``quote_status`` is a raw int (compare against
-    :class:`~kalshi.fix.enums.QuoteStatus`); ``side`` (AcceptedSide) is a raw char,
-    present only when ACCEPTED.
+    :class:`~kalshi.fix.enums.QuoteStatus`); ``side`` (AcceptedSide) is a raw char
+    (FIX CHAR — not an int like the status codes), present only when ACCEPTED.
     """
 
     MSG_TYPE = MsgType.QUOTE_STATUS_REPORT

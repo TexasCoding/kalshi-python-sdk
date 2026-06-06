@@ -12,6 +12,7 @@ from kalshi.fix.codec import RawMessage, decode, encode
 from kalshi.fix.config import FixConfig, FixSessionType
 from kalshi.fix.enums import (
     AcceptQuoteResult,
+    MsgType,
     QuoteCancelResult,
     QuoteConfirmResult,
     QuoteRequestType,
@@ -20,6 +21,7 @@ from kalshi.fix.enums import (
     Side,
 )
 from kalshi.fix.messages import (
+    APP_MESSAGE_MODELS,
     AcceptQuote,
     AcceptQuoteStatus,
     MultivariateSelectedLeg,
@@ -230,6 +232,13 @@ def test_rfq_cancel_requires_an_identifier() -> None:
         RFQCancel()
 
 
+def test_rfq_cancel_stays_outbound_only() -> None:
+    # RFQCancel carries a construction-time validator; it must NOT be registered
+    # for inbound dispatch (that would reject inbound messages lacking both ids).
+    # This tripwire fails if someone wires it into APP_MESSAGE_MODELS.
+    assert MsgType.RFQ_CANCEL.value not in APP_MESSAGE_MODELS
+
+
 def test_quote_request_type_enum_comparison() -> None:
     msg = QuoteRequestAck(quote_req_id=REQ, quote_request_type=1, rfq_id=RFQ)
     assert msg.quote_request_type == QuoteRequestType.MANUAL
@@ -330,9 +339,9 @@ async def test_market_maker_quote_lifecycle(
         quote = Quote.submit(QID, RFQ, SYM, bid_px=Decimal("75"), offer_px=Decimal("25"))
         await session.send(quote)
         await until(lambda: acceptor.first("S") is not None)
-        s = acceptor.first("S")
-        assert s is not None
-        assert s.get(Tag.QUOTE_ID) == QID
+        raw_s = acceptor.first("S")
+        assert raw_s is not None
+        assert raw_s.get(Tag.QUOTE_ID) == QID
 
         # Exchange reports PENDING then ACCEPTED.
         pending = QuoteStatusReport(quote_id=QID, quote_req_id=RFQ, quote_status=10)
