@@ -34,6 +34,14 @@ class TestKlearAuth:
         with pytest.raises(ValueError):
             KlearAuth("admin", "  ")
 
+    def test_padded_credentials_are_stripped(self) -> None:
+        # Surrounding whitespace is stripped before storage so the header is
+        # well-formed (not "Bearer   admin-id  :  tok  ").
+        auth = KlearAuth("  admin-id  ", "  tok  ")
+        assert auth.admin_user_id == "admin-id"
+        assert auth.access_token == "tok"
+        assert auth.authorization_header() == "Bearer admin-id:tok"
+
     def test_repr_redacts_access_token(self) -> None:
         auth = KlearAuth("admin-123", "SECRET-TOKEN")
         assert "SECRET-TOKEN" not in repr(auth)
