@@ -38,7 +38,8 @@ class TestPerpsSpecLoaders:
     def test_load_perps_scm_spec_parses(self) -> None:
         spec = _load_perps_scm_spec()
         assert "paths" in spec
-        assert "/log_in" in spec["paths"]
+        # SCM auth migrated to Bearer (#443) — /log_in is gone; a margin path remains.
+        assert "/margin/reports" in spec["paths"]
 
 
 class TestPerpsMapsWellFormed:

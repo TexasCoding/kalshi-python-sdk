@@ -72,11 +72,13 @@ with KalshiClient.from_env(config=config) as client:
 
 ## Klear (SCM) environment variables
 
-`KlearClient` / `AsyncKlearClient` use cookie-session auth (no RSA keys), so they
-read only environment selectors:
+`KlearClient` / `AsyncKlearClient` use Bearer-token auth (no RSA keys).
+`KlearClient.from_env()` reads the credentials plus the routing selectors:
 
 | Variable | Default | Effect |
 |---|---|---|
+| `KALSHI_KLEAR_ADMIN_USER_ID` | unset | Klear admin user id (the Bearer `admin_user_id`). Required by `from_env()`. |
+| `KALSHI_KLEAR_ACCESS_TOKEN` | unset | Klear access token (the Bearer `access_token`). Required by `from_env()`. Secret. |
 | `KALSHI_KLEAR_DEMO` | `false` | `true` (case-insensitive) selects the demo Klear endpoint. |
 | `KALSHI_KLEAR_API_BASE_URL` | unset | Overrides the Klear `base_url`. |
 | `KALSHI_KLEAR_ALLOW_UNKNOWN_HOST` | unset | Set to `1` to allow non-Kalshi Klear hosts. |

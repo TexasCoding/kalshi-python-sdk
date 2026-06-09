@@ -38,7 +38,7 @@ class OrderGroupRequest(FixMessage):
         Tag.ORDER_GROUP_CONTRACTS_LIMIT, FixType.INT, default=None
     )
     # Kalshi types AllocAccount (79) as INT — the subaccount number (0 primary,
-    # 1-32). Scopes the action to the group owned by that subaccount.
+    # 1-63). Scopes the action to the group owned by that subaccount.
     alloc_account: int | None = fixfield(Tag.ALLOC_ACCOUNT, FixType.INT, default=None)
 
     @classmethod

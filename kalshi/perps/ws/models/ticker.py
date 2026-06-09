@@ -70,6 +70,21 @@ class MarginTickerPayload(BaseModel):
     volume: FixedPointCount
     volume_24h: FixedPointCount
     open_interest: FixedPointCount
+    # Notional dollar values (spec-required); short Python names accept the
+    # ``_dollars``-suffixed wire keys, mirroring the prediction-API price aliases.
+    volume_notional_value: DollarDecimal = Field(
+        validation_alias=AliasChoices("volume_notional_value_dollars", "volume_notional_value"),
+    )
+    volume_24h_notional_value: DollarDecimal = Field(
+        validation_alias=AliasChoices(
+            "volume_24h_notional_value_dollars", "volume_24h_notional_value"
+        ),
+    )
+    open_interest_notional_value: DollarDecimal = Field(
+        validation_alias=AliasChoices(
+            "open_interest_notional_value_dollars", "open_interest_notional_value"
+        ),
+    )
     reference_price: TickerPrice | None = None
     settlement_mark_price: TickerPrice | None = None
     liquidation_mark_price: TickerPrice | None = None

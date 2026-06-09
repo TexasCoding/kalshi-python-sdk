@@ -2,23 +2,33 @@ openapi: 3.0.0
 info:
   title: Kalshi Self-Clearing Member API
   version: 0.0.1
-  description: |
+  description: >
     Klear API endpoints available to Self-Clearing Members (SCMs) —
+
     institutional users who clear their own margin activity directly with
+
     Kalshi.
+
 
     ## Authentication
 
-    All endpoints require an authenticated session. To obtain one:
 
-    1. Call `POST /log_in` with your email and password.
-    2. If MFA is enabled, the response contains `required_mfa_method`.
-       Re-call `POST /log_in` with the same credentials plus the `code` field.
-    3. On success, a session cookie is returned via `Set-Cookie`. Include
-       this cookie on all subsequent requests.
+    All endpoints require an admin access token passed in the `Authorization`
+    header:
+
+
+    `Authorization: Bearer <admin_user_id>:<access_token>`
+
+
+    To generate an access token and obtain your admin user id, sign in at
+
+    https://klearing.kalshi.com, and navigate to the "Security" page.
+
 
     If you are in the process of onboarding to be a self-clearing member,
+
     please contact your contact at Kalshi for credentials. Otherwise,
+
     please contact institutional@kalshi.com.
 servers:
   - url: https://api.klear.kalshi.com/klear-api/v1
@@ -26,46 +36,8 @@ servers:
   - url: https://demo-api.kalshi.co/klear-api/v1
     description: Demo
 security:
-  - kalshiSession: []
+  - kalshiBearer: []
 paths:
-  /log_in:
-    post:
-      operationId: LogIn
-      summary: Log In
-      description: |
-        Authenticate with your email and password. If MFA is enabled on
-        your account the first call returns `required_mfa_method`; re-call
-        with the `code` field set to complete login.
-
-        On success the response includes `token` and `user_id`, and a
-        session cookie is set. Pass the cookie on subsequent requests.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LogInRequest'
-      responses:
-        '200':
-          description: Successful login or MFA challenge
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LogInResponse'
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
-              description: Session cookie returned on successful authentication.
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '429':
-          description: Rate limited
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /margin/reports:
     get:
       operationId: GetMarginReports
@@ -310,13 +282,13 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 components:
   securitySchemes:
-    kalshiSession:
-      type: apiKey
-      in: cookie
-      name: session
-      description: |
-        Session cookie returned by `POST /log_in`. Pass it on all
-        subsequent requests.
+    kalshiBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: admin_user_id:access_token
+      description: >
+        Pass `Authorization: Bearer <admin_user_id>:<access_token>` on each
+        request.
   responses:
     BadRequestError:
       description: Bad request - invalid input
@@ -611,35 +583,6 @@ components:
           type: integer
           format: int64
           description: Current settlement buffer balance.
-    LogInRequest:
-      type: object
-      required:
-        - email
-        - password
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-        code:
-          type: string
-          description: >-
-            MFA code, required when the initial login returns
-            `required_mfa_method`.
-    LogInResponse:
-      type: object
-      properties:
-        token:
-          type: string
-          description: Session token (present on successful auth).
-        user_id:
-          type: string
-          description: Admin user ID (present on successful auth).
-        access_level:
-          type: string
-        required_mfa_method:
-          type: string
-          description: If set, MFA is required. Re-call `/log_in` with the `code` field.
     GetSettlementBalanceResponse:
       type: object
       required:

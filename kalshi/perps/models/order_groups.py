@@ -53,7 +53,7 @@ class GetOrderGroupResponse(BaseModel):
 class CreateOrderGroupResponse(BaseModel):
     """Spec ``CreateOrderGroupResponse`` — wraps the new group's id.
 
-    Required: ``order_group_id``, ``subaccount`` (0 for primary, 1-32 for
+    Required: ``order_group_id``, ``subaccount`` (0 for primary, 1-63 for
     subaccounts). The server echoes the routing context (subaccount + exchange
     shard) on the create response.
     """

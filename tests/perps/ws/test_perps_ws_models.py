@@ -321,6 +321,9 @@ class TestTicker:
                 "volume": "1000.00",
                 "volume_24h": "5000.00",
                 "open_interest": "200.00",
+                "volume_notional_value_dollars": "100000.0000",
+                "volume_24h_notional_value_dollars": "500000.0000",
+                "open_interest_notional_value_dollars": "20000.0000",
                 "reference_price": {"price": "100.1000", "ts_ms": 1700000000000},
                 "settlement_mark_price": {"price": "100.2000", "ts_ms": 1700000000001},
                 "liquidation_mark_price": {"price": "100.3000", "ts_ms": 1700000000002},
@@ -341,6 +344,10 @@ class TestTicker:
         assert p.bid == Decimal("99.5000") and p.ask == Decimal("100.5000")
         assert p.bid_size == Decimal("10.00")
         assert p.volume == Decimal("1000.00")
+        assert p.volume_notional_value == Decimal("100000.0000")
+        assert p.volume_24h_notional_value == Decimal("500000.0000")
+        assert p.open_interest_notional_value == Decimal("20000.0000")
+        assert isinstance(p.volume_notional_value, Decimal)
         assert isinstance(p.reference_price, TickerPrice)
         assert p.reference_price.price == Decimal("100.1000")
         assert isinstance(p.settlement_mark_price, TickerPrice)

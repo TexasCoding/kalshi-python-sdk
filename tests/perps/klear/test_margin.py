@@ -1,11 +1,10 @@
 """Tests for the Klear (SCM) margin endpoints (#400).
 
 Covers the nine SCM margin endpoints (plus the two ``*_all`` paginators) on both
-``KlearClient`` and ``AsyncKlearClient``. These endpoints require an active
-session, so each test marks the session active via
-``client._auth.mark_logged_in("test")`` (mirroring a successful ``/log_in``)
-before calling. The un-logged-in guard (``AuthRequiredError`` *before* any HTTP)
-is asserted separately.
+``KlearClient`` and ``AsyncKlearClient``. The clients carry Bearer credentials
+(see the conftest fixtures), so the Klear resource base injects the
+``Authorization: Bearer`` header on every request — there is no client-side
+un-logged-in guard; an invalid token surfaces as a server 401.
 
 Money-typing invariants under test: ``_centicents`` fields stay plain ``int``
 (never ``Decimal``), only the withdraw/withdrawal ``amount`` fields are
@@ -24,7 +23,6 @@ import respx
 from pydantic import ValidationError
 
 from kalshi.errors import (
-    AuthRequiredError,
     KalshiAuthError,
     KalshiError,
     KalshiServerError,
@@ -58,15 +56,13 @@ ALL_REPORT_TYPES = [
 
 @pytest.fixture
 def auth_klear_client(klear_client: KlearClient) -> KlearClient:
-    """A ``KlearClient`` with an active (stubbed) session — no real login needed."""
-    klear_client._auth.mark_logged_in("test")
+    """A ``KlearClient`` carrying Bearer credentials (from the conftest fixture)."""
     return klear_client
 
 
 @pytest.fixture
 def auth_async_klear_client(async_klear_client: AsyncKlearClient) -> AsyncKlearClient:
-    """An ``AsyncKlearClient`` with an active (stubbed) session."""
-    async_klear_client._auth.mark_logged_in("test")
+    """An ``AsyncKlearClient`` carrying Bearer credentials."""
     return async_klear_client
 
 
@@ -212,17 +208,6 @@ class TestMarginReports:
         auth_klear_client.close()
 
     @respx.mock
-    def test_unauthenticated_raises_before_http(self) -> None:
-        route = respx.get(f"{BASE}/margin/reports").mock(
-            return_value=httpx.Response(200, json={"reports": []})
-        )
-        client = KlearClient(config=KlearConfig.demo())
-        with pytest.raises(AuthRequiredError):
-            client.margin.margin_reports(start_date="2026-05-01", end_date="2026-06-01")
-        assert not route.called
-        client.close()
-
-    @respx.mock
     async def test_async_happy(self, auth_async_klear_client: AsyncKlearClient) -> None:
         respx.get(f"{BASE}/margin/reports").mock(
             return_value=httpx.Response(200, json={"reports": [_report()]})
@@ -336,17 +321,6 @@ class TestObligationHistory:
         with pytest.raises(KalshiError):
             list(auth_klear_client.margin.obligation_history_all())
         auth_klear_client.close()
-
-    @respx.mock
-    def test_all_unauthenticated_raises_before_http(self) -> None:
-        route = respx.get(f"{BASE}/margin/obligation_history").mock(
-            return_value=httpx.Response(200, json={"obligations": [], "cursor": ""})
-        )
-        client = KlearClient(config=KlearConfig.demo())
-        with pytest.raises(AuthRequiredError):
-            list(client.margin.obligation_history_all())
-        assert not route.called
-        client.close()
 
     @respx.mock
     async def test_async_all_paginates(
@@ -520,17 +494,6 @@ class TestGuarantyFundBalance:
         auth_klear_client.close()
 
     @respx.mock
-    def test_unauthenticated_raises_before_http(self) -> None:
-        route = respx.get(f"{BASE}/margin/guaranty_fund_balance").mock(
-            return_value=httpx.Response(200, json={})
-        )
-        client = KlearClient(config=KlearConfig.demo())
-        with pytest.raises(AuthRequiredError):
-            client.margin.guaranty_fund_balance()
-        assert not route.called
-        client.close()
-
-    @respx.mock
     async def test_async_happy(self, auth_async_klear_client: AsyncKlearClient) -> None:
         respx.get(f"{BASE}/margin/guaranty_fund_balance").mock(
             return_value=httpx.Response(
@@ -666,23 +629,15 @@ class TestWithdrawSettlementBalance:
         route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
             return_value=httpx.Response(503, json={"code": "x", "message": "down"})
         )
-        client = KlearClient(config=KlearConfig.demo(max_retries=3))
-        client._auth.mark_logged_in("test")
+        client = KlearClient(
+            admin_user_id="test-admin",
+            access_token="test-token",
+            config=KlearConfig.demo(max_retries=3),
+        )
         with pytest.raises(KalshiServerError):
             client.margin.withdraw_settlement_balance(amount="100.00")
         # POST is never retried even on a retryable 503.
         assert route.call_count == 1
-        client.close()
-
-    @respx.mock
-    def test_unauthenticated_raises_before_http(self) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
-            return_value=httpx.Response(200, json={"id": "x"})
-        )
-        client = KlearClient(config=KlearConfig.demo())
-        with pytest.raises(AuthRequiredError):
-            client.margin.withdraw_settlement_balance(amount="500.00")
-        assert not route.called
         client.close()
 
     @respx.mock

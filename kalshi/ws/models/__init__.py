@@ -8,6 +8,13 @@ from kalshi.ws.models.base import (
     SubscriptionInfo,
     UnsubscribedMessage,
 )
+from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarksAvgData,
+    CFBenchmarksIndexListMessage,
+    CFBenchmarksIndexListPayload,
+    CFBenchmarksValueMessage,
+    CFBenchmarksValuePayload,
+)
 from kalshi.ws.models.communications import (
     CommunicationsMessage,
     QuoteAcceptedPayload,
@@ -52,6 +59,12 @@ from kalshi.ws.models.user_orders import UserOrdersMessage, UserOrdersPayload
 __all__ = [
     # Base envelope
     "BaseMessage",
+    # CF Benchmarks value feed
+    "CFBenchmarksAvgData",
+    "CFBenchmarksIndexListMessage",
+    "CFBenchmarksIndexListPayload",
+    "CFBenchmarksValueMessage",
+    "CFBenchmarksValuePayload",
     # Communications
     "CommunicationsMessage",
     "ErrorMessage",

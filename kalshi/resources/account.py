@@ -22,6 +22,16 @@ class AccountResource(SyncResource):
         data = self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)
 
+    def upgrade(self, *, extra_headers: dict[str, str] | None = None) -> None:
+        """Request a permanent Advanced API usage-level grant.
+
+        POST ``/account/api_usage_level/upgrade``. Requires that at least one of
+        the user's last 100 Predictions orders was API-created (else the server
+        returns 403). Returns nothing; inspect the result via :meth:`limits`.
+        """
+        self._require_auth()
+        self._post("/account/api_usage_level/upgrade", json={}, extra_headers=extra_headers)
+
 
 class AsyncAccountResource(AsyncResource):
     """Async account API."""
@@ -38,3 +48,15 @@ class AsyncAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)
+
+    async def upgrade(self, *, extra_headers: dict[str, str] | None = None) -> None:
+        """Request a permanent Advanced API usage-level grant.
+
+        POST ``/account/api_usage_level/upgrade``. Requires that at least one of
+        the user's last 100 Predictions orders was API-created (else the server
+        returns 403). Returns nothing; inspect the result via :meth:`limits`.
+        """
+        self._require_auth()
+        await self._post(
+            "/account/api_usage_level/upgrade", json={}, extra_headers=extra_headers
+        )

@@ -10,8 +10,6 @@ import httpx
 from kalshi._base_client import AsyncTransport
 from kalshi.perps.klear.auth import KlearAuth
 from kalshi.perps.klear.config import DEMO_KLEAR_URL, KlearConfig
-from kalshi.perps.klear.models.auth import LogInResponse
-from kalshi.perps.klear.resources.auth import AsyncAuthResource
 from kalshi.perps.klear.resources.margin import AsyncMarginResource
 
 
@@ -19,12 +17,14 @@ class AsyncKlearClient:
     """Asynchronous client for the Kalshi **Klear (SCM)** API.
 
     Async sibling of :class:`kalshi.perps.klear.KlearClient`; see that class for
-    the cookie-session / no-RSA rationale.
+    the Bearer-token / no-RSA rationale.
     """
 
     def __init__(
         self,
         *,
+        admin_user_id: str,
+        access_token: str,
         config: KlearConfig | None = None,
         demo: bool = False,
         base_url: str | None = None,
@@ -52,30 +52,41 @@ class AsyncKlearClient:
             self._config = KlearConfig(**config_kwargs)  # type: ignore[arg-type]
 
         self._transport = AsyncTransport(None, self._config, transport=transport)
-        self._auth = KlearAuth()
-        self.auth = AsyncAuthResource(self._transport, self._auth)
+        self._auth = KlearAuth(admin_user_id, access_token)
         self.margin = AsyncMarginResource(self._transport, self._auth)
-
-    @property
-    def is_authenticated(self) -> bool:
-        """Whether a Klear session has been established via :meth:`login`."""
-        return self._auth.is_authenticated
 
     @classmethod
     def from_env(
         cls,
         *,
+        admin_user_id: str | None = None,
+        access_token: str | None = None,
         demo: bool | None = None,
         base_url: str | None = None,
         timeout: float | None = None,
         max_retries: int | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> AsyncKlearClient:
-        """Create an async Klear client, reading only environment routing.
+        """Create an async Klear client, reading credentials and routing from the environment.
 
-        See :meth:`kalshi.perps.klear.KlearClient.from_env` — credentials are
-        never read from the environment. ``transport`` is forwarded for tests.
+        See :meth:`kalshi.perps.klear.KlearClient.from_env`. ``transport`` is
+        forwarded for tests.
         """
+        resolved_admin = (
+            admin_user_id
+            if admin_user_id is not None
+            else os.environ.get("KALSHI_KLEAR_ADMIN_USER_ID")
+        )
+        resolved_token = (
+            access_token
+            if access_token is not None
+            else os.environ.get("KALSHI_KLEAR_ACCESS_TOKEN")
+        )
+        if not resolved_admin or not resolved_token:
+            raise ValueError(
+                "AsyncKlearClient.from_env requires KALSHI_KLEAR_ADMIN_USER_ID and "
+                "KALSHI_KLEAR_ACCESS_TOKEN (or explicit admin_user_id/access_token)."
+            )
         resolved_demo = (
             demo if demo is not None else os.environ.get("KALSHI_KLEAR_DEMO", "").lower() == "true"
         )
@@ -83,6 +94,8 @@ class AsyncKlearClient:
             base_url if base_url is not None else os.environ.get("KALSHI_KLEAR_API_BASE_URL")
         )
         return cls(
+            admin_user_id=resolved_admin,
+            access_token=resolved_token,
             demo=resolved_demo,
             base_url=resolved_base_url,
             timeout=timeout,
@@ -90,16 +103,9 @@ class AsyncKlearClient:
             transport=transport,
         )
 
-    async def login(
-        self, *, email: str, password: str, code: str | None = None
-    ) -> LogInResponse:
-        """Convenience wrapper for :meth:`AsyncAuthResource.log_in`."""
-        return await self.auth.log_in(email=email, password=password, code=code)
-
     async def close(self) -> None:
-        """Close the underlying async HTTP connection pool and clear session state."""
+        """Close the underlying async HTTP connection pool."""
         await self._transport.close()
-        self._auth.reset()
 
     async def __aenter__(self) -> AsyncKlearClient:
         return self

@@ -25,7 +25,7 @@ class ApplySubaccountTransferRequest(BaseModel):
     a Decimal. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
     primary account and a positive integer for numbered subaccounts. The
     server is the source of truth for the upper bound: spec describes
-    ``1-32`` in prose but defines no JSON-schema maximum, and demo has
+    ``1-63`` in prose but defines no JSON-schema maximum, and demo has
     been observed allocating values above 32. The SDK validates only the
     lower bound (``ge=0``) so server-assigned numbers always round-trip.
     """

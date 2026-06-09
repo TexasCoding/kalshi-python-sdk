@@ -49,6 +49,9 @@ class MarginMarket(BaseModel):
     fractional_trading_enabled: bool
 
     leverage_estimate: MultiplierDecimal | None = None
+    # Leverage (1 / margin_rate) keyed by notional position size in dollars
+    # ("1000", "10000", ...). Null when margin config or price data is missing.
+    leverage_estimates: dict[str, MultiplierDecimal] | None = None
     price: DollarDecimal | None = None
     bid: DollarDecimal | None = None
     ask: DollarDecimal | None = None
@@ -56,13 +59,29 @@ class MarginMarket(BaseModel):
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
+    volume_notional_value: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("volume_notional_value_dollars", "volume_notional_value"),
+    )
     volume_24h: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_24h_fp", "volume_24h"),
     )
+    volume_24h_notional_value: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "volume_24h_notional_value_dollars", "volume_24h_notional_value"
+        ),
+    )
     open_interest: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
+    )
+    open_interest_notional_value: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "open_interest_notional_value_dollars", "open_interest_notional_value"
+        ),
     )
 
     model_config = {"extra": "allow", "populate_by_name": True}
@@ -156,8 +175,16 @@ class MarginMarketCandlestick(BaseModel):
     volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
+    volume_notional_value: DollarDecimal = Field(
+        validation_alias=AliasChoices("volume_notional_value_dollars", "volume_notional_value"),
+    )
     open_interest: FixedPointCount = Field(
         validation_alias=AliasChoices("open_interest_fp", "open_interest"),
+    )
+    open_interest_notional_value: DollarDecimal = Field(
+        validation_alias=AliasChoices(
+            "open_interest_notional_value_dollars", "open_interest_notional_value"
+        ),
     )
 
     model_config = {"extra": "allow", "populate_by_name": True}

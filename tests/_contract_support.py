@@ -162,6 +162,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/account/endpoint_costs",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.account.AccountResource.upgrade",
+        http_method="POST",
+        path_template="/account/api_usage_level/upgrade",
+    ),
     # ── api keys ────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.api_keys.ApiKeysResource.list",
@@ -1538,6 +1543,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/margin/fee_tiers",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.api_limits",
+        http_method="GET",
+        path_template="/account/limits/perps",
+    ),
     # ── perps funding (#395) ───────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.funding.FundingResource.rate_estimate",
@@ -1576,13 +1586,8 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
 
 # SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
 PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
-    # ── perps SCM/Klear auth (#399) ──────────────────────────────────────
-    MethodEndpointEntry(
-        sdk_method="kalshi.perps.klear.resources.auth.AuthResource.log_in",
-        http_method="POST",
-        path_template="/log_in",
-        request_body_schema="#/components/schemas/LogInRequest",
-    ),
+    # SCM/Klear auth migrated from POST /log_in (cookie session) to a static
+    # Bearer header (#443); there is no longer a log_in endpoint to register.
     # ── perps SCM/Klear margin endpoints (#400) ──────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.margin_reports",

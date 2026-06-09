@@ -1,48 +1,88 @@
-"""Klear (SCM) resource bases with a session (cookie) auth guard.
+"""Klear (SCM) resource bases that inject the Bearer ``Authorization`` header.
 
-Klear authenticates with a session cookie, not RSA-PSS, so the prediction-API
-``SyncResource._require_auth`` (which checks the transport's RSA signer) would
-always fail. These bases reuse the same transport/HTTP helpers but add
-``_require_session()`` — a guard that checks the :class:`KlearAuth` session
-holder so an un-logged-in caller gets a clear ``AuthRequiredError`` instead of a
-server 401.
+Klear authenticates with a static ``Authorization: Bearer <admin_user_id>:<access_token>``
+header (not RSA-PSS), so the transport is built with ``auth=None``. These bases
+reuse the prediction-API transport/HTTP helpers but override ``_get``/``_post``
+to merge the Klear Bearer header onto every request — the paginators
+(``_list``/``_list_all``) route through ``_get``, so they are covered too.
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 from kalshi._base_client import AsyncTransport, SyncTransport
-from kalshi.errors import AuthRequiredError
 from kalshi.perps.klear.auth import KlearAuth
 from kalshi.resources._base import AsyncResource, SyncResource
 
 
 class KlearSyncResource(SyncResource):
-    """Sync Klear resource base — transport + Klear session holder."""
+    """Sync Klear resource base — transport + Bearer header injection."""
 
     def __init__(self, transport: SyncTransport, auth: KlearAuth) -> None:
         super().__init__(transport)
         self._klear_auth = auth
 
-    def _require_session(self) -> None:
-        """Raise ``AuthRequiredError`` if no Klear session has been established."""
-        if not self._klear_auth.is_authenticated:
-            raise AuthRequiredError(
-                "Klear endpoints require an active session. Call "
-                "client.auth.log_in(email=..., password=...) first."
-            )
+    def _with_auth(self, extra_headers: dict[str, str] | None) -> dict[str, str]:
+        """Merge the Klear ``Authorization: Bearer`` header onto ``extra_headers``."""
+        merged = dict(extra_headers) if extra_headers else {}
+        merged["Authorization"] = self._klear_auth.authorization_header()
+        return merged
+
+    def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return super()._get(path, params=params, extra_headers=self._with_auth(extra_headers))
+
+    def _post(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return super()._post(
+            path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
+        )
 
 
 class KlearAsyncResource(AsyncResource):
-    """Async Klear resource base — transport + Klear session holder."""
+    """Async Klear resource base — transport + Bearer header injection."""
 
     def __init__(self, transport: AsyncTransport, auth: KlearAuth) -> None:
         super().__init__(transport)
         self._klear_auth = auth
 
-    def _require_session(self) -> None:
-        """Raise ``AuthRequiredError`` if no Klear session has been established."""
-        if not self._klear_auth.is_authenticated:
-            raise AuthRequiredError(
-                "Klear endpoints require an active session. Call "
-                "client.auth.log_in(email=..., password=...) first."
-            )
+    def _with_auth(self, extra_headers: dict[str, str] | None) -> dict[str, str]:
+        """Merge the Klear ``Authorization: Bearer`` header onto ``extra_headers``."""
+        merged = dict(extra_headers) if extra_headers else {}
+        merged["Authorization"] = self._klear_auth.authorization_header()
+        return merged
+
+    async def _get(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return await super()._get(
+            path, params=params, extra_headers=self._with_auth(extra_headers)
+        )
+
+    async def _post(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        return await super()._post(
+            path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
+        )

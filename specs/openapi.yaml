@@ -1042,6 +1042,15 @@ paths:
       operationId: CreateOrder
       summary: Create Order
       description: ' Endpoint for submitting orders in a market. Each user is limited to 200 000 open orders at a time.'
+      x-mint:
+        content: >
+          <Note>
+
+          **Rate limit:** 100 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
+
+          </Note>
       tags:
         - orders
       security:
@@ -1080,9 +1089,9 @@ paths:
         content: >
           <Note>
 
-          **Rate limit:** 2 tokens per request. Other endpoints use the default
-          cost of 10 tokens per request unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1114,9 +1123,9 @@ paths:
         content: >
           <Note>
 
-          **Rate limit:** 2 tokens per request. Other endpoints use the default
-          cost of 10 tokens per request unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1155,9 +1164,9 @@ paths:
           <Note>
 
           **Rate limit:** 10 tokens per order in the batch — billed per item, so
-          total cost for a batch of N orders is N × 10. Other endpoints cost 10
-          tokens per request (not per item) unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          total cost for a batch of N orders is N × 10. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1199,9 +1208,9 @@ paths:
           <Note>
 
           **Rate limit:** 2 tokens per order in the batch — billed per item, so
-          total cost for a batch of N cancels is N × 2. Other endpoints cost 10
-          tokens per request unless noted on their own page. See [Rate Limits
-          and Tiers](/getting_started/rate_limits).
+          total cost for a batch of N cancels is N × 2. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1280,6 +1289,15 @@ paths:
       operationId: DecreaseOrder
       summary: Decrease Order
       description: ' Endpoint for decreasing the number of contracts in an existing order. This is the only kind of edit available on order quantity. Cancelling an order is equivalent to decreasing an order amount to zero.'
+      x-mint:
+        content: >
+          <Note>
+
+          **Rate limit:** 100 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
+
+          </Note>
       tags:
         - orders
       security:
@@ -1424,9 +1442,9 @@ paths:
           <Note>
 
           **Rate limit:** 10 tokens per order in the batch — billed per item, so
-          total cost for a batch of N orders is N × 10. Other endpoints cost 10
-          tokens per request (not per item) unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          total cost for a batch of N orders is N × 10. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1468,9 +1486,9 @@ paths:
           <Note>
 
           **Rate limit:** 2 tokens per order in the batch — billed per item, so
-          total cost for a batch of N cancels is N × 2. Other endpoints cost 10
-          tokens per request unless noted on their own page. See [Rate Limits
-          and Tiers](/getting_started/rate_limits).
+          total cost for a batch of N cancels is N × 2. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -1508,6 +1526,15 @@ paths:
         Endpoint for cancelling event-market orders using the V2 response shape.
         Returns `{order_id, client_order_id, reduced_by}` rather than a full
         order object.
+      x-mint:
+        content: >
+          <Note>
+
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
+
+          </Note>
       tags:
         - orders
       security:
@@ -1863,8 +1890,8 @@ paths:
       description: >-
         Creates a new subaccount for the authenticated user. This endpoint is
         currently only available to institutions and market makers. Subaccounts
-        are numbered sequentially starting from 1. Maximum 32 subaccounts per
-        user.
+        are numbered sequentially starting from 1. Maximum 63 numbered
+        subaccounts per user (64 including the primary account).
       tags:
         - portfolio
       security:
@@ -1890,7 +1917,7 @@ paths:
       summary: Transfer Between Subaccounts
       description: >-
         Transfers funds between the authenticated user's subaccounts. Use 0 for
-        the primary account, or 1-32 for numbered subaccounts.
+        the primary account, or 1-63 for numbered subaccounts.
       tags:
         - portfolio
       security:
@@ -1971,7 +1998,7 @@ paths:
       summary: Update Subaccount Netting
       description: >-
         Updates the netting enabled setting for a specific subaccount. Use 0 for
-        the primary account, or 1-32 for numbered subaccounts.
+        the primary account, or 1-63 for numbered subaccounts.
       tags:
         - portfolio
       security:
@@ -2450,9 +2477,9 @@ paths:
         content: >
           <Note>
 
-          **Rate limit:** 2 tokens per request. Other endpoints use the default
-          cost of 10 tokens per request unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -2514,9 +2541,9 @@ paths:
         content: >
           <Note>
 
-          **Rate limit:** 2 tokens per request. Other endpoints use the default
-          cost of 10 tokens per request unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -2726,6 +2753,45 @@ paths:
                 $ref: '#/components/schemas/GetAccountApiLimitsResponse'
         '401':
           description: Unauthorized
+        '500':
+          description: Internal server error
+  /account/api_usage_level/upgrade:
+    post:
+      operationId: UpgradeAccountApiUsageLevel
+      summary: Upgrade Account API Usage Level
+      description: >-
+        Grants a permanent Advanced API usage-level grant. Currently only the
+        Predictions exchange instance is supported. Criteria: at least 1 of the
+        user's last 100 Predictions orders was created via API. Use Get Account
+        API Limits to inspect the resulting usage tier and grants.
+      x-mint:
+        content: >
+          <Note>
+
+          **Rate limit:** 30 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
+
+          </Note>
+      tags:
+        - account
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '201':
+          description: Advanced API usage-level grant created or refreshed successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: >-
+            No API-created order was found in the user's latest 100 Predictions
+            orders
+        '429':
+          description: >-
+            Rate limit exceeded. This endpoint costs 30 tokens and uses the
+            Predictions Write bucket.
         '500':
           description: Internal server error
   /account/endpoint_costs:
@@ -3309,9 +3375,9 @@ paths:
 
           <Note>
 
-          **Rate limit:** 2 tokens per request. Other endpoints use the default
-          cost of 10 tokens per request unless noted on their own page. See
-          [Rate Limits and Tiers](/getting_started/rate_limits).
+          **Rate limit:** 2 tokens per request. See `GET
+          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
+          costs.
 
           </Note>
       tags:
@@ -3911,9 +3977,8 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     RateLimitError:
       description: >-
-        Rate limit exceeded. The default cost is 10 tokens per request;
-        endpoints that deviate show a **Rate limit** callout at the top of their
-        own page. See [Rate Limits and Tiers](/getting_started/rate_limits).
+        Rate limit exceeded. The default cost is 10 tokens per request. Use GET
+        /trade-api/v2/account/endpoint_costs to list non-default endpoint costs.
       content:
         application/json:
           schema:
@@ -4082,14 +4147,14 @@ components:
       name: subaccount
       in: query
       description: >-
-        Subaccount number (0 for primary, 1-32 for subaccounts). If omitted,
+        Subaccount number (0 for primary, 1-63 for subaccounts). If omitted,
         defaults to all subaccounts.
       schema:
         type: integer
     SubaccountQueryDefaultPrimary:
       name: subaccount
       in: query
-      description: Subaccount number (0 for primary, 1-32 for subaccounts). Defaults to 0.
+      description: Subaccount number (0 for primary, 1-63 for subaccounts). Defaults to 0.
       schema:
         type: integer
     ExchangeIndexQuery:
@@ -4629,6 +4694,7 @@ components:
         - usage_tier
         - read
         - write
+        - grants
       properties:
         usage_tier:
           type: string
@@ -4637,6 +4703,38 @@ components:
           $ref: '#/components/schemas/BucketLimit'
         write:
           $ref: '#/components/schemas/BucketLimit'
+        grants:
+          type: array
+          description: >-
+            The caller's active API usage level grants across exchange lanes,
+            where each grant applies to its exchange_instance and usage_tier
+            reflects the effective tier for the lane reported by this endpoint.
+          items:
+            $ref: '#/components/schemas/ApiUsageLevelGrant'
+    ApiUsageLevelGrant:
+      type: object
+      required:
+        - exchange_instance
+        - level
+        - source
+      properties:
+        exchange_instance:
+          $ref: '#/components/schemas/ExchangeInstance'
+        level:
+          type: string
+          description: API usage level this grant confers (e.g. premier, paragon, prime).
+        expires_ts:
+          type: integer
+          format: int64
+          nullable: true
+          description: >-
+            Unix timestamp (seconds) when the grant expires. Absent for
+            permanent grants.
+        source:
+          type: string
+          description: >-
+            How the grant was created: "volume" (earned from trading volume) or
+            "manual" (assigned by Kalshi).
     EndpointTokenCost:
       type: object
       required:
@@ -5179,7 +5277,7 @@ components:
       properties:
         subaccount_number:
           type: integer
-          description: The sequential number assigned to this subaccount (1-32).
+          description: The sequential number assigned to this subaccount (1-63).
     ApplySubaccountTransferRequest:
       type: object
       required:
@@ -5197,12 +5295,12 @@ components:
         from_subaccount:
           type: integer
           description: >-
-            Source subaccount number (0 for primary, 1-32 for numbered
+            Source subaccount number (0 for primary, 1-63 for numbered
             subaccounts).
         to_subaccount:
           type: integer
           description: >-
-            Destination subaccount number (0 for primary, 1-32 for numbered
+            Destination subaccount number (0 for primary, 1-63 for numbered
             subaccounts).
         amount_cents:
           type: integer
@@ -5229,7 +5327,7 @@ components:
       properties:
         subaccount_number:
           type: integer
-          description: Subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Subaccount number (0 for primary, 1-63 for subaccounts).
         balance:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Balance in dollars.
@@ -5263,10 +5361,10 @@ components:
           description: Unique identifier for this transfer.
         from_subaccount:
           type: integer
-          description: Source subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Source subaccount number (0 for primary, 1-63 for subaccounts).
         to_subaccount:
           type: integer
-          description: Destination subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Destination subaccount number (0 for primary, 1-63 for subaccounts).
         amount_cents:
           type: integer
           format: int64
@@ -5283,7 +5381,7 @@ components:
       properties:
         subaccount_number:
           type: integer
-          description: Subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Subaccount number (0 for primary, 1-63 for subaccounts).
         enabled:
           type: boolean
           description: Whether netting is enabled for this subaccount.
@@ -5304,7 +5402,7 @@ components:
       properties:
         subaccount_number:
           type: integer
-          description: Subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Subaccount number (0 for primary, 1-63 for subaccounts).
         enabled:
           type: boolean
           description: Whether netting is enabled for this subaccount.
@@ -5671,7 +5769,7 @@ components:
           type: integer
           nullable: true
           x-omitempty: true
-          description: Subaccount number (0 for primary, 1-32 for subaccounts).
+          description: Subaccount number (0 for primary, 1-63 for subaccounts).
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
@@ -6200,7 +6298,7 @@ components:
           nullable: true
           x-omitempty: true
           description: >-
-            Subaccount number (0 for primary, 1-32 for subaccounts). Present for
+            Subaccount number (0 for primary, 1-63 for subaccounts). Present for
             direct users.
         ts:
           type: integer
@@ -6369,7 +6467,7 @@ components:
           minimum: 0
           description: >-
             Optional subaccount number to use for this order group (0 for
-            primary, 1-32 for subaccounts)
+            primary, 1-63 for subaccounts)
           default: 0
           x-go-type-skip-optional-pointer: true
         contracts_limit:
@@ -6434,7 +6532,7 @@ components:
           minimum: 0
           description: >-
             Subaccount number that owns the created order group (0 for primary,
-            1-32 for subaccounts).
+            1-63 for subaccounts).
           x-go-type-skip-optional-pointer: true
         exchange_index:
           allOf:
@@ -6554,17 +6652,16 @@ components:
         contracts:
           type: integer
           description: >-
-            The number of contracts for the RFQ. Whole contracts only. Contracts
-            may be provided via contracts or contracts_fp; if both provided they
-            must match.
+            Whole-contract count for the RFQ. Use contracts_fp for partial
+            contract values; if both are provided, they must match.
           x-go-type-skip-optional-pointer: true
         contracts_fp:
           $ref: '#/components/schemas/FixedPointCount'
           nullable: true
           description: >-
-            String representation of the number of contracts for the RFQ.
-            Contracts may be provided via contracts or contracts_fp; if both
-            provided they must match.
+            Fixed-point number of contracts for the RFQ. Supports partial
+            contracts in 0.01-contract increments; if contracts is also
+            provided, both values must match.
         target_cost_centi_cents:
           type: integer
           format: int64
@@ -6593,7 +6690,7 @@ components:
           type: integer
           description: >-
             The subaccount number to create the RFQ for (direct members only; 0
-            for primary, 1-32 for subaccounts)
+            for primary, 1-63 for subaccounts)
           x-go-type-skip-optional-pointer: true
     CreateRFQResponse:
       type: object
@@ -6782,7 +6879,7 @@ components:
           type: integer
           description: >-
             Optional subaccount number to place the quote under (0 for primary,
-            1-32 for subaccounts)
+            1-63 for subaccounts)
     CreateQuoteResponse:
       type: object
       required:
@@ -7014,7 +7111,7 @@ components:
           default: 0
           description: >-
             Optional subaccount number to use for this cancellation (0 for
-            primary, 1-32 for subaccounts)
+            primary, 1-63 for subaccounts)
           x-go-type-skip-optional-pointer: true
         exchange_index:
           allOf:
@@ -7079,7 +7176,7 @@ components:
           minimum: 0
           description: >-
             Optional subaccount number to use for this amendment (0 for primary,
-            1-32 for subaccounts)
+            1-63 for subaccounts)
           default: 0
           x-go-type-skip-optional-pointer: true
         ticker:
@@ -7166,7 +7263,7 @@ components:
           minimum: 0
           description: >-
             Optional subaccount number to use for this decrease (0 for primary,
-            1-32 for subaccounts)
+            1-63 for subaccounts)
           default: 0
           x-go-type-skip-optional-pointer: true
         reduce_by:
@@ -7222,6 +7319,19 @@ components:
         - price
         - time_in_force
         - self_trade_prevention_type
+      example:
+        ticker: HIGHNY-24JAN01-T60
+        client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+        side: bid
+        count: '10.00'
+        price: '0.5600'
+        time_in_force: good_till_canceled
+        self_trade_prevention_type: taker_at_cross
+        post_only: false
+        cancel_order_on_pause: false
+        reduce_only: false
+        subaccount: 0
+        exchange_index: 0
       properties:
         ticker:
           type: string
@@ -7320,6 +7430,12 @@ components:
         - fill_count
         - remaining_count
         - ts_ms
+      example:
+        order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+        client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+        fill_count: '0.00'
+        remaining_count: '10.00'
+        ts_ms: 1715793600123
       properties:
         order_id:
           type: string
@@ -7355,6 +7471,11 @@ components:
         - order_id
         - reduced_by
         - ts_ms
+      example:
+        order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+        client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+        reduced_by: '10.00'
+        ts_ms: 1715793660456
       properties:
         order_id:
           type: string
@@ -7373,6 +7494,9 @@ components:
             as Unix epoch milliseconds.
     DecreaseOrderV2Request:
       type: object
+      example:
+        reduce_by: '2.00'
+        exchange_index: 0
       properties:
         reduce_by:
           $ref: '#/components/schemas/FixedPointCount'
@@ -7397,6 +7521,11 @@ components:
         - order_id
         - remaining_count
         - ts_ms
+      example:
+        order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+        client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+        remaining_count: '8.00'
+        ts_ms: 1715793680789
       properties:
         order_id:
           type: string
@@ -7418,6 +7547,14 @@ components:
         - side
         - price
         - count
+      example:
+        ticker: HIGHNY-24JAN01-T60
+        side: bid
+        price: '0.5700'
+        count: '8.00'
+        client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+        updated_client_order_id: 2a0e3fc9-b593-4aa3-96e5-82f7f7566c2a
+        exchange_index: 0
       properties:
         ticker:
           type: string
@@ -7458,6 +7595,12 @@ components:
       required:
         - order_id
         - ts_ms
+      example:
+        order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+        client_order_id: 2a0e3fc9-b593-4aa3-96e5-82f7f7566c2a
+        remaining_count: '8.00'
+        fill_count: '0.00'
+        ts_ms: 1715793690123
       properties:
         order_id:
           type: string
@@ -7503,6 +7646,24 @@ components:
       type: object
       required:
         - orders
+      example:
+        orders:
+          - ticker: HIGHNY-24JAN01-T60
+            client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+            side: bid
+            count: '10.00'
+            price: '0.5600'
+            time_in_force: good_till_canceled
+            self_trade_prevention_type: taker_at_cross
+            exchange_index: 0
+          - ticker: HIGHNY-24JAN01-T60
+            client_order_id: 2a0e3fc9-b593-4aa3-96e5-82f7f7566c2a
+            side: ask
+            count: '5.00'
+            price: '0.5800'
+            time_in_force: immediate_or_cancel
+            self_trade_prevention_type: maker
+            exchange_index: 0
       properties:
         orders:
           type: array
@@ -7514,6 +7675,20 @@ components:
       type: object
       required:
         - orders
+      example:
+        orders:
+          - order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+            client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+            fill_count: '0.00'
+            remaining_count: '10.00'
+            ts_ms: 1715793600123
+          - order_id: a6d6010d-6d5f-40a1-a7e7-5501386bb621
+            client_order_id: 2a0e3fc9-b593-4aa3-96e5-82f7f7566c2a
+            fill_count: '5.00'
+            remaining_count: '0.00'
+            average_fill_price: '0.5800'
+            average_fee_paid: '0.0012'
+            ts_ms: 1715793600456
       properties:
         orders:
           type: array
@@ -7565,6 +7740,14 @@ components:
       type: object
       required:
         - orders
+      example:
+        orders:
+          - order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+            subaccount: 0
+            exchange_index: 0
+          - order_id: a6d6010d-6d5f-40a1-a7e7-5501386bb621
+            subaccount: 0
+            exchange_index: 0
       properties:
         orders:
           type: array
@@ -7587,7 +7770,7 @@ components:
                 default: 0
                 description: >-
                   Optional subaccount number to use for this cancellation (0 for
-                  primary, 1-32 for subaccounts).
+                  primary, 1-63 for subaccounts).
                 x-go-type-skip-optional-pointer: true
               exchange_index:
                 allOf:
@@ -7598,6 +7781,16 @@ components:
       type: object
       required:
         - orders
+      example:
+        orders:
+          - order_id: 3b23c1c7-f4ef-4f0d-8b9a-9e53c61f1a0d
+            client_order_id: 8c35ecb3-328f-4f52-8c7c-0f4b9862f8d1
+            reduced_by: '10.00'
+            ts_ms: 1715793660456
+          - order_id: a6d6010d-6d5f-40a1-a7e7-5501386bb621
+            client_order_id: 2a0e3fc9-b593-4aa3-96e5-82f7f7566c2a
+            reduced_by: '5.00'
+            ts_ms: 1715793660789
       properties:
         orders:
           type: array

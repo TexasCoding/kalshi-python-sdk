@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from kalshi.types import NullableList
+
 
 class RateLimit(BaseModel):
     """Per-direction (read/write) token-bucket rate limit.
@@ -42,6 +44,24 @@ class AccountEndpointCosts(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class ApiUsageLevelGrant(BaseModel):
+    """One API usage-level grant for a single exchange lane.
+
+    Spec ``ApiUsageLevelGrant``. Each grant applies to its ``exchange_instance``
+    (``event_contract`` or ``margined``); ``level`` is the usage level it confers
+    (e.g. ``premier``/``paragon``/``prime``). ``source`` records how it was
+    created (``volume`` for trading-volume earned, ``manual`` for Kalshi-assigned).
+    ``expires_ts`` is a Unix-seconds expiry, absent (``None``) for permanent grants.
+    """
+
+    exchange_instance: str
+    level: str
+    source: str
+    expires_ts: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class AccountApiLimits(BaseModel):
     """Rate limits associated with the authenticated user's API tier.
 
@@ -49,10 +69,14 @@ class AccountApiLimits(BaseModel):
     ``write_limit`` as ints, but the live server returns nested token-bucket
     objects under ``read`` and ``write``. The SDK matches the server. If the
     spec is corrected upstream, the contract-drift test will flag it.
+
+    ``grants`` lists the caller's active usage-level grants across exchange
+    lanes; ``usage_tier`` is the effective tier reported by this endpoint.
     """
 
     usage_tier: str
     read: RateLimit
     write: RateLimit
+    grants: NullableList[ApiUsageLevelGrant]
 
     model_config = {"extra": "allow"}

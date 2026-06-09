@@ -1,15 +1,14 @@
 """Kalshi Self-Clearing-Member (SCM) "Klear" API.
 
-The Klear API (``klear-api/v1``) authenticates with **email + password (+ MFA)
-via** ``POST /log_in``, which sets a ``session`` cookie that is replayed on every
-subsequent request — a completely different auth model from the RSA-PSS signing
-used by the prediction and perps trade-api surfaces. It is therefore exposed via
-standalone :class:`KlearClient` / :class:`AsyncKlearClient` with their own
-:class:`KlearConfig` and a lightweight :class:`KlearAuth` session holder.
+The Klear API (``klear-api/v1``) authenticates with a pre-generated Bearer token
+passed as ``Authorization: Bearer <admin_user_id>:<access_token>`` on every
+request — a different auth model from the RSA-PSS signing used by the prediction
+and perps trade-api surfaces. It is therefore exposed via standalone
+:class:`KlearClient` / :class:`AsyncKlearClient` with their own
+:class:`KlearConfig` and a :class:`KlearAuth` Bearer-credential holder.
 
-Security: ``email`` / ``password`` / ``code`` and the session cookie are secrets
-— they are never logged, never placed in exception messages, and redacted from
-``repr()``.
+Security: the ``access_token`` is a secret — it is never logged, never placed in
+exception messages, and redacted from ``repr()``.
 """
 
 from __future__ import annotations
@@ -22,7 +21,6 @@ from kalshi.perps.klear.config import (
     PRODUCTION_KLEAR_URL,
     KlearConfig,
 )
-from kalshi.perps.klear.models.auth import LogInRequest, LogInResponse
 from kalshi.perps.klear.models.common import Error
 
 __all__ = [
@@ -33,6 +31,4 @@ __all__ = [
     "KlearAuth",
     "KlearClient",
     "KlearConfig",
-    "LogInRequest",
-    "LogInResponse",
 ]

@@ -35,9 +35,9 @@ class KlearConfig(KalshiConfig):
     Same field surface as :class:`kalshi.config.KalshiConfig` (timeouts, retry
     policy, ``extra_headers``, HTTP/2, custom REST JSON loader) but defaults to
     the Klear base URL and validates the ``/klear-api/v1`` path + Klear hosts.
-    Holds **no credentials** — email/password live only in the transient
-    ``LogInRequest`` and the session cookie lives in the transport's cookie jar
-    — so the default dataclass ``repr`` is already credential-safe.
+    Holds **no credentials** — the Bearer ``admin_user_id``/``access_token`` live
+    only on :class:`~kalshi.perps.klear.KlearAuth` — so the default dataclass
+    ``repr`` is already credential-safe.
 
     The ``allow_unknown_host`` escape hatch (and ``KALSHI_KLEAR_ALLOW_UNKNOWN_HOST=1``)
     relaxes the host check for mock servers / proxies.
@@ -71,7 +71,7 @@ class KlearConfig(KalshiConfig):
             raise ValueError(
                 f"KlearConfig.base_url must use https:// for non-loopback hosts; "
                 f"http:// is only allowed for {sorted(_LOCAL_HOSTS)} (url={self.base_url!r}). "
-                f"Plaintext to a remote host would expose the session cookie."
+                f"Plaintext to a remote host would expose the Bearer access token."
             )
         if host not in _KLEAR_KNOWN_HOSTS and host not in _LOCAL_HOSTS:
             if not allow_unknown:
@@ -84,7 +84,7 @@ class KlearConfig(KalshiConfig):
                 )
             logger.warning(
                 "KlearConfig.base_url host %r is not a known Kalshi Klear endpoint (%s). "
-                "The session cookie will be sent there — verify this is intentional.",
+                "The Bearer access token will be sent there — verify this is intentional.",
                 host,
                 sorted(_KLEAR_KNOWN_HOSTS),
             )

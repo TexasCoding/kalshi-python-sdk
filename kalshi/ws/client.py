@@ -27,6 +27,10 @@ from kalshi.ws.channels import SubscriptionManager
 from kalshi.ws.connection import ConnectionManager, ConnectionState
 from kalshi.ws.dispatch import MessageDispatcher
 from kalshi.ws.models.base import ErrorMessage
+from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarksIndexListMessage,
+    CFBenchmarksValueMessage,
+)
 from kalshi.ws.models.communications import CommunicationsMessage
 from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
@@ -881,6 +885,24 @@ class KalshiWebSocket:
             params["shard_key"] = shard_key
         return await self._do_subscribe(
             "communications", params=params,
+            overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
+        )
+
+    async def subscribe_cfbenchmarks_value(
+        self, *, index_ids: list[str] | None = None, maxsize: int = 1000,
+    ) -> AsyncIterator[CFBenchmarksValueMessage | CFBenchmarksIndexListMessage]:
+        """Subscribe to the auth-required ``cfbenchmarks_value`` index feed.
+
+        Seed ``index_ids`` (e.g. ``["BRTI", "ETHUSD_RTI"]`` or ``["all"]``) to
+        receive values immediately; subscribing with no ids yields nothing until
+        indices are added. The stream yields both ``cfbenchmarks_value`` data
+        messages and ``cfbenchmarks_value_indexlist`` control responses.
+        """
+        params: dict[str, Any] = {}
+        if index_ids:
+            params["index_ids"] = index_ids
+        return await self._do_subscribe(
+            "cfbenchmarks_value", params=params,
             overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
 

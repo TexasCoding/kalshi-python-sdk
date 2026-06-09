@@ -78,7 +78,7 @@ class NewOrderSingle(FixMessage):
         Tag.MAX_EXECUTION_COST, FixType.DECIMAL, default=None
     )
     # Kalshi dictionary v1.03 types AllocAccount (79) as INT — the subaccount
-    # number (0 primary, 1-32) — not the FIX-standard STRING.
+    # number (0 primary, 1-63) — not the FIX-standard STRING.
     alloc_account: int | None = fixfield(Tag.ALLOC_ACCOUNT, FixType.INT, default=None)
 
 

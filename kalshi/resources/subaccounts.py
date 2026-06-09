@@ -95,7 +95,7 @@ class SubaccountsResource(SyncResource):
     """Sync subaccounts API.
 
     Subaccount 0 is the primary account; positive integers identify numbered
-    subaccounts (spec prose says ``1-32`` but defines no JSON-schema upper
+    subaccounts (spec prose says ``1-63`` but defines no JSON-schema upper
     bound, and demo has been observed allocating numbers above 32).
     POST /portfolio/subaccounts spins up the next subaccount with an
     empty body (spec takes no request payload).

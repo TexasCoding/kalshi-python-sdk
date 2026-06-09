@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from kalshi.perps.klear.models.auth import LogInRequest, LogInResponse
 from kalshi.perps.klear.models.common import Error
 from kalshi.perps.klear.models.margin import (
     GetActiveMarginObligationResponse,
@@ -36,8 +35,6 @@ __all__ = [
     "GetSettlementBalanceResponse",
     "GetSettlementBalanceWithdrawalResponse",
     "GetSettlementEstimateResponse",
-    "LogInRequest",
-    "LogInResponse",
     "MaintenanceMarginDetail",
     "MarginReport",
     "MarginReportTypeLiteral",

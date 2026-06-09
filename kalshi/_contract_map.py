@@ -217,8 +217,14 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes=(
             "SPEC DRIFT: spec declares int 'read_limit'/'write_limit' but the "
             "live server returns nested 'read'/'write' token-bucket objects. "
-            "SDK model follows the server."
+            "SDK model follows the server. 'grants' is the per-exchange-lane "
+            "usage-level grant list (NullableList: null -> [])."
         ),
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.account.ApiUsageLevelGrant",
+        spec_schema="ApiUsageLevelGrant",
+        notes="exchange_instance/level/source required; expires_ts nullable (None = permanent).",
     ),
     ContractEntry(
         sdk_model="kalshi.models.structured_targets.StructuredTarget",
@@ -503,6 +509,19 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         notes="Spec has price_dollars and time fields not in SDK (expected additive drift)",
     ),
     ContractEntry(
+        sdk_model="kalshi.ws.models.cfbenchmarks.CFBenchmarksValuePayload",
+        spec_schema="cfbenchmarksValuePayload",
+        notes=(
+            "avg_60s_data required; last_60s_windowed_average_15min present only "
+            "near quarter-hour close."
+        ),
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.cfbenchmarks.CFBenchmarksIndexListPayload",
+        spec_schema="cfbenchmarksIndexListPayload",
+        notes="indexlist response: msg.index_ids only.",
+    ),
+    ContractEntry(
         sdk_model="kalshi.ws.models.fill.FillPayload",
         spec_schema="fillPayload",
     ),
@@ -734,6 +753,13 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.models.margin_account.GetMarginFeeTiersResponse",
         spec_schema="GetMarginFeeTiersResponse",
+    ),
+    ContractEntry(
+        # /account/limits/perps returns the same shape as the prediction API's
+        # /account/limits, so the perps resource reuses kalshi.models.account.AccountApiLimits.
+        sdk_model="kalshi.models.account.AccountApiLimits",
+        spec_schema="GetAccountApiLimitsResponse",
+        notes="Reused prediction-API model; perps spec schema is field-identical.",
     ),
     # ── perps funding (#395) ──
     ContractEntry(

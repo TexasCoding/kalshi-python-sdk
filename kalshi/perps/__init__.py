@@ -29,8 +29,6 @@ from kalshi.perps.klear import (
     KlearAuth,
     KlearClient,
     KlearConfig,
-    LogInRequest,
-    LogInResponse,
 )
 from kalshi.perps.klear.models.margin import (
     GetActiveMarginObligationResponse,
@@ -264,8 +262,6 @@ __all__ = [
     "KlearConfig",
     "LastUpdateReason",
     "LastUpdateReasonLiteral",
-    "LogInRequest",
-    "LogInResponse",
     "MaintenanceMarginDetail",
     "MarginAccountResource",
     "MarginEnabledResponse",

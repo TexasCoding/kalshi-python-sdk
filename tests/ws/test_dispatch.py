@@ -393,6 +393,8 @@ class TestMessageDispatcher:
             "multivariate_lookup",
             "multivariate_market_lifecycle",
             "communications",
+            "cfbenchmarks_value",
+            "cfbenchmarks_value_indexlist",
         }
         assert expected == set(MESSAGE_MODELS.keys())
 
