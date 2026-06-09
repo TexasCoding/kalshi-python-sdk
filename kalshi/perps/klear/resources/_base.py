@@ -5,6 +5,11 @@ header (not RSA-PSS), so the transport is built with ``auth=None``. These bases
 reuse the prediction-API transport/HTTP helpers but override ``_get``/``_post``
 to merge the Klear Bearer header onto every request — the paginators
 (``_list``/``_list_all``) route through ``_get``, so they are covered too.
+
+Only ``_get``/``_post`` are overridden because the entire Klear surface is
+GET/POST. If a future spec revision adds a PUT/DELETE Klear endpoint, override
+the matching base helper here too (otherwise its requests would go out
+unauthenticated).
 """
 
 from __future__ import annotations

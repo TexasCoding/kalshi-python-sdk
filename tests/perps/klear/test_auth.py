@@ -28,6 +28,11 @@ class TestKlearAuth:
             KlearAuth("", "tok")
         with pytest.raises(ValueError):
             KlearAuth("admin", "")
+        # Whitespace-only is also rejected (would yield a malformed header).
+        with pytest.raises(ValueError):
+            KlearAuth("   ", "tok")
+        with pytest.raises(ValueError):
+            KlearAuth("admin", "  ")
 
     def test_repr_redacts_access_token(self) -> None:
         auth = KlearAuth("admin-123", "SECRET-TOKEN")

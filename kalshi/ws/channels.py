@@ -390,6 +390,9 @@ class SubscriptionManager:
             params["market_ids"] = market_ids
         if send_initial_snapshot is not None:
             params["send_initial_snapshot"] = send_initial_snapshot
+        # Truthy check (like market_tickers/market_ids above): an empty list is
+        # intentionally omitted — subscribe_indices/unsubscribe_indices require
+        # >=1 id (server returns error code 24 "Index IDs required" otherwise).
         if index_ids:
             params["index_ids"] = index_ids
 
