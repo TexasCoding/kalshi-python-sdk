@@ -23,9 +23,12 @@ from kalshi.types import DollarDecimal
 class CFBenchmarksAvgData(BaseModel):
     """Windowed-average metadata for a CF Benchmarks index value.
 
-    ``value`` is an exact decimal string (8 dp); ``window_size`` counts the ticks
-    in the window; ``window_start_ts_ms``/``window_end_ts_exclusive`` bound the
-    window in Unix milliseconds (end-exclusive).
+    ``value`` is an exact 8-dp decimal string. The tracked indices (e.g. ``BRTI``,
+    ``ETHUSD_RTI``) are USD-denominated reference rates, so it is typed
+    :data:`~kalshi.types.DollarDecimal` — exact ``Decimal`` from the string, no
+    binary-float drift. ``window_size`` counts the ticks in the window;
+    ``window_start_ts_ms``/``window_end_ts_exclusive`` bound it in Unix
+    milliseconds (end-exclusive).
     """
 
     value: DollarDecimal
@@ -38,10 +41,11 @@ class CFBenchmarksAvgData(BaseModel):
 class CFBenchmarksValuePayload(BaseModel):
     """``cfbenchmarks_value.msg`` — one index value with trailing averages.
 
-    ``data`` is the raw CF Benchmarks JSON frame as a string. ``avg_60s_data`` is
-    always present (trailing 60-second average). ``last_60s_windowed_average_15min``
-    is present only in the final minute before a quarter-hour close (``:00``/``:15``/
-    ``:30``/``:45``), so it is optional.
+    ``data`` is the raw CF Benchmarks JSON frame as a string (upstream-defined and
+    index-specific, so it is left unparsed — call ``json.loads(msg.data)`` to read
+    it). ``avg_60s_data`` is always present (trailing 60-second average).
+    ``last_60s_windowed_average_15min`` is present only in the final minute before a
+    quarter-hour close (``:00``/``:15``/``:30``/``:45``), so it is optional.
     """
 
     index_id: str

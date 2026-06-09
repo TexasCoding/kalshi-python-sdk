@@ -230,7 +230,8 @@ class TestAccountUpgrade:
         ).mock(return_value=httpx.Response(201, json={}))
         assert account.upgrade() is None
         assert route.called
-        # Bodyless POST: SDK sends json={} so httpx pins the Content-Type header.
+        # No requestBody in the spec; SDK sends an empty {} body so httpx pins
+        # Content-Type: application/json (matches subaccounts.create).
         assert route.calls[0].request.content == b"{}"
 
     @respx.mock

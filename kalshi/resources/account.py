@@ -30,6 +30,9 @@ class AccountResource(SyncResource):
         returns 403). Returns nothing; inspect the result via :meth:`limits`.
         """
         self._require_auth()
+        # Spec defines no requestBody; ``json={}`` forces Content-Type:
+        # application/json (httpx omits it for a bodyless POST, which demo
+        # rejects) — same workaround as ``subaccounts.create``.
         self._post("/account/api_usage_level/upgrade", json={}, extra_headers=extra_headers)
 
 
@@ -57,6 +60,9 @@ class AsyncAccountResource(AsyncResource):
         returns 403). Returns nothing; inspect the result via :meth:`limits`.
         """
         self._require_auth()
+        # Spec defines no requestBody; ``json={}`` forces Content-Type:
+        # application/json (httpx omits it for a bodyless POST, which demo
+        # rejects) — same workaround as ``subaccounts.create``.
         await self._post(
             "/account/api_usage_level/upgrade", json={}, extra_headers=extra_headers
         )

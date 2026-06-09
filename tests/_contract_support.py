@@ -163,6 +163,8 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/account/endpoint_costs",
     ),
     MethodEndpointEntry(
+        # Spec defines no requestBody for this POST, so there is no
+        # request_body_schema to drift-check (same as subaccounts.create).
         sdk_method="kalshi.resources.account.AccountResource.upgrade",
         http_method="POST",
         path_template="/account/api_usage_level/upgrade",
