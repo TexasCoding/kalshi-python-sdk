@@ -16,6 +16,10 @@ from kalshi.ws.models.base import (
     SubscribedMessage,
     UnsubscribedMessage,
 )
+from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarksIndexListMessage,
+    CFBenchmarksValueMessage,
+)
 from kalshi.ws.models.communications import (
     CommunicationsMessage,
     QuoteAcceptedPayload,
@@ -243,6 +247,89 @@ class TestTickerModel:
                     ),
                 }
             )
+
+
+# ---------- CF Benchmarks value feed ----------
+
+
+class TestCFBenchmarksModels:
+    def test_parse_value_with_both_averages(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value",
+            "sid": 1,
+            "seq": 42,
+            "msg": {
+                "index_id": "BRTI",
+                "received_at": 1715793600123,
+                "data": '{"price": "65000.12345678"}',
+                "avg_60s_data": {
+                    "value": "65000.12345678",
+                    "window_size": 59,
+                    "window_start_ts_ms": 1715793540123,
+                    "window_end_ts_exclusive": 1715793600123,
+                },
+                "last_60s_windowed_average_15min": {
+                    "value": "65001.00000000",
+                    "window_size": 60,
+                    "window_start_ts_ms": 1715793540000,
+                    "window_end_ts_exclusive": 1715793600001,
+                },
+            },
+        }
+        msg = CFBenchmarksValueMessage.model_validate(raw)
+        assert msg.type == "cfbenchmarks_value"
+        assert msg.sid == 1
+        assert msg.seq == 42
+        assert msg.msg.index_id == "BRTI"
+        # 8-dp value preserved exactly as Decimal (no binary-float drift).
+        assert msg.msg.avg_60s_data.value == Decimal("65000.12345678")
+        assert isinstance(msg.msg.avg_60s_data.value, Decimal)
+        assert msg.msg.avg_60s_data.window_size == 59
+        assert msg.msg.last_60s_windowed_average_15min is not None
+        assert msg.msg.last_60s_windowed_average_15min.window_size == 60
+
+    def test_value_omits_quarter_hour_average(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value",
+            "sid": 1,
+            "seq": 7,
+            "msg": {
+                "index_id": "ETHUSD_RTI",
+                "received_at": 1715793600123,
+                "data": "{}",
+                "avg_60s_data": {
+                    "value": "3500.00000000",
+                    "window_size": 0,
+                    "window_start_ts_ms": 1715793540123,
+                    "window_end_ts_exclusive": 1715793600123,
+                },
+            },
+        }
+        msg = CFBenchmarksValueMessage.model_validate(raw)
+        assert msg.msg.last_60s_windowed_average_15min is None
+
+    def test_value_missing_avg_60s_data_raises(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value",
+            "sid": 1,
+            "seq": 1,
+            "msg": {"index_id": "BRTI", "received_at": 1, "data": "{}"},
+        }
+        with pytest.raises(ValidationError):
+            CFBenchmarksValueMessage.model_validate(raw)
+
+    def test_parse_index_list(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value_indexlist",
+            "id": 2,
+            "sid": 1,
+            "seq": 1,
+            "msg": {"index_ids": ["BRTI", "ETHUSD_RTI"]},
+        }
+        msg = CFBenchmarksIndexListMessage.model_validate(raw)
+        assert msg.type == "cfbenchmarks_value_indexlist"
+        assert msg.id == 2
+        assert msg.msg.index_ids == ["BRTI", "ETHUSD_RTI"]
 
 
 # ---------- Trade ----------

@@ -1272,8 +1272,7 @@ PERPS_BODY_MODEL_MAP: dict[str, str] = {
 }
 
 PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
-    # ── perps SCM/Klear auth (#399) ──
-    "#/components/schemas/LogInRequest": "kalshi.perps.klear.models.auth.LogInRequest",
+    # SCM/Klear auth migrated to Bearer header (#443); LogInRequest removed.
     # ── perps SCM/Klear margin (#400) ──
     "#/components/schemas/WithdrawSettlementBalanceRequest": (
         "kalshi.perps.klear.models.margin.WithdrawSettlementBalanceRequest"

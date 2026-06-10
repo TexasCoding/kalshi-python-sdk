@@ -441,6 +441,79 @@ class TestFeeTiers:
         await async_perps_client.close()
 
 
+class TestApiLimits:
+    """GET /account/limits/perps — reuses kalshi.models.account.AccountApiLimits."""
+
+    @respx.mock
+    def test_happy(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/account/limits/perps").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "usage_tier": "standard",
+                    "read": {"bucket_capacity": 200, "refill_rate": 100},
+                    "write": {"bucket_capacity": 20, "refill_rate": 10},
+                    "grants": [
+                        {
+                            "exchange_instance": "margined",
+                            "level": "prime",
+                            "source": "manual",
+                        }
+                    ],
+                },
+            )
+        )
+        resp = perps_client.margin.api_limits()
+        assert resp.usage_tier == "standard"
+        assert resp.read.bucket_capacity == 200
+        assert resp.grants[0].exchange_instance == "margined"
+        assert resp.grants[0].expires_ts is None
+
+    @respx.mock
+    def test_null_grants_coerced(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/account/limits/perps").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "usage_tier": "standard",
+                    "read": {"bucket_capacity": 200, "refill_rate": 100},
+                    "write": {"bucket_capacity": 20, "refill_rate": 10},
+                    "grants": None,
+                },
+            )
+        )
+        assert perps_client.margin.api_limits().grants == []
+
+    @respx.mock
+    def test_unauthenticated_raises_before_http(self) -> None:
+        route = respx.get(f"{BASE}/account/limits/perps").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        with pytest.raises(AuthRequiredError):
+            client.margin.api_limits()
+        assert not route.called
+        client.close()
+
+    @respx.mock
+    async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/account/limits/perps").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "usage_tier": "elevated",
+                    "read": {"bucket_capacity": 1000, "refill_rate": 500},
+                    "write": {"bucket_capacity": 100, "refill_rate": 50},
+                    "grants": [],
+                },
+            )
+        )
+        resp = await async_perps_client.margin.api_limits()
+        assert resp.usage_tier == "elevated"
+        assert resp.grants == []
+        await async_perps_client.close()
+
+
 # ── base URL / extra-field tolerance ──────────────────────────────────────────
 
 

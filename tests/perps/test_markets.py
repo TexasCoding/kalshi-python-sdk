@@ -36,12 +36,16 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         "tick_size": "0.0100",
         "fractional_trading_enabled": True,
         "leverage_estimate": 2.5,
+        "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "price": "0.5600",
         "bid": "0.5500",
         "ask": "0.5700",
         "volume": "1000.00",
+        "volume_notional_value_dollars": "560.0000",
         "volume_24h": "250.00",
+        "volume_24h_notional_value_dollars": "140.0000",
         "open_interest": "500.00",
+        "open_interest_notional_value_dollars": "280.0000",
     }
     base.update(overrides)
     return base
@@ -61,7 +65,9 @@ def _candle_dict(**overrides: object) -> dict[str, object]:
             "previous": "0.5580",
         },
         "volume": "100.00",
+        "volume_notional_value_dollars": "56.0000",
         "open_interest": "500.00",
+        "open_interest_notional_value_dollars": "280.0000",
     }
     base.update(overrides)
     return base
@@ -89,7 +95,16 @@ class TestList:
         assert isinstance(m.tick_size, Decimal)
         assert m.leverage_estimate == Decimal("2.5")
         assert isinstance(m.leverage_estimate, Decimal)
+        assert m.leverage_estimates == {
+            "1000": Decimal("2.5"),
+            "10000": Decimal("2.0"),
+            "100000": Decimal("1.5"),
+        }
         assert m.volume == Decimal("1000.00")
+        assert m.volume_notional_value == Decimal("560.0000")
+        assert m.volume_24h_notional_value == Decimal("140.0000")
+        assert m.open_interest_notional_value == Decimal("280.0000")
+        assert isinstance(m.volume_notional_value, Decimal)
 
     @respx.mock
     def test_status_filter(self, perps_client: PerpsClient) -> None:
@@ -325,7 +340,9 @@ class TestCandlesticks:
         assert c.price.mean == Decimal("0.5620")
         assert c.volume == Decimal("100.00")
         assert isinstance(c.volume, Decimal)
+        assert c.volume_notional_value == Decimal("56.0000")
         assert c.open_interest == Decimal("500.00")
+        assert c.open_interest_notional_value == Decimal("280.0000")
 
     @respx.mock
     def test_all_null_trade_prices(self, perps_client: PerpsClient) -> None:
@@ -358,6 +375,15 @@ class TestCandlesticks:
         assert c.price.previous is None
         # bid/ask OHLC are still required + present.
         assert c.bid.open == Decimal("0.5500")
+
+    def test_notional_value_required_on_candlestick(self) -> None:
+        # Spec lists both notional fields under `required`; the model enforces it
+        # (unlike the live MarginTickerPayload, where they are optional).
+        for missing in ("volume_notional_value_dollars", "open_interest_notional_value_dollars"):
+            frame = _candle_dict()
+            del frame[missing]
+            with pytest.raises(ValidationError):
+                MarginMarketCandlestick.model_validate(frame)
 
     @respx.mock
     def test_missing_ticker_or_candlesticks_raises(self, perps_client: PerpsClient) -> None:

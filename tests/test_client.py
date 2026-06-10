@@ -885,6 +885,9 @@ class TestKalshiClientFromEnv:
     def test_from_env_demo_flag(self, monkeypatch: pytest.MonkeyPatch, pem_string: str) -> None:
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        # Hermetic: drop any ambient PEM path (e.g. bridged demo creds) so
+        # from_env() doesn't see both PRIVATE_KEY and PRIVATE_KEY_PATH (#445).
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         monkeypatch.setenv("KALSHI_DEMO", "true")
         monkeypatch.delenv("KALSHI_API_BASE_URL", raising=False)
         client = KalshiClient.from_env()
@@ -897,6 +900,7 @@ class TestKalshiClientFromEnv:
         custom = "https://custom.api.com/trade-api/v2"
         monkeypatch.setenv("KALSHI_KEY_ID", "env-key")
         monkeypatch.setenv("KALSHI_PRIVATE_KEY", pem_string)
+        monkeypatch.delenv("KALSHI_PRIVATE_KEY_PATH", raising=False)
         monkeypatch.delenv("KALSHI_DEMO", raising=False)
         monkeypatch.setenv("KALSHI_API_BASE_URL", custom)
         client = KalshiClient.from_env()

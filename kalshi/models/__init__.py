@@ -3,6 +3,7 @@
 from kalshi.models.account import (
     AccountApiLimits,
     AccountEndpointCosts,
+    ApiUsageLevelGrant,
     EndpointTokenCost,
     RateLimit,
 )
@@ -190,6 +191,7 @@ __all__ = [
     "AmendOrderV2Response",
     "Announcement",
     "ApiKey",
+    "ApiUsageLevelGrant",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "Balance",

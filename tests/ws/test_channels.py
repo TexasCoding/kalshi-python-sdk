@@ -241,6 +241,51 @@ class TestUpdateSubscription:
         assert update_cmds[0]["params"]["action"] == "add_markets"
         assert update_cmds[0]["params"]["market_tickers"] == ["T2"]
 
+    async def test_update_subscription_subscribe_indices(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        # cfbenchmarks_value: subscribe_indices carries index_ids.
+        sub = await sub_mgr.subscribe("cfbenchmarks_value")
+        await sub_mgr.update_subscription(
+            sub.client_id, "subscribe_indices", index_ids=["BRTI", "ETHUSD_RTI"]
+        )
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert cmd["params"]["action"] == "subscribe_indices"
+        assert cmd["params"]["index_ids"] == ["BRTI", "ETHUSD_RTI"]
+
+    async def test_update_subscription_indexlist_omits_index_ids(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        # indexlist requests the available ids without modifying the subscription.
+        sub = await sub_mgr.subscribe("cfbenchmarks_value")
+        await sub_mgr.update_subscription(sub.client_id, "indexlist")
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert cmd["params"]["action"] == "indexlist"
+        assert "index_ids" not in cmd["params"]
+
+    async def test_update_subscription_empty_index_ids_omitted(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        # An empty list is intentionally dropped (server requires >=1 id).
+        sub = await sub_mgr.subscribe("cfbenchmarks_value")
+        await sub_mgr.update_subscription(
+            sub.client_id, "subscribe_indices", index_ids=[]
+        )
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert "index_ids" not in cmd["params"]
+
 
 # ---------------------------------------------------------------------------
 # SubscriptionManager — resubscribe_all

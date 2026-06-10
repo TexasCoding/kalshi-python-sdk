@@ -2,6 +2,51 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 4.0.0 — 2026-06-09
+
+Spec-drift reconciliation against the latest upstream OpenAPI (3.20.0) and AsyncAPI
+specs (closes #443). Includes one **breaking** change: the Self-Clearing-Member
+"Klear" API migrated from cookie-session login to Bearer-token auth. Everything
+else is additive.
+
+### Breaking
+
+- **Klear (SCM) auth is now a Bearer token.** Upstream removed `POST /log_in` and
+  switched the Klear API to `Authorization: Bearer <admin_user_id>:<access_token>`.
+  `KlearClient` / `AsyncKlearClient` now require `admin_user_id` and `access_token`
+  at construction (or via `from_env()`, which reads `KALSHI_KLEAR_ADMIN_USER_ID` /
+  `KALSHI_KLEAR_ACCESS_TOKEN`). Removed: the `login()` method, the
+  `is_authenticated` property, the `client.auth` resource, and the `LogInRequest` /
+  `LogInResponse` models. `KlearAuth` is now a Bearer-credential holder
+  (`KlearAuth(admin_user_id, access_token)`). Generate a token at
+  <https://klearing.kalshi.com> (the "Security" page).
+
+### Added
+
+- **`cfbenchmarks_value` WebSocket channel** — stream CF Benchmarks reference index
+  values (e.g. `BRTI`) with trailing 60-second and final-minute quarter-hour
+  averages via `KalshiWebSocket.subscribe_cfbenchmarks_value(index_ids=[...])`. New
+  models `CFBenchmarksValueMessage` / `CFBenchmarksValuePayload` /
+  `CFBenchmarksAvgData` / `CFBenchmarksIndexListMessage` /
+  `CFBenchmarksIndexListPayload` (exported from `kalshi.ws.models`).
+- **`AccountResource.upgrade()`** — `POST /account/api_usage_level/upgrade` to
+  request a permanent Advanced API usage-level grant.
+- **`AccountApiLimits.grants`** — the per-exchange-lane usage-level grant list, plus
+  a new `ApiUsageLevelGrant` model (`exchange_instance` / `level` / `source` /
+  `expires_ts`), exported from `kalshi`.
+- **`MarginAccountResource.api_limits()`** — `GET /account/limits/perps` for the
+  Perps API tier limits (reuses `AccountApiLimits`).
+- **Perps market notional/leverage fields** — `MarginMarket` gains
+  `leverage_estimates` and `volume`/`volume_24h`/`open_interest` notional-value
+  fields; `MarginMarketCandlestick` and the `ticker` WS payload gain notional-value
+  fields, all tracking the spec.
+
+### Changed
+
+- Re-vendored `specs/openapi.yaml`, `specs/asyncapi.yaml`, `specs/perps_openapi.yaml`,
+  `specs/perps_asyncapi.yaml`, and `specs/perps_scm_openapi.yaml`; the subaccount
+  range documented in prose is now 1–63 (no validation change).
+
 ## 3.3.0 — 2026-06-06
 
 Adds a complete **FIX protocol** subsystem (FIXT.1.1 / FIX50SP2) for both the

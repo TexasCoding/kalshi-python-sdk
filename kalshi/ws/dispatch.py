@@ -9,6 +9,10 @@ from pydantic import BaseModel
 
 from kalshi.ws.channels import SubscriptionManager
 from kalshi.ws.models.base import ErrorMessage, ErrorPayload
+from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarksIndexListMessage,
+    CFBenchmarksValueMessage,
+)
 from kalshi.ws.models.communications import CommunicationsMessage
 from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
@@ -40,6 +44,8 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "multivariate_lookup": MultivariateMessage,
     "multivariate_market_lifecycle": MultivariateLifecycleMessage,
     "communications": CommunicationsMessage,
+    "cfbenchmarks_value": CFBenchmarksValueMessage,
+    "cfbenchmarks_value_indexlist": CFBenchmarksIndexListMessage,
 }
 
 # Control message types (not routed to subscription queues)

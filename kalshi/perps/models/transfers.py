@@ -62,7 +62,7 @@ class ApplySubaccountTransferRequest(BaseModel):
     ``amount_cents`` is integer **cents** (``int64``); pass ``500`` for $5.00,
     never a Decimal. ``from_subaccount``/``to_subaccount`` use ``0`` for the
     primary account and a positive integer for numbered subaccounts. Spec prose
-    says ``1-32`` but defines no JSON-schema maximum, so only the lower bound is
+    says ``1-63`` but defines no JSON-schema maximum, so only the lower bound is
     validated (``ge=0``) — server-assigned numbers always round-trip.
     """
 

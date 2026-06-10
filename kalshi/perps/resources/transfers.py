@@ -7,10 +7,10 @@ Three authenticated POST endpoints on the perps ``/portfolio/*`` host:
   spec marks this endpoint **"currently not available"**; it is implemented for
   forward compatibility and may return an error until the server enables it.
 - ``create_subaccount`` — ``POST /portfolio/margin/subaccounts`` (no request
-  body; returns the new subaccount number, HTTP 201). Max 32 subaccounts/user,
+  body; returns the new subaccount number, HTTP 201). Max 63 subaccounts/user,
   numbered sequentially from 1.
 - ``transfer_subaccount`` — ``POST /portfolio/margin/subaccounts/transfer``
-  (move funds between subaccounts ``0``-``32``; returns an empty body -> ``None``).
+  (move funds between subaccounts ``0``-``63``; returns an empty body -> ``None``).
 
 All three require RSA-PSS auth and are guarded client-side with
 ``_require_auth()`` so an unauthenticated caller gets ``AuthRequiredError``

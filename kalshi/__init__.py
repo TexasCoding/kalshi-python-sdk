@@ -36,6 +36,7 @@ from kalshi.models import (
     AmendOrderV2Response,
     Announcement,
     ApiKey,
+    ApiUsageLevelGrant,
     ApplySubaccountTransferRequest,
     AssociatedEvent,
     Balance,
@@ -178,8 +179,6 @@ from kalshi.perps.klear import (
     KlearAuth,
     KlearClient,
     KlearConfig,
-    LogInRequest,
-    LogInResponse,
 )
 from kalshi.resources.communications import (
     AsyncQuotesResource,
@@ -201,6 +200,7 @@ __all__ = [
     "AmendOrderV2Response",
     "Announcement",
     "ApiKey",
+    "ApiUsageLevelGrant",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncKalshiClient",
@@ -310,8 +310,6 @@ __all__ = [
     "KlearClient",
     "KlearConfig",
     "LiveData",
-    "LogInRequest",
-    "LogInResponse",
     "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
@@ -379,4 +377,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "3.3.0"
+__version__ = "4.0.0"

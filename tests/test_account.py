@@ -54,6 +54,14 @@ class TestAccountLimits:
                     "usage_tier": "standard",
                     "read": {"bucket_capacity": 200, "refill_rate": 100},
                     "write": {"bucket_capacity": 20, "refill_rate": 10},
+                    "grants": [
+                        {
+                            "exchange_instance": "event_contract",
+                            "level": "premier",
+                            "source": "volume",
+                            "expires_ts": 1893456000,
+                        }
+                    ],
                 },
             )
         )
@@ -63,6 +71,11 @@ class TestAccountLimits:
         assert limits.read.refill_rate == 100
         assert limits.write.bucket_capacity == 20
         assert limits.write.refill_rate == 10
+        assert len(limits.grants) == 1
+        assert limits.grants[0].exchange_instance == "event_contract"
+        assert limits.grants[0].level == "premier"
+        assert limits.grants[0].source == "volume"
+        assert limits.grants[0].expires_ts == 1893456000
 
     def test_requires_auth(self, unauth_account: AccountResource) -> None:
         with pytest.raises(AuthRequiredError):
@@ -90,6 +103,8 @@ class TestAsyncAccountLimits:
                     "usage_tier": "elevated",
                     "read": {"bucket_capacity": 1000, "refill_rate": 500},
                     "write": {"bucket_capacity": 100, "refill_rate": 50},
+                    # Kalshi's empty-as-null convention: NullableList coerces to [].
+                    "grants": None,
                 },
             )
         )
@@ -99,6 +114,7 @@ class TestAsyncAccountLimits:
         assert limits.read.refill_rate == 500
         assert limits.write.bucket_capacity == 100
         assert limits.write.refill_rate == 50
+        assert limits.grants == []
 
     @pytest.mark.asyncio
     async def test_requires_auth(
@@ -204,3 +220,48 @@ class TestAsyncAccountEndpointCosts:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_account.endpoint_costs()
+
+
+class TestAccountUpgrade:
+    @respx.mock
+    def test_upgrade_succeeds(self, account: AccountResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/upgrade",
+        ).mock(return_value=httpx.Response(201, json={}))
+        assert account.upgrade() is None
+        assert route.called
+        # No requestBody in the spec; SDK sends an empty {} body so httpx pins
+        # Content-Type: application/json (matches subaccounts.create).
+        assert route.calls[0].request.content == b"{}"
+
+    @respx.mock
+    def test_upgrade_403_no_api_order(self, account: AccountResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/upgrade",
+        ).mock(return_value=httpx.Response(403, json={"message": "no API order"}))
+        with pytest.raises(KalshiAuthError):
+            account.upgrade()
+
+    def test_requires_auth(self, unauth_account: AccountResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_account.upgrade()
+
+
+class TestAsyncAccountUpgrade:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_upgrade_succeeds(
+        self, async_account: AsyncAccountResource,
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/upgrade",
+        ).mock(return_value=httpx.Response(201, json={}))
+        assert await async_account.upgrade() is None
+        assert route.called
+
+    @pytest.mark.asyncio
+    async def test_requires_auth(
+        self, unauth_async_account: AsyncAccountResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_account.upgrade()

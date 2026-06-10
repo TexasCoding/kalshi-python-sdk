@@ -33,6 +33,7 @@ _SUBSCRIBE_FORWARD_KEYS = (
     "shard_key",
     "send_initial_snapshot",
     "skip_ticker_ack",
+    "index_ids",
 )
 
 # Per-channel allow-set used by ``Subscription.to_subscribe_params`` to reject
@@ -58,6 +59,9 @@ _CHANNEL_PARAMS: dict[str, frozenset[str]] = {
     "multivariate": frozenset(),
     "multivariate_market_lifecycle": frozenset(),
     "communications": frozenset({"shard_factor", "shard_key"}),
+    # CF Benchmarks index value feed: seeded with index_ids only — market_*
+    # params are not supported on this channel.
+    "cfbenchmarks_value": frozenset({"index_ids"}),
 }
 
 
@@ -354,12 +358,21 @@ class SubscriptionManager:
     async def update_subscription(
         self,
         client_id: int,
-        action: str,  # "add_markets" or "delete_markets"
+        # markets: "add_markets"/"delete_markets"; cfbenchmarks_value:
+        # "subscribe_indices"/"unsubscribe_indices"/"indexlist".
+        action: str,
         market_tickers: list[str] | None = None,
         market_ids: list[str] | None = None,
         send_initial_snapshot: bool | None = None,
+        index_ids: list[str] | None = None,
     ) -> None:
-        """Add or remove markets from an existing subscription."""
+        """Mutate an existing subscription.
+
+        Markets channels take ``add_markets``/``delete_markets`` with
+        ``market_tickers``/``market_ids``. The ``cfbenchmarks_value`` channel
+        takes ``subscribe_indices``/``unsubscribe_indices`` with ``index_ids``,
+        or ``indexlist`` (no ids) to request the available index list.
+        """
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
             raise KalshiSubscriptionError(
@@ -377,6 +390,11 @@ class SubscriptionManager:
             params["market_ids"] = market_ids
         if send_initial_snapshot is not None:
             params["send_initial_snapshot"] = send_initial_snapshot
+        # Truthy check (like market_tickers/market_ids above): an empty list is
+        # intentionally omitted — subscribe_indices/unsubscribe_indices require
+        # >=1 id (server returns error code 24 "Index IDs required" otherwise).
+        if index_ids:
+            params["index_ids"] = index_ids
 
         cmd = {"id": msg_id, "cmd": "update_subscription", "params": params}
         await self._connection.send(cmd)

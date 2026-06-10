@@ -9,7 +9,7 @@ recommends **separate API keys** for it.
 |---|---|---|---|
 | Perps REST | `PerpsClient` / `AsyncPerpsClient` | `external-api.kalshi.com` / `external-api.demo.kalshi.co` (`/trade-api/v2`) | RSA-PSS (same signer as `KalshiClient`) |
 | Perps WebSocket | `PerpsWebSocket` | `external-api-margin-ws.kalshi.com` / `external-api-margin-ws.demo.kalshi.co` (`/trade-api/ws/v2/margin`) | RSA-PSS apiKey |
-| SCM "Klear" | `KlearClient` / `AsyncKlearClient` | `api.klear.kalshi.com` / `demo-api.kalshi.co` (`/klear-api/v1`) | cookie-session + MFA |
+| SCM "Klear" | `KlearClient` / `AsyncKlearClient` | `api.klear.kalshi.com` / `demo-api.kalshi.co` (`/klear-api/v1`) | Bearer `admin_user_id:access_token` |
 
 The RSA-PSS signer and the HTTP transport are **reused unchanged** from the
 prediction API — only the host, config, and credentials differ.
@@ -135,20 +135,21 @@ The equities-only channels (`market_positions`, `multivariate*`, `communications
 ## Self-Clearing-Member "Klear" API
 
 The Klear API (settlement balances, obligations, margin reports, withdrawals) is a
-third surface with a **completely different auth model** — email + password (+ MFA)
-via `POST /log_in`, which sets a session cookie replayed on every subsequent
-request. It is exposed via `KlearClient` / `AsyncKlearClient`:
+third surface with a **different auth model** — a pre-generated Bearer token passed
+as `Authorization: Bearer <admin_user_id>:<access_token>` on every request. Generate
+the token and find your admin user id at <https://klearing.kalshi.com> (the
+"Security" page). It is exposed via `KlearClient` / `AsyncKlearClient`:
 
 ```python
 from kalshi import KlearClient
 
-with KlearClient(demo=True) as klear:
-    resp = klear.login(email="...", password="...")
-    if resp.required_mfa_method:                 # MFA challenge
-        klear.login(email="...", password="...", code="123456")
+with KlearClient(admin_user_id="...", access_token="...", demo=True) as klear:
     reports = klear.margin.margin_reports(start_date="2026-01-01", end_date="2026-02-01")
     bal = klear.margin.settlement_balance()
 ```
+
+Credentials can also come from the environment via `KlearClient.from_env()` (reads
+`KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN`).
 
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.

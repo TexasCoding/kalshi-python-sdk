@@ -19,10 +19,10 @@ all requiring an active **session cookie** (not RSA-PSS):
 - ``settlement_balance_withdrawal`` — ``GET /margin/settlement_balance_withdrawal``:
   withdrawal status by required ``id``.
 
-These bind to the Klear session guard (``_require_session()`` from the Klear
-resource base), NOT the RSA-specific ``_require_auth()``. Every method calls
-``_require_session()`` first so an un-logged-in caller gets a clear
-``AuthRequiredError`` with no wasted round trip.
+The Klear resource base injects the ``Authorization: Bearer`` header on every
+request (NOT the RSA-PSS ``KALSHI-ACCESS-*`` signing used by the trade-api
+surfaces), so these methods carry no client-side auth guard — an invalid token
+surfaces as a server 401 mapped to ``KalshiAuthError``.
 """
 
 from __future__ import annotations
@@ -96,7 +96,6 @@ class MarginResource(KlearSyncResource):
 
         ``start_date`` / ``end_date`` are required ``YYYY-MM-DD`` strings.
         """
-        self._require_session()
         _validate_date_range(start_date, end_date)
         params = _params(start_date=start_date, end_date=end_date)
         data = self._get("/margin/reports", params=params, extra_headers=extra_headers)
@@ -106,7 +105,6 @@ class MarginResource(KlearSyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetActiveMarginObligationResponse:
         """``GET /margin/active_obligation`` — current-cycle obligation (nullable)."""
-        self._require_session()
         data = self._get("/margin/active_obligation", extra_headers=extra_headers)
         return GetActiveMarginObligationResponse.model_validate(data)
 
@@ -118,7 +116,6 @@ class MarginResource(KlearSyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Page[ObligationEntry]:
         """``GET /margin/obligation_history`` — one cursor-paginated page (limit max 100)."""
-        self._require_session()
         params = _params(limit=_validate_limit(limit, hi=100), cursor=cursor)
         return self._list(
             "/margin/obligation_history",
@@ -137,7 +134,6 @@ class MarginResource(KlearSyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[ObligationEntry]:
         """Auto-paginate obligation history, yielding each ``ObligationEntry``."""
-        self._require_session()
         _validate_max_pages(max_pages)
         params = _params(limit=_validate_limit(limit, hi=100), cursor=None)
         return self._list_all(
@@ -154,7 +150,6 @@ class MarginResource(KlearSyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementEstimateResponse:
         """``GET /margin/settlement_estimate`` — next-settlement estimate + breakdowns."""
-        self._require_session()
         data = self._get("/margin/settlement_estimate", extra_headers=extra_headers)
         return GetSettlementEstimateResponse.model_validate(data)
 
@@ -162,7 +157,6 @@ class MarginResource(KlearSyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementBalanceResponse:
         """``GET /margin/settlement_balance`` — settlement-buffer balance."""
-        self._require_session()
         data = self._get("/margin/settlement_balance", extra_headers=extra_headers)
         return GetSettlementBalanceResponse.model_validate(data)
 
@@ -170,7 +164,6 @@ class MarginResource(KlearSyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetGuarantyFundBalanceResponse:
         """``GET /margin/guaranty_fund_balance`` — guaranty-fund contribution balance."""
-        self._require_session()
         data = self._get("/margin/guaranty_fund_balance", extra_headers=extra_headers)
         return GetGuarantyFundBalanceResponse.model_validate(data)
 
@@ -182,7 +175,6 @@ class MarginResource(KlearSyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Page[SettlementBalanceHistoryEntry]:
         """``GET /margin/settlement_balance_history`` — one page (limit max 500)."""
-        self._require_session()
         params = _params(limit=_validate_limit(limit, hi=500), cursor=cursor)
         return self._list(
             "/margin/settlement_balance_history",
@@ -201,7 +193,6 @@ class MarginResource(KlearSyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[SettlementBalanceHistoryEntry]:
         """Auto-paginate settlement-balance history, yielding each entry."""
-        self._require_session()
         _validate_max_pages(max_pages)
         params = _params(limit=_validate_limit(limit, hi=500), cursor=None)
         return self._list_all(
@@ -226,7 +217,6 @@ class MarginResource(KlearSyncResource):
         request body is built from :class:`WithdrawSettlementBalanceRequest` and
         serialized to ``{"amount": "500.00"}``. POST is never retried.
         """
-        self._require_session()
         req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount))
         data = self._post(
             "/margin/withdraw_settlement_balance",
@@ -239,7 +229,6 @@ class MarginResource(KlearSyncResource):
         self, *, id: str, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementBalanceWithdrawalResponse:
         """``GET /margin/settlement_balance_withdrawal`` — withdrawal status by ``id``."""
-        self._require_session()
         params = _params(id=id)
         data = self._get(
             "/margin/settlement_balance_withdrawal",
@@ -260,7 +249,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> GetMarginReportsResponse:
         """Async :meth:`MarginResource.margin_reports`."""
-        self._require_session()
         _validate_date_range(start_date, end_date)
         params = _params(start_date=start_date, end_date=end_date)
         data = await self._get("/margin/reports", params=params, extra_headers=extra_headers)
@@ -270,7 +258,6 @@ class AsyncMarginResource(KlearAsyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetActiveMarginObligationResponse:
         """Async :meth:`MarginResource.active_obligation`."""
-        self._require_session()
         data = await self._get("/margin/active_obligation", extra_headers=extra_headers)
         return GetActiveMarginObligationResponse.model_validate(data)
 
@@ -282,7 +269,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Page[ObligationEntry]:
         """Async :meth:`MarginResource.obligation_history`."""
-        self._require_session()
         params = _params(limit=_validate_limit(limit, hi=100), cursor=cursor)
         return await self._list(
             "/margin/obligation_history",
@@ -301,7 +287,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[ObligationEntry]:
         """Returns an async iterator over obligation history — use ``async for``."""
-        self._require_session()
         _validate_max_pages(max_pages)
         params = _params(limit=_validate_limit(limit, hi=100), cursor=None)
         return self._list_all(
@@ -318,7 +303,6 @@ class AsyncMarginResource(KlearAsyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementEstimateResponse:
         """Async :meth:`MarginResource.settlement_estimate`."""
-        self._require_session()
         data = await self._get("/margin/settlement_estimate", extra_headers=extra_headers)
         return GetSettlementEstimateResponse.model_validate(data)
 
@@ -326,7 +310,6 @@ class AsyncMarginResource(KlearAsyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementBalanceResponse:
         """Async :meth:`MarginResource.settlement_balance`."""
-        self._require_session()
         data = await self._get("/margin/settlement_balance", extra_headers=extra_headers)
         return GetSettlementBalanceResponse.model_validate(data)
 
@@ -334,7 +317,6 @@ class AsyncMarginResource(KlearAsyncResource):
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetGuarantyFundBalanceResponse:
         """Async :meth:`MarginResource.guaranty_fund_balance`."""
-        self._require_session()
         data = await self._get("/margin/guaranty_fund_balance", extra_headers=extra_headers)
         return GetGuarantyFundBalanceResponse.model_validate(data)
 
@@ -346,7 +328,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> Page[SettlementBalanceHistoryEntry]:
         """Async :meth:`MarginResource.settlement_balance_history`."""
-        self._require_session()
         params = _params(limit=_validate_limit(limit, hi=500), cursor=cursor)
         return await self._list(
             "/margin/settlement_balance_history",
@@ -365,7 +346,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[SettlementBalanceHistoryEntry]:
         """Returns an async iterator over settlement-balance history — use ``async for``."""
-        self._require_session()
         _validate_max_pages(max_pages)
         params = _params(limit=_validate_limit(limit, hi=500), cursor=None)
         return self._list_all(
@@ -385,7 +365,6 @@ class AsyncMarginResource(KlearAsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> WithdrawSettlementBalanceResponse:
         """Async :meth:`MarginResource.withdraw_settlement_balance`."""
-        self._require_session()
         req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount))
         data = await self._post(
             "/margin/withdraw_settlement_balance",
@@ -398,7 +377,6 @@ class AsyncMarginResource(KlearAsyncResource):
         self, *, id: str, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementBalanceWithdrawalResponse:
         """Async :meth:`MarginResource.settlement_balance_withdrawal`."""
-        self._require_session()
         params = _params(id=id)
         data = await self._get(
             "/margin/settlement_balance_withdrawal",

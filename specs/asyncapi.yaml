@@ -133,6 +133,8 @@ channels:
         $ref: '#/components/messages/updateSubscriptionDeleteCommand'
       updateSubscriptionSingleSidCommand:
         $ref: '#/components/messages/updateSubscriptionSingleSidCommand'
+      cfbenchmarksUpdateSubscriptionCommand:
+        $ref: '#/components/messages/cfbenchmarksUpdateSubscriptionCommand'
       listSubscriptionsCommand:
         $ref: '#/components/messages/listSubscriptionsCommand'
       subscribedResponse:
@@ -459,6 +461,100 @@ channels:
     messages:
       userOrder:
         $ref: '#/components/messages/userOrder'
+  cfbenchmarks_value:
+    address: cfbenchmarks_value
+    title: CF Benchmarks Value Feed
+    description: >
+      Real-time CF Benchmarks index value updates, each carrying the raw
+      upstream frame plus trailing 60-second and quarter-hour final-minute
+      averages. Requires authentication.
+
+
+      **Requirements:**
+
+      - Authentication required
+
+      - Index specification via `index_ids` (array of CF Benchmarks index IDs,
+      for example `["BRTI", "ETHUSD_RTI"]`)
+
+      - `market_ticker`/`market_tickers`/`market_id`/`market_ids` are not
+      supported for this channel
+
+      - You can seed `index_ids` in the initial subscribe, or subscribe first
+      and add indices later
+
+      - Use `index_ids: ["all"]` to receive every available index
+
+      - Supports `update_subscription` with `subscribe_indices` /
+      `unsubscribe_indices` / `indexlist` actions
+
+      - `indexlist` returns the available index IDs (as a
+      `cfbenchmarks_value_indexlist` message) without modifying the subscription
+
+      - Ticks are emitted roughly once per second; duplicate or out-of-order
+      upstream source timestamps are ignored
+
+
+      **Use case:** Consuming CF Benchmarks reference index values and their
+      short-window averages
+
+
+      **Subscription workflow:**
+
+      1. Subscribe to `cfbenchmarks_value` (optionally seeding `index_ids`). A
+      successful subscribe returns a `subscribed` response with the assigned
+      `sid`.
+
+      2. Discover available index IDs with the `indexlist` action; the server
+      replies with a `cfbenchmarks_value_indexlist` message.
+
+      3. Add or remove tracked index IDs with `subscribe_indices` /
+      `unsubscribe_indices`, or use `index_ids: ["all"]` to track everything.
+
+
+      **Averaging semantics:**
+
+
+      `avg_60s_data` (always present):
+
+      - Window is trailing and per tick: `[source_ts_ms - 60000, source_ts_ms)`
+
+      - `window_size` counts prior ticks only
+
+      - If there are no prior ticks in the trailing window, the average falls
+      back to the current tick value
+
+
+      `last_60s_windowed_average_15min` (present only in the final minute before
+      quarter-hour close: `:00`, `:15`, `:30`, `:45`):
+
+      - Active accumulation window is `(quarter_close_ts_ms - 60000,
+      quarter_close_ts_ms]`
+
+      - The start-boundary tick is excluded and the close tick is included
+
+      - This produces second-indexed counts: `:01 -> 1`, `:14 -> 14`, `:59 ->
+      59`, close tick (`:00/:15/:30/:45`) -> `60`
+
+      - The field is omitted outside that final-minute window
+
+
+      **Integration notes:**
+
+      - If you subscribe without any `index_ids`, no value events flow until you
+      add indices or switch to `["all"]`
+
+      - `sid` identifies the subscription stream; use it for
+      `update_subscription` and `unsubscribe`
+
+      - Missing `index_ids` for `subscribe_indices`/`unsubscribe_indices`
+      returns an `error` with `code: 24` ("Index IDs required"); unsupported
+      actions return a standard websocket `error`
+    messages:
+      cfbenchmarksValue:
+        $ref: '#/components/messages/cfbenchmarksValue'
+      cfbenchmarksIndexList:
+        $ref: '#/components/messages/cfbenchmarksIndexList'
 operations:
   sendPing:
     action: receive
@@ -538,6 +634,18 @@ operations:
       $ref: '#/channels/root'
     messages:
       - $ref: '#/channels/root/messages/updateSubscriptionSingleSidCommand'
+    tags:
+      - name: commands
+  sendCFBenchmarksUpdateSubscription:
+    action: receive
+    title: Update Subscription - CF Benchmarks Indices
+    summary: >-
+      Add or remove tracked index IDs, or list available indices, on a
+      cfbenchmarks_value subscription
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/cfbenchmarksUpdateSubscriptionCommand'
     tags:
       - name: commands
   receivePing:
@@ -814,6 +922,28 @@ operations:
       - $ref: '#/channels/user_orders/messages/userOrder'
     tags:
       - name: private
+  receiveCFBenchmarksValue:
+    action: send
+    title: CF Benchmarks Value Update
+    summary: Receive real-time CF Benchmarks index values with trailing averages
+    channel:
+      $ref: '#/channels/cfbenchmarks_value'
+    messages:
+      - $ref: '#/channels/cfbenchmarks_value/messages/cfbenchmarksValue'
+    tags:
+      - name: market-data
+  receiveCFBenchmarksIndexList:
+    action: send
+    title: CF Benchmarks Index List
+    summary: >-
+      Receive the set of available CF Benchmarks index IDs in response to an
+      indexlist action
+    channel:
+      $ref: '#/channels/cfbenchmarks_value'
+    messages:
+      - $ref: '#/channels/cfbenchmarks_value/messages/cfbenchmarksIndexList'
+    tags:
+      - name: market-data
 components:
   messages:
     incomingPing:
@@ -937,6 +1067,17 @@ components:
               market_tickers:
                 - FED-23DEC-T3.00
               send_initial_snapshot: true
+        - name: subscribeCFBenchmarksValue
+          summary: Subscribe to cfbenchmarks_value, seeding index IDs
+          payload:
+            id: 9
+            cmd: subscribe
+            params:
+              channels:
+                - cfbenchmarks_value
+              index_ids:
+                - BRTI
+                - ETHUSD_RTI
     unsubscribeCommand:
       name: unsubscribe
       title: Unsubscribe Command
@@ -1046,6 +1187,54 @@ components:
                 - NEW-MARKET-3
                 - NEW-MARKET-4
               action: add_markets
+    cfbenchmarksUpdateSubscriptionCommand:
+      name: cfbenchmarks_update_subscription
+      title: Update Subscription - CF Benchmarks Indices
+      summary: >-
+        Add or remove tracked index IDs, or list available indices, on a
+        cfbenchmarks_value subscription
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/cfbenchmarksUpdateSubscriptionCommandPayload'
+      examples:
+        - name: indexList
+          summary: List the available index IDs (does not modify the subscription)
+          payload:
+            id: 2
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: indexlist
+        - name: subscribeIndices
+          summary: Add index IDs to the subscription
+          payload:
+            id: 3
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: subscribe_indices
+              index_ids:
+                - BRTI
+        - name: unsubscribeIndices
+          summary: Remove index IDs from the subscription
+          payload:
+            id: 4
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: unsubscribe_indices
+              index_ids:
+                - BRTI
+        - name: subscribeAllIndices
+          summary: Receive all available index IDs
+          payload:
+            id: 5
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: subscribe_indices
+              index_ids:
+                - all
     subscribedResponse:
       name: subscribed
       title: Subscribed Response
@@ -1180,6 +1369,14 @@ components:
         | 21 | shard_key must be >= 0 and < shard_factor | Invalid shard_key |
 
         | 22 | shard_factor must be <= 100 | shard_factor too large |
+
+        | 23 | Match IDs required | Missing match_ids for the channel/action |
+
+        | 24 | Index IDs required | Missing index_ids for
+        subscribe_indices/unsubscribe_indices on cfbenchmarks_value |
+
+        | 25 | Subscription buffer overflow | The subscription's outbound buffer
+        was exceeded |
       contentType: application/json
       payload:
         $ref: '#/components/schemas/errorResponsePayload'
@@ -1298,6 +1495,60 @@ components:
               side: 'yes'
               ts: '2022-11-22T20:44:01Z'
               ts_ms: 1669149841000
+    cfbenchmarksValue:
+      name: cfbenchmarks_value
+      title: CF Benchmarks Value Update
+      summary: >-
+        Real-time CF Benchmarks index value with trailing 60-second and
+        quarter-hour averages
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/cfbenchmarksValuePayload'
+      examples:
+        - name: cfbenchmarksValueUpdate
+          summary: >-
+            CF Benchmarks value update with 60s and final-minute quarter-hour
+            averages
+          payload:
+            type: cfbenchmarks_value
+            sid: 1
+            seq: 42
+            msg:
+              index_id: BRTI
+              received_at: 1710000000123
+              data: >-
+                {"type":"value","id":"BRTI","time":1710000000123,"value":"68000.12"}
+              avg_60s_data:
+                value: '68000.12000000'
+                window_size: 3
+                window_start_ts_ms: 1709999940123
+                window_end_ts_exclusive: 1710000000123
+              last_60s_windowed_average_15min:
+                value: '68000.23000000'
+                window_size: 14
+                window_start_ts_ms: 1709999980000
+                window_end_ts_exclusive: 1710000000123
+    cfbenchmarksIndexList:
+      name: cfbenchmarks_value_indexlist
+      title: CF Benchmarks Index List
+      summary: >-
+        The set of available CF Benchmarks index IDs, sent in response to an
+        indexlist action
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/cfbenchmarksIndexListPayload'
+      examples:
+        - name: indexListResponse
+          summary: Available index IDs
+          payload:
+            type: cfbenchmarks_value_indexlist
+            id: 2
+            sid: 1
+            seq: 1
+            msg:
+              index_ids:
+                - BRTI
+                - ETHUSD_RTI
     ticker:
       name: ticker
       title: Ticker Update
@@ -1825,6 +2076,7 @@ components:
                   - communications
                   - order_group_updates
                   - user_orders
+                  - cfbenchmarks_value
               minItems: 1
             market_ticker:
               description: >-
@@ -1908,6 +2160,16 @@ components:
                 Shard key for communications channel fanout (requires
                 shard_factor)
               minimum: 0
+            index_ids:
+              type: array
+              description: >-
+                cfbenchmarks_value channel only. CF Benchmarks index IDs to seed
+                on the initial subscribe (omit to subscribe with no indices and
+                add them later via update_subscription; use ["all"] to track
+                every available index).
+              items:
+                type: string
+              minItems: 1
     unsubscribeCommandPayload:
       type: object
       required:
@@ -1989,6 +2251,59 @@ components:
                 - add_markets
                 - delete_markets
                 - get_snapshot
+    cfbenchmarksUpdateSubscriptionCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+        - params
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: update_subscription
+        params:
+          type: object
+          required:
+            - action
+          properties:
+            sid:
+              $ref: '#/components/schemas/subscriptionId'
+              description: Single subscription ID to update (alternative to sids array)
+            sids:
+              type: array
+              description: >-
+                Array containing exactly one subscription ID (alternative to
+                sid). Either sid or sids must be provided, not both.
+              items:
+                $ref: '#/components/schemas/subscriptionId'
+              minItems: 1
+              maxItems: 1
+            action:
+              type: string
+              description: >
+                - `subscribe_indices`: add the supplied `index_ids` to the
+                subscription (requires `index_ids`)
+
+                - `unsubscribe_indices`: remove the supplied `index_ids` from
+                the subscription (requires `index_ids`)
+
+                - `indexlist`: respond with the available index IDs without
+                modifying the subscription
+              enum:
+                - subscribe_indices
+                - unsubscribe_indices
+                - indexlist
+            index_ids:
+              type: array
+              description: >-
+                CF Benchmarks index IDs to add or remove. Use ["all"] to track
+                every available index. Required for subscribe_indices and
+                unsubscribe_indices.
+              items:
+                type: string
+              minItems: 1
     subscribedResponsePayload:
       type: object
       required:
@@ -2125,8 +2440,17 @@ components:
                 shard_key
 
                 - 22: shard_factor must be <= 100 - shard_factor too large
+
+                - 23: Match IDs required - Missing match_ids for the
+                channel/action
+
+                - 24: Index IDs required - Missing index_ids for
+                subscribe_indices/unsubscribe_indices on cfbenchmarks_value
+
+                - 25: Subscription buffer overflow - The subscription's outbound
+                buffer was exceeded
               minimum: 1
-              maximum: 22
+              maximum: 25
             msg:
               type: string
               description: Human-readable error message
@@ -2173,6 +2497,111 @@ components:
                 description: Name of the subscribed channel
               sid:
                 $ref: '#/components/schemas/subscriptionId'
+    cfbenchmarksAvgData:
+      type: object
+      description: Windowed-average metadata for a CF Benchmarks index value.
+      required:
+        - value
+        - window_size
+        - window_start_ts_ms
+        - window_end_ts_exclusive
+      properties:
+        value:
+          type: string
+          description: Average value over the window, formatted to 8 decimal places
+        window_size:
+          type: integer
+          description: Number of ticks counted in the window
+          minimum: 0
+        window_start_ts_ms:
+          type: integer
+          description: Window start boundary (unix ms)
+        window_end_ts_exclusive:
+          type: integer
+          description: Window end boundary, exclusive (unix ms)
+    cfbenchmarksValuePayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: cfbenchmarks_value
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - index_id
+            - received_at
+            - data
+            - avg_60s_data
+          properties:
+            index_id:
+              type: string
+              description: CF Benchmarks index ID (for example "BRTI")
+            received_at:
+              type: integer
+              description: When Kalshi received the upstream frame (unix ms)
+            data:
+              type: string
+              description: The raw CF Benchmarks JSON frame, as a string
+            avg_60s_data:
+              $ref: '#/components/schemas/cfbenchmarksAvgData'
+              description: >
+                Trailing 60-second average metadata. The window is per-tick and
+                trailing:
+
+                `[source_ts_ms - 60000, source_ts_ms)`, and `window_size` counts
+                prior ticks only.
+
+                If there are no prior ticks in the trailing window, the average
+                falls back to the current tick value.
+            last_60s_windowed_average_15min:
+              $ref: '#/components/schemas/cfbenchmarksAvgData'
+              description: >
+                Optional - present only during the final minute before
+                quarter-hour close (:00, :15, :30, :45).
+
+                The accumulation window is `(quarter_close_ts_ms - 60000,
+                quarter_close_ts_ms]` (start boundary
+
+                tick excluded, close tick included), producing second-indexed
+                counts up to 60 at close. Omitted
+
+                outside that final-minute window.
+    cfbenchmarksIndexListPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: cfbenchmarks_value_indexlist
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - index_ids
+          properties:
+            index_ids:
+              type: array
+              description: Available CF Benchmarks index IDs
+              items:
+                type: string
     orderbookSnapshotPayload:
       type: object
       required:
@@ -3155,7 +3584,7 @@ components:
               format: int64
             subaccount_number:
               type: integer
-              description: Subaccount number (0 for primary, 1-32 for subaccounts)
+              description: Subaccount number (0 for primary, 1-63 for subaccounts)
     rfqCreatedPayload:
       type: object
       required:
@@ -3510,3 +3939,14 @@ x-error-codes:
     - code: 22
       name: shard_factor must be <= 100
       description: shard_factor too large
+    - code: 23
+      name: Match IDs required
+      description: Missing match_ids for the channel/action
+    - code: 24
+      name: Index IDs required
+      description: >-
+        Missing index_ids for subscribe_indices/unsubscribe_indices on
+        cfbenchmarks_value
+    - code: 25
+      name: Subscription buffer overflow
+      description: The subscription's outbound buffer was exceeded

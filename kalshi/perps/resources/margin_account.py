@@ -1,15 +1,19 @@
-"""Perps margin-account resource — balance, risk, notional risk limit, fee tiers.
+"""Perps margin-account resource — balance, risk, notional risk limit, fee tiers, API limits.
 
-Four read-only GET endpoints for the authenticated direct-margin user (#394).
-All four carry a spec ``security`` block, so each method calls
-``_require_auth()`` first — an unauthenticated caller gets ``AuthRequiredError``
-client-side instead of a server 401. None are paginated (no response carries a
-cursor), so there are no ``list_all()`` iterators. All retry on 429/502/503/504
-(GET).
+Read-only GET endpoints for the authenticated direct-margin user (#394). All
+carry a spec ``security`` block, so each method calls ``_require_auth()`` first
+— an unauthenticated caller gets ``AuthRequiredError`` client-side instead of a
+server 401. None are paginated (no response carries a cursor), so there are no
+``list_all()`` iterators. All retry on 429/502/503/504 (GET).
+
+``api_limits`` (``GET /account/limits/perps``) returns the Perps API tier limits
+in the same shape as the prediction API's :class:`~kalshi.models.account.AccountApiLimits`,
+so the SDK reuses that model rather than duplicating it.
 """
 
 from __future__ import annotations
 
+from kalshi.models.account import AccountApiLimits
 from kalshi.perps.models.margin_account import (
     GetMarginBalanceResponse,
     GetMarginFeeTiersResponse,
@@ -52,6 +56,16 @@ class MarginAccountResource(SyncResource):
         data = self._get("/margin/fee_tiers", extra_headers=extra_headers)
         return GetMarginFeeTiersResponse.model_validate(data)
 
+    def api_limits(self, *, extra_headers: dict[str, str] | None = None) -> AccountApiLimits:
+        """Perps (margin) API tier limits for the authenticated user.
+
+        ``GET /account/limits/perps``. Same response shape as the prediction
+        API's ``GET /account/limits`` (:class:`~kalshi.models.account.AccountApiLimits`).
+        """
+        self._require_auth()
+        data = self._get("/account/limits/perps", extra_headers=extra_headers)
+        return AccountApiLimits.model_validate(data)
+
 
 class AsyncMarginAccountResource(AsyncResource):
     """Async perps margin-account API (balance / risk / notional_risk_limit / fee_tiers)."""
@@ -85,3 +99,15 @@ class AsyncMarginAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/margin/fee_tiers", extra_headers=extra_headers)
         return GetMarginFeeTiersResponse.model_validate(data)
+
+    async def api_limits(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> AccountApiLimits:
+        """Perps (margin) API tier limits for the authenticated user.
+
+        ``GET /account/limits/perps``. Same response shape as the prediction
+        API's ``GET /account/limits`` (:class:`~kalshi.models.account.AccountApiLimits`).
+        """
+        self._require_auth()
+        data = await self._get("/account/limits/perps", extra_headers=extra_headers)
+        return AccountApiLimits.model_validate(data)

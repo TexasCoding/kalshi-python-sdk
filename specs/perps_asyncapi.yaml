@@ -1009,8 +1009,11 @@ components:
             - ask_size_fp
             - last_trade_size_fp
             - volume
+            - volume_notional_value_dollars
             - volume_24h
+            - volume_24h_notional_value_dollars
             - open_interest
+            - open_interest_notional_value_dollars
             - ts_ms
           properties:
             market_ticker:
@@ -1034,10 +1037,24 @@ components:
               type: string
             volume:
               type: string
+              description: One sided total trade volume in contracts.
+            volume_notional_value_dollars:
+              type: string
+              description: Total notional value of one sided trade volume in dollars.
             volume_24h:
               type: string
+              description: One sided trade volume in the last 24 hours in contracts.
+            volume_24h_notional_value_dollars:
+              type: string
+              description: >-
+                Total notional value of one sided trade volume in the last 24
+                hours in dollars.
             open_interest:
               type: string
+              description: One sided open interest in contracts.
+            open_interest_notional_value_dollars:
+              type: string
+              description: Total notional value of one sided open interest in dollars.
             reference_price:
               description: Reference price of underlying asset, when available.
               allOf:

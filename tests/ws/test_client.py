@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -169,6 +170,64 @@ class TestSubscribeTicker:
             await session.subscribe_ticker()
             cmd = fake_ws.received_commands[0]
             assert "market_tickers" not in cmd["params"]
+
+
+class TestSubscribeCFBenchmarks:
+    async def test_subscribe_seeds_index_ids(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_cfbenchmarks_value(index_ids=["BRTI", "ETHUSD_RTI"])
+            cmd = fake_ws.received_commands[0]
+            assert cmd["cmd"] == "subscribe"
+            assert "cfbenchmarks_value" in cmd["params"]["channels"]
+            assert cmd["params"]["index_ids"] == ["BRTI", "ETHUSD_RTI"]
+            # market_* params must NOT leak onto this channel.
+            assert "market_tickers" not in cmd["params"]
+
+    async def test_subscribe_without_index_ids_omits_key(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_cfbenchmarks_value()
+            cmd = fake_ws.received_commands[0]
+            assert "index_ids" not in cmd["params"]
+
+    async def test_subscribe_all_indices_passthrough(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        # The spec's special ["all"] value is forwarded verbatim.
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_cfbenchmarks_value(index_ids=["all"])
+            cmd = fake_ws.received_commands[0]
+            assert cmd["params"]["index_ids"] == ["all"]
+
+    async def test_receives_value_message(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_cfbenchmarks_value(index_ids=["BRTI"])
+            await fake_ws.send_to_all(
+                {
+                    "type": "cfbenchmarks_value",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "index_id": "BRTI",
+                        "received_at": 1715793600123,
+                        "data": "{}",
+                        "avg_60s_data": {
+                            "value": "65000.12345678",
+                            "window_size": 1,
+                            "window_start_ts_ms": 1715793540123,
+                            "window_end_ts_exclusive": 1715793600123,
+                        },
+                    },
+                }
+            )
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert msg.msg.index_id == "BRTI"
+            assert msg.msg.avg_60s_data.value == Decimal("65000.12345678")
 
 
 class TestSubscribeOrderbookDelta:
