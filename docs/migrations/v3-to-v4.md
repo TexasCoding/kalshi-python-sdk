@@ -12,7 +12,7 @@ REST resources, the WebSocket and FIX clients) are unchanged.
 
 | Find (v3.x) | Replace (v4.0.0) |
 |---|---|
-| `KlearClient(demo=True)` + `client.login(email=..., password=...)` | `KlearClient(admin_user_id=..., access_token=..., demo=True)` |
+| `KlearClient(demo=True)` + `client.login(email=..., password=...)` (or `code=...` for MFA) | `KlearClient(admin_user_id=..., access_token=..., demo=True)` |
 | `await client.login(...)` / `client.is_authenticated` | (removed — credentials are supplied at construction) |
 | `from kalshi import LogInRequest, LogInResponse` | (removed) |
 | `client.auth.log_in(...)` | (removed) |

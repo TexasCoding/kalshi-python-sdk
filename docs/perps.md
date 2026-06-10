@@ -167,7 +167,8 @@ Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as
 positive at construction (the single real-money write) before any request is sent.
-The Bearer `access_token` is never logged or shown in `repr()` (it is redacted).
+The Bearer `access_token` is never logged and is redacted in `repr()` (only the
+non-secret `admin_user_id` is shown).
 
 ## Perps over FIX
 

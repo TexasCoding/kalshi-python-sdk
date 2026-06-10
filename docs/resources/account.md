@@ -71,8 +71,8 @@ for grant in limits.grants:
 `upgrade()` requests a **permanent Advanced** API usage-level grant
 (`POST /account/api_usage_level/upgrade`). It requires that at least one of your
 last 100 Predictions orders was API-created; otherwise the server returns 403
-(mapped to `KalshiAuthError`). It returns nothing (201) — re-read `limits()` to
-see the resulting grant:
+(mapped to `KalshiAuthError`). It returns `None` on success (HTTP 201) — re-read
+`limits()` to see the resulting grant:
 
 ```python
 client.account.upgrade()

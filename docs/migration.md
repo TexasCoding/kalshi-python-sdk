@@ -15,7 +15,7 @@ summary of the Klear break:
 | Was (v3.x) | Now (v4.0.0) |
 |---|---|
 | `KlearClient(demo=True)` then `client.login(email=..., password=..., code=...)` | `KlearClient(admin_user_id=..., access_token=..., demo=True)` |
-| `KlearClient.from_env()` (routing only) | `KlearClient.from_env()` reads `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN` |
+| `KlearClient.from_env()` (URL routing only — no credential env vars) | `KlearClient.from_env()` reads `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN` |
 | `client.is_authenticated`, `client.auth`, `LogInRequest`, `LogInResponse` | removed |
 
 Generate the token / find your admin user id at <https://klearing.kalshi.com>
