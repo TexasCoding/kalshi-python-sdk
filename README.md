@@ -11,8 +11,8 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (99 operations across 19 resources, OpenAPI v3.20.0) and WebSocket API (11 typed `subscribe_*` channels + 2 escape-hatch).
-- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (10 operations). See [Perps (margin) trading](#perps-margin-trading).
+- **Full coverage** of the Kalshi REST API (99 operations across 19 resources, OpenAPI v3.20.0) and WebSocket API (12 typed `subscribe_*` channels + 2 escape-hatch).
+- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (9 operations). See [Perps (margin) trading](#perps-margin-trading).
 - **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, post-trade (prediction), and RFQ (prediction) sessions (plus order-group management over the order-entry session) with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
@@ -193,15 +193,16 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (11 typed + 2 escape-hatch). Eleven have dedicated
+Available channels (12 typed + 2 escape-hatch). Twelve have dedicated
 `subscribe_*` methods — `subscribe_ticker`, `subscribe_trade`,
 `subscribe_orderbook_delta`, `subscribe_fill`, `subscribe_market_positions`,
 `subscribe_user_orders`, `subscribe_order_group`,
 `subscribe_market_lifecycle`, `subscribe_multivariate`,
-`subscribe_multivariate_lifecycle`, `subscribe_communications`. The
+`subscribe_multivariate_lifecycle`, `subscribe_communications`,
+`subscribe_cfbenchmarks_value`. The
 AsyncAPI-declared `control_frames` and `root` channels are reachable
 through the generic `subscribe(channel, ...)` escape hatch. See
-[docs/websockets.md](docs/websockets.md#the-11-channels) for the full
+[docs/websockets.md](docs/websockets.md#the-12-channels) for the full
 channel table.
 
 ## Perps (margin) trading
@@ -248,7 +249,7 @@ Prices are `DollarDecimal` (FixedPointDollars, up to 6 decimals); counts are
 **WebSocket timestamps are Unix epoch milliseconds** (`*_ms` fields). The
 Self-Clearing-Member "Klear" settlement API (margin reports, settlement balances,
 obligations, withdrawals) is a third surface exposed via `KlearClient`, which uses
-**cookie-session + MFA** login (`client.login(email=..., password=..., code=...)`)
+**Bearer token** auth (`KlearClient(admin_user_id=..., access_token=...)`)
 rather than RSA-PSS. Full guide: [docs/perps.md](docs/perps.md).
 
 ## FIX protocol (low-latency trading)

@@ -10,14 +10,14 @@ markets API.
   keeps working; deprecation no earlier than May 6, 2026.
 - **Funding + cost introspection** — `portfolio.deposits()`,
   `portfolio.withdrawals()`, `account.endpoint_costs()`.
-- **Full WebSocket coverage** — 11 channels with sequence-gap detection, automatic
+- **Full WebSocket coverage** — 12 channels with sequence-gap detection, automatic
   reconnection (with resubscribe-window frame stashing for high-volume channels),
   backpressure strategies, and an in-memory orderbook builder. Async-only —
   access via `AsyncKalshiClient.ws`.
 - **Perps (margin) API** — standalone `PerpsClient` / `AsyncPerpsClient` +
   `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
-  (10 operations, cookie-session + MFA auth). See [Perps](perps.md).
+  (9 operations, Bearer token auth). See [Perps](perps.md).
 - **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)
   for both products: order-entry, drop-copy, market-data, post-trade (prediction),
   and RFQ (prediction) sessions — plus order-group management over the order-entry

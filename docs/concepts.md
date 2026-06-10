@@ -143,7 +143,7 @@ See [Incentive programs](resources/incentive-programs.md).
 ## Subaccount
 
 A logical wallet partition under your main account. Used to isolate strategies
-or risk pools. Subaccount `0` is your primary account; `1`–`32` are numbered
+or risk pools. Subaccount `0` is your primary account; `1`–`63` are numbered
 extras. Most resource methods accept a `subaccount=` kwarg to route the call.
 
 See [Subaccounts](resources/subaccounts.md).

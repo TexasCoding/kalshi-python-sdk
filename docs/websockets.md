@@ -1,7 +1,7 @@
 # WebSocket
 
 The SDK ships an async-only WebSocket client, `KalshiWebSocket`, that covers
-all 11 Kalshi channels. It handles RSA-PSS auth on the upgrade handshake,
+all 12 Kalshi channels. It handles RSA-PSS auth on the upgrade handshake,
 per-subscription sequence-gap detection, automatic reconnection with
 re-subscription, and a configurable backpressure strategy on each per-channel
 queue.
@@ -29,7 +29,7 @@ SDK's perspective on it.
   on every delta.
 - `on_state_change=` and `on_error=` hooks on the constructor for observability.
 
-## The 11 channels
+## The 12 channels
 
 | SDK method | Wire channel | Message `type` field | Message class | Auth |
 |---|---|---|---|---|
@@ -44,6 +44,7 @@ SDK's perspective on it.
 | `subscribe_market_positions` | `market_positions` | `market_position` (singular) | `MarketPositionsMessage` | private |
 | `subscribe_order_group` | `order_group_updates` | `order_group_updates` | `OrderGroupMessage` | private |
 | `subscribe_communications` | `communications` | `communications` | `CommunicationsMessage` | private |
+| `subscribe_cfbenchmarks_value` | `cfbenchmarks_value` | `cfbenchmarks_value` / `cfbenchmarks_value_indexlist` | `CFBenchmarksValueMessage` / `CFBenchmarksIndexListMessage` | private |
 
 The `type` column matters when filtering raw logs — note the singular forms
 for `user_order`, `market_position`, and the `multivariate_lookup` /
@@ -67,8 +68,8 @@ for `user_order`, `market_position`, and the `multivariate_lookup` /
             print(msg.msg.market_ticker, msg.msg.event_type)
     ```
 
-    This is a second message **type** on the same channel — the channel count
-    stays 11. The override payload mirrors the REST
+    This is a second message **type** on the same channel — it does not add a
+    channel. The override payload mirrors the REST
     [`EventFeeChange`](resources/events.md#event-fee-changes):
     `EventFeeUpdatePayload` carries `event_ticker`, `fee_type_override`, and
     `fee_multiplier_override` (the latter two `None` when the override is
@@ -77,6 +78,40 @@ for `user_order`, `market_position`, and the `multivariate_lookup` /
 Two channels carry monotonic `seq` numbers and have built-in sequence-gap
 recovery: `orderbook_delta` (which delivers both snapshot and delta envelopes
 under one subscription) and `order_group_updates`.
+
+## CF Benchmarks index values
+
+The auth-required `cfbenchmarks_value` channel (new in v4.0.0) streams CF
+Benchmarks reference index values — e.g. `BRTI` (Bitcoin Real-Time Index) and
+`ETHUSD_RTI` — each with a trailing 60-second average and, only in the final
+minute before a quarter-hour close (`:00`/`:15`/`:30`/`:45`), a quarter-hour
+windowed average.
+
+Seed the index list at subscribe time with `index_ids` (`["all"]` tracks every
+available index). The stream yields a **union** of `CFBenchmarksValueMessage`
+(data) and `CFBenchmarksIndexListMessage` (the response to an `indexlist`
+action), so discriminate with `isinstance` (or `msg.type`) before reading
+`msg.msg`. The `data` field is the raw upstream CF Benchmarks JSON frame as a
+string — call `json.loads(...)` to parse it.
+
+```python
+import json
+from kalshi.ws.models import CFBenchmarksIndexListMessage, CFBenchmarksValueMessage
+
+async for msg in session.subscribe_cfbenchmarks_value(index_ids=["BRTI", "ETHUSD_RTI"]):
+    if isinstance(msg, CFBenchmarksValueMessage):
+        frame = json.loads(msg.msg.data)            # raw upstream frame
+        avg60 = msg.msg.avg_60s_data.value          # trailing 60s average (Decimal)
+        q15 = msg.msg.last_60s_windowed_average_15min  # None outside the final minute
+    else:  # CFBenchmarksIndexListMessage
+        print(msg.msg.index_ids)                    # available index IDs
+```
+
+Subscribing with no `index_ids` yields nothing until indices are added; this
+channel does not accept `market_ticker`/`market_tickers`. The
+`CFBenchmarksValueMessage`, `CFBenchmarksValuePayload`, `CFBenchmarksAvgData`,
+`CFBenchmarksIndexListMessage`, and `CFBenchmarksIndexListPayload` models are
+exported from `kalshi.ws.models`.
 
 ## Connect and subscribe
 
