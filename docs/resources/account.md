@@ -10,6 +10,7 @@ Auth required.
 |---|---|
 | `limits()` | `GET /account/limits` |
 | `endpoint_costs()` | `GET /account/endpoint_costs` |
+| `upgrade()` | `POST /account/api_usage_level/upgrade` |
 
 ## Read tier limits
 
@@ -23,7 +24,8 @@ print(limits.write.bucket_capacity, limits.write.refill_rate)
 `AccountApiLimits.read` and `.write` are `RateLimit` objects with
 `bucket_capacity` and `refill_rate` fields (token-bucket parameters).
 Use them to drive client-side throttling if you fan out many concurrent
-calls.
+calls. `AccountApiLimits.grants` (new in v4.0.0) lists the caller's active
+usage-level grants — see [API usage-level grants](#api-usage-level-grants) below.
 
 !!! note "Differs from the OpenAPI spec shape"
     The published spec describes `read_limit` and `write_limit` as integers;
@@ -46,6 +48,36 @@ for entry in costs.endpoint_costs:
 Endpoints not present in `endpoint_costs` use `default_cost`. Batch
 endpoints typically appear here with a per-item multiplier (e.g.
 `POST /portfolio/orders/batched` costs ~10 tokens per order in the batch).
+
+## API usage-level grants
+
+New in v4.0.0. `AccountApiLimits.grants` is a list of `ApiUsageLevelGrant`
+(exported from the top-level `kalshi` package) describing the caller's active
+usage-level grants across exchange lanes. Each grant has:
+
+- `exchange_instance` — the exchange lane: `"event_contract"` or `"margined"`.
+- `level` — the API usage level the grant confers (e.g. `"premier"`,
+  `"paragon"`, `"prime"`).
+- `source` — how it was created: `"volume"` (earned from trading volume) or
+  `"manual"` (assigned by Kalshi).
+- `expires_ts` — Unix-seconds expiry, or `None` for a permanent grant.
+
+```python
+limits = client.account.limits()
+for grant in limits.grants:
+    print(grant.exchange_instance, grant.level, grant.source, grant.expires_ts)
+```
+
+`upgrade()` requests a **permanent Advanced** API usage-level grant
+(`POST /account/api_usage_level/upgrade`). It requires that at least one of your
+last 100 Predictions orders was API-created; otherwise the server returns 403
+(mapped to `KalshiAuthError`). It returns nothing (201) — re-read `limits()` to
+see the resulting grant:
+
+```python
+client.account.upgrade()
+print(client.account.limits().grants)
+```
 
 ## Reference
 

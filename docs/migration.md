@@ -1,5 +1,26 @@
 # Migration
 
+## v3 → v4.0.0
+
+v4.0.0 has **one breaking change** — the Self-Clearing-Member "Klear" API
+migrated from cookie-session login to a pre-generated **Bearer token**, because
+upstream removed `POST /log_in`. Everything else in v4.0.0 is additive
+(`cfbenchmarks_value` WS channel, `AccountResource.upgrade()`,
+`AccountApiLimits.grants`, perps `api_limits()`, perps market notional/leverage
+fields). The prediction and perps trade-api surfaces are unchanged.
+
+For full BEFORE/AFTER snippets see [v3-to-v4.md](migrations/v3-to-v4.md). Quick
+summary of the Klear break:
+
+| Was (v3.x) | Now (v4.0.0) |
+|---|---|
+| `KlearClient(demo=True)` then `client.login(email=..., password=..., code=...)` | `KlearClient(admin_user_id=..., access_token=..., demo=True)` |
+| `KlearClient.from_env()` (routing only) | `KlearClient.from_env()` reads `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN` |
+| `client.is_authenticated`, `client.auth`, `LogInRequest`, `LogInResponse` | removed |
+
+Generate the token / find your admin user id at <https://klearing.kalshi.com>
+(the "Security" page).
+
 ## v2.7 → v3.0
 
 v3.0.0 is the first major release in the v3 line. It renames three groups of

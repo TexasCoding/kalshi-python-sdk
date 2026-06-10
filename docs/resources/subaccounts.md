@@ -1,7 +1,7 @@
 # Subaccounts
 
 Logical wallet partitions under your main account. Subaccount `0` is your
-primary; `1`–`32` are numbered extras. Auth required throughout.
+primary; `1`–`63` are numbered extras. Auth required throughout.
 
 ## Quick reference
 

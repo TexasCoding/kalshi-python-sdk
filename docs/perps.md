@@ -63,7 +63,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()`, `list_fcm()` / `list_all_fcm()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()` |
-| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()` |
+| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 
@@ -82,6 +82,13 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
 - **WebSocket** timestamps are Unix epoch **milliseconds** on `*_ms`-suffixed
   fields (`ts_ms`, `created_ts_ms`, `next_funding_time_ms`, …) — a real parsing
   difference from the event-contract WS.
+- **Notional values** — `MarginMarket` (REST) and the margin ticker WS payload
+  carry optional `volume_notional_value` / `volume_24h_notional_value` /
+  `open_interest_notional_value` (`DollarDecimal | None`); `MarginMarketCandlestick`
+  carries the same fields as **required** (inherent to a settled historical
+  record). `MarginMarket.leverage_estimates` maps notional position sizes
+  (`"1000"`, `"10000"`, …) to `MultiplierDecimal` leverage, or `None` when margin
+  config / price data is unavailable.
 
 ## Funding mechanics
 
@@ -112,6 +119,11 @@ for pos in risk.positions:
     print(pos.market_ticker, pos.position_leverage, pos.estimated_liquidation_price)
 ```
 
+`perps.margin.api_limits()` (`GET /account/limits/perps`) returns the Perps API
+tier limits in the same shape as the prediction API's `client.account.limits()`
+(an `AccountApiLimits` with `usage_tier`, `read`/`write` token buckets, and the
+`grants` list of `ApiUsageLevelGrant`).
+
 ## WebSocket streaming
 
 ```python
@@ -129,8 +141,8 @@ Six data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
 `trade`, `fill`, `user_orders`, `order_group_updates`. The connection, sequence-gap
 detection, reconnect, and backpressure machinery are reused from the event-contract
 WS stack (see [WebSocket](websockets.md)); the perps orderbook is `bid` / `ask`.
-The equities-only channels (`market_positions`, `multivariate*`, `communications`,
-`market_lifecycle_v2`) have no perps counterpart.
+The prediction-only channels (`market_positions`, `multivariate*`, `communications`,
+`market_lifecycle_v2`, `cfbenchmarks_value`) have no perps counterpart.
 
 ## Self-Clearing-Member "Klear" API
 
@@ -155,7 +167,7 @@ Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as
 positive at construction (the single real-money write) before any request is sent.
-Credentials and the session cookie are never logged or shown in `repr()`.
+The Bearer `access_token` is never logged or shown in `repr()` (it is redacted).
 
 ## Perps over FIX
 
