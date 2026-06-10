@@ -193,6 +193,15 @@ class TestSubscribeCFBenchmarks:
             cmd = fake_ws.received_commands[0]
             assert "index_ids" not in cmd["params"]
 
+    async def test_subscribe_all_indices_passthrough(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        # The spec's special ["all"] value is forwarded verbatim.
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_cfbenchmarks_value(index_ids=["all"])
+            cmd = fake_ws.received_commands[0]
+            assert cmd["params"]["index_ids"] == ["all"]
+
     async def test_receives_value_message(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)

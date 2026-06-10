@@ -896,7 +896,9 @@ class KalshiWebSocket:
         Seed ``index_ids`` (e.g. ``["BRTI", "ETHUSD_RTI"]`` or ``["all"]``) to
         receive values immediately; subscribing with no ids yields nothing until
         indices are added. The stream yields both ``cfbenchmarks_value`` data
-        messages and ``cfbenchmarks_value_indexlist`` control responses.
+        messages and ``cfbenchmarks_value_indexlist`` control responses, so
+        discriminate with ``isinstance(msg, CFBenchmarksValueMessage)`` (or check
+        ``msg.type``) before reading ``msg.msg``.
         """
         params: dict[str, Any] = {}
         if index_ids:

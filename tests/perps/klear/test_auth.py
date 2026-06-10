@@ -111,6 +111,19 @@ class TestFromEnv:
         with pytest.raises(ValueError):
             KlearClient.from_env()
 
+    def test_from_env_one_credential_missing_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Either credential alone is insufficient.
+        monkeypatch.setenv("KALSHI_KLEAR_ADMIN_USER_ID", "env-admin")
+        monkeypatch.delenv("KALSHI_KLEAR_ACCESS_TOKEN", raising=False)
+        with pytest.raises(ValueError):
+            KlearClient.from_env()
+        monkeypatch.delenv("KALSHI_KLEAR_ADMIN_USER_ID", raising=False)
+        monkeypatch.setenv("KALSHI_KLEAR_ACCESS_TOKEN", "env-token")
+        with pytest.raises(ValueError):
+            KlearClient.from_env()
+
 
 class TestAsync:
     @respx.mock

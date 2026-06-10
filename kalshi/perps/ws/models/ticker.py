@@ -70,17 +70,24 @@ class MarginTickerPayload(BaseModel):
     volume: FixedPointCount
     volume_24h: FixedPointCount
     open_interest: FixedPointCount
-    # Notional dollar values (spec-required); short Python names accept the
-    # ``_dollars``-suffixed wire keys, mirroring the prediction-API price aliases.
-    volume_notional_value: DollarDecimal = Field(
+    # Notional dollar values. The AsyncAPI marks these required, but they are
+    # newly added on a *live* streaming channel — modeling them optional avoids
+    # breaking an entire ticker subscription if a server omits them mid-rollout
+    # (the WS payload-drift guard checks name coverage, not required-ness, and
+    # the REST ``MarginMarket`` models the same fields optional). Short Python
+    # names accept the ``_dollars``-suffixed wire keys.
+    volume_notional_value: DollarDecimal | None = Field(
+        default=None,
         validation_alias=AliasChoices("volume_notional_value_dollars", "volume_notional_value"),
     )
-    volume_24h_notional_value: DollarDecimal = Field(
+    volume_24h_notional_value: DollarDecimal | None = Field(
+        default=None,
         validation_alias=AliasChoices(
             "volume_24h_notional_value_dollars", "volume_24h_notional_value"
         ),
     )
-    open_interest_notional_value: DollarDecimal = Field(
+    open_interest_notional_value: DollarDecimal | None = Field(
+        default=None,
         validation_alias=AliasChoices(
             "open_interest_notional_value_dollars", "open_interest_notional_value"
         ),

@@ -175,6 +175,10 @@ class MarginMarketCandlestick(BaseModel):
     volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
+    # Required (no default): the candlestick spec lists both notional fields under
+    # ``required``, they are inherent to a settled historical record, and the perps
+    # response-drift test hard-fails if a spec-required field is modeled optional.
+    # (Contrast the live ``MarginTickerPayload``, where they are optional.)
     volume_notional_value: DollarDecimal = Field(
         validation_alias=AliasChoices("volume_notional_value_dollars", "volume_notional_value"),
     )

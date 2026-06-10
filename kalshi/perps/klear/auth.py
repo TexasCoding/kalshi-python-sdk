@@ -17,9 +17,10 @@ class KlearAuth:
     """Holds Klear Bearer credentials and builds the ``Authorization`` header."""
 
     def __init__(self, admin_user_id: str, access_token: str) -> None:
-        # Strip-then-store: surrounding whitespace would otherwise survive into a
-        # malformed ``Bearer   id  :  token  `` header. ``(x or "")`` keeps the
-        # strip None-safe before the empty/whitespace-only check rejects blanks.
+        # Strip before storing so surrounding whitespace can't survive into a
+        # malformed ``Bearer   id  :  token  `` header. ``(x or "")`` also coerces
+        # a defensive ``None`` (off-type, but possible from ``os.environ.get``) to
+        # ""; the check below then rejects empty / whitespace-only / None alike.
         admin_user_id = (admin_user_id or "").strip()
         access_token = (access_token or "").strip()
         if not admin_user_id or not access_token:

@@ -21,6 +21,19 @@ from kalshi.perps.klear.auth import KlearAuth
 from kalshi.resources._base import AsyncResource, SyncResource
 
 
+def _with_klear_auth(
+    auth: KlearAuth, extra_headers: dict[str, str] | None
+) -> dict[str, str]:
+    """Merge the Klear ``Authorization: Bearer`` header onto ``extra_headers``.
+
+    The Bearer header is set last (and unconditionally) so a caller-supplied
+    ``extra_headers`` can never suppress authentication.
+    """
+    merged = dict(extra_headers) if extra_headers else {}
+    merged["Authorization"] = auth.authorization_header()
+    return merged
+
+
 class KlearSyncResource(SyncResource):
     """Sync Klear resource base — transport + Bearer header injection."""
 
@@ -29,10 +42,7 @@ class KlearSyncResource(SyncResource):
         self._klear_auth = auth
 
     def _with_auth(self, extra_headers: dict[str, str] | None) -> dict[str, str]:
-        """Merge the Klear ``Authorization: Bearer`` header onto ``extra_headers``."""
-        merged = dict(extra_headers) if extra_headers else {}
-        merged["Authorization"] = self._klear_auth.authorization_header()
-        return merged
+        return _with_klear_auth(self._klear_auth, extra_headers)
 
     def _get(
         self,
@@ -64,10 +74,7 @@ class KlearAsyncResource(AsyncResource):
         self._klear_auth = auth
 
     def _with_auth(self, extra_headers: dict[str, str] | None) -> dict[str, str]:
-        """Merge the Klear ``Authorization: Bearer`` header onto ``extra_headers``."""
-        merged = dict(extra_headers) if extra_headers else {}
-        merged["Authorization"] = self._klear_auth.authorization_header()
-        return merged
+        return _with_klear_auth(self._klear_auth, extra_headers)
 
     async def _get(
         self,

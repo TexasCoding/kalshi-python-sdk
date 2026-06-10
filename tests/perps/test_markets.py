@@ -376,6 +376,15 @@ class TestCandlesticks:
         # bid/ask OHLC are still required + present.
         assert c.bid.open == Decimal("0.5500")
 
+    def test_notional_value_required_on_candlestick(self) -> None:
+        # Spec lists both notional fields under `required`; the model enforces it
+        # (unlike the live MarginTickerPayload, where they are optional).
+        for missing in ("volume_notional_value_dollars", "open_interest_notional_value_dollars"):
+            frame = _candle_dict()
+            del frame[missing]
+            with pytest.raises(ValidationError):
+                MarginMarketCandlestick.model_validate(frame)
+
     @respx.mock
     def test_missing_ticker_or_candlesticks_raises(self, perps_client: PerpsClient) -> None:
         # #404: both `ticker` and `candlesticks` are spec-required on this

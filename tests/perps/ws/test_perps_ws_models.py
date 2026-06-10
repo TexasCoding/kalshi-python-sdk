@@ -375,6 +375,21 @@ class TestTicker:
         assert msg.msg.funding_rate is None
         assert msg.seq is None
 
+    def test_ticker_notional_values_optional(self) -> None:
+        # Newly-added notional fields: a server omitting them (e.g. mid-rollout)
+        # must NOT break the whole ticker — they default to None, not raise.
+        frame = self._full_frame()
+        for key in (
+            "volume_notional_value_dollars",
+            "volume_24h_notional_value_dollars",
+            "open_interest_notional_value_dollars",
+        ):
+            frame["msg"].pop(key)
+        msg = MarginTickerMessage.model_validate(frame)
+        assert msg.msg.volume_notional_value is None
+        assert msg.msg.volume_24h_notional_value is None
+        assert msg.msg.open_interest_notional_value is None
+
     def test_ticker_missing_ts_ms_raises(self) -> None:
         frame = self._full_frame()
         frame["msg"].pop("ts_ms")
