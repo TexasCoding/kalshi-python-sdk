@@ -22,6 +22,7 @@ more markets that share a resolution.
 page = client.events.list(
     status="open",                   # EventStatusLiteral
     series_ticker="KXPRES",
+    tickers=["KXPRES-24", "KXSENATE-24"],  # filter to specific event tickers (v4.1.0)
     with_nested_markets=False,
     with_milestones=False,
     min_close_ts=1_700_000_000,
@@ -35,6 +36,11 @@ for event in page:
 
 `EventStatusLiteral` has values `"unopened" | "open" | "closed" | "settled"`.
 Unlike [`MarketStatusLiteral`](../types.md), there is no `"paused"`.
+
+`tickers` (added in v4.1.0) restricts the result set to specific event
+tickers. Pass a `list[str]` or a single comma-separated string; individual
+tickers must be non-empty and must not contain commas (the list is sent as
+one comma-separated value).
 
 ## Multivariate events
 

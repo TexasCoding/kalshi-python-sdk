@@ -10,6 +10,7 @@ Auth required.
 |---|---|
 | `limits()` | `GET /account/limits` |
 | `endpoint_costs()` | `GET /account/endpoint_costs` |
+| `volume_progress()` | `GET /account/api_usage_level/volume_progress` |
 | `upgrade()` | `POST /account/api_usage_level/upgrade` |
 
 ## Read tier limits
@@ -48,6 +49,27 @@ for entry in costs.endpoint_costs:
 Endpoints not present in `endpoint_costs` use `default_cost`. Batch
 endpoints typically appear here with a per-item multiplier (e.g.
 `POST /portfolio/orders/batched` costs ~10 tokens per order in the batch).
+
+## Volume progress
+
+New in v4.1.0. `volume_progress()` (`GET /account/api_usage_level/volume_progress`)
+returns the latest cron-computed trading-volume snapshots toward the
+volume-based API usage tiers for the predictions (`event_contract`) lane.
+
+```python
+progress = client.account.volume_progress()
+for snapshot in progress.volume_progress:
+    print(snapshot.computed_ts, snapshot.trailing_30d_volume)
+    for goal in snapshot.goals:
+        # earn = volume needed to earn the level; keep = volume to retain it.
+        print(goal.level, goal.earn_volume_goal, goal.keep_volume_goal)
+```
+
+`AccountVolumeProgress.volume_progress` is a list of
+`AccountApiUsageLevelVolumeProgress` snapshots. `computed_ts` is the Unix
+second at which the snapshot was computed; `trailing_30d_volume` and each
+goal's `earn_volume_goal` / `keep_volume_goal` are fixed-point contract counts
+(`Decimal`).
 
 ## API usage-level grants
 
