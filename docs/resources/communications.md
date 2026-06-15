@@ -31,7 +31,7 @@ Auth required throughout.
 | `quotes.confirm(quote_id)` | `PUT /communications/quotes/{quote_id}/confirm` |
 | `block_trade_proposals.list(...)` / `block_trade_proposals.list_all(...)` | `GET /communications/block-trade-proposals` |
 | `block_trade_proposals.create(...)` | `POST /communications/block-trade-proposals` |
-| `block_trade_proposals.accept(block_trade_proposal_id, *, subtrader_id=None, subaccount=None)` | `POST /communications/block-trade-proposals/{id}/accept` |
+| `block_trade_proposals.accept(block_trade_proposal_id, *, subtrader_id=None, subaccount=None)` | `POST /communications/block-trade-proposals/{block_trade_proposal_id}/accept` |
 
 `get_id()` returns your `participant_id` — the value you'll pass as
 `quote_creator_user_id` / `rfq_creator_user_id` when filtering lists. It stays

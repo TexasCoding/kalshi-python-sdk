@@ -38,9 +38,9 @@ for event in page:
 Unlike [`MarketStatusLiteral`](../types.md), there is no `"paused"`.
 
 `tickers` (added in v4.1.0) restricts the result set to specific event
-tickers. Pass a `list[str]` (joined comma-separated on the wire) or a
-pre-joined comma-separated string; list elements must be non-empty and must
-not themselves contain commas.
+tickers. Pass a `list[str]` or a single comma-separated string; individual
+tickers must be non-empty and must not contain commas (the list is sent as
+one comma-separated value).
 
 ## Multivariate events
 
