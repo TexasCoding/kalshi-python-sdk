@@ -13,6 +13,7 @@ methods remain as ``@deprecated`` forwarders for one release; they emit
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, overload
 
@@ -736,7 +737,7 @@ class BlockTradeProposalsResource(SyncResource):
         price_centi_cents: int,
         centicount: int,
         maker_side: Literal["yes", "no"],
-        expiration_ts: Any,
+        expiration_ts: datetime | str,
         buyer_subtrader_id: str | None = ...,
         buyer_subaccount: int | None = ...,
         seller_subtrader_id: str | None = ...,
@@ -1480,7 +1481,7 @@ class AsyncBlockTradeProposalsResource(AsyncResource):
         price_centi_cents: int,
         centicount: int,
         maker_side: Literal["yes", "no"],
-        expiration_ts: Any,
+        expiration_ts: datetime | str,
         buyer_subtrader_id: str | None = ...,
         buyer_subaccount: int | None = ...,
         seller_subtrader_id: str | None = ...,

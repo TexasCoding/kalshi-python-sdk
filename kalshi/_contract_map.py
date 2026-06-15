@@ -147,6 +147,25 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.communications.AcceptQuoteRequest",
         spec_schema="AcceptQuoteRequest",
     ),
+    # Block trade proposals (openapi 3.21.0). The response item + the two
+    # request bodies get response-side drift coverage here, matching Quote/RFQ
+    # and CreateQuoteRequest/AcceptQuoteRequest. The list wrapper
+    # (GetBlockTradeProposalsResponse) and create response
+    # (ProposeBlockTradeResponse) are intentionally omitted, consistent with
+    # GetQuotesResponse / CreateQuoteResponse not being mapped.
+    ContractEntry(
+        sdk_model="kalshi.models.communications.BlockTradeProposal",
+        spec_schema="BlockTradeProposal",
+        notes="price_centi_cents/centicount are plain int (centi-cents/centicounts), not _fp.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.ProposeBlockTradeRequest",
+        spec_schema="ProposeBlockTradeRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.AcceptBlockTradeProposalRequest",
+        spec_schema="AcceptBlockTradeProposalRequest",
+    ),
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.SubaccountBalance",
         spec_schema="SubaccountBalance",

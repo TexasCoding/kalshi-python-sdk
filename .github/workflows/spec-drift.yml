@@ -105,7 +105,7 @@ jobs:
 
           # Stable marker (NOT a content fingerprint): exactly one open tracker
           # at a time. Re-runs append a dated comment instead of duplicating.
-          MARKER='nightly-spec-drift-tracker'
+          readonly MARKER='nightly-spec-drift-tracker'
           today=$(date -u '+%Y-%m-%d')
 
           existing=$(gh issue list \

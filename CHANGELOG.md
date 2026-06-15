@@ -32,6 +32,8 @@ tracking issue).
   `liquidation_mark_price`, and `reference_price` (each a nested `TickerPrice`
   of `{price, ts_ms}`); **`MarginPosition.subaccount`** (the holding subaccount
   number); and **WS `ErrorPayload.market_tickers`** (multi-market error frames).
+  Note: `MarginPosition.subaccount` is spec-**required**, so code that constructs
+  `MarginPosition` directly (e.g. test mocks) must now include it.
 
 ### Changed
 
