@@ -26,9 +26,13 @@ from kalshi.errors import (
 from kalshi.fix import FixClient, FixConfig, FixEnvironment, FixSessionType
 from kalshi.models import (
     RFQ,
+    AcceptBlockTradeProposalRequest,
     AcceptQuoteRequest,
     AccountApiLimits,
+    AccountApiUsageLevelVolumeGoal,
+    AccountApiUsageLevelVolumeProgress,
     AccountEndpointCosts,
+    AccountVolumeProgress,
     ActionLiteral,
     AmendOrderRequest,
     AmendOrderResponse,
@@ -55,6 +59,7 @@ from kalshi.models import (
     BatchCreateOrdersV2Response,
     BatchCreateOrdersV2ResponseEntry,
     BidAskDistribution,
+    BlockTradeProposal,
     BookSideLiteral,
     CancelOrderV2Response,
     Candlestick,
@@ -90,6 +95,7 @@ from kalshi.models import (
     GenerateApiKeyRequest,
     GenerateApiKeyResponse,
     GetApiKeysResponse,
+    GetBlockTradeProposalsResponse,
     GetCommunicationsIDResponse,
     GetFiltersBySportsResponse,
     GetGameStatsResponse,
@@ -143,6 +149,8 @@ from kalshi.models import (
     PlayByPlayPeriod,
     PositionsResponse,
     PriceDistribution,
+    ProposeBlockTradeRequest,
+    ProposeBlockTradeResponse,
     Quote,
     QuoteStatusLiteral,
     RateLimit,
@@ -181,8 +189,10 @@ from kalshi.perps.klear import (
     KlearConfig,
 )
 from kalshi.resources.communications import (
+    AsyncBlockTradeProposalsResource,
     AsyncQuotesResource,
     AsyncRFQsResource,
+    BlockTradeProposalsResource,
     QuotesResource,
     RFQsResource,
 )
@@ -190,9 +200,13 @@ from kalshi.types import NullableList, StrictInt
 
 __all__ = [
     "RFQ",
+    "AcceptBlockTradeProposalRequest",
     "AcceptQuoteRequest",
     "AccountApiLimits",
+    "AccountApiUsageLevelVolumeGoal",
+    "AccountApiUsageLevelVolumeProgress",
     "AccountEndpointCosts",
+    "AccountVolumeProgress",
     "ActionLiteral",
     "AmendOrderRequest",
     "AmendOrderResponse",
@@ -203,6 +217,7 @@ __all__ = [
     "ApiUsageLevelGrant",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
+    "AsyncBlockTradeProposalsResource",
     "AsyncKalshiClient",
     "AsyncKlearClient",
     "AsyncPerpsClient",
@@ -225,6 +240,8 @@ __all__ = [
     "BatchCreateOrdersV2Response",
     "BatchCreateOrdersV2ResponseEntry",
     "BidAskDistribution",
+    "BlockTradeProposal",
+    "BlockTradeProposalsResource",
     "BookSideLiteral",
     "CancelOrderV2Response",
     "Candlestick",
@@ -264,6 +281,7 @@ __all__ = [
     "GenerateApiKeyRequest",
     "GenerateApiKeyResponse",
     "GetApiKeysResponse",
+    "GetBlockTradeProposalsResponse",
     "GetCommunicationsIDResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
@@ -344,6 +362,8 @@ __all__ = [
     "PlayByPlayPeriod",
     "PositionsResponse",
     "PriceDistribution",
+    "ProposeBlockTradeRequest",
+    "ProposeBlockTradeResponse",
     "Quote",
     "QuoteStatusLiteral",
     "QuotesResource",
@@ -377,4 +397,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "4.0.0"
+__version__ = "4.1.0"

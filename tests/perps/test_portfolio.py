@@ -26,6 +26,7 @@ BASE = "https://external-api.demo.kalshi.co/trade-api/v2"
 
 def _long_position() -> dict[str, object]:
     return {
+        "subaccount": 0,
         "market_ticker": "BTC-PERP",
         "position": "100.00",
         "entry_price": "0.5600",
@@ -38,6 +39,7 @@ def _long_position() -> dict[str, object]:
 
 def _short_position() -> dict[str, object]:
     return {
+        "subaccount": 1,
         "market_ticker": "ETH-PERP",
         "position": "-40.00",
         "entry_price": "0.3300",

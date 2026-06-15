@@ -2,77 +2,54 @@ openapi: 3.0.0
 info:
   title: Kalshi Self-Clearing Member API
   version: 0.0.1
-  description: >
+  description: |
     Klear API endpoints available to Self-Clearing Members (SCMs) —
-
     institutional users who clear their own margin activity directly with
-
     Kalshi.
-
 
     ## Authentication
 
-
-    All endpoints require an admin access token passed in the `Authorization`
-    header:
-
+    All endpoints require an admin access token passed in the `Authorization` header:
 
     `Authorization: Bearer <admin_user_id>:<access_token>`
 
-
     To generate an access token and obtain your admin user id, sign in at
-
     https://klearing.kalshi.com, and navigate to the "Security" page.
 
-
     If you are in the process of onboarding to be a self-clearing member,
-
     please contact your contact at Kalshi for credentials. Otherwise,
-
     please contact institutional@kalshi.com.
+
 servers:
   - url: https://api.klear.kalshi.com/klear-api/v1
     description: Production
   - url: https://demo-api.kalshi.co/klear-api/v1
     description: Demo
+
 security:
   - kalshiBearer: []
+
 paths:
   /margin/reports:
     get:
       operationId: GetMarginReports
       summary: Get Margin Reports
-      description: >-
-        Margin reports for the authenticated clearing member, filterable by date
-        range.
+      description: Margin reports for the authenticated clearing member, filterable by date range.
+
       parameters:
-        - name: start_date
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
-        - name: end_date
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
+        - { name: start_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: end_date,   in: query, required: true, schema: { type: string, format: date } }
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetMarginReportsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetMarginReportsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/active_obligation:
     get:
       operationId: GetActiveMarginObligation
@@ -82,244 +59,208 @@ paths:
         current cycle, if one exists. A negative amount indicates a net payable
         to Kalshi Klear; a positive amount indicates a net receivable. Returns
         null when no obligation is pending.
+
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetActiveMarginObligationResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetActiveMarginObligationResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/obligation_history:
     get:
       operationId: GetObligationHistory
       summary: Get Obligation History
-      description: >-
-        Completed obligations from previous settlements, ordered by most recent
-        first.
+      description: Completed obligations from previous settlements, ordered by most recent first.
+
       parameters:
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 20
-            maximum: 100
-          description: Number of results per page.
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
-            format: date-time
-          description: Cursor from a previous response to fetch the next page.
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 20, maximum: 100 }, description: Number of results per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string, format: date-time }, description: Cursor from a previous response to fetch the next page. }
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetObligationHistoryResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetObligationHistoryResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/large_trader_positions:
+    get:
+      operationId: GetLargeTraderPositions
+      summary: Get Large Trader Positions
+      description: >-
+        Positions of the authenticated clearing member that meet the CFTC
+        large-trader reporting levels for a settlement day (17 CFR 15.03(b);
+        currently 25 contracts for crypto). Members with reportable positions
+        are subject to their own CFTC Part 17 large-trader reporting
+        obligations; this endpoint provides the position data needed to meet
+        them. Empty when no positions meet the reporting levels. See the
+        CFTC's Large Trader Reporting Program
+        (https://www.cftc.gov/IndustryOversight/MarketSurveillance/LargeTraderReportingProgram/index.htm)
+        and reporting levels at 17 CFR 15.03
+        (https://www.ecfr.gov/current/title-17/chapter-I/part-15).
+
+      parameters:
+        - { name: report_date, in: query, required: false, schema: { type: string, format: date }, description: ET settlement day to report, YYYY-MM-DD. Defaults to the most recent ET settlement day whose settlement window has closed. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetLargeTraderPositionsResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_estimate:
     get:
       operationId: GetSettlementEstimate
       summary: Get Settlement Estimate
-      description: >-
-        Estimated next settlement amounts for the authenticated clearing member,
-        including per-subtrader breakdowns.
+      description: Estimated next settlement amounts for the authenticated clearing member, including per-subtrader breakdowns.
+
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetSettlementEstimateResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetSettlementEstimateResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_balance:
     get:
       operationId: GetSettlementBalance
       summary: Get Settlement Balance
       description: Settlement buffer balance for the authenticated clearing member.
+
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetSettlementBalanceResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetSettlementBalanceResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/guaranty_fund_balance:
     get:
       operationId: GetGuarantyFundBalance
       summary: Get Guaranty Fund Balance
-      description: >-
-        Guaranty fund contribution balance for the authenticated clearing
-        member.
+      description: Guaranty fund contribution balance for the authenticated clearing member.
+
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetGuarantyFundBalanceResponse'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetGuarantyFundBalanceResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_balance_history:
     get:
       operationId: GetSettlementBalanceHistory
       summary: Get Settlement Balance History
-      description: >-
-        Settlement balance changes for the authenticated clearing member,
-        ordered by most recent first.
+      description: Settlement balance changes for the authenticated clearing member, ordered by most recent first.
+
       parameters:
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 100
-            maximum: 500
-          description: Number of results per page.
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Cursor from a previous response to fetch the next page.
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 100, maximum: 500 }, description: Number of results per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Cursor from a previous response to fetch the next page. }
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetSettlementBalanceHistoryResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetSettlementBalanceHistoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/withdraw_settlement_balance:
     post:
       operationId: WithdrawSettlementBalance
       summary: Withdraw Settlement Balance
-      description: >-
-        Initiate a wire withdrawal from the clearing member's settlement buffer.
-        The withdrawal is processed asynchronously.
+      description: Initiate a wire withdrawal from the clearing member's settlement buffer. The withdrawal is processed asynchronously.
+
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/WithdrawSettlementBalanceRequest'
+            schema: { $ref: '#/components/schemas/WithdrawSettlementBalanceRequest' }
       responses:
         '200':
           description: Withdrawal initiated
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/WithdrawSettlementBalanceResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/WithdrawSettlementBalanceResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_balance_withdrawal:
     get:
       operationId: GetSettlementBalanceWithdrawal
       summary: Get Settlement Balance Withdrawal
       description: Get the status of a settlement balance withdrawal by ID.
+
       parameters:
-        - name: id
-          in: query
-          required: true
-          schema:
-            type: string
+        - { name: id, in: query, required: true, schema: { type: string } }
       responses:
         '200':
           description: Successful response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/GetSettlementBalanceWithdrawalResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '403':
-          $ref: '#/components/responses/ForbiddenError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+              schema: { $ref: '#/components/schemas/GetSettlementBalanceWithdrawalResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
 components:
   securitySchemes:
     kalshiBearer:
       type: http
       scheme: bearer
       bearerFormat: admin_user_id:access_token
-      description: >
-        Pass `Authorization: Bearer <admin_user_id>:<access_token>` on each
-        request.
+      description: |
+        Pass `Authorization: Bearer <admin_user_id>:<access_token>` on each request.
+
   responses:
     BadRequestError:
       description: Bad request - invalid input
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     UnauthorizedError:
       description: Missing or invalid authentication
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     ForbiddenError:
       description: Caller is not permitted to access this resource
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
     InternalServerError:
       description: Internal server error
       content:
         application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+          schema: { $ref: '#/components/schemas/Error' }
+
   schemas:
     Error:
       type: object
-      required:
-        - code
-        - message
+      required: [code, message]
       properties:
         code:
           type: string
@@ -331,14 +272,10 @@ components:
           type: string
         service:
           type: string
+
     MarginReport:
       type: object
-      required:
-        - report_type
-        - url
-        - date
-        - created_ts
-        - is_end_of_day
+      required: [report_type, url, date, created_ts, is_end_of_day]
       properties:
         report_type:
           type: string
@@ -348,26 +285,19 @@ components:
             - market_price_snapshot
             - funding_periods
             - settlement_periods
-        url:
-          type: string
-          description: Presigned download URL (omitted from logs).
-        date:
-          type: string
-          format: date
-        created_ts:
-          type: string
-          format: date-time
-        is_end_of_day:
-          type: boolean
+        url: { type: string, description: Presigned download URL (omitted from logs). }
+        date: { type: string, format: date }
+        created_ts: { type: string, format: date-time }
+        is_end_of_day: { type: boolean }
+
     GetMarginReportsResponse:
       type: object
-      required:
-        - reports
+      required: [reports]
       properties:
         reports:
           type: array
-          items:
-            $ref: '#/components/schemas/MarginReport'
+          items: { $ref: '#/components/schemas/MarginReport' }
+
     ObligationInfo:
       type: object
       required:
@@ -380,10 +310,8 @@ components:
         - execution_time
         - last_updated_ts
       properties:
-        id:
-          type: string
-        user_id:
-          type: string
+        id: { type: string }
+        user_id: { type: string }
         amount_centicents:
           type: integer
           format: int64
@@ -394,47 +322,22 @@ components:
             of PnL, fees, and maintenance margin changes. Negative means the
             clearing member pays Kalshi Klear; positive means Kalshi Klear
             pays the clearing member.
-        fees_centicents:
-          type: integer
-          format: int64
-          description: Trading fees incurred during the settlement period.
-        maintenance_margin_centicents:
-          type: integer
-          format: int64
-          description: Current maintenance margin requirement for this obligation.
-        pnl_centicents:
-          type: integer
-          format: int64
-          description: Realized PnL for this settlement period.
-        execution_time:
-          type: string
-          format: date-time
-          description: Settlement cycle time this obligation belongs to.
-        last_updated_ts:
-          type: string
-          format: date-time
-          description: Timestamp of the last status change on this obligation.
+        fees_centicents: { type: integer, format: int64, description: Trading fees incurred during the settlement period. }
+        maintenance_margin_centicents: { type: integer, format: int64, description: Current maintenance margin requirement for this obligation. }
+        pnl_centicents: { type: integer, format: int64, description: Realized PnL for this settlement period. }
+        execution_time: { type: string, format: date-time, description: Settlement cycle time this obligation belongs to. }
+        last_updated_ts: { type: string, format: date-time, description: Timestamp of the last status change on this obligation. }
+
     ObligationReceiveInfo:
       type: object
-      required:
-        - id
-        - type
-        - amount_centicents
-        - external_reference
-        - created_ts
+      required: [id, type, amount_centicents, external_reference, created_ts]
       properties:
-        id:
-          type: string
-        type:
-          type: string
-        amount_centicents:
-          type: integer
-          format: int64
-        external_reference:
-          type: string
-        created_ts:
-          type: string
-          format: date-time
+        id: { type: string }
+        type: { type: string }
+        amount_centicents: { type: integer, format: int64 }
+        external_reference: { type: string }
+        created_ts: { type: string, format: date-time }
+
     SettlementDetail:
       type: object
       required:
@@ -445,24 +348,13 @@ components:
         - total_fees_centicents
         - total_amount_centicents
       properties:
-        id:
-          type: string
-        market_ticker:
-          type: string
-        subtrader_id:
-          type: string
-        pnl_centicents:
-          type: integer
-          format: int64
-          description: PnL.
-        total_fees_centicents:
-          type: integer
-          format: int64
-          description: Total fees.
-        total_amount_centicents:
-          type: integer
-          format: int64
-          description: Total amount.
+        id: { type: string }
+        market_ticker: { type: string }
+        subtrader_id: { type: string }
+        pnl_centicents: { type: integer, format: int64, description: PnL. }
+        total_fees_centicents: { type: integer, format: int64, description: Total fees. }
+        total_amount_centicents: { type: integer, format: int64, description: Total amount. }
+
     MaintenanceMarginDetail:
       type: object
       required:
@@ -471,72 +363,65 @@ components:
         - maintenance_margin_centicents
         - maintenance_margin_delta_centicents
       properties:
-        id:
-          type: string
-        subtrader_id:
-          type: string
-          description: Empty when not populated.
-        maintenance_margin_centicents:
-          type: integer
-          format: int64
-          description: Maintenance margin requirement after this settlement.
-        maintenance_margin_delta_centicents:
-          type: integer
-          format: int64
-          description: >-
-            Change in maintenance margin between the previous settlement and
-            this one.
+        id: { type: string }
+        subtrader_id: { type: string, description: Empty when not populated. }
+        maintenance_margin_centicents: { type: integer, format: int64, description: Maintenance margin requirement after this settlement. }
+        maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin between the previous settlement and this one. }
+
     ObligationEntry:
       allOf:
         - $ref: '#/components/schemas/ObligationInfo'
         - type: object
-          required:
-            - receives
-            - settlement_details
-            - maintenance_margin_details
+          required: [receives, settlement_details, maintenance_margin_details]
           properties:
             receives:
               type: array
-              items:
-                $ref: '#/components/schemas/ObligationReceiveInfo'
+              items: { $ref: '#/components/schemas/ObligationReceiveInfo' }
             settlement_details:
               type: array
-              items:
-                $ref: '#/components/schemas/SettlementDetail'
+              items: { $ref: '#/components/schemas/SettlementDetail' }
               description: |
                 Per-market, per-subtrader breakdown of the settlement amount.
                 This structure may change in future versions as margin
                 methodology evolves (e.g. portfolio margin).
             maintenance_margin_details:
               type: array
-              items:
-                $ref: '#/components/schemas/MaintenanceMarginDetail'
+              items: { $ref: '#/components/schemas/MaintenanceMarginDetail' }
               description: |
                 Breakdown of the maintenance margin requirement and the delta
                 from the prior settlement.
+
     GetActiveMarginObligationResponse:
       type: object
       properties:
         obligation:
           $ref: '#/components/schemas/ObligationEntry'
-          description: >-
-            The outstanding settlement obligation for the current cycle, or null
-            when no obligation is pending.
+          description: The outstanding settlement obligation for the current cycle, or null when no obligation is pending.
+
+    GetLargeTraderPositionsResponse:
+      type: object
+      properties:
+        user_id: { type: string }
+        report_date: { type: string, format: date, description: ET settlement day the positions are reported for. }
+        positions:
+          type: array
+          items:
+            type: object
+            properties:
+              market_ticker: { type: string }
+              position: { type: integer, description: Signed reportable contract count; positive long, negative short. }
     GetObligationHistoryResponse:
       type: object
-      required:
-        - obligations
+      required: [obligations]
       properties:
         obligations:
           type: array
-          items:
-            $ref: '#/components/schemas/ObligationEntry'
+          items: { $ref: '#/components/schemas/ObligationEntry' }
         cursor:
           type: string
           format: date-time
-          description: >-
-            Pass as the `cursor` query param to fetch the next page. Absent when
-            there are no more results.
+          description: Pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
     SettlementEstimate:
       type: object
       required:
@@ -546,159 +431,81 @@ components:
         - maintenance_margin_required_centicents
         - total_amount_centicents
       properties:
-        variation_margin_centicents:
-          type: integer
-          format: int64
-          description: Variation margin.
-        total_fees_centicents:
-          type: integer
-          format: int64
-          description: Total fees.
-        maintenance_margin_delta_centicents:
-          type: integer
-          format: int64
-          description: Change in maintenance margin requirement.
-        maintenance_margin_required_centicents:
-          type: integer
-          format: int64
-          description: Maintenance margin requirement.
-        total_amount_centicents:
-          type: integer
-          format: int64
-          description: Estimated total settlement amount.
+        variation_margin_centicents: { type: integer, format: int64, description: Variation margin. }
+        total_fees_centicents: { type: integer, format: int64, description: Total fees. }
+        maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin requirement. }
+        maintenance_margin_required_centicents: { type: integer, format: int64, description: Maintenance margin requirement. }
+        total_amount_centicents: { type: integer, format: int64, description: Estimated total settlement amount. }
+
     GetSettlementEstimateResponse:
       type: object
-      required:
-        - user_breakdown
-        - settlement_balance_centicents
+      required: [user_breakdown, settlement_balance_centicents]
       properties:
-        user_breakdown:
-          $ref: '#/components/schemas/SettlementEstimate'
+        user_breakdown: { $ref: '#/components/schemas/SettlementEstimate' }
         subtrader_breakdowns:
           type: object
           description: Map of subtrader ID to that subtrader's settlement estimate.
-          additionalProperties:
-            $ref: '#/components/schemas/SettlementEstimate'
-        settlement_balance_centicents:
-          type: integer
-          format: int64
-          description: Current settlement buffer balance.
+          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
+
     GetSettlementBalanceResponse:
       type: object
-      required:
-        - user_id
-        - balance_available_centicents
+      required: [user_id, balance_available_centicents]
       properties:
-        user_id:
-          type: string
-        balance_available_centicents:
-          type: integer
-          format: int64
-          description: Settlement buffer balance.
-        locked_balance_centicents:
-          type: integer
-          format: int64
-          description: Locked settlement balance (e.g. pending withdrawals).
+        user_id: { type: string }
+        balance_available_centicents: { type: integer, format: int64, description: Settlement buffer balance. }
+        locked_balance_centicents: { type: integer, format: int64, description: Locked settlement balance (e.g. pending withdrawals). }
+
     GetGuarantyFundBalanceResponse:
       type: object
-      required:
-        - user_id
-        - amount_centicents
-        - updated_ts
+      required: [user_id, amount_centicents, updated_ts]
       properties:
-        user_id:
-          type: string
-        amount_centicents:
-          type: integer
-          format: int64
-          description: >-
-            Guaranty fund contribution balance. Zero when no contribution has
-            been made yet.
-        updated_ts:
-          type: string
-          format: date-time
-          description: Timestamp of the most recent contribution entry.
+        user_id: { type: string }
+        amount_centicents: { type: integer, format: int64, description: Guaranty fund contribution balance. Zero when no contribution has been made yet. }
+        updated_ts: { type: string, format: date-time, description: Timestamp of the most recent contribution entry. }
+
     GetSettlementBalanceWithdrawalResponse:
       type: object
-      required:
-        - id
-        - amount
-        - status
-        - created_ts
+      required: [id, amount, status, created_ts]
       properties:
-        id:
-          type: string
-        amount:
-          type: string
-          description: Withdrawal amount in USD as a fixed-point string (e.g. "500.00").
-        status:
-          type: string
-          enum:
-            - pending
-            - processing
-            - processed
-            - failed
-        created_ts:
-          type: string
-          format: date-time
+        id: { type: string }
+        amount: { type: string, description: "Withdrawal amount in USD as a fixed-point string (e.g. \"500.00\")." }
+        status: { type: string, enum: [pending, processing, processed, failed] }
+        created_ts: { type: string, format: date-time }
+
     WithdrawSettlementBalanceRequest:
       type: object
-      required:
-        - amount
+      required: [amount]
       properties:
         amount:
           type: string
-          description: >-
-            Amount to withdraw in USD as a fixed-point string (e.g. "500.00").
-            Must be positive.
+          description: Amount to withdraw in USD as a fixed-point string (e.g. "500.00"). Must be positive.
+
     WithdrawSettlementBalanceResponse:
       type: object
-      required:
-        - id
+      required: [id]
       properties:
         id:
           type: string
           description: ID of the withdrawal. The withdrawal is processed asynchronously.
+
     SettlementBalanceHistoryEntry:
       type: object
-      required:
-        - balance_delta_centicents
-        - locked_balance_delta_centicents
-        - reason
-        - business_transaction_id
-        - created_ts
+      required: [balance_delta_centicents, locked_balance_delta_centicents, reason, business_transaction_id, created_ts]
       properties:
-        balance_delta_centicents:
-          type: integer
-          format: int64
-          description: Change to the settlement buffer balance.
-        locked_balance_delta_centicents:
-          type: integer
-          format: int64
-          description: >-
-            Change to the locked settlement balance. Funds are locked during
-            pending withdrawals.
-        reason:
-          type: string
-          description: Reason for the balance change.
-        business_transaction_id:
-          type: string
-          description: Identifier of the business transaction that caused this entry.
-        created_ts:
-          type: string
-          format: date-time
-          description: Timestamp when the entry was created.
+        balance_delta_centicents: { type: integer, format: int64, description: Change to the settlement buffer balance. }
+        locked_balance_delta_centicents: { type: integer, format: int64, description: Change to the locked settlement balance. Funds are locked during pending withdrawals. }
+        reason: { type: string, description: Reason for the balance change. }
+        business_transaction_id: { type: string, description: Identifier of the business transaction that caused this entry. }
+        created_ts: { type: string, format: date-time, description: Timestamp when the entry was created. }
+
     GetSettlementBalanceHistoryResponse:
       type: object
-      required:
-        - entries
+      required: [entries]
       properties:
         entries:
           type: array
-          items:
-            $ref: '#/components/schemas/SettlementBalanceHistoryEntry'
+          items: { $ref: '#/components/schemas/SettlementBalanceHistoryEntry' }
         cursor:
           type: string
-          description: >-
-            Pass as the `cursor` query param to fetch the next page. Absent when
-            there are no more results.
+          description: Pass as the `cursor` query param to fetch the next page. Absent when there are no more results.

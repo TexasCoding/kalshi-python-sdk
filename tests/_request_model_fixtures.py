@@ -6,8 +6,9 @@ the model accepts, so a parametrized phantom-kwarg test can assert
 exported from ``kalshi.models``.
 
 The walker handles primitives, ``Literal``, ``Union``/``Optional``,
-``list[X]``, nested ``BaseModel`` subclasses, and ``UUID``. Anything else
-must be supplied via the per-model override map ``_OVERRIDES`` below.
+``list[X]``, nested ``BaseModel`` subclasses, ``UUID``, and aware datetimes.
+Anything else must be supplied via the per-model override map ``_OVERRIDES``
+below.
 """
 
 from __future__ import annotations
@@ -15,10 +16,11 @@ from __future__ import annotations
 import types
 import typing
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal, Union, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel
 
 _PRIMITIVE_DEFAULTS: dict[type, Any] = {
     str: "x",
@@ -28,6 +30,7 @@ _PRIMITIVE_DEFAULTS: dict[type, Any] = {
     Decimal: Decimal("1"),
     uuid.UUID: uuid.UUID(int=0),
     bytes: b"x",
+    AwareDatetime: datetime(2026, 1, 1, tzinfo=UTC),
 }
 
 

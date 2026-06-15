@@ -264,6 +264,29 @@ class SyncResource:
         result: dict[str, Any] = self._load_json(response)
         return result
 
+    def _post_void(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """POST that expects no response body (e.g. a 204, like accept).
+
+        Mirrors the void semantics of :meth:`_put`/:meth:`_delete`: the
+        response is fired and discarded, so a bodyless 204 never reaches the
+        JSON parser. Error statuses still raise via the transport.
+        """
+        self._transport.request(
+            "POST",
+            path,
+            params=params,
+            json=json,
+            headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
+        )
+
     def _put(
         self,
         path: str,
@@ -513,6 +536,24 @@ class AsyncResource:
         )
         result: dict[str, Any] = self._load_json(response)
         return result
+
+    async def _post_void(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`SyncResource._post_void`."""
+        await self._transport.request(
+            "POST",
+            path,
+            params=params,
+            json=json,
+            headers={"Content-Type": "application/json"},
+            extra_headers=extra_headers,
+        )
 
     async def _put(
         self,

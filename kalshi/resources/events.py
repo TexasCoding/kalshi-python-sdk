@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -11,6 +12,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _bool_param,
+    _join_tickers,
     _params,
     _seg,
     _validate_limit,
@@ -24,6 +26,7 @@ def _list_events_params(
     *,
     status: EventStatusLiteral | None,
     series_ticker: str | None,
+    tickers: builtins.list[str] | str | None,
     with_nested_markets: bool | None,
     with_milestones: bool | None,
     min_close_ts: int | None,
@@ -35,6 +38,7 @@ def _list_events_params(
     return _params(
         status=status,
         series_ticker=series_ticker,
+        tickers=_join_tickers(tickers),
         with_nested_markets=_bool_param(with_nested_markets),
         with_milestones=_bool_param(with_milestones),
         min_close_ts=min_close_ts,
@@ -84,6 +88,7 @@ class EventsResource(SyncResource):
         *,
         status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
         min_close_ts: int | None = None,
@@ -95,6 +100,7 @@ class EventsResource(SyncResource):
         params = _list_events_params(
             status=status,
             series_ticker=series_ticker,
+            tickers=tickers,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
             min_close_ts=min_close_ts,
@@ -109,6 +115,7 @@ class EventsResource(SyncResource):
         *,
         status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
         min_close_ts: int | None = None,
@@ -121,6 +128,7 @@ class EventsResource(SyncResource):
         params = _list_events_params(
             status=status,
             series_ticker=series_ticker,
+            tickers=tickers,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
             min_close_ts=min_close_ts,
@@ -264,6 +272,7 @@ class AsyncEventsResource(AsyncResource):
         *,
         status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
         min_close_ts: int | None = None,
@@ -275,6 +284,7 @@ class AsyncEventsResource(AsyncResource):
         params = _list_events_params(
             status=status,
             series_ticker=series_ticker,
+            tickers=tickers,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
             min_close_ts=min_close_ts,
@@ -291,6 +301,7 @@ class AsyncEventsResource(AsyncResource):
         *,
         status: EventStatusLiteral | None = None,
         series_ticker: str | None = None,
+        tickers: builtins.list[str] | str | None = None,
         with_nested_markets: bool | None = None,
         with_milestones: bool | None = None,
         min_close_ts: int | None = None,
@@ -303,6 +314,7 @@ class AsyncEventsResource(AsyncResource):
         params = _list_events_params(
             status=status,
             series_ticker=series_ticker,
+            tickers=tickers,
             with_nested_markets=with_nested_markets,
             with_milestones=with_milestones,
             min_close_ts=min_close_ts,

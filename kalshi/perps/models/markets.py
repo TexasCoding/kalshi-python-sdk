@@ -31,6 +31,20 @@ Spec schema ``MarginMarketStatus`` (``type: string``). Defined here as a
 """
 
 
+class TickerPrice(BaseModel):
+    """Spec ``TickerPrice`` — a reference/mark price point.
+
+    ``price`` is a ``FixedPointDollars`` USD decimal string; ``ts_ms`` is the
+    source timestamp in epoch milliseconds (``int``). Used by the three
+    ``MarginMarket`` mark-price fields below.
+    """
+
+    price: DollarDecimal
+    ts_ms: int
+
+    model_config = {"extra": "allow"}
+
+
 class MarginMarket(BaseModel):
     """Spec ``MarginMarket`` — a margin market with trading stats.
 
@@ -83,6 +97,11 @@ class MarginMarket(BaseModel):
             "open_interest_notional_value_dollars", "open_interest_notional_value"
         ),
     )
+    # Mark-price objects (spec ``$ref: TickerPrice``) — nested {price, ts_ms},
+    # NOT bare price strings; absent from the spec ``required`` list, so optional.
+    settlement_mark_price: TickerPrice | None = None
+    liquidation_mark_price: TickerPrice | None = None
+    reference_price: TickerPrice | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

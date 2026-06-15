@@ -51,6 +51,7 @@ class MarginPosition(BaseModel):
     friendlier :attr:`return_on_equity`.
     """
 
+    subaccount: int
     market_ticker: str
     position: FixedPointCount
     entry_price: DollarDecimal

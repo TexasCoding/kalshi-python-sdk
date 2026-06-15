@@ -2,6 +2,58 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 4.1.0 — 2026-06-14
+
+Spec sync from upstream OpenAPI v3.20.0 → v3.21.0 (plus AsyncAPI/perps). All
+changes are additive — new query params, response fields, and four new
+endpoints. Also closes the nightly spec-drift CI gap (failures now open a
+tracking issue).
+
+### Added
+
+- **`client.communications.block_trade_proposals`** — new sub-resource for the
+  block-trade-proposals API (openapi 3.21.0): `list()` / `list_all()`
+  (`GET /communications/block-trade-proposals`), `create()`
+  (`POST /communications/block-trade-proposals`), and `accept()`
+  (`POST /communications/block-trade-proposals/{id}/accept`). New models
+  `BlockTradeProposal` / `GetBlockTradeProposalsResponse` /
+  `ProposeBlockTradeRequest` / `ProposeBlockTradeResponse` /
+  `AcceptBlockTradeProposalRequest` (exported from `kalshi`).
+- **`AccountResource.volume_progress()`** — `GET /account/api_usage_level/volume_progress`
+  returns trailing-30-day trading-volume progress toward volume-based API usage
+  tiers. New models `AccountVolumeProgress` / `AccountApiUsageLevelVolumeProgress`
+  / `AccountApiUsageLevelVolumeGoal`.
+- **`events.list` / `list_all` gain a `tickers` filter** — comma-separated event
+  tickers (`GET /events?tickers=...`).
+- **`communications` quotes endpoints gain `min_ts` / `max_ts`** — filter quotes
+  by last-updated Unix timestamp on `quotes.list` / `list_all` (and the
+  deprecated `list_quotes` / `list_all_quotes` forwarders).
+- **Perps `MarginMarket` mark-price fields** — `settlement_mark_price`,
+  `liquidation_mark_price`, and `reference_price` (each a nested `TickerPrice`
+  of `{price, ts_ms}`); **`MarginPosition.subaccount`** (the holding subaccount
+  number); and **WS `ErrorPayload.market_tickers`** (multi-market error frames).
+  Note: `MarginPosition.subaccount` is spec-**required**, so code that constructs
+  `MarginPosition` directly (e.g. test mocks) must now include it.
+
+### Changed
+
+- Re-vendored `specs/openapi.yaml` (3.20.0 → 3.21.0), `specs/asyncapi.yaml`,
+  `specs/perps_openapi.yaml`, and `specs/perps_scm_openapi.yaml`.
+- **Upstream narrowed the `Settlement.market_result` enum** — `void` was removed
+  (now `yes` / `no` / `scalar`). No SDK change: `Settlement.market_result` is a
+  plain `str` with `extra="allow"`, so any value still parses; noted here for
+  accuracy.
+- **Nightly spec-drift CI now files a tracking issue on failure.** The scheduled
+  `Spec Drift Detection` run previously failed silently between the weekly
+  `Weekly Spec Sync` runs; it now opens (and dedups) a single `spec-drift` issue
+  so upstream drift is tracked the day it appears.
+
+### Fixed
+
+- Hardened the `TestWsSpecDrift` contract-test fixture (the class-scoped fixture
+  is now a `@staticmethod`) so the strict nightly run reports real WebSocket
+  drift instead of erroring the whole class under `-W error::UserWarning`.
+
 ## 4.0.0 — 2026-06-09
 
 Spec-drift reconciliation against the latest upstream OpenAPI (3.20.0) and AsyncAPI

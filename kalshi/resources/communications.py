@@ -13,6 +13,7 @@ methods remain as ``@deprecated`` forwarders for one release; they emit
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, overload
 
@@ -22,7 +23,9 @@ from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.models.common import Page
 from kalshi.models.communications import (
     RFQ,
+    AcceptBlockTradeProposalRequest,
     AcceptQuoteRequest,
+    BlockTradeProposal,
     CreateQuoteRequest,
     CreateQuoteResponse,
     CreateRFQRequest,
@@ -30,6 +33,8 @@ from kalshi.models.communications import (
     GetCommunicationsIDResponse,
     GetQuoteResponse,
     GetRFQResponse,
+    ProposeBlockTradeRequest,
+    ProposeBlockTradeResponse,
     Quote,
     QuoteStatusLiteral,
     RfqStatusLiteral,
@@ -104,6 +109,8 @@ def _list_quotes_params(
     *,
     cursor: str | None,
     limit: int | None,
+    min_ts: int | None,
+    max_ts: int | None,
     event_ticker: str | None,
     market_ticker: str | None,
     status: QuoteStatusLiteral | None,
@@ -118,6 +125,8 @@ def _list_quotes_params(
     return _params(
         cursor=cursor,
         limit=limit,
+        min_ts=min_ts,
+        max_ts=max_ts,
         event_ticker=event_ticker,
         market_ticker=market_ticker,
         status=status,
@@ -214,6 +223,99 @@ def _build_accept_quote_body(
         if accepted_side is None:
             raise TypeError("accept_quote() requires `accepted_side` (or pass `request=...`)")
         request = AcceptQuoteRequest(accepted_side=accepted_side)
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _list_block_trade_proposals_params(
+    *,
+    cursor: str | None,
+    limit: int | None,
+    market_ticker: str | None,
+    status: str | None,
+) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=100)
+    return _params(
+        cursor=cursor,
+        limit=limit,
+        market_ticker=market_ticker,
+        status=status,
+    )
+
+
+def _build_propose_block_trade_body(
+    request: ProposeBlockTradeRequest | None,
+    *,
+    buyer_user_id: str | None,
+    seller_user_id: str | None,
+    market_ticker: str | None,
+    price_centi_cents: int | None,
+    centicount: int | None,
+    maker_side: Literal["yes", "no"] | None,
+    expiration_ts: Any,
+    buyer_subtrader_id: str | None,
+    buyer_subaccount: int | None,
+    seller_subtrader_id: str | None,
+    seller_subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        buyer_user_id=buyer_user_id,
+        seller_user_id=seller_user_id,
+        market_ticker=market_ticker,
+        price_centi_cents=price_centi_cents,
+        centicount=centicount,
+        maker_side=maker_side,
+        expiration_ts=expiration_ts,
+        buyer_subtrader_id=buyer_subtrader_id,
+        buyer_subaccount=buyer_subaccount,
+        seller_subtrader_id=seller_subtrader_id,
+        seller_subaccount=seller_subaccount,
+    )
+    if request is None:
+        if (
+            buyer_user_id is None
+            or seller_user_id is None
+            or market_ticker is None
+            or price_centi_cents is None
+            or centicount is None
+            or maker_side is None
+            or expiration_ts is None
+        ):
+            raise TypeError(
+                "create() requires `buyer_user_id`, `seller_user_id`, "
+                "`market_ticker`, `price_centi_cents`, `centicount`, "
+                "`maker_side`, and `expiration_ts` (or pass `request=...`)"
+            )
+        request = ProposeBlockTradeRequest(
+            buyer_user_id=buyer_user_id,
+            seller_user_id=seller_user_id,
+            market_ticker=market_ticker,
+            price_centi_cents=price_centi_cents,
+            centicount=centicount,
+            maker_side=maker_side,
+            expiration_ts=expiration_ts,
+            buyer_subtrader_id=buyer_subtrader_id,
+            buyer_subaccount=buyer_subaccount,
+            seller_subtrader_id=seller_subtrader_id,
+            seller_subaccount=seller_subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_accept_block_trade_proposal_body(
+    request: AcceptBlockTradeProposalRequest | None,
+    *,
+    subtrader_id: str | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(request, subtrader_id=subtrader_id, subaccount=subaccount)
+    if request is None:
+        request = AcceptBlockTradeProposalRequest(
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+        )
+    # Empty body is valid (spec requestBody required: false). model_dump yields
+    # {} when nothing is set, which still forces Content-Type: application/json.
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
@@ -374,6 +476,8 @@ class QuotesResource(SyncResource):
         *,
         cursor: str | None = None,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -395,6 +499,8 @@ class QuotesResource(SyncResource):
         params = _list_quotes_params(
             cursor=cursor,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -413,6 +519,8 @@ class QuotesResource(SyncResource):
         self,
         *,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -436,6 +544,8 @@ class QuotesResource(SyncResource):
         params = _list_quotes_params(
             cursor=None,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -553,6 +663,162 @@ class QuotesResource(SyncResource):
         )
 
 
+class BlockTradeProposalsResource(SyncResource):
+    """Sync block-trade-proposals sub-resource.
+
+    ``client.communications.block_trade_proposals`` — backs the
+    ``/communications/block-trade-proposals`` endpoints (openapi 3.21.0).
+    """
+
+    def list(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        market_ticker: str | None = None,
+        status: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[BlockTradeProposal]:
+        self._require_auth()
+        params = _list_block_trade_proposals_params(
+            cursor=cursor,
+            limit=limit,
+            market_ticker=market_ticker,
+            status=status,
+        )
+        return self._list(
+            "/communications/block-trade-proposals",
+            BlockTradeProposal,
+            "block_trade_proposals",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def list_all(
+        self,
+        *,
+        limit: int | None = None,
+        market_ticker: str | None = None,
+        status: str | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[BlockTradeProposal]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _list_block_trade_proposals_params(
+            cursor=None,
+            limit=limit,
+            market_ticker=market_ticker,
+            status=status,
+        )
+        return self._list_all(
+            "/communications/block-trade-proposals",
+            BlockTradeProposal,
+            "block_trade_proposals",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    def create(
+        self,
+        *,
+        request: ProposeBlockTradeRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse: ...
+    @overload
+    def create(
+        self,
+        *,
+        buyer_user_id: str,
+        seller_user_id: str,
+        market_ticker: str,
+        price_centi_cents: int,
+        centicount: int,
+        maker_side: Literal["yes", "no"],
+        expiration_ts: datetime | str,
+        buyer_subtrader_id: str | None = ...,
+        buyer_subaccount: int | None = ...,
+        seller_subtrader_id: str | None = ...,
+        seller_subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse: ...
+    def create(
+        self,
+        *,
+        request: ProposeBlockTradeRequest | None = None,
+        buyer_user_id: str | None = None,
+        seller_user_id: str | None = None,
+        market_ticker: str | None = None,
+        price_centi_cents: int | None = None,
+        centicount: int | None = None,
+        maker_side: Literal["yes", "no"] | None = None,
+        expiration_ts: Any = None,
+        buyer_subtrader_id: str | None = None,
+        buyer_subaccount: int | None = None,
+        seller_subtrader_id: str | None = None,
+        seller_subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse:
+        self._require_auth()
+        body = _build_propose_block_trade_body(
+            request,
+            buyer_user_id=buyer_user_id,
+            seller_user_id=seller_user_id,
+            market_ticker=market_ticker,
+            price_centi_cents=price_centi_cents,
+            centicount=centicount,
+            maker_side=maker_side,
+            expiration_ts=expiration_ts,
+            buyer_subtrader_id=buyer_subtrader_id,
+            buyer_subaccount=buyer_subaccount,
+            seller_subtrader_id=seller_subtrader_id,
+            seller_subaccount=seller_subaccount,
+        )
+        data = self._post(
+            "/communications/block-trade-proposals", json=body, extra_headers=extra_headers
+        )
+        return ProposeBlockTradeResponse.model_validate(data)
+
+    @overload
+    def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        request: AcceptBlockTradeProposalRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        request: AcceptBlockTradeProposalRequest | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        body = _build_accept_block_trade_proposal_body(
+            request, subtrader_id=subtrader_id, subaccount=subaccount
+        )
+        self._post_void(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+
+
 class CommunicationsResource(SyncResource):
     """Sync communications / RFQ API.
 
@@ -571,11 +837,13 @@ class CommunicationsResource(SyncResource):
 
     rfqs: RFQsResource
     quotes: QuotesResource
+    block_trade_proposals: BlockTradeProposalsResource
 
     def __init__(self, transport: SyncTransport) -> None:
         super().__init__(transport)
         self.rfqs = RFQsResource(transport)
         self.quotes = QuotesResource(transport)
+        self.block_trade_proposals = BlockTradeProposalsResource(transport)
 
     def get_id(self, *, extra_headers: dict[str, str] | None = None) -> GetCommunicationsIDResponse:
         self._require_auth()
@@ -683,6 +951,8 @@ class CommunicationsResource(SyncResource):
         *,
         cursor: str | None = None,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -698,6 +968,8 @@ class CommunicationsResource(SyncResource):
         return self.quotes.list(
             cursor=cursor,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -715,6 +987,8 @@ class CommunicationsResource(SyncResource):
         self,
         *,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -730,6 +1004,8 @@ class CommunicationsResource(SyncResource):
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list_all` instead."""
         return self.quotes.list_all(
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -938,6 +1214,8 @@ class AsyncQuotesResource(AsyncResource):
         *,
         cursor: str | None = None,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -959,6 +1237,8 @@ class AsyncQuotesResource(AsyncResource):
         params = _list_quotes_params(
             cursor=cursor,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -977,6 +1257,8 @@ class AsyncQuotesResource(AsyncResource):
         self,
         *,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -1001,6 +1283,8 @@ class AsyncQuotesResource(AsyncResource):
         params = _list_quotes_params(
             cursor=None,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -1122,6 +1406,163 @@ class AsyncQuotesResource(AsyncResource):
         )
 
 
+class AsyncBlockTradeProposalsResource(AsyncResource):
+    """Async block-trade-proposals sub-resource.
+
+    ``client.communications.block_trade_proposals`` — backs the
+    ``/communications/block-trade-proposals`` endpoints (openapi 3.21.0).
+    """
+
+    async def list(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        market_ticker: str | None = None,
+        status: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[BlockTradeProposal]:
+        self._require_auth()
+        params = _list_block_trade_proposals_params(
+            cursor=cursor,
+            limit=limit,
+            market_ticker=market_ticker,
+            status=status,
+        )
+        return await self._list(
+            "/communications/block-trade-proposals",
+            BlockTradeProposal,
+            "block_trade_proposals",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def list_all(
+        self,
+        *,
+        limit: int | None = None,
+        market_ticker: str | None = None,
+        status: str | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[BlockTradeProposal]:
+        """Returns an async iterator — use ``async for``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _list_block_trade_proposals_params(
+            cursor=None,
+            limit=limit,
+            market_ticker=market_ticker,
+            status=status,
+        )
+        return self._list_all(
+            "/communications/block-trade-proposals",
+            BlockTradeProposal,
+            "block_trade_proposals",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    async def create(
+        self,
+        *,
+        request: ProposeBlockTradeRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse: ...
+    @overload
+    async def create(
+        self,
+        *,
+        buyer_user_id: str,
+        seller_user_id: str,
+        market_ticker: str,
+        price_centi_cents: int,
+        centicount: int,
+        maker_side: Literal["yes", "no"],
+        expiration_ts: datetime | str,
+        buyer_subtrader_id: str | None = ...,
+        buyer_subaccount: int | None = ...,
+        seller_subtrader_id: str | None = ...,
+        seller_subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse: ...
+    async def create(
+        self,
+        *,
+        request: ProposeBlockTradeRequest | None = None,
+        buyer_user_id: str | None = None,
+        seller_user_id: str | None = None,
+        market_ticker: str | None = None,
+        price_centi_cents: int | None = None,
+        centicount: int | None = None,
+        maker_side: Literal["yes", "no"] | None = None,
+        expiration_ts: Any = None,
+        buyer_subtrader_id: str | None = None,
+        buyer_subaccount: int | None = None,
+        seller_subtrader_id: str | None = None,
+        seller_subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ProposeBlockTradeResponse:
+        self._require_auth()
+        body = _build_propose_block_trade_body(
+            request,
+            buyer_user_id=buyer_user_id,
+            seller_user_id=seller_user_id,
+            market_ticker=market_ticker,
+            price_centi_cents=price_centi_cents,
+            centicount=centicount,
+            maker_side=maker_side,
+            expiration_ts=expiration_ts,
+            buyer_subtrader_id=buyer_subtrader_id,
+            buyer_subaccount=buyer_subaccount,
+            seller_subtrader_id=seller_subtrader_id,
+            seller_subaccount=seller_subaccount,
+        )
+        data = await self._post(
+            "/communications/block-trade-proposals", json=body, extra_headers=extra_headers
+        )
+        return ProposeBlockTradeResponse.model_validate(data)
+
+    @overload
+    async def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        request: AcceptBlockTradeProposalRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    async def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    async def accept(
+        self,
+        block_trade_proposal_id: str,
+        *,
+        request: AcceptBlockTradeProposalRequest | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        body = _build_accept_block_trade_proposal_body(
+            request, subtrader_id=subtrader_id, subaccount=subaccount
+        )
+        await self._post_void(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+
+
 class AsyncCommunicationsResource(AsyncResource):
     """Async communications / RFQ API.
 
@@ -1139,11 +1580,13 @@ class AsyncCommunicationsResource(AsyncResource):
 
     rfqs: AsyncRFQsResource
     quotes: AsyncQuotesResource
+    block_trade_proposals: AsyncBlockTradeProposalsResource
 
     def __init__(self, transport: AsyncTransport) -> None:
         super().__init__(transport)
         self.rfqs = AsyncRFQsResource(transport)
         self.quotes = AsyncQuotesResource(transport)
+        self.block_trade_proposals = AsyncBlockTradeProposalsResource(transport)
 
     async def get_id(
         self, *, extra_headers: dict[str, str] | None = None
@@ -1255,6 +1698,8 @@ class AsyncCommunicationsResource(AsyncResource):
         *,
         cursor: str | None = None,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -1270,6 +1715,8 @@ class AsyncCommunicationsResource(AsyncResource):
         return await self.quotes.list(
             cursor=cursor,
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,
@@ -1287,6 +1734,8 @@ class AsyncCommunicationsResource(AsyncResource):
         self,
         *,
         limit: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
         event_ticker: str | None = None,
         market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
@@ -1302,6 +1751,8 @@ class AsyncCommunicationsResource(AsyncResource):
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.quotes.list_all` instead."""
         return self.quotes.list_all(
             limit=limit,
+            min_ts=min_ts,
+            max_ts=max_ts,
             event_ticker=event_ticker,
             market_ticker=market_ticker,
             status=status,

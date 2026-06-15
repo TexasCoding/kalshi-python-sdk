@@ -17,6 +17,7 @@ class ErrorPayload(BaseModel):
     msg: str
     market_ticker: str | None = None
     market_id: str | None = None
+    market_tickers: list[str] | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

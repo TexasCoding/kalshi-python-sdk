@@ -857,8 +857,9 @@ class TestWsSpecDrift:
     # corresponding WS_CONTRACT_MAP entry.
     _DEMO_DIVERGENCE_ALLOWLIST: ClassVar[set[tuple[str, str]]] = set()
 
+    @staticmethod
     @pytest.fixture(autouse=True, scope="class")
-    def _load(self, request: pytest.FixtureRequest) -> None:
+    def _load(request: pytest.FixtureRequest) -> None:
         request.cls.spec = _load_asyncapi_spec()
 
     @pytest.mark.parametrize(
@@ -1227,6 +1228,12 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/CreateRFQRequest": ("kalshi.models.communications.CreateRFQRequest"),
     "#/components/schemas/CreateQuoteRequest": ("kalshi.models.communications.CreateQuoteRequest"),
     "#/components/schemas/AcceptQuoteRequest": ("kalshi.models.communications.AcceptQuoteRequest"),
+    "#/components/schemas/ProposeBlockTradeRequest": (
+        "kalshi.models.communications.ProposeBlockTradeRequest"
+    ),
+    "#/components/schemas/AcceptBlockTradeProposalRequest": (
+        "kalshi.models.communications.AcceptBlockTradeProposalRequest"
+    ),
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
     ),

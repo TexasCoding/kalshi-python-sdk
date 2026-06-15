@@ -122,7 +122,7 @@ tests/
 
 ## API Reference
 
-- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.20.0, 99 operations)
+- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.21.0, 104 operations)
 - AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (13 WebSocket channels)
 - Base URL: https://api.elections.kalshi.com/trade-api/v2
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2
@@ -144,7 +144,7 @@ Reference issues from PRs via `Closes #N` so the issue closes on merge.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **kalshi-python-sdk** (13573 symbols, 29721 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **kalshi-python-sdk** (13637 symbols, 29888 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
