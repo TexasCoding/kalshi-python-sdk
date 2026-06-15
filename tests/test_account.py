@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import httpx
 import pytest
 import respx
@@ -265,3 +267,118 @@ class TestAsyncAccountUpgrade:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_account.upgrade()
+
+
+class TestAccountVolumeProgress:
+    @respx.mock
+    def test_returns_progress(self, account: AccountResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/volume_progress",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "volume_progress": [
+                        {
+                            "computed_ts": 1893456000,
+                            "trailing_30d_volume_fp": "12500.00",
+                            "goals": [
+                                {
+                                    "level": "premier",
+                                    "earn_volume_goal_fp": "10000.00",
+                                    "keep_volume_goal_fp": "5000.00",
+                                },
+                                {
+                                    "level": "paragon",
+                                    "earn_volume_goal_fp": "50000.00",
+                                    "keep_volume_goal_fp": "25000.00",
+                                },
+                            ],
+                        }
+                    ]
+                },
+            )
+        )
+        progress = account.volume_progress()
+        assert len(progress.volume_progress) == 1
+        snap = progress.volume_progress[0]
+        assert snap.computed_ts == 1893456000
+        assert snap.trailing_30d_volume == Decimal("12500.00")
+        assert len(snap.goals) == 2
+        assert snap.goals[0].level == "premier"
+        assert snap.goals[0].earn_volume_goal == Decimal("10000.00")
+        assert snap.goals[0].keep_volume_goal == Decimal("5000.00")
+        assert snap.goals[1].level == "paragon"
+
+    @respx.mock
+    def test_returns_empty_progress(self, account: AccountResource) -> None:
+        # Edge case: no snapshots yet (cron hasn't run for this user).
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/volume_progress",
+        ).mock(return_value=httpx.Response(200, json={"volume_progress": []}))
+        progress = account.volume_progress()
+        assert progress.volume_progress == []
+
+    def test_requires_auth(self, unauth_account: AccountResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_account.volume_progress()
+
+    @respx.mock
+    def test_server_rejects_auth(self, account: AccountResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/volume_progress",
+        ).mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
+        with pytest.raises(KalshiAuthError):
+            account.volume_progress()
+
+
+class TestAsyncAccountVolumeProgress:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_progress(
+        self, async_account: AsyncAccountResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/volume_progress",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "volume_progress": [
+                        {
+                            "computed_ts": 1893456000,
+                            "trailing_30d_volume_fp": "0.00",
+                            "goals": [
+                                {
+                                    "level": "premier",
+                                    "earn_volume_goal_fp": "10000.00",
+                                    "keep_volume_goal_fp": "5000.00",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
+        )
+        progress = await async_account.volume_progress()
+        snap = progress.volume_progress[0]
+        assert snap.trailing_30d_volume == Decimal("0.00")
+        assert snap.goals[0].earn_volume_goal == Decimal("10000.00")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_empty_progress(
+        self, async_account: AsyncAccountResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/account/api_usage_level/volume_progress",
+        ).mock(return_value=httpx.Response(200, json={"volume_progress": []}))
+        progress = await async_account.volume_progress()
+        assert progress.volume_progress == []
+
+    @pytest.mark.asyncio
+    async def test_requires_auth(
+        self, unauth_async_account: AsyncAccountResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_account.volume_progress()

@@ -74,6 +74,14 @@ info:
     | 21 | shard_key must be >= 0 and < shard_factor | Invalid shard_key |
 
     | 22 | shard_factor must be <= 100 | shard_factor too large |
+
+    | 26 | Subscription market limit exceeded | Adding markets would exceed the
+    per-subscription market limit |
+
+    | 27 | Too many requests | The subscription exceeded its command rate limit
+    |
+
+    | 28 | Markets not found | Unknown tickers were not subscribed |
   contact:
     name: Kalshi Support
     url: https://kalshi.com
@@ -1377,6 +1385,14 @@ components:
 
         | 25 | Subscription buffer overflow | The subscription's outbound buffer
         was exceeded |
+
+        | 26 | Subscription market limit exceeded | Adding markets would exceed
+        the per-subscription market limit |
+
+        | 27 | Too many requests | The subscription exceeded its command rate
+        limit |
+
+        | 28 | Markets not found | Unknown tickers were not subscribed |
       contentType: application/json
       payload:
         $ref: '#/components/schemas/errorResponsePayload'
@@ -2449,8 +2465,16 @@ components:
 
                 - 25: Subscription buffer overflow - The subscription's outbound
                 buffer was exceeded
+
+                - 26: Subscription market limit exceeded - Adding markets would
+                exceed the per-subscription market limit
+
+                - 27: Too many requests - The subscription exceeded its command
+                rate limit
+
+                - 28: Markets not found - Unknown tickers were not subscribed
               minimum: 1
-              maximum: 25
+              maximum: 28
             msg:
               type: string
               description: Human-readable error message
@@ -2460,6 +2484,11 @@ components:
             market_ticker:
               type: string
               description: Market ticker if error is market-specific (optional)
+            market_tickers:
+              type: array
+              items:
+                type: string
+              description: Market tickers if error is market-specific (optional)
     listSubscriptionsCommandPayload:
       type: object
       required:
@@ -3950,3 +3979,12 @@ x-error-codes:
     - code: 25
       name: Subscription buffer overflow
       description: The subscription's outbound buffer was exceeded
+    - code: 26
+      name: Subscription market limit exceeded
+      description: Adding markets would exceed the per-subscription market limit
+    - code: 27
+      name: Too many requests
+      description: The subscription exceeded its command rate limit
+    - code: 28
+      name: Markets not found
+      description: Unknown tickers were not subscribed

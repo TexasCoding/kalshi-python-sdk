@@ -7,6 +7,11 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+# Least privilege: the test job only needs read. The failure-reporting job
+# below re-grants issues:write at job scope (it opens a tracking issue).
+permissions:
+  contents: read
+
 jobs:
   drift-check:
     runs-on: ubuntu-latest
@@ -39,3 +44,110 @@ jobs:
       - name: Run contract tests (PR — warnings only)
         if: github.event_name != 'schedule'
         run: uv run pytest tests/test_contracts.py -v
+
+  # When the scheduled strict run fails, open (and dedup) a single tracking
+  # issue. `needs` + `if: failure()` scopes this to a failed drift-check; the
+  # extra `github.event_name == 'schedule'` guard keeps it off PR runs (a PR
+  # failure already blocks the merge — no issue needed). Least privilege:
+  # issues:write lives only on this job; drift-check stays read-only. Actions
+  # are pinned to commit SHAs here (not @v6/@v7 tags like drift-check) because
+  # this job holds issues:write AND runs sync_spec.py against untrusted
+  # upstream — same threat model as spec-sync.yml (see its header comment).
+  report-failure:
+    needs: drift-check
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78  # v7.6.0
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      # Re-fetch the same fresh spec drift-check saw, then re-run the strict
+      # suite to capture the failing tail for the issue body. continue-on-error
+      # so this step's (expected) failure doesn't abort the report.
+      - name: Reproduce failure output
+        id: repro
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          uv run python scripts/sync_spec.py || true
+          uv run pytest tests/test_contracts.py -v -W error::UserWarning \
+            > /tmp/drift.log 2>&1 || true
+          # Keep the last 200 lines so the body stays inside GitHub's limits.
+          tail -n 200 /tmp/drift.log > /tmp/drift.tail
+
+      - name: Ensure spec-drift label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create spec-drift \
+            --color 'e4e669' \
+            --description 'Upstream OpenAPI/AsyncAPI spec changed since last sync' \
+            --force \
+            --repo "${GITHUB_REPOSITORY}"
+
+      - name: Open or update nightly drift tracker issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          # Stable marker (NOT a content fingerprint): exactly one open tracker
+          # at a time. Re-runs append a dated comment instead of duplicating.
+          MARKER='nightly-spec-drift-tracker'
+          today=$(date -u '+%Y-%m-%d')
+
+          existing=$(gh issue list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --state open \
+            --label spec-drift \
+            --limit 200 \
+            --json number,body \
+            --jq '[.[] | select(.body | contains("'"${MARKER}"'"))] | first | .number // empty')
+
+          # Body / comment share the captured failing tail. printf (no unquoted
+          # heredoc) so upstream-sourced log text is never shell-expanded.
+          {
+            printf '## Nightly strict contract tests failed\n\n'
+            printf 'The scheduled `Spec Drift Detection` run promoted additive drift to an error.\n'
+            printf 'This means upstream OpenAPI/AsyncAPI changed and the SDK contract suite no longer matches.\n\n'
+            printf '**To resolve:** locally run `uv run python scripts/sync_spec.py` + `uv run python scripts/generate.py`, reconcile models/maps, and open a PR with `Closes #<this issue>`.\n\n'
+            printf -- '- Failing run: %s\n\n' "${RUN_URL}"
+            printf '### Failing test output (last 200 lines)\n\n```\n'
+            cat /tmp/drift.tail
+            printf '\n```\n'
+          } > /tmp/body.md
+
+          if [ -n "${existing}" ]; then
+            {
+              printf 'Still failing as of **%s** ([run](%s)).\n\n' "${today}" "${RUN_URL}"
+              printf '### Latest failing output (last 200 lines)\n\n```\n'
+              cat /tmp/drift.tail
+              printf '\n```\n'
+            } > /tmp/comment.md
+            echo "Tracker already open as #${existing}; appending dated comment."
+            gh issue comment "${existing}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --body-file /tmp/comment.md
+            exit 0
+          fi
+
+          # Hidden marker so the dedup query above matches future runs.
+          printf '\n<!-- spec-drift-bot: do not edit\n%s\n-->\n' "${MARKER}" >> /tmp/body.md
+
+          gh issue create \
+            --repo "${GITHUB_REPOSITORY}" \
+            --label spec-drift \
+            --title "Nightly spec-drift: strict contract tests failing (since ${today})" \
+            --body-file /tmp/body.md

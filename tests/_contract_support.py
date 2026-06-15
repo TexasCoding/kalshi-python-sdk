@@ -163,6 +163,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/account/endpoint_costs",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.account.AccountResource.volume_progress",
+        http_method="GET",
+        path_template="/account/api_usage_level/volume_progress",
+    ),
+    MethodEndpointEntry(
         # Spec defines no requestBody for this POST, so there is no
         # request_body_schema to drift-check (same as subaccounts.create).
         sdk_method="kalshi.resources.account.AccountResource.upgrade",
@@ -626,6 +631,29 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.communications.QuotesResource.confirm",
         http_method="PUT",
         path_template="/communications/quotes/{quote_id}/confirm",
+    ),
+    # block trade proposals (openapi 3.21.0)
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.list",
+        http_method="GET",
+        path_template="/communications/block-trade-proposals",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.list_all",
+        http_method="GET",
+        path_template="/communications/block-trade-proposals",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.create",
+        http_method="POST",
+        path_template="/communications/block-trade-proposals",
+        request_body_schema="#/components/schemas/ProposeBlockTradeRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.accept",
+        http_method="POST",
+        path_template="/communications/block-trade-proposals/{block_trade_proposal_id}/accept",
+        request_body_schema="#/components/schemas/AcceptBlockTradeProposalRequest",
     ),
     # ── subaccounts ─────────────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -1105,6 +1133,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    (
+        "kalshi.resources.communications.BlockTradeProposalsResource.list_all",
+        "cursor",
+    ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.markets.MarketsResource.list_all_trades", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1297,6 +1332,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.markets.MarketsResource.list_all_trades",
     "kalshi.resources.communications.RFQsResource.list_all",
     "kalshi.resources.communications.QuotesResource.list_all",
+    "kalshi.resources.communications.BlockTradeProposalsResource.list_all",
     "kalshi.resources.milestones.MilestonesResource.list_all",
     "kalshi.resources.events.EventsResource.list_all",
     "kalshi.resources.events.EventsResource.list_all_multivariate",
@@ -1326,6 +1362,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.markets.AsyncMarketsResource.list_all_trades",
     "kalshi.resources.communications.AsyncRFQsResource.list_all",
     "kalshi.resources.communications.AsyncQuotesResource.list_all",
+    "kalshi.resources.communications.AsyncBlockTradeProposalsResource.list_all",
     "kalshi.resources.milestones.AsyncMilestonesResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all_multivariate",

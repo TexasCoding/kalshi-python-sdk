@@ -227,6 +227,28 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="exchange_instance/level/source required; expires_ts nullable (None = permanent).",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.account.AccountVolumeProgress",
+        spec_schema="GetAccountApiUsageLevelVolumeProgressResponse",
+        notes="Wrapper: volume_progress list of cron-computed snapshots.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.account.AccountApiUsageLevelVolumeProgress",
+        spec_schema="AccountApiUsageLevelVolumeProgress",
+        notes=(
+            "computed_ts/trailing_30d_volume/goals all required. "
+            "trailing_30d_volume uses the trailing_30d_volume_fp alias "
+            "(FixedPointCount)."
+        ),
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.account.AccountApiUsageLevelVolumeGoal",
+        spec_schema="AccountApiUsageLevelVolumeGoal",
+        notes=(
+            "level/earn_volume_goal/keep_volume_goal all required; the two "
+            "goal fields use *_fp FixedPointCount aliases."
+        ),
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.structured_targets.StructuredTarget",
         spec_schema="StructuredTarget",
         notes="All fields optional per spec; details is dict[str, Any]",

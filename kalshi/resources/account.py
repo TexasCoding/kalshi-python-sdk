@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from kalshi.models.account import AccountApiLimits, AccountEndpointCosts
+from kalshi.models.account import (
+    AccountApiLimits,
+    AccountEndpointCosts,
+    AccountVolumeProgress,
+)
 from kalshi.resources._base import AsyncResource, SyncResource
 
 
@@ -21,6 +25,21 @@ class AccountResource(SyncResource):
         self._require_auth()
         data = self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)
+
+    def volume_progress(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> AccountVolumeProgress:
+        """Latest cron-computed trading-volume progress toward API usage tiers.
+
+        GET ``/account/api_usage_level/volume_progress``. Returns the
+        authenticated user's trailing-30-day fixed-point contract volume and the
+        per-level earn/keep goals for the predictions (``event_contract``) lane.
+        """
+        self._require_auth()
+        data = self._get(
+            "/account/api_usage_level/volume_progress", extra_headers=extra_headers
+        )
+        return AccountVolumeProgress.model_validate(data)
 
     def upgrade(self, *, extra_headers: dict[str, str] | None = None) -> None:
         """Request a permanent Advanced API usage-level grant.
@@ -51,6 +70,21 @@ class AsyncAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/account/endpoint_costs", extra_headers=extra_headers)
         return AccountEndpointCosts.model_validate(data)
+
+    async def volume_progress(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> AccountVolumeProgress:
+        """Latest cron-computed trading-volume progress toward API usage tiers.
+
+        GET ``/account/api_usage_level/volume_progress``. Returns the
+        authenticated user's trailing-30-day fixed-point contract volume and the
+        per-level earn/keep goals for the predictions (``event_contract``) lane.
+        """
+        self._require_auth()
+        data = await self._get(
+            "/account/api_usage_level/volume_progress", extra_headers=extra_headers
+        )
+        return AccountVolumeProgress.model_validate(data)
 
     async def upgrade(self, *, extra_headers: dict[str, str] | None = None) -> None:
         """Request a permanent Advanced API usage-level grant.

@@ -225,3 +225,95 @@ class AcceptQuoteRequest(BaseModel):
     accepted_side: Literal["yes", "no"]
 
     model_config = {"extra": "forbid"}
+
+
+# ── Block trade proposals (openapi 3.21.0) ─────────────────────────────────
+
+
+class BlockTradeProposal(BaseModel):
+    """A block trade proposal — bilateral negotiated trade awaiting both sides.
+
+    ``price_centi_cents`` and ``centicount`` are plain integers in the spec
+    (centi-cents and centicounts respectively), NOT FixedPointDollars/_fp
+    fixed-point wire fields, so they are not ``DollarDecimal``/``FixedPointCount``.
+    """
+
+    id: str
+    proposer_user_id: str
+    buyer_user_id: str
+    seller_user_id: str
+    market_ticker: str
+    price_centi_cents: int
+    centicount: int
+    maker_side: Literal["yes", "no"]
+    expiration_ts: AwareDatetime
+    status: str
+    created_ts: AwareDatetime
+    updated_ts: AwareDatetime
+    buyer_accepted: bool
+    seller_accepted: bool
+    # Optional fields.
+    buyer_subtrader_id: str | None = None
+    seller_subtrader_id: str | None = None
+    buyer_accepted_ts: AwareDatetime | None = None
+    seller_accepted_ts: AwareDatetime | None = None
+    executed_ts: AwareDatetime | None = None
+    buyer_order_id: str | None = None
+    seller_order_id: str | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class GetBlockTradeProposalsResponse(BaseModel):
+    """Paginated list of block trade proposals."""
+
+    block_trade_proposals: list[BlockTradeProposal]
+    cursor: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class ProposeBlockTradeRequest(BaseModel):
+    """Body for POST /communications/block-trade-proposals.
+
+    ``price_centi_cents`` (centi-cents) and ``centicount`` (centicounts) are
+    plain integers per spec, both ``minimum: 1``. ``buyer_subtrader_id`` /
+    ``buyer_subaccount`` are mutually exclusive (same for the seller pair), but
+    the spec does not encode the exclusivity, so the SDK does not enforce it.
+    """
+
+    buyer_user_id: str
+    seller_user_id: str
+    market_ticker: str
+    price_centi_cents: StrictInt = Field(ge=1)
+    centicount: StrictInt = Field(ge=1)
+    maker_side: Literal["yes", "no"]
+    expiration_ts: AwareDatetime
+    buyer_subtrader_id: str | None = None
+    buyer_subaccount: StrictInt | None = Field(default=None, ge=0, le=63)
+    seller_subtrader_id: str | None = None
+    seller_subaccount: StrictInt | None = Field(default=None, ge=0, le=63)
+
+    model_config = {"extra": "forbid"}
+
+
+class ProposeBlockTradeResponse(BaseModel):
+    """Wraps the newly-created block trade proposal's id."""
+
+    block_trade_proposal_id: str
+
+    model_config = {"extra": "allow"}
+
+
+class AcceptBlockTradeProposalRequest(BaseModel):
+    """Body for POST /communications/block-trade-proposals/{id}/accept.
+
+    Both fields are optional (spec requestBody ``required: false``); accept as
+    primary by sending an empty body. ``subtrader_id`` / ``subaccount`` are
+    mutually exclusive but the spec does not encode it, so it is not enforced.
+    """
+
+    subtrader_id: str | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0, le=63)
+
+    model_config = {"extra": "forbid"}

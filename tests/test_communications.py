@@ -18,18 +18,23 @@ from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
     KalshiNotFoundError,
+    KalshiServerError,
     KalshiValidationError,
 )
 from kalshi.models.communications import (
     RFQ,
+    AcceptBlockTradeProposalRequest,
     AcceptQuoteRequest,
+    BlockTradeProposal,
     CreateQuoteRequest,
     CreateQuoteResponse,
     CreateRFQRequest,
     CreateRFQResponse,
+    GetBlockTradeProposalsResponse,
     GetCommunicationsIDResponse,
     GetQuoteResponse,
     GetRFQResponse,
+    ProposeBlockTradeRequest,
     Quote,
 )
 from kalshi.resources.communications import (
@@ -1199,3 +1204,323 @@ class TestV3DeprecationAliases:
 
         with pytest.warns(DeprecationWarning, match=r"quotes\.confirm"):
             await async_comms.confirm_quote("q-1")
+
+
+# ── block trade proposals (openapi 3.21.0) ─────────────────────────────────
+
+
+_MINIMAL_BTP = {
+    "id": "btp-1",
+    "proposer_user_id": "u-prop",
+    "buyer_user_id": "u-buy",
+    "seller_user_id": "u-sell",
+    "market_ticker": "MKT-1",
+    "price_centi_cents": 5600,
+    "centicount": 10000,
+    "maker_side": "yes",
+    "expiration_ts": "2026-04-18T13:00:00Z",
+    "status": "open",
+    "created_ts": "2026-04-18T12:00:00Z",
+    "updated_ts": "2026-04-18T12:00:00Z",
+    "buyer_accepted": False,
+    "seller_accepted": False,
+}
+
+
+class TestBlockTradeProposalModels:
+    def test_block_trade_proposal_parses(self) -> None:
+        btp = BlockTradeProposal.model_validate(_MINIMAL_BTP)
+        assert btp.id == "btp-1"
+        assert btp.price_centi_cents == 5600
+        assert btp.centicount == 10000
+        assert btp.maker_side == "yes"
+        assert btp.buyer_accepted is False
+
+    def test_get_block_trade_proposals_response_wraps_list(self) -> None:
+        resp = GetBlockTradeProposalsResponse.model_validate(
+            {"block_trade_proposals": [_MINIMAL_BTP], "cursor": "next"}
+        )
+        assert len(resp.block_trade_proposals) == 1
+        assert resp.cursor == "next"
+
+    def test_propose_block_trade_request_serializes(self) -> None:
+        req = ProposeBlockTradeRequest(
+            buyer_user_id="u-buy",
+            seller_user_id="u-sell",
+            market_ticker="MKT-1",
+            price_centi_cents=5600,
+            centicount=10000,
+            maker_side="yes",
+            expiration_ts="2026-04-18T13:00:00Z",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["price_centi_cents"] == 5600
+        assert body["centicount"] == 10000
+        assert "buyer_subtrader_id" not in body  # exclude_none drops it
+
+    def test_propose_block_trade_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            ProposeBlockTradeRequest(
+                buyer_user_id="u-buy",
+                seller_user_id="u-sell",
+                market_ticker="MKT-1",
+                price_centi_cents=5600,
+                centicount=10000,
+                maker_side="yes",
+                expiration_ts="2026-04-18T13:00:00Z",
+                bogus="x",  # type: ignore[call-arg]
+            )
+
+    def test_propose_block_trade_request_rejects_zero_price(self) -> None:
+        with pytest.raises(ValidationError):
+            ProposeBlockTradeRequest(
+                buyer_user_id="u-buy",
+                seller_user_id="u-sell",
+                market_ticker="MKT-1",
+                price_centi_cents=0,
+                centicount=10000,
+                maker_side="yes",
+                expiration_ts="2026-04-18T13:00:00Z",
+            )
+
+    def test_accept_block_trade_proposal_request_allows_empty(self) -> None:
+        req = AcceptBlockTradeProposalRequest()
+        assert req.model_dump(exclude_none=True, by_alias=True, mode="json") == {}
+
+    def test_accept_block_trade_proposal_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            AcceptBlockTradeProposalRequest(bogus="x")  # type: ignore[call-arg]
+
+
+_BTP_URL = "https://test.kalshi.com/trade-api/v2/communications/block-trade-proposals"
+
+
+class TestListBlockTradeProposals:
+    @respx.mock
+    def test_returns_paged_proposals(self, comms: CommunicationsResource) -> None:
+        respx.get(_BTP_URL).mock(
+            return_value=httpx.Response(200, json={"block_trade_proposals": [_MINIMAL_BTP]})
+        )
+        page = comms.block_trade_proposals.list()
+        assert len(page.items) == 1
+        assert isinstance(page.items[0], BlockTradeProposal)
+        assert page.items[0].id == "btp-1"
+
+    @respx.mock
+    def test_passes_filter_params(self, comms: CommunicationsResource) -> None:
+        route = respx.get(_BTP_URL).mock(
+            return_value=httpx.Response(200, json={"block_trade_proposals": []})
+        )
+        comms.block_trade_proposals.list(market_ticker="MKT-1", status="open", limit=50)
+        req = route.calls[0].request
+        assert req.url.params["market_ticker"] == "MKT-1"
+        assert req.url.params["status"] == "open"
+        assert req.url.params["limit"] == "50"
+
+    @respx.mock
+    def test_list_all_auto_paginates(self, comms: CommunicationsResource) -> None:
+        respx.get(_BTP_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"block_trade_proposals": [_MINIMAL_BTP], "cursor": "page2"}
+                ),
+                httpx.Response(
+                    200, json={"block_trade_proposals": [{**_MINIMAL_BTP, "id": "btp-2"}]}
+                ),
+            ]
+        )
+        ids = [p.id for p in comms.block_trade_proposals.list_all()]
+        assert ids == ["btp-1", "btp-2"]
+
+    @respx.mock
+    def test_500_raises(self, comms: CommunicationsResource) -> None:
+        respx.get(_BTP_URL).mock(return_value=httpx.Response(500, json={"message": "boom"}))
+        with pytest.raises(KalshiServerError):
+            comms.block_trade_proposals.list()
+
+
+class TestProposeBlockTrade:
+    @respx.mock
+    def test_sends_correct_body(self, comms: CommunicationsResource) -> None:
+        route = respx.post(_BTP_URL).mock(
+            return_value=httpx.Response(201, json={"block_trade_proposal_id": "btp-new"})
+        )
+        resp = comms.block_trade_proposals.create(
+            buyer_user_id="u-buy",
+            seller_user_id="u-sell",
+            market_ticker="MKT-1",
+            price_centi_cents=5600,
+            centicount=10000,
+            maker_side="yes",
+            expiration_ts="2026-04-18T13:00:00Z",
+        )
+        assert resp.block_trade_proposal_id == "btp-new"
+        body = json.loads(route.calls[0].request.content)
+        assert body == {
+            "buyer_user_id": "u-buy",
+            "seller_user_id": "u-sell",
+            "market_ticker": "MKT-1",
+            "price_centi_cents": 5600,
+            "centicount": 10000,
+            "maker_side": "yes",
+            "expiration_ts": "2026-04-18T13:00:00Z",
+        }
+
+    @respx.mock
+    def test_accepts_request_model(self, comms: CommunicationsResource) -> None:
+        route = respx.post(_BTP_URL).mock(
+            return_value=httpx.Response(201, json={"block_trade_proposal_id": "btp-r"})
+        )
+        req = ProposeBlockTradeRequest(
+            buyer_user_id="u-buy",
+            seller_user_id="u-sell",
+            market_ticker="MKT-1",
+            price_centi_cents=4400,
+            centicount=5000,
+            maker_side="no",
+            expiration_ts="2026-04-18T13:00:00Z",
+            buyer_subaccount=3,
+        )
+        resp = comms.block_trade_proposals.create(request=req)
+        assert resp.block_trade_proposal_id == "btp-r"
+        body = json.loads(route.calls[0].request.content)
+        assert body["buyer_subaccount"] == 3
+        assert body["maker_side"] == "no"
+
+    def test_create_rejects_request_with_kwargs(self, comms: CommunicationsResource) -> None:
+        req = ProposeBlockTradeRequest(
+            buyer_user_id="u-buy",
+            seller_user_id="u-sell",
+            market_ticker="MKT-1",
+            price_centi_cents=5600,
+            centicount=10000,
+            maker_side="yes",
+            expiration_ts="2026-04-18T13:00:00Z",
+        )
+        with pytest.raises(TypeError):
+            comms.block_trade_proposals.create(request=req, buyer_user_id="x")
+
+    @respx.mock
+    def test_400_maps_to_validation_error(self, comms: CommunicationsResource) -> None:
+        respx.post(_BTP_URL).mock(return_value=httpx.Response(400, json={"message": "bad"}))
+        with pytest.raises(KalshiValidationError):
+            comms.block_trade_proposals.create(
+                buyer_user_id="u-buy",
+                seller_user_id="u-sell",
+                market_ticker="MKT-1",
+                price_centi_cents=5600,
+                centicount=10000,
+                maker_side="yes",
+                expiration_ts="2026-04-18T13:00:00Z",
+            )
+
+
+class TestAcceptBlockTradeProposal:
+    @respx.mock
+    def test_sends_post_with_empty_body(self, comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(
+            return_value=httpx.Response(204)
+        )
+        comms.block_trade_proposals.accept("btp-1")
+        assert route.called
+        # empty AcceptBlockTradeProposalRequest serializes to {}
+        assert route.calls[0].request.content == b"{}"
+
+    @respx.mock
+    def test_sends_post_with_subaccount(self, comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(
+            return_value=httpx.Response(204)
+        )
+        comms.block_trade_proposals.accept("btp-1", subaccount=2)
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"subaccount": 2}
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.post(f"{_BTP_URL}/gone/accept").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.block_trade_proposals.accept("gone")
+
+
+class TestAsyncBlockTradeProposals:
+    async def test_list(
+        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(_BTP_URL).mock(
+            return_value=httpx.Response(200, json={"block_trade_proposals": [_MINIMAL_BTP]})
+        )
+        page = await async_comms.block_trade_proposals.list()
+        assert len(page.items) == 1
+        assert isinstance(page.items[0], BlockTradeProposal)
+
+    async def test_list_all(
+        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(_BTP_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"block_trade_proposals": [_MINIMAL_BTP], "cursor": "page2"}
+                ),
+                httpx.Response(
+                    200, json={"block_trade_proposals": [{**_MINIMAL_BTP, "id": "btp-2"}]}
+                ),
+            ]
+        )
+        ids = [p.id async for p in async_comms.block_trade_proposals.list_all()]
+        assert ids == ["btp-1", "btp-2"]
+
+    async def test_create(
+        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(_BTP_URL).mock(
+            return_value=httpx.Response(201, json={"block_trade_proposal_id": "btp-9"})
+        )
+        resp = await async_comms.block_trade_proposals.create(
+            buyer_user_id="u-buy",
+            seller_user_id="u-sell",
+            market_ticker="MKT-1",
+            price_centi_cents=5600,
+            centicount=10000,
+            maker_side="yes",
+            expiration_ts="2026-04-18T13:00:00Z",
+        )
+        assert resp.block_trade_proposal_id == "btp-9"
+        assert route.called
+
+    async def test_accept(
+        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(f"{_BTP_URL}/btp-1/accept").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.block_trade_proposals.accept("btp-1", subtrader_id="st-1")
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"subtrader_id": "st-1"}
+
+
+class TestBlockTradeProposalsAuthGuard:
+    def test_list_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.block_trade_proposals.list()
+
+    def test_list_all_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_comms.block_trade_proposals.list_all())
+
+    def test_create_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.block_trade_proposals.create(
+                buyer_user_id="u-buy",
+                seller_user_id="u-sell",
+                market_ticker="MKT-1",
+                price_centi_cents=5600,
+                centicount=10000,
+                maker_side="yes",
+                expiration_ts="2026-04-18T13:00:00Z",
+            )
+
+    def test_accept_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.block_trade_proposals.accept("btp-1")
