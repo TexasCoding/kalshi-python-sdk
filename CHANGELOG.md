@@ -37,6 +37,10 @@ tracking issue).
 
 - Re-vendored `specs/openapi.yaml` (3.20.0 → 3.21.0), `specs/asyncapi.yaml`,
   `specs/perps_openapi.yaml`, and `specs/perps_scm_openapi.yaml`.
+- **Upstream narrowed the `Settlement.market_result` enum** — `void` was removed
+  (now `yes` / `no` / `scalar`). No SDK change: `Settlement.market_result` is a
+  plain `str` with `extra="allow"`, so any value still parses; noted here for
+  accuracy.
 - **Nightly spec-drift CI now files a tracking issue on failure.** The scheduled
   `Spec Drift Detection` run previously failed silently between the weekly
   `Weekly Spec Sync` runs; it now opens (and dedups) a single `spec-drift` issue

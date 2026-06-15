@@ -42,7 +42,7 @@ class TickerPrice(BaseModel):
     price: DollarDecimal
     ts_ms: int
 
-    model_config = {"extra": "allow", "populate_by_name": True}
+    model_config = {"extra": "allow"}
 
 
 class MarginMarket(BaseModel):

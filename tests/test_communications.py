@@ -1283,6 +1283,17 @@ class TestBlockTradeProposalModels:
                 expiration_ts="2026-04-18T13:00:00Z",
             )
 
+    def test_propose_block_trade_request_requires_market_ticker(self) -> None:
+        with pytest.raises(ValidationError):
+            ProposeBlockTradeRequest(  # type: ignore[call-arg]  # market_ticker omitted
+                buyer_user_id="u-buy",
+                seller_user_id="u-sell",
+                price_centi_cents=5600,
+                centicount=10000,
+                maker_side="yes",
+                expiration_ts="2026-04-18T13:00:00Z",
+            )
+
     def test_accept_block_trade_proposal_request_allows_empty(self) -> None:
         req = AcceptBlockTradeProposalRequest()
         assert req.model_dump(exclude_none=True, by_alias=True, mode="json") == {}

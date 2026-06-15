@@ -261,7 +261,7 @@ class BlockTradeProposal(BaseModel):
     buyer_order_id: str | None = None
     seller_order_id: str | None = None
 
-    model_config = {"extra": "allow", "populate_by_name": True}
+    model_config = {"extra": "allow"}
 
 
 class GetBlockTradeProposalsResponse(BaseModel):
