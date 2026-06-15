@@ -89,6 +89,16 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
   record). `MarginMarket.leverage_estimates` maps notional position sizes
   (`"1000"`, `"10000"`, …) to `MultiplierDecimal` leverage, or `None` when margin
   config / price data is unavailable.
+- **Mark prices** (since the v3.21.0 spec sync) — `MarginMarket` carries three
+  optional reference-price objects: `settlement_mark_price`,
+  `liquidation_mark_price`, and `reference_price`, each a nested `TickerPrice`
+  (`TickerPrice | None`). `TickerPrice` is a new model with `price`
+  (`DollarDecimal`, a `FixedPointDollars` USD string) and `ts_ms` (the source
+  timestamp in epoch **milliseconds**, `int`). All three are absent from the spec
+  `required` list, so they are `None` when the upstream price is unavailable.
+- **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
+  `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
+  identifying which subaccount holds the position.
 
 ## Funding mechanics
 

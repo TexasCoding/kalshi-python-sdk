@@ -27,8 +27,11 @@ Auth required throughout.
 | `quotes.get(quote_id)` | `GET /communications/quotes/{quote_id}` |
 | `quotes.create(...)` | `POST /communications/quotes` |
 | `quotes.delete(quote_id)` | `DELETE /communications/quotes/{quote_id}` |
-| `quotes.accept(quote_id, *, accepted_side)` | `POST /communications/quotes/{quote_id}/accept` |
-| `quotes.confirm(quote_id)` | `POST /communications/quotes/{quote_id}/confirm` |
+| `quotes.accept(quote_id, *, accepted_side)` | `PUT /communications/quotes/{quote_id}/accept` |
+| `quotes.confirm(quote_id)` | `PUT /communications/quotes/{quote_id}/confirm` |
+| `block_trade_proposals.list(...)` / `block_trade_proposals.list_all(...)` | `GET /communications/block-trade-proposals` |
+| `block_trade_proposals.create(...)` | `POST /communications/block-trade-proposals` |
+| `block_trade_proposals.accept(block_trade_proposal_id, *, subtrader_id=None, subaccount=None)` | `POST /communications/block-trade-proposals/{id}/accept` |
 
 `get_id()` returns your `participant_id` — the value you'll pass as
 `quote_creator_user_id` / `rfq_creator_user_id` when filtering lists. It stays
@@ -114,6 +117,26 @@ for rfq in client.communications.rfqs.list_all(user_filter="self"):
 server-side shorthands like `"organization"` in the future without an SDK
 upgrade.
 
+## Filtering quotes by time (v4.1.0)
+
+`quotes.list()` / `quotes.list_all()` accept `min_ts` and `max_ts` (Unix
+seconds, `int`) to bound results by the quote's last-updated timestamp. They
+compose with the required user-id filter:
+
+```python
+import time
+
+# Quotes you made that were updated in the last hour.
+for q in client.communications.quotes.list_all(
+    user_filter="self",
+    min_ts=int(time.time()) - 3600,
+):
+    print(q.quote_id, q.updated_ts)
+```
+
+`min_ts` / `max_ts` are also accepted by the deprecated `list_quotes` /
+`list_all_quotes` forwarders.
+
 ## Post-only quotes
 
 `quotes.create()` accepts `post_only=True` (added in v2.1.0) to ensure your
@@ -148,6 +171,44 @@ client.communications.quotes.create(
 `open`, `accepted`, `confirmed`, `canceled`. Status filtering accepts these
 literal strings.
 
+## Block trade proposals (v4.1.0)
+
+`client.communications.block_trade_proposals` backs the
+`/communications/block-trade-proposals` API (OpenAPI 3.21.0) — a bilateral
+negotiated trade that both the buyer and seller must accept before it settles.
+
+```python
+# Propose a block trade. The proposer names both sides explicitly.
+resp = client.communications.block_trade_proposals.create(
+    buyer_user_id="user_abc",
+    seller_user_id="user_xyz",
+    market_ticker="KXPRES-24-DJT",
+    price_centi_cents=5600,     # plain int, centi-cents (NOT a _dollars price)
+    centicount=50_000,          # plain int, centicounts (NOT a _fp count)
+    maker_side="yes",
+    expiration_ts="2026-07-01T00:00:00Z",
+)
+proposal_id = resp.block_trade_proposal_id
+
+# List open proposals on a market.
+for proposal in client.communications.block_trade_proposals.list_all(
+    market_ticker="KXPRES-24-DJT", status="open"
+):
+    print(proposal.id, proposal.buyer_accepted, proposal.seller_accepted)
+
+# Accept (the counterparty side). The body is optional — pass subtrader_id
+# or subaccount only if you trade through a sub-trader / subaccount.
+client.communications.block_trade_proposals.accept(proposal_id)
+```
+
+!!! info "Prices are centi-cents, counts are centicounts — plain integers"
+    Unlike the rest of the SDK, `BlockTradeProposal.price_centi_cents` and
+    `.centicount` (and the matching `create()` kwargs) are **plain `int`s** in
+    centi-cents and centicounts respectively — they are *not*
+    `FixedPointDollars` / `_fp` wire fields, so no `Decimal` conversion or
+    `_dollars` / `_fp` aliasing applies. `price_centi_cents` and `centicount`
+    must each be `>= 1`.
+
 ## Migrating from v2.x
 
 | v2.x (deprecated) | v3.0.0 (canonical) |
@@ -181,6 +242,10 @@ literal strings.
     options:
       heading_level: 3
 
+::: kalshi.resources.communications.BlockTradeProposalsResource
+    options:
+      heading_level: 3
+
 ::: kalshi.resources.communications.AsyncCommunicationsResource
     options:
       heading_level: 3
@@ -190,5 +255,9 @@ literal strings.
       heading_level: 3
 
 ::: kalshi.resources.communications.AsyncQuotesResource
+    options:
+      heading_level: 3
+
+::: kalshi.resources.communications.AsyncBlockTradeProposalsResource
     options:
       heading_level: 3

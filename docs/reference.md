@@ -56,6 +56,10 @@ every exception class.
 
 ::: kalshi.models.communications.AcceptQuoteRequest
 
+::: kalshi.models.communications.ProposeBlockTradeRequest
+
+::: kalshi.models.communications.AcceptBlockTradeProposalRequest
+
 ::: kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest
 
 ::: kalshi.models.multivariate.LookupTickersForMarketInMultivariateEventCollectionRequest
