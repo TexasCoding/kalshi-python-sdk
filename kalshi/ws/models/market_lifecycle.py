@@ -41,6 +41,13 @@ class MarketLifecyclePayload(BaseModel):
     # price_level_structure for `price_level_structure_updated` (or `created`).
     additional_metadata: dict[str, Any] | None = None
     floor_strike: DollarDecimal | None = None
+    # metadata_updated only (added to the live asyncapi spec post-#449).
+    # strike_type decides how floor_strike/cap_strike are read ("between" uses
+    # both, "greater" floor only, "less" cap only); custom_strike carries
+    # structured strikes. All optional — present only on metadata_updated.
+    strike_type: str | None = None
+    cap_strike: DollarDecimal | None = None
+    custom_strike: dict[str, Any] | None = None
     price_level_structure: str | None = None
     yes_sub_title: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}

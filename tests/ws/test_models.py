@@ -1548,6 +1548,42 @@ class TestMarketLifecycleFloorStrikeDecimal:
             MarketLifecycleMessage.model_validate(raw)
 
 
+class TestMarketLifecycleStrikeFields:
+    """#451 spec drift: ``metadata_updated`` lifecycle payloads gained
+    ``strike_type`` / ``cap_strike`` / ``custom_strike`` (all optional)."""
+
+    def test_parses_between_strike(self) -> None:
+        """The asyncapi 'between' example: strike_type + floor + cap together."""
+        raw = {
+            "type": "market_lifecycle_v2",
+            "sid": 1,
+            "msg": {
+                "event_type": "metadata_updated",
+                "market_ticker": "T",
+                "strike_type": "between",
+                "floor_strike": 95000,
+                "cap_strike": 95250.5,
+                "custom_strike": {"team": "A"},
+            },
+        }
+        msg = MarketLifecycleMessage.model_validate(raw)
+        assert msg.msg.strike_type == "between"
+        assert isinstance(msg.msg.cap_strike, Decimal)
+        assert msg.msg.cap_strike == Decimal("95250.5")
+        assert msg.msg.custom_strike == {"team": "A"}
+
+    def test_strike_fields_default_to_none(self) -> None:
+        raw = {
+            "type": "market_lifecycle_v2",
+            "sid": 1,
+            "msg": {"event_type": "created", "market_ticker": "T"},
+        }
+        msg = MarketLifecycleMessage.model_validate(raw)
+        assert msg.msg.strike_type is None
+        assert msg.msg.cap_strike is None
+        assert msg.msg.custom_strike is None
+
+
 class TestWsPayloadsRejectNaiveDatetime:
     """#270 Item 1: WS payloads with datetime fields must reject naive RFC3339 strings.
 

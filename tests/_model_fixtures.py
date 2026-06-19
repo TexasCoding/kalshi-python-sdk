@@ -147,6 +147,7 @@ def event_dict(**overrides: Any) -> dict[str, Any]:
         "collateral_return_type": "self_collateralized",
         "available_on_brokers": False,
         "product_metadata": {},
+        "settlement_sources": [],
     }
     base.update(overrides)
     return base

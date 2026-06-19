@@ -81,7 +81,22 @@ info:
     | 27 | Too many requests | The subscription exceeded its command rate limit
     |
 
-    | 28 | Markets not found | Unknown tickers were not subscribed |
+
+    ## Terminal Errors
+
+
+    The following channel errors are terminal and the user must resubscribe.
+
+
+    | Code | Error |
+
+    |------|-------|
+
+    | 10 | Channel error |
+
+    | 17 | Internal error |
+
+    | 25 | Subscription buffer overflow |
   contact:
     name: Kalshi Support
     url: https://kalshi.com
@@ -1391,8 +1406,6 @@ components:
 
         | 27 | Too many requests | The subscription exceeded its command rate
         limit |
-
-        | 28 | Markets not found | Unknown tickers were not subscribed |
       contentType: application/json
       payload:
         $ref: '#/components/schemas/errorResponsePayload'
@@ -1694,7 +1707,9 @@ components:
             msg:
               market_ticker: KXBTC-25APR30-T0915-B95000
               event_type: metadata_updated
+              strike_type: between
               floor_strike: 95000
+              cap_strike: 95250
         - name: metadataUpdatedSubtitle
           summary: Market metadata updated event (subtitle)
           payload:
@@ -2471,10 +2486,8 @@ components:
 
                 - 27: Too many requests - The subscription exceeded its command
                 rate limit
-
-                - 28: Markets not found - Unknown tickers were not subscribed
               minimum: 1
-              maximum: 28
+              maximum: 27
             msg:
               type: string
               description: Human-readable error message
@@ -2484,11 +2497,6 @@ components:
             market_ticker:
               type: string
               description: Market ticker if error is market-specific (optional)
-            market_tickers:
-              type: array
-              items:
-                type: string
-              description: Market tickers if error is market-specific (optional)
     listSubscriptionsCommandPayload:
       type: object
       required:
@@ -3165,11 +3173,28 @@ components:
                 - linear_cent
                 - deci_cent
                 - tapered_deci_cent
+            strike_type:
+              type: string
+              description: >-
+                Optional - This key will ONLY exist for metadata_updated events.
+                Determines how floor_strike / cap_strike are interpreted (e.g.
+                "between" uses both, "greater" uses floor_strike only, "less"
+                uses cap_strike only)
             floor_strike:
               type: number
               description: >-
                 Optional - This key will ONLY exist for metadata_updated events.
-                The updated floor strike value for the market
+                The floor (lower bound) strike value for the market
+            cap_strike:
+              type: number
+              description: >-
+                Optional - This key will ONLY exist for metadata_updated events.
+                The cap (upper bound) strike value for the market
+            custom_strike:
+              type: object
+              description: >-
+                Optional - This key will ONLY exist for metadata_updated events
+                with a custom or structured strike type
             yes_sub_title:
               type: string
               description: >-
@@ -3985,6 +4010,3 @@ x-error-codes:
     - code: 27
       name: Too many requests
       description: The subscription exceeded its command rate limit
-    - code: 28
-      name: Markets not found
-      description: Unknown tickers were not subscribed
