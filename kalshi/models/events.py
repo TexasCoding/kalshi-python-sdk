@@ -13,6 +13,15 @@ EventStatusLiteral = Literal["unopened", "open", "closed", "settled"]
 """Event status filter for GET /events. Spec: GetEvents.status query enum."""
 
 
+class SettlementSource(BaseModel):
+    """A settlement source for an event."""
+
+    url: str | None = None
+    name: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class Event(BaseModel):
     """A Kalshi event (container for one or more markets)."""
 
@@ -31,6 +40,11 @@ class Event(BaseModel):
     # too (#385), so this is no longer a spec deviation — kept nullable to
     # match server reality.
     product_metadata: dict[str, Any] | None = None
+    # Spec-required on EventData but `nullable: true` (added to the live
+    # v3.21.0 spec post-#449). NullableList coerces a JSON null -> [] so the
+    # key-present contract holds while callers always see a list. Mirrors
+    # EventMetadata.settlement_sources / Series.settlement_sources.
+    settlement_sources: NullableList[SettlementSource]
     last_updated_ts: AwareDatetime | None = None
     markets: NullableList[Market] = []
 
@@ -71,15 +85,6 @@ class MarketMetadata(BaseModel):
     market_ticker: str
     image_url: str
     color_code: str
-
-    model_config = {"extra": "allow"}
-
-
-class SettlementSource(BaseModel):
-    """A settlement source for an event."""
-
-    url: str | None = None
-    name: str | None = None
 
     model_config = {"extra": "allow"}
 

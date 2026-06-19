@@ -8072,6 +8072,7 @@ components:
         - collateral_return_type
         - mutually_exclusive
         - available_on_brokers
+        - settlement_sources
       properties:
         event_ticker:
           type: string
@@ -8123,6 +8124,12 @@ components:
           x-omitempty: true
           description: Additional metadata for the event.
           x-go-type-skip-optional-pointer: true
+        settlement_sources:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SettlementSource'
+          description: The official sources used for the determination of markets within this event. Methodology is defined in the rulebook.
         last_updated_ts:
           type: string
           format: date-time
