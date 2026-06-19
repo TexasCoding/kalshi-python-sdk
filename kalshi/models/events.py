@@ -41,9 +41,10 @@ class Event(BaseModel):
     # match server reality.
     product_metadata: dict[str, Any] | None = None
     # Spec-required on EventData but `nullable: true` (added to the live
-    # v3.21.0 spec post-#449). NullableList coerces a JSON null -> [] so the
-    # key-present contract holds while callers always see a list. Mirrors
-    # EventMetadata.settlement_sources / Series.settlement_sources.
+    # v3.21.0 spec post-#449, #451). NullableList coerces a JSON null -> [] so
+    # the key-present contract holds while callers always see a list. Same
+    # nullable shape as Series.settlement_sources; EventMetadata's is a plain
+    # list because its spec field isn't nullable.
     settlement_sources: NullableList[SettlementSource]
     last_updated_ts: AwareDatetime | None = None
     markets: NullableList[Market] = []

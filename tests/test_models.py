@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from kalshi.models.communications import RFQ, Quote
-from kalshi.models.events import Event, EventMetadata
+from kalshi.models.events import Event, EventMetadata, SettlementSource
 from kalshi.models.historical import Trade
 from kalshi.models.incentive_programs import IncentiveProgram
 from kalshi.models.markets import Market
@@ -435,6 +435,40 @@ class TestEventV3180Fields:
         data.pop("product_metadata")
         e = Event.model_validate(data)
         assert e.product_metadata is None
+
+
+class TestEventSettlementSources:
+    """#451 spec drift: ``EventData.settlement_sources`` (required, nullable).
+
+    Typed ``NullableList[SettlementSource]`` so a JSON ``null`` coerces to ``[]``
+    while the key-present contract still holds (same shape as
+    ``Series.settlement_sources``).
+    """
+
+    def test_null_coerces_to_empty_list(self) -> None:
+        e = Event.model_validate(event_dict(settlement_sources=None))
+        assert e.settlement_sources == []
+
+    def test_parses_list_of_sources(self) -> None:
+        e = Event.model_validate(
+            event_dict(
+                settlement_sources=[
+                    {"url": "https://example.com", "name": "NWS"},
+                    {"url": None, "name": None},
+                ]
+            )
+        )
+        assert len(e.settlement_sources) == 2
+        assert all(isinstance(s, SettlementSource) for s in e.settlement_sources)
+        assert e.settlement_sources[0].url == "https://example.com"
+        assert e.settlement_sources[0].name == "NWS"
+
+    def test_field_is_required(self) -> None:
+        """Spec marks the field required — the key must be present."""
+        data = event_dict()
+        data.pop("settlement_sources")
+        with pytest.raises(ValidationError):
+            Event.model_validate(data)
 
 
 class TestEventMetadataV3180Fields:
