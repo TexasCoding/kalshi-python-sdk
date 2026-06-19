@@ -2,6 +2,38 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 4.2.0 — 2026-06-19
+
+Reconciles in-place upstream spec drift detected by the nightly run (#451):
+the live OpenAPI/AsyncAPI specs gained fields after 4.1.0 vendored them, under
+the same `3.21.0` version string. All changes are additive — new response
+fields on existing models. Also widens the `cryptography` dependency ceiling.
+
+### Added
+
+- **`Event.settlement_sources`** — the official settlement sources for an event
+  (`EventData.settlement_sources`, openapi 3.21.0). Typed
+  `NullableList[SettlementSource]`, so a JSON `null` coerces to `[]` while the
+  key-present contract holds (same nullable shape as `Series.settlement_sources`).
+  Note: spec-**required**, so code that constructs `Event` directly (e.g. test
+  mocks) must now include it.
+- **WS `MarketLifecyclePayload` strike fields** — `strike_type`, `cap_strike`,
+  and `custom_strike` on `market_lifecycle_v2` payloads (asyncapi). All optional;
+  present only on `metadata_updated` frames. `strike_type` (`between` / `greater`
+  / `less`) controls how `floor_strike` / `cap_strike` are interpreted;
+  `custom_strike` carries structured strikes.
+
+### Changed
+
+- **`cryptography` dependency ceiling widened `<49` → `<50`** (#448) — permits
+  cryptography 49.x. The SDK's RSA-PSS signing path uses only `hashes` /
+  `serialization` / `padding` / `rsa`, none of which 49.0.0's removals affect.
+- Re-vendored `specs/openapi.yaml` (added `EventData.settlement_sources`) and
+  `specs/asyncapi.yaml` (added the lifecycle strike fields; refreshed WS
+  error-code docs). `openapi.yaml` was held at its known-good 104-operation
+  state: the upstream publish transiently dropped `CreateOrder` /
+  `BatchCreateOrders` / `AmendOrder`, an upstream glitch that was not imported.
+
 ## 4.1.0 — 2026-06-14
 
 Spec sync from upstream OpenAPI v3.20.0 → v3.21.0 (plus AsyncAPI/perps). All
