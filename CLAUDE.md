@@ -122,7 +122,7 @@ tests/
 
 ## API Reference
 
-- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.21.0, 104 operations)
+- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.22.0, 101 operations)
 - AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (13 WebSocket channels)
 - Base URL: https://api.elections.kalshi.com/trade-api/v2
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import pkgutil
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -22,8 +23,9 @@ import respx
 from kalshi import AsyncKalshiClient, KalshiClient
 from kalshi.auth import KalshiAuth
 from kalshi.config import DEMO_WS_URL, KalshiConfig
+from kalshi.models.orders import CreateOrderV2Request
 from kalshi.resources._base import AsyncResource, SyncResource
-from tests._model_fixtures import market_dict, order_dict
+from tests._model_fixtures import market_dict
 
 MOCK_BASE = "https://demo-api.kalshi.co/trade-api/v2"
 
@@ -38,28 +40,45 @@ def _config(**overrides: Any) -> KalshiConfig:
     )
 
 
-def _example_order_payload() -> dict[str, Any]:
-    return order_dict(order_id="o1", ticker="BTC", side="yes", status="resting")
-
-
 def _example_market_payload() -> dict[str, Any]:
     return market_dict(ticker="BTC")
+
+
+def _create_v2_request() -> CreateOrderV2Request:
+    return CreateOrderV2Request(
+        ticker="BTC",
+        client_order_id="cli-1",
+        side="bid",
+        count=Decimal("1"),
+        price=Decimal("0.50"),
+        time_in_force="good_till_canceled",
+        self_trade_prevention_type="taker_at_cross",
+    )
+
+
+def _create_v2_response() -> dict[str, Any]:
+    return {
+        "order_id": "o1",
+        "client_order_id": "cli-1",
+        "fill_count": "0",
+        "remaining_count": "1",
+        "ts_ms": 1700000000000,
+    }
+
+
+def _cancel_v2_response() -> dict[str, Any]:
+    return {"order_id": "o1", "reduced_by": "0", "ts_ms": 1700000000000}
 
 
 class TestOrders:
     @respx.mock
     def test_create_order_threads_extra_headers(self, test_auth: KalshiAuth) -> None:
-        route = respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
-            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        route = respx.post(f"{MOCK_BASE}/portfolio/events/orders").mock(
+            return_value=httpx.Response(201, json=_create_v2_response())
         )
         with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.orders.create(
-                ticker="BTC",
-                side="yes",
-                action="buy",
-                client_order_id="cli-1",
-                count=1,
-                yes_price=50,
+            client.orders.create_v2(
+                request=_create_v2_request(),
                 extra_headers={"Idempotency-Key": "abc"},
             )
         assert route.calls[0].request.headers["Idempotency-Key"] == "abc"
@@ -68,20 +87,15 @@ class TestOrders:
     def test_create_order_extra_headers_rejects_kalshi_access(self, test_auth: KalshiAuth) -> None:
         # #298: caller-supplied KALSHI-ACCESS-* keys now raise instead of
         # silently leaking onto the wire alongside the SDK-signed pair.
-        respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
-            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        respx.post(f"{MOCK_BASE}/portfolio/events/orders").mock(
+            return_value=httpx.Response(201, json=_create_v2_response())
         )
         with (
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="KALSHI-ACCESS-"),
         ):
-            client.orders.create(
-                ticker="BTC",
-                side="yes",
-                action="buy",
-                client_order_id="cli-1",
-                count=1,
-                yes_price=50,
+            client.orders.create_v2(
+                request=_create_v2_request(),
                 extra_headers={
                     "KALSHI-ACCESS-KEY": "spoofed",
                     "KALSHI-ACCESS-SIGNATURE": "spoofed-sig",
@@ -91,11 +105,11 @@ class TestOrders:
 
     @respx.mock
     def test_cancel_order_threads_extra_headers(self, test_auth: KalshiAuth) -> None:
-        route = respx.delete(f"{MOCK_BASE}/portfolio/orders/o1").mock(
-            return_value=httpx.Response(204)
+        route = respx.delete(f"{MOCK_BASE}/portfolio/events/orders/o1").mock(
+            return_value=httpx.Response(200, json=_cancel_v2_response())
         )
         with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.orders.cancel("o1", extra_headers={"X-Trace": "t"})
+            client.orders.cancel_v2("o1", extra_headers={"X-Trace": "t"})
         assert route.calls[0].request.headers["X-Trace"] == "t"
 
 
@@ -173,20 +187,15 @@ class TestHeaderCollision298:
     ) -> None:
         # Case-mismatched key (lowercase) was previously a forge surface; the
         # public boundary now raises ValueError naming the leaked key.
-        respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
-            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        respx.post(f"{MOCK_BASE}/portfolio/events/orders").mock(
+            return_value=httpx.Response(201, json=_create_v2_response())
         )
         with (
             KalshiClient(auth=test_auth, config=_config()) as client,
             pytest.raises(ValueError, match="kalshi-access-key"),
         ):
-            client.orders.create(
-                ticker="BTC",
-                side="yes",
-                action="buy",
-                client_order_id="cli-1",
-                count=1,
-                yes_price=50,
+            client.orders.create_v2(
+                request=_create_v2_request(),
                 extra_headers={"kalshi-access-key": "X"},
             )
 
@@ -197,17 +206,12 @@ class TestHeaderCollision298:
         # Caller-supplied lowercase ``content-type`` must NOT win over the
         # JSON body's content-type, which the SDK pins at the body-helper
         # layer in resources/_base.py:_post.
-        route = respx.post(f"{MOCK_BASE}/portfolio/orders").mock(
-            return_value=httpx.Response(200, json={"order": _example_order_payload()})
+        route = respx.post(f"{MOCK_BASE}/portfolio/events/orders").mock(
+            return_value=httpx.Response(201, json=_create_v2_response())
         )
         with KalshiClient(auth=test_auth, config=_config()) as client:
-            client.orders.create(
-                ticker="BTC",
-                side="yes",
-                action="buy",
-                client_order_id="cli-1",
-                count=1,
-                yes_price=50,
+            client.orders.create_v2(
+                request=_create_v2_request(),
                 extra_headers={"content-type": "text/plain"},
             )
         wire = route.calls.last.request.headers

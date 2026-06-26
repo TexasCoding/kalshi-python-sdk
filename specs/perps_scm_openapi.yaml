@@ -422,6 +422,17 @@ components:
           format: date-time
           description: Pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
 
+    MarketSettlementEstimate:
+      type: object
+      required:
+        - quantity_centicount
+        - variation_margin_centicents
+        - notional_value_centicents
+      properties:
+        quantity_centicount: { type: integer, format: int64, description: Position quantity in centicounts. }
+        variation_margin_centicents: { type: integer, format: int64, description: Variation margin for this market. }
+        notional_value_centicents: { type: integer, format: int64, description: Notional value for this market. }
+
     SettlementEstimate:
       type: object
       required:
@@ -436,6 +447,10 @@ components:
         maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin requirement. }
         maintenance_margin_required_centicents: { type: integer, format: int64, description: Maintenance margin requirement. }
         total_amount_centicents: { type: integer, format: int64, description: Estimated total settlement amount. }
+        positions:
+          type: object
+          description: Map of market ticker to that market's settlement estimate.
+          additionalProperties: { $ref: '#/components/schemas/MarketSettlementEstimate' }
 
     GetSettlementEstimateResponse:
       type: object
@@ -446,6 +461,10 @@ components:
           type: object
           description: Map of subtrader ID to that subtrader's settlement estimate.
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        prev_settlement_prices:
+          type: object
+          description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
+          additionalProperties: { type: integer, format: int64 }
         settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
 
     GetSettlementBalanceResponse:

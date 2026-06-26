@@ -195,8 +195,8 @@ def non_marketable_price(sync_client: KalshiClient, demo_market_ticker: str) -> 
 
     Uses $0.01 (1 cent) for yes side — virtually guaranteed to not fill
     unless the market is extremely close to $0.00.
-    Returns a string for compatibility with both create() (accepts str)
-    and CreateOrderRequest (wraps via to_decimal).
+    Returns a string; callers wrap it via to_decimal when building
+    CreateOrderV2Request.price.
     """
     return "0.01"
 
@@ -232,7 +232,7 @@ def cleanup_orders(sync_client: KalshiClient) -> Iterator[None]:
         for order in page.items:
             if order.client_order_id and order.client_order_id.startswith(TEST_RUN_ID):
                 try:
-                    sync_client.orders.cancel(order.order_id)
+                    sync_client.orders.cancel_v2(order.order_id)
                     logger.info("Cleanup: cancelled order %s", order.order_id)
                 except Exception:
                     logger.warning("Cleanup: failed to cancel order %s", order.order_id)

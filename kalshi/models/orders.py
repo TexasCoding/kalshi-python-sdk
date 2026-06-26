@@ -2,27 +2,20 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Literal
 
-from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_validator, model_validator
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount, OrderPrice, StrictInt
 
-# Literal aliases for fixed-enum kwargs on order resource methods and the
-# matching V1 / V2 request models.
-# Source of truth: OpenAPI spec v3.13.0 (specs/openapi.yaml).
-# V1 ``CreateOrderRequest`` (#270) and ``AmendOrderRequest`` (#312) plus V2
-# ``CreateOrderV2Request`` all carry these narrowed types so a typo fails
-# at construction rather than as a 400 from the server.
+# Literal aliases for fixed-enum fields on the order models.
+# Source of truth: OpenAPI spec (specs/openapi.yaml). Narrowed types make a
+# typo fail at construction rather than as a 400 from the server.
 SideLiteral = Literal["yes", "no"]
-"""Order side. Spec: CreateOrderRequest.side / AmendOrderRequest.side enum."""
-
-ActionLiteral = Literal["buy", "sell"]
-"""Order action. Spec: CreateOrderRequest.action / AmendOrderRequest.action enum."""
+"""Outcome side. Spec: Order.outcome_side / Fill.outcome_side enum."""
 
 TimeInForceLiteral = Literal["fill_or_kill", "good_till_canceled", "immediate_or_cancel"]
-"""Order time-in-force. Spec: CreateOrderRequest.time_in_force enum."""
+"""Order time-in-force. Spec: CreateOrderV2Request.time_in_force enum."""
 
 SelfTradePreventionTypeLiteral = Literal["taker_at_cross", "maker"]
 """Self-trade prevention behavior. Spec: SelfTradePreventionType enum."""
@@ -144,298 +137,6 @@ class Fill(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
-class CreateOrderRequest(BaseModel):
-    """Parameters for creating an order.
-
-    Price fields serialize with ``_dollars`` suffix. ``count`` is a Decimal
-    and serializes as ``count_fp`` (FixedPointCount string); the spec
-    accepts either ``count`` or ``count_fp`` key, but the SDK commits to
-    a single wire shape.
-
-    ``buy_max_cost`` is **integer cents** (per OpenAPI spec: "Maximum
-    cost in cents"). Pass e.g. ``500`` for a $5.00 cap, NOT ``5.00``.
-    Passing a decimal string like ``"5.00"`` raises ``ValidationError``.
-
-    The SDK previously exposed a ``type: str = "limit"`` field never
-    defined in the spec's ``CreateOrderRequest`` schema. v0.8.0 removes
-    it. Callers passing ``type="market"`` (or similar) now get a
-    ``ValidationError`` at construction time.
-
-    ``ticker``, ``side``, ``action``, and ``count`` are all required by the
-    spec. Pre-v2.3.0 the SDK defaulted ``action`` to ``"buy"`` (#172); the
-    follow-up (#242) also removed the silent ``count=1`` default — both are
-    money-risk drivers, since a missing arg would otherwise translate into
-    a real 1-contract BUY rather than a clear error.
-
-    See ``kalshi.resources.orders.OrdersResource.create`` for the
-    user-facing method that builds this model internally.
-    """
-
-    ticker: str
-    side: SideLiteral
-    action: ActionLiteral
-    count: FixedPointCount = Field(serialization_alias="count_fp")
-    yes_price: OrderPrice | None = Field(
-        default=None,
-        serialization_alias="yes_price_dollars",
-    )
-    no_price: OrderPrice | None = Field(
-        default=None,
-        serialization_alias="no_price_dollars",
-    )
-    client_order_id: str | None = None
-    expiration_ts: StrictInt | None = None
-    buy_max_cost: int | None = None
-    time_in_force: TimeInForceLiteral | None = None
-    post_only: bool | None = None
-    reduce_only: bool | None = None
-    self_trade_prevention_type: SelfTradePreventionTypeLiteral | None = None
-    order_group_id: str | None = None
-    cancel_order_on_pause: bool | None = None
-    subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
-
-    @field_validator("buy_max_cost", mode="before")
-    @classmethod
-    def _reject_decimal_float_and_bool_buy_max_cost(cls, v: object) -> object:
-        """Reject Decimal, float, and bool inputs on buy_max_cost.
-
-        Spec says integer cents. Accepting Decimal would silently coerce
-        callers who pass Decimal('5.00') (expecting $5.00 under the old
-        DollarDecimal semantics) into 5 cents — data corruption with no
-        error. Bool is an ``int`` subclass, so ``True`` would otherwise
-        slip through as 1 (= 1 cent cap), the same class of bug #225
-        closed for ``DollarDecimal`` / ``FixedPointCount``. Reject at
-        the boundary (#243).
-
-        int and int-shaped strings are fine (Pydantic coerces normally).
-        """
-        if isinstance(v, bool):
-            raise ValueError(
-                "buy_max_cost must be int (cents), not bool — "
-                "bool is an int subclass, so True would otherwise slip "
-                "through as 1 (= 1 cent cap). Pass cents directly "
-                "(e.g., 500 for $5.00)."
-            )
-        if isinstance(v, Decimal):
-            raise ValueError(
-                "buy_max_cost must be int (cents), not Decimal. "
-                "The previous DollarDecimal type was a v0.7.x-and-earlier "
-                "bug — spec says integer cents. Pass cents directly "
-                "(e.g., 500 for $5.00)."
-            )
-        if isinstance(v, float):
-            raise ValueError(
-                "buy_max_cost must be int (cents), not float. "
-                "Pass cents directly (e.g., 500 for $5.00)."
-            )
-        return v
-
-
-class AmendOrderRequest(BaseModel):
-    """Parameters for amending an open order.
-
-    Matches spec ``components.schemas.AmendOrderRequest``. Required fields
-    (``ticker``, ``side``, ``action``) mirror the spec's ``required`` list.
-    Price fields serialize with ``_dollars`` suffix; ``count`` serializes
-    as ``count_fp`` (FixedPointCount).
-
-    Cent-form ``yes_price``/``no_price`` spec properties are NOT on this
-    model — redundant with the ``_dollars`` forms. EXCLUSIONS in
-    ``tests/_contract_support.py`` records this.
-
-    See ``kalshi.resources.orders.OrdersResource.amend`` — v0.8.0 builds
-    this model internally; the public method signature is unchanged.
-    """
-
-    ticker: str
-    side: SideLiteral
-    action: ActionLiteral
-    yes_price: OrderPrice | None = Field(
-        default=None,
-        serialization_alias="yes_price_dollars",
-    )
-    no_price: OrderPrice | None = Field(
-        default=None,
-        serialization_alias="no_price_dollars",
-    )
-    count: FixedPointCount | None = Field(
-        default=None,
-        serialization_alias="count_fp",
-    )
-    client_order_id: str | None = None
-    updated_client_order_id: str | None = None
-    subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
-
-
-class DecreaseOrderRequest(BaseModel):
-    """Parameters for decreasing an open order's size.
-
-    Matches spec ``components.schemas.DecreaseOrderRequest``. Spec marks
-    all fields optional, but the server rejects an empty body — so the
-    model enforces XOR at construction: exactly one of ``reduce_by`` or
-    ``reduce_to`` must be set. This matches the method-level guard in
-    ``orders.decrease()`` and keeps model-first construction (v0.9)
-    fail-fast rather than deferring the error to the HTTP call.
-
-    See ``kalshi.resources.orders.OrdersResource.decrease`` — v0.8.0
-    builds this model internally; method signature unchanged.
-    """
-
-    reduce_by: StrictInt | None = None
-    reduce_to: StrictInt | None = None
-    subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
-
-    @model_validator(mode="after")
-    def _enforce_reduce_xor(self) -> DecreaseOrderRequest:
-        if self.reduce_by is not None and self.reduce_to is not None:
-            raise ValueError(
-                "DecreaseOrderRequest accepts reduce_by or reduce_to, not both"
-            )
-        if self.reduce_by is None and self.reduce_to is None:
-            raise ValueError(
-                "DecreaseOrderRequest requires either reduce_by or reduce_to"
-            )
-        return self
-
-
-class BatchCreateOrdersRequest(BaseModel):
-    """Wrapper for the ``POST /portfolio/orders/batched`` request body.
-
-    Matches spec ``components.schemas.BatchCreateOrdersRequest``: a single
-    ``orders`` key holding a list of ``CreateOrderRequest`` entries. Each
-    nested entry inherits ``extra="forbid"`` from ``CreateOrderRequest``
-    itself, so phantom fields in items fail at construction time.
-
-    See ``kalshi.resources.orders.OrdersResource.batch_create`` — v0.8.0
-    wraps this model internally; method signature unchanged.
-    """
-
-    orders: list[CreateOrderRequest]
-
-    model_config = {"extra": "forbid"}
-
-
-class BatchCancelOrdersRequestOrder(BaseModel):
-    """A single cancellation entry in a batch cancel request.
-
-    Matches spec ``components.schemas.BatchCancelOrdersRequestOrder``.
-    Required: ``order_id``. Optional: ``subaccount`` (defaults to 0,
-    primary subaccount).
-    """
-
-    order_id: str
-    subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
-
-
-class BatchCancelOrdersRequest(BaseModel):
-    """Wrapper for the ``DELETE /portfolio/orders/batched`` request body.
-
-    Matches spec ``components.schemas.BatchCancelOrdersRequest``. Spec
-    defines two fields: the preferred ``orders`` (list of
-    ``BatchCancelOrdersRequestOrder``) and the deprecated ``ids`` (list
-    of string order IDs). SDK v0.8.0 commits to emitting ``orders`` only.
-
-    The previous SDK sent the deprecated ``ids`` field — BREAKING change
-    at the wire level as of v0.8.0. Users calling the public
-    ``batch_cancel(orders=[...])`` method are unaffected.
-
-    See ``kalshi.resources.orders.OrdersResource.batch_cancel``.
-    """
-
-    orders: list[BatchCancelOrdersRequestOrder]
-
-    model_config = {"extra": "forbid"}
-
-
-class BatchCreateOrdersResponseEntry(BaseModel):
-    """Single entry in :class:`BatchCreateOrdersResponse`.
-
-    Spec ``components.schemas.BatchCreateOrdersIndividualResponse``: all
-    three fields are nullable. A failed leg comes back as
-    ``{"client_order_id": "x", "order": null, "error": {...}}``; a
-    successful leg as ``{"client_order_id": "x", "order": {...}, "error": null}``.
-    Pairing returned orders with the originating request requires
-    ``client_order_id``; surfacing per-leg failures requires ``error``.
-    """
-
-    order: Order | None = None
-    error: dict[str, object] | None = None
-    client_order_id: str | None = None
-
-    model_config = {"extra": "allow", "populate_by_name": True}
-
-
-class BatchCreateOrdersResponse(BaseModel):
-    """Response from ``POST /portfolio/orders/batched``.
-
-    Spec ``components.schemas.BatchCreateOrdersResponse``. Changed in v2.4.0
-    (breaking): previously the SDK returned ``list[Order]`` and crashed
-    with ``ValidationError`` on the first failed leg
-    (``Order.model_validate(None)``). Now returns the typed envelope so
-    callers can inspect per-leg ``order``/``error``/``client_order_id``.
-    """
-
-    orders: list[BatchCreateOrdersResponseEntry]
-
-    model_config = {"extra": "allow", "populate_by_name": True}
-
-
-class BatchCancelOrdersResponseEntry(BaseModel):
-    """Single entry in :class:`BatchCancelOrdersResponse`.
-
-    Spec ``components.schemas.BatchCancelOrdersIndividualResponse``:
-    ``order_id`` and ``reduced_by_fp`` are required; ``order`` and
-    ``error`` are nullable. ``reduced_by_fp`` is load-bearing for risk
-    reconciliation — it is the count of contracts that actually canceled
-    (``0`` when ``error`` is set, the canceled count otherwise).
-    """
-
-    order_id: str
-    reduced_by_fp: FixedPointCount = Field(
-        validation_alias=AliasChoices("reduced_by_fp", "reduced_by"),
-    )
-    order: Order | None = None
-    error: dict[str, object] | None = None
-
-    model_config = {"extra": "allow", "populate_by_name": True}
-
-
-class BatchCancelOrdersResponse(BaseModel):
-    """Response from ``DELETE /portfolio/orders/batched``.
-
-    Spec ``components.schemas.BatchCancelOrdersResponse``. Changed in v2.4.0
-    (breaking): previously the SDK declared ``-> None`` and discarded the
-    response body. Per-leg ``reduced_by_fp`` and any per-leg errors are
-    now surfaced.
-    """
-
-    orders: list[BatchCancelOrdersResponseEntry]
-
-    model_config = {"extra": "allow", "populate_by_name": True}
-
-
-
-class AmendOrderResponse(BaseModel):
-    """Response from amending an order — contains both pre and post-amendment orders."""
-
-    old_order: Order
-    order: Order
-
-    model_config = {"extra": "allow"}
-
-
 class OrderQueuePosition(BaseModel):
     """Queue position for a single resting order."""
 
@@ -456,19 +157,18 @@ class OrderQueuePosition(BaseModel):
 
 
 class CreateOrderV2Request(BaseModel):
-    """Body for POST /portfolio/events/orders.
+    """Body for POST /portfolio/events/orders — the event-market order API.
 
-    Differences from v1 ``CreateOrderRequest`` worth knowing:
+    Notable shape:
 
-    - ``side`` is ``BookSideLiteral`` (``bid``/``ask``), not ``yes``/``no``.
-      V2 narrows the type on the model itself since there is no kwarg
-      overload at the resource-method boundary (see model_only V2 surface).
-    - ``client_order_id`` is **required** by this model, unlike V1 where it is
-      optional, because the server uses it for idempotency on V2 orders.
-      (OpenAPI v3.20.0 relaxed it to optional server-side, but the SDK keeps
-      it required by design so every V2 order is idempotent.)
-    - Price is a single ``price: DollarDecimal`` field rather than the
-      paired ``yes_price`` / ``no_price`` from V1.
+    - ``side`` is ``BookSideLiteral`` (``bid``/``ask``). V2 narrows the type on
+      the model itself since there is no kwarg overload at the resource-method
+      boundary (the V2 surface is model-only).
+    - ``client_order_id`` is **required** by this model because the server uses
+      it for idempotency on V2 orders. (OpenAPI v3.20.0 relaxed it to optional
+      server-side, but the SDK keeps it required by design so every V2 order is
+      idempotent.)
+    - Price is a single ``price`` field (dollars).
     """
 
     ticker: str
@@ -626,7 +326,12 @@ class BatchCancelOrdersV2RequestOrder(BaseModel):
 
     order_id: str
     subaccount: StrictInt | None = Field(default=None, ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
+    # No ``ge=0``: the spec ExchangeIndex permits ``-1`` to auto-route by market
+    # ticker (mirrors ``cancel_v2``'s plain-int param), in which case
+    # ``market_ticker`` below is required.
+    exchange_index: StrictInt | None = None
+    # Spec v3.22.0: required when exchange_index is -1 (auto-route by ticker).
+    market_ticker: str | None = None
 
     model_config = {"extra": "forbid"}
 

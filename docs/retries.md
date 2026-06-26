@@ -95,10 +95,11 @@ explicitly.
 POST/DELETE/PUT not retrying means **idempotency is your responsibility** on
 write paths. The patterns that work:
 
-### `client_order_id` on `orders.create` / `orders.amend`
+### `client_order_id` on `orders.create_v2` / `orders.amend_v2`
 
-Set a unique `client_order_id` (a UUID is fine). On a network failure between
-"server processed the order" and "you got the response":
+`client_order_id` is **required** on `CreateOrderV2Request` (a UUID is fine) —
+the server uses it for idempotency. On a network failure between "server
+processed the order" and "you got the response":
 
 1. Catch the exception.
 2. Call `client.orders.list(min_ts=..., max_ts=...)` and look for the
@@ -107,15 +108,18 @@ Set a unique `client_order_id` (a UUID is fine). On a network failure between
 
 ```python
 import uuid
-from kalshi import KalshiClient, KalshiError
+from decimal import Decimal
+from kalshi import KalshiClient, KalshiError, CreateOrderV2Request
 
 with KalshiClient.from_env() as client:
     cid = str(uuid.uuid4())
+    request = CreateOrderV2Request(
+        ticker="X", client_order_id=cid, side="bid",
+        count=Decimal("10"), price=Decimal("0.65"),
+        time_in_force="fill_or_kill", self_trade_prevention_type="taker_at_cross",
+    )
     try:
-        order = client.orders.create(
-            ticker="X", side="yes", action="buy", count=10,
-            yes_price="0.65", client_order_id=cid,
-        )
+        order = client.orders.create_v2(request=request)
     except KalshiError:
         # Did it land? Find out before retrying.
         existing = next(
@@ -123,10 +127,7 @@ with KalshiClient.from_env() as client:
             None,
         )
         if existing is None:
-            order = client.orders.create(
-                ticker="X", side="yes", action="buy", count=10,
-                yes_price="0.65", client_order_id=cid,
-            )
+            order = client.orders.create_v2(request=request)
         else:
             order = existing
 ```
@@ -138,9 +139,9 @@ Reconcile via `subaccounts.list_transfers()`.
 
 ### Cancels
 
-`client.orders.cancel(order_id)` and `client.orders.batch_cancel(...)` are
-already idempotent server-side: re-canceling a canceled order is a no-op. You
-can safely retry these from your app layer without dedupe logic.
+`client.orders.cancel_v2(order_id)` and `client.orders.batch_cancel_v2(...)`
+are already idempotent server-side: re-canceling a canceled order is a no-op.
+You can safely retry these from your app layer without dedupe logic.
 
 ### Reads
 
@@ -148,8 +149,8 @@ Just call them again. The transport's built-in retry covers transient 5xx.
 
 ## Reconciliation after a 5xx on a write
 
-`KalshiServerError` from `POST /portfolio/orders` is ambiguous — the order
-might have made it into the book before the server gave up. The recovery:
+`KalshiServerError` from `POST /portfolio/events/orders` is ambiguous — the
+order might have made it into the book before the server gave up. The recovery:
 
 1. Wait briefly (a few seconds — orders propagate fast).
 2. List recent orders matching your `client_order_id`.

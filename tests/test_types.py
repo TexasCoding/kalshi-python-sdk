@@ -121,12 +121,14 @@ class TestCoerceDecimalRejectsNonFinite:
         m = _DollarModel.model_validate({"x": Decimal("0.5")})
         assert m.x == Decimal("0.5")
 
-    def test_create_order_request_rejects_nan_yes_price(self) -> None:
-        from kalshi.models.orders import CreateOrderRequest
+    def test_create_order_request_rejects_nan_price(self) -> None:
+        from kalshi.models.orders import CreateOrderV2Request
         with pytest.raises(ValueError, match="finite"):
-            CreateOrderRequest(
-                ticker="T", side="yes", action="buy",
-                count=Decimal("1"), yes_price=Decimal("NaN"),
+            CreateOrderV2Request(
+                ticker="T", client_order_id="c1", side="bid",
+                count=Decimal("1"), price=Decimal("NaN"),
+                time_in_force="fill_or_kill",
+                self_trade_prevention_type="maker",
             )
 
 

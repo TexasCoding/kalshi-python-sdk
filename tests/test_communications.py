@@ -197,7 +197,7 @@ class TestCommunicationsRequestModels:
             CreateRFQRequest(market_ticker="MKT-1", rest_remainder=True, contracts=0)
 
     def test_create_quote_request_serializes_bids_without_dollars_suffix(self) -> None:
-        # Unlike CreateOrderRequest, spec wire uses yes_bid / no_bid for this one.
+        # Spec wire uses yes_bid / no_bid (no _dollars suffix) for this one.
         req = CreateQuoteRequest(
             rfq_id="rfq-1",
             yes_bid=Decimal("0.56"),
@@ -615,6 +615,47 @@ class TestConfirmQuote:
             comms.confirm_quote("gone")
 
 
+class TestRFQScopedQuoteActions:
+    """RFQ-scoped quote actions (spec v3.22.0):
+    ``/communications/rfqs/{rfq_id}/quotes/{quote_id}[/accept|/confirm]``."""
+
+    @respx.mock
+    def test_delete_for_rfq_sends_delete(self, comms: CommunicationsResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1",
+        ).mock(return_value=httpx.Response(204))
+        comms.quotes.delete_for_rfq("r-1", "q-1")
+        assert route.called
+
+    @respx.mock
+    def test_accept_for_rfq_sends_put_with_body(self, comms: CommunicationsResource) -> None:
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1/accept",
+        ).mock(return_value=httpx.Response(204))
+        comms.quotes.accept_for_rfq("r-1", "q-1", accepted_side="yes")
+        assert route.called
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"accepted_side": "yes"}
+
+    @respx.mock
+    def test_confirm_for_rfq_sends_put_with_empty_body(self, comms: CommunicationsResource) -> None:
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1/confirm",
+        ).mock(return_value=httpx.Response(204))
+        comms.quotes.confirm_for_rfq("r-1", "q-1")
+        assert route.called
+        # json={} forces Content-Type: application/json — demo rejects empty PUTs.
+        assert route.calls[0].request.content == b"{}"
+
+    @respx.mock
+    def test_accept_for_rfq_404(self, comms: CommunicationsResource) -> None:
+        respx.put(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/gone/accept",
+        ).mock(return_value=httpx.Response(404, json={"message": "missing"}))
+        with pytest.raises(KalshiNotFoundError):
+            comms.quotes.accept_for_rfq("r-1", "gone", accepted_side="no")
+
+
 @pytest.mark.asyncio
 class TestAsyncCommunications:
     async def test_get_id(
@@ -716,6 +757,40 @@ class TestAsyncCommunications:
         ).mock(return_value=httpx.Response(204))
         await async_comms.confirm_quote("q-1")
         assert route.calls[0].request.content == b"{}"
+
+    async def test_accept_for_rfq(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1/accept",
+        ).mock(return_value=httpx.Response(204))
+        await async_comms.quotes.accept_for_rfq("r-1", "q-1", accepted_side="yes")
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"accepted_side": "yes"}
+
+    async def test_confirm_for_rfq(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.put(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1/confirm",
+        ).mock(return_value=httpx.Response(204))
+        await async_comms.quotes.confirm_for_rfq("r-1", "q-1")
+        assert route.calls[0].request.content == b"{}"
+
+    async def test_delete_for_rfq(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1",
+        ).mock(return_value=httpx.Response(204))
+        await async_comms.quotes.delete_for_rfq("r-1", "q-1")
+        assert route.called
 
     async def test_delete_rfq(
         self,
@@ -862,6 +937,24 @@ class TestCommunicationsAuthGuard:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.confirm_quote("q-1")
+
+    def test_delete_for_rfq_requires_auth(
+        self, unauth_comms: CommunicationsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.quotes.delete_for_rfq("r-1", "q-1")
+
+    def test_accept_for_rfq_requires_auth(
+        self, unauth_comms: CommunicationsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.quotes.accept_for_rfq("r-1", "q-1", accepted_side="yes")
+
+    def test_confirm_for_rfq_requires_auth(
+        self, unauth_comms: CommunicationsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.quotes.confirm_for_rfq("r-1", "q-1")
 
 
 class TestClientWiring:

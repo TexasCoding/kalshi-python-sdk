@@ -79,6 +79,7 @@ class TestSubaccountModels:
         bal = SubaccountBalance.model_validate(
             {
                 "subaccount_number": 1,
+                "exchange_index": 0,
                 "balance": "12.3400",
                 "updated_ts": 1_700_000_000,
             }
@@ -113,6 +114,7 @@ class TestSubaccountModels:
                 "subaccount_balances": [
                     {
                         "subaccount_number": 0,
+                        "exchange_index": 0,
                         "balance": "100.00",
                         "updated_ts": 1,
                     },
@@ -302,11 +304,13 @@ class TestSubaccountsListBalances:
                     "subaccount_balances": [
                         {
                             "subaccount_number": 0,
+                            "exchange_index": 0,
                             "balance": "10.00",
                             "updated_ts": 1,
                         },
                         {
                             "subaccount_number": 1,
+                            "exchange_index": 0,
                             "balance": "5.00",
                             "updated_ts": 2,
                         },
@@ -500,6 +504,7 @@ class TestAsyncSubaccounts:
                     "subaccount_balances": [
                         {
                             "subaccount_number": 0,
+                            "exchange_index": 0,
                             "balance": "1.00",
                             "updated_ts": 1,
                         },

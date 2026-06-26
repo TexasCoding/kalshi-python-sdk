@@ -39,16 +39,6 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="Fill",
     ),
     ContractEntry(
-        sdk_model="kalshi.models.orders.CreateOrderRequest",
-        spec_schema="CreateOrderRequest",
-        notes="Uses serialization_alias (outbound), not validation_alias (inbound)",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.AmendOrderResponse",
-        spec_schema="AmendOrderResponse",
-        notes="Response wrapper with old_order + order, both are Order instances",
-    ),
-    ContractEntry(
         sdk_model="kalshi.models.orders.OrderQueuePosition",
         spec_schema="OrderQueuePosition",
     ),
@@ -345,29 +335,6 @@ CONTRACT_MAP: list[ContractEntry] = [
     ),
     # -- orders V2 family (#171) -----------------------------------------
     ContractEntry(
-        sdk_model="kalshi.models.orders.AmendOrderRequest",
-        spec_schema="AmendOrderRequest",
-        notes="Request body for /portfolio/orders/{order_id}/amend",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.DecreaseOrderRequest",
-        spec_schema="DecreaseOrderRequest",
-        notes="Request body for /portfolio/orders/{order_id}/decrease",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCreateOrdersRequest",
-        spec_schema="BatchCreateOrdersRequest",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCancelOrdersRequest",
-        spec_schema="BatchCancelOrdersRequest",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCancelOrdersRequestOrder",
-        spec_schema="BatchCancelOrdersRequest.orders.items",
-        notes="Inline object schema (no named component)",
-    ),
-    ContractEntry(
         sdk_model="kalshi.models.orders.CreateOrderV2Request",
         spec_schema="CreateOrderV2Request",
     ),
@@ -424,24 +391,6 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.orders.BatchCancelOrdersV2ResponseEntry",
         spec_schema="BatchCancelOrdersV2Response.orders.items",
-        notes="Inline object schema (no named component)",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCreateOrdersResponse",
-        spec_schema="BatchCreateOrdersResponse",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCreateOrdersResponseEntry",
-        spec_schema="BatchCreateOrdersResponse.orders.items",
-        notes="Inline object schema (no named component)",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCancelOrdersResponse",
-        spec_schema="BatchCancelOrdersResponse",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.orders.BatchCancelOrdersResponseEntry",
-        spec_schema="BatchCancelOrdersResponse.orders.items",
         notes="Inline object schema (no named component)",
     ),
     # -- events sub-models (#171) ----------------------------------------
@@ -864,6 +813,10 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetActiveMarginObligationResponse",
         spec_schema="GetActiveMarginObligationResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MarketSettlementEstimate",
+        spec_schema="MarketSettlementEstimate",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.SettlementEstimate",

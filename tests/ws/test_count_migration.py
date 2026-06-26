@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from kalshi.models.orders import CreateOrderRequest, Order
+from kalshi.models.orders import CreateOrderV2Request, Order
 from tests._model_fixtures import order_dict
 
 
@@ -36,19 +36,26 @@ class TestOrderCountMigration:
         assert order.fill_count == Decimal("15.00")
 
     def test_create_order_count_is_decimal(self) -> None:
-        req = CreateOrderRequest(ticker="ECON-GDP", side="yes", count=Decimal("10"), action="buy")
+        req = CreateOrderV2Request(
+            ticker="ECON-GDP",
+            client_order_id="cli-1",
+            side="bid",
+            count=Decimal("10"),
+            price=Decimal("0.50"),
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
         assert isinstance(req.count, Decimal)
 
-    def test_create_order_count_no_default(self) -> None:
-        # #242: `count` no longer defaults to Decimal("1") — it is required.
-        # A missing-arg bug would otherwise silently become a 1-contract BUY.
-        import pytest
-        from pydantic import ValidationError
-
-        with pytest.raises(ValidationError):
-            CreateOrderRequest(ticker="ECON-GDP", side="yes", action="buy")
-
     def test_create_order_count_serializes(self) -> None:
-        req = CreateOrderRequest(ticker="ECON-GDP", side="yes", count=Decimal("10"), action="buy")
+        req = CreateOrderV2Request(
+            ticker="ECON-GDP",
+            client_order_id="cli-1",
+            side="bid",
+            count=Decimal("10"),
+            price=Decimal("0.50"),
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
         data = req.model_dump(mode="json")
         assert isinstance(data["count"], str)

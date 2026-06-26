@@ -99,34 +99,40 @@ asyncio.run(main())
 
 ## Place an order (demo)
 
+Order writes go through the V2 `/portfolio/events/orders` family. There is no
+keyword overload — you always build a request model and pass it as `request=`:
+
 ```python
 import uuid
+from decimal import Decimal
 from kalshi import KalshiClient
+from kalshi.models import CreateOrderV2Request
 
 with KalshiClient.from_env() as client:
-    order = client.orders.create(
-        ticker="EXAMPLE-25-T",
-        side="yes",
-        action="buy",
-        count=10,
-        yes_price="0.65",                  # 65¢ — strings or Decimals, never float
-        time_in_force="good_till_canceled",
-        client_order_id=str(uuid.uuid4()), # idempotency key (see below)
+    order = client.orders.create_v2(
+        request=CreateOrderV2Request(
+            ticker="EXAMPLE-25-T",
+            client_order_id=str(uuid.uuid4()),     # idempotency key (see below)
+            side="bid",                            # book side: "bid"/"ask", not "yes"/"no"
+            count=Decimal("10"),
+            price=Decimal("0.65"),                 # 65¢ — strings or Decimals, never float
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
     )
-    print(order.order_id, order.status)
+    print(order.order_id, order.fill_count, order.remaining_count)
 ```
 
 !!! warning "POST is never retried automatically"
     The transport never retries `POST` (or `DELETE`) requests, to avoid duplicate
-    orders. Pass a fresh `client_order_id` on every `create()` call so you can safely
+    orders. Pass a fresh `client_order_id` on every `create_v2()` call so you can safely
     retry from your application layer without double-filling. See
     [Retries & idempotency](retries.md).
 
-!!! warning "`buy_max_cost` is integer cents, not dollars"
-    `CreateOrderRequest.buy_max_cost` is `int` cents — `500` means $5.00. Passing a
-    `Decimal` or `float` raises `ValueError` at construction. Other price fields
-    (`yes_price`, `no_price`) are `DollarDecimal` and accept strings or
-    `Decimal`.
+!!! note "`side` is the book side, not the outcome"
+    `CreateOrderV2Request.side` is `"bid"` or `"ask"` (the resting book side), not
+    `"yes"`/`"no"`. `client_order_id` is required on the model, and `count` and
+    `price` are `Decimal` — passing a `float` for a price is rejected.
 
 Prices are decimal dollars per the Kalshi spec. Internally the SDK uses
 `Decimal` via the [`DollarDecimal`](types.md) type — never `float`.

@@ -17,17 +17,17 @@ The three-level ticker hierarchy:
 Every market belongs to exactly one event; every event belongs to exactly one
 series.
 
-## YES, NO, side, action
+## YES, NO, book side
 
 A Kalshi market trades two complementary contracts that always sum to $1:
-**YES** and **NO**. Each trade has a `side` (which contract) and an `action`:
+**YES** and **NO**. Orders are placed against a single order book, and the
+`side` you specify is the **book side**, not the contract:
 
-- `side="yes"`, `action="buy"` — buying YES.
-- `side="yes"`, `action="sell"` — selling YES.
-- `side="no"`, `action="buy"` — buying NO (equivalent to selling YES against
-  the orderbook, but accounted separately).
+- `side="bid"` — you are bidding (buying into the book).
+- `side="ask"` — you are asking (selling into the book).
 
-These are `Literal` types — see [Types & literals](types.md).
+`BookSideLiteral` is a `Literal["bid", "ask"]` — see
+[Types & literals](types.md).
 
 ## Prices
 
@@ -35,8 +35,10 @@ Prices live in `[0.00, 1.00]` and represent dollars (a YES at $0.65 implies a
 65% market-implied probability). Always pass them as strings or `Decimal`:
 
 ```python
-order = client.orders.create(..., yes_price="0.65")
-order = client.orders.create(..., yes_price=Decimal("0.65"))
+from kalshi.models.orders import CreateOrderV2Request
+
+CreateOrderV2Request(..., price="0.65")
+CreateOrderV2Request(..., price=Decimal("0.65"))
 ```
 
 Float is a footgun; the SDK accepts it but normalizes through `str()` to avoid
@@ -74,12 +76,11 @@ separate, future change.
 A few fields are **integer cents**, not dollars:
 
 - `Balance.balance` / `portfolio_value` — cents.
-- `CreateOrderRequest.buy_max_cost` — cents.
 - `ApplySubaccountTransferRequest.amount_cents` — cents.
 
 These are typed `int`. Passing a `Decimal` or `float` raises `ValueError` at
-construction. The rule: anything with `_cents` / `buy_max_cost` is cents;
-anything with `_dollars` or `yes_price` / `no_price` is `Decimal` dollars.
+construction. The rule: anything with `_cents` is cents; anything with
+`_dollars` or a `price` field is `Decimal` dollars.
 
 ## Order, fill, position, settlement
 
@@ -89,13 +90,11 @@ anything with `_dollars` or `yes_price` / `no_price` is `Decimal` dollars.
 - **Position** — your aggregate exposure on a market (signed by side).
 - **Settlement** — what the exchange paid out when the market resolved.
 
-Orders come in two families:
-
-- **V1** — `/portfolio/orders/*`. Yes/no sides, paired `yes_price` /
-  `no_price`. Stable surface; deprecation no earlier than May 6, 2026.
-- **V2** — `/portfolio/events/orders/*`. Event-scoped, single-book
-  `bid` / `ask` sides, single `price` field, required `client_order_id`
-  acting as an idempotency key. Use this for new event-market integrations.
+Orders are written through the **V2** surface — `/portfolio/events/orders/*`.
+It is event-scoped with single-book `bid` / `ask` sides, a single `price`
+field, and a required `client_order_id` that acts as an idempotency key.
+Every write builds a request model (e.g. `CreateOrderV2Request`) — there is
+no kwarg overload, so always construct the model and pass it as `request=`.
 
 See [Orders](resources/orders.md), [Portfolio](resources/portfolio.md).
 
@@ -173,14 +172,19 @@ doesn't belong on every request (set those via ``KalshiConfig.extra_headers``).
 
 ```python
 import uuid
+from decimal import Decimal
+from kalshi.models.orders import CreateOrderV2Request
 
-order = client.orders.create(
-    ticker="KXPRES-24-DJT",
-    side="yes",
-    action="buy",
-    count=1,
-    yes_price="0.65",
-    client_order_id="cli-1",
+order = client.orders.create_v2(
+    request=CreateOrderV2Request(
+        ticker="KXPRES-24-DJT",
+        client_order_id="cli-1",
+        side="bid",
+        count=Decimal("1"),
+        price=Decimal("0.65"),
+        time_in_force="fill_or_kill",
+        self_trade_prevention_type="taker_at_cross",
+    ),
     extra_headers={"Idempotency-Key": str(uuid.uuid4())},
 )
 ```

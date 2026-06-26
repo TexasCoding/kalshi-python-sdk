@@ -34,17 +34,17 @@ every exception class.
 
 ## Request models
 
-::: kalshi.models.orders.CreateOrderRequest
+::: kalshi.models.orders.CreateOrderV2Request
 
-::: kalshi.models.orders.AmendOrderRequest
+::: kalshi.models.orders.AmendOrderV2Request
 
-::: kalshi.models.orders.DecreaseOrderRequest
+::: kalshi.models.orders.DecreaseOrderV2Request
 
-::: kalshi.models.orders.BatchCreateOrdersRequest
+::: kalshi.models.orders.BatchCreateOrdersV2Request
 
-::: kalshi.models.orders.BatchCancelOrdersRequest
+::: kalshi.models.orders.BatchCancelOrdersV2Request
 
-::: kalshi.models.orders.BatchCancelOrdersRequestOrder
+::: kalshi.models.orders.BatchCancelOrdersV2RequestOrder
 
 ::: kalshi.models.api_keys.CreateApiKeyRequest
 
@@ -88,7 +88,7 @@ every exception class.
 
 ::: kalshi.models.orders.Fill
 
-::: kalshi.models.orders.AmendOrderResponse
+::: kalshi.models.orders.AmendOrderV2Response
 
 ::: kalshi.models.orders.OrderQueuePosition
 
