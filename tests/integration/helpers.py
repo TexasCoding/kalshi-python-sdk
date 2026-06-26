@@ -15,6 +15,7 @@ from websockets.exceptions import ConnectionClosed
 
 from kalshi.client import KalshiClient
 from kalshi.errors import KalshiConnectionError, KalshiError, KalshiNotFoundError
+from kalshi.models.orders import CreateOrderV2Request
 
 
 def wait_for_resource[T](
@@ -150,11 +151,11 @@ def fill_guarantee(
     test_run_id: str,
     price: str = "0.50",
 ) -> tuple[str, str]:
-    """Place opposing buy+sell orders to produce a fill.
+    """Place opposing bid+ask orders to produce a fill.
 
-    Places a YES buy and YES sell at the same price (both count=1).
+    Places a YES bid and YES ask at the same price (both count=1).
     If the orderbook has liquidity, uses the midpoint. Otherwise falls
-    back to the provided price (default $0.50). Returns (buy_order_id, sell_order_id).
+    back to the provided price (default $0.50). Returns (bid_order_id, ask_order_id).
 
     Skips the test if either order is rejected (e.g., self-trade prohibited).
 
@@ -172,38 +173,44 @@ def fill_guarantee(
         if Decimal("0.01") <= midpoint <= Decimal("0.99"):
             price = str(midpoint)
 
-    # Place buy order
+    # Place bid order
     try:
-        buy_order = client.orders.create(
-            ticker=ticker,
-            side="yes",
-            action="buy",
-            count=1,
-            yes_price=price,
-            client_order_id=f"{test_run_id}-fill-buy",
+        buy_order = client.orders.create_v2(
+            request=CreateOrderV2Request(
+                ticker=ticker,
+                side="bid",
+                count=Decimal("1"),
+                price=Decimal(price),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                client_order_id=f"{test_run_id}-fill-buy",
+            )
         )
     except KalshiError as exc:
-        pytest.skip(f"Buy order rejected: {exc}")
+        pytest.skip(f"Bid order rejected: {exc}")
 
-    # Place sell order to match against the buy
+    # Place ask order to match against the bid
     try:
-        sell_order = client.orders.create(
-            ticker=ticker,
-            side="yes",
-            action="sell",
-            count=1,
-            yes_price=price,
-            client_order_id=f"{test_run_id}-fill-sell",
+        sell_order = client.orders.create_v2(
+            request=CreateOrderV2Request(
+                ticker=ticker,
+                side="ask",
+                count=Decimal("1"),
+                price=Decimal(price),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                client_order_id=f"{test_run_id}-fill-sell",
+            )
         )
     except KalshiError as exc:
-        # Clean up the resting buy order
+        # Clean up the resting bid order
         try:
-            client.orders.cancel(buy_order.order_id)
+            client.orders.cancel_v2(buy_order.order_id)
         except KalshiError:
             logger.warning(
-                "Failed to cancel buy order %s during fill_guarantee cleanup",
+                "Failed to cancel bid order %s during fill_guarantee cleanup",
                 buy_order.order_id,
             )
-        pytest.skip(f"Sell order rejected (self-trade prohibited?): {exc}")
+        pytest.skip(f"Ask order rejected (self-trade prohibited?): {exc}")
 
     return buy_order.order_id, sell_order.order_id

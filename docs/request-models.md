@@ -1,40 +1,32 @@
 # Request models
 
-Every mutating endpoint (`POST`, `PUT`, `DELETE` with a body) accepts its
-parameters two ways: as individual keyword arguments or as a pre-built request
-model.
+Every mutating endpoint (`POST`, `PUT`, `DELETE` with a body) takes its
+parameters as a pre-built request model. You construct the model, then pass it
+as `request=`.
 
-## The two forms
+## The request-model form
 
 ```python
-# Form 1 — individual kwargs (default for most call sites)
-order = client.orders.create(
-    ticker="KXPRES-24-DJT",
-    side="yes",
-    action="buy",
-    count=10,
-    yes_price="0.65",
-    time_in_force="good_till_canceled",
-)
+import uuid
+from decimal import Decimal
+from kalshi import CreateOrderV2Request
 
-# Form 2 — pass a pre-built request model
-from kalshi import CreateOrderRequest
-
-req = CreateOrderRequest(
+req = CreateOrderV2Request(
     ticker="KXPRES-24-DJT",
-    side="yes",
-    action="buy",
-    count=10,
-    yes_price="0.65",
+    client_order_id=str(uuid.uuid4()),
+    side="bid",
+    count=Decimal("10"),
+    price=Decimal("0.65"),
     time_in_force="good_till_canceled",
+    self_trade_prevention_type="taker_at_cross",
 )
-order = client.orders.create(request=req)
+order = client.orders.create_v2(request=req)
 ```
 
-The two forms are **mutually exclusive** — passing `request=` together with
-any other kwarg raises `TypeError`. The request-model form is useful when you
-build orders out of band (config, queue, test harness) and want to type-check
-the whole payload at construction time.
+The request-model form lets you build orders out of band (config, queue, test
+harness) and type-check the whole payload at construction time. Prices and
+counts are `Decimal`; `side` is the book side (`"bid"` / `"ask"`, not
+`"yes"` / `"no"`); `client_order_id` is required.
 
 ## `extra="forbid"` everywhere
 
@@ -43,30 +35,25 @@ removed field fails at construction with a Pydantic `ValidationError` —
 **before** the HTTP request goes out.
 
 ```python
-from kalshi import CreateOrderRequest
+from kalshi import CreateOrderV2Request
 
-CreateOrderRequest(
-    ticker="X", side="yes", action="buy", count=1, yes_price="0.65",
+CreateOrderV2Request(
+    ticker="X", client_order_id="abc", side="bid", count=1, price="0.65",
+    time_in_force="good_till_canceled", self_trade_prevention_type="taker_at_cross",
     typo_field=123,        # raises ValidationError immediately
 )
 ```
 
-The same models drive the body-drift contract tests in CI, so the kwargs
-exposed on each resource method and the wire format stay in lockstep with the
-OpenAPI spec.
+The same models drive the body-drift contract tests in CI, so the wire format
+exposed by each resource method stays in lockstep with the OpenAPI spec.
 
 ## Inventory
 
 | Resource | Request model |
 |---|---|
-| `client.orders.create` | `CreateOrderRequest` |
-| `client.orders.batch_create` | `BatchCreateOrdersRequest` (wraps `list[CreateOrderRequest]`) |
-| `client.orders.batch_cancel` | `BatchCancelOrdersRequest` (wraps `list[BatchCancelOrdersRequestOrder]`) |
-| `client.orders.amend` | `AmendOrderRequest` |
-| `client.orders.decrease` | `DecreaseOrderRequest` |
-| `client.orders.create_v2` | `CreateOrderV2Request` (V2 event-market — model-only, no kwarg form) |
-| `client.orders.amend_v2` | `AmendOrderV2Request` (V2 — model-only) |
-| `client.orders.decrease_v2` | `DecreaseOrderV2Request` (V2 — model-only, XOR `reduce_by`/`reduce_to`) |
+| `client.orders.create_v2` | `CreateOrderV2Request` |
+| `client.orders.amend_v2` | `AmendOrderV2Request` |
+| `client.orders.decrease_v2` | `DecreaseOrderV2Request` (XOR `reduce_by` / `reduce_to`) |
 | `client.orders.batch_create_v2` | `BatchCreateOrdersV2Request` (wraps `list[CreateOrderV2Request]`) |
 | `client.orders.batch_cancel_v2` | `BatchCancelOrdersV2Request` (wraps `list[BatchCancelOrdersV2RequestOrder]`) |
 | `client.api_keys.create` | `CreateApiKeyRequest` |
@@ -92,22 +79,16 @@ an awkward wire name:
 
 | Model field | Wire name |
 |---|---|
-| `CreateOrderRequest.count` | `count_fp` |
-| `CreateOrderRequest.yes_price` | `yes_price_dollars` |
-| `CreateOrderRequest.no_price` | `no_price_dollars` |
-| `AmendOrderRequest.yes_price` / `.no_price` / `.count` | `*_dollars` / `count_fp` |
-| `CreateQuoteRequest.target_cost` | `target_cost_dollars` |
+| `CreateRFQRequest.target_cost` | `target_cost_dollars` |
 | `StructuredTarget.target_type` (response) | `type` (avoids shadowing the builtin) |
 
 You never type these long names — they're an internal implementation detail.
 
-## V2 surface: model-only
+## V2 idempotency keys
 
-The V2 event-market order endpoints (`create_v2` / `amend_v2` / `decrease_v2`
-/ `batch_*_v2`) don't accept individual kwargs — pass a fully-constructed
-request model. This is intentional: V2 took the opportunity to drop the
-V1 kwarg-overload surface entirely, so the model is the single source of
-truth for the payload shape.
+`CreateOrderV2Request.client_order_id` is required and the server treats it as
+an idempotency key — reusing one returns the original order rather than placing
+a new one. Generate a fresh UUID4 per call.
 
 ```python
 import uuid
@@ -126,19 +107,12 @@ req = CreateOrderV2Request(
 client.orders.create_v2(request=req)
 ```
 
-`CreateOrderV2Request.client_order_id` is required (V1's was optional) and
-the server treats it as an idempotency key — reusing one returns the
-original order rather than placing a new one. Generate a fresh UUID4 per
-call.
-
 ## Cross-field invariants
 
 Some request models enforce relationships **before** the HTTP call:
 
-- `DecreaseOrderRequest` / `DecreaseOrderV2Request` — exactly one of
-  `reduce_by` / `reduce_to` is required (XOR enforced via a model validator).
-- `AmendOrderRequest` — at least one of `yes_price` / `no_price` / `count`
-  must be present (enforced in the resource method, before the body is built).
+- `DecreaseOrderV2Request` — exactly one of `reduce_by` / `reduce_to` is
+  required (XOR enforced via a model validator).
 
 Bad input fails locally with a clear traceback; no wasted round trip.
 
@@ -148,12 +122,19 @@ If you need to inspect or mutate the wire body, request models serialize like
 this:
 
 ```python
-from kalshi import CreateOrderRequest
+from decimal import Decimal
+from kalshi import CreateOrderV2Request
 
-req = CreateOrderRequest(ticker="X", side="yes", action="buy", count=1, yes_price="0.65")
+req = CreateOrderV2Request(
+    ticker="X", client_order_id="abc", side="bid",
+    count=Decimal("1"), price=Decimal("0.65"),
+    time_in_force="good_till_canceled",
+    self_trade_prevention_type="taker_at_cross",
+)
 body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-# {'ticker': 'X', 'side': 'yes', 'action': 'buy', 'count_fp': '1',
-#  'yes_price_dollars': '0.65'}
+# {'ticker': 'X', 'client_order_id': 'abc', 'side': 'bid', 'count': '1',
+#  'price': '0.65', 'time_in_force': 'good_till_canceled',
+#  'self_trade_prevention_type': 'taker_at_cross'}
 ```
 
 `exclude_none=True` and `by_alias=True` are exactly what every resource method

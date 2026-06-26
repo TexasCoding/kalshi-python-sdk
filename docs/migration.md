@@ -1,5 +1,76 @@
 # Migration
 
+## v4 → v5.0.0
+
+**Breaking: the V1 order-write API is gone.** Kalshi removed the V1 order
+endpoints from the OpenAPI spec in 3.22.0, so the SDK removed the matching
+methods and models. Order writes now go exclusively through the V2
+`/portfolio/events/orders` family (the `*_v2` methods, available since 3.18.0).
+
+Read endpoints are unchanged: `orders.get`, `orders.list`, `orders.list_all`,
+`orders.queue_positions`, `orders.queue_position`, and `portfolio.fills` all keep
+working exactly as before.
+
+### Removed methods → replacement
+
+| Removed (v4)                         | Use instead (v5)                                   |
+| ------------------------------------ | -------------------------------------------------- |
+| `orders.create(...)`                 | `orders.create_v2(request=CreateOrderV2Request(...))` |
+| `orders.cancel(order_id)`            | `orders.cancel_v2(order_id, ...)`                  |
+| `orders.amend(order_id, ...)`        | `orders.amend_v2(order_id, request=AmendOrderV2Request(...))` |
+| `orders.decrease(order_id, ...)`     | `orders.decrease_v2(order_id, request=DecreaseOrderV2Request(...))` |
+| `orders.batch_create(orders=[...])`  | `orders.batch_create_v2(request=BatchCreateOrdersV2Request(orders=[...]))` |
+| `orders.batch_cancel(orders=[...])`  | `orders.batch_cancel_v2(request=BatchCancelOrdersV2Request(orders=[...]))` |
+
+The V2 models use a single `price` with a `side` of `"bid"`/`"ask"` (book side),
+rather than the V1 `yes_price` / `no_price` + `yes`/`no`:
+
+```python
+from decimal import Decimal
+from kalshi.models import CreateOrderV2Request
+
+# v4 (removed)
+# order = client.orders.create(ticker="MKT-A", side="yes", action="buy", count=1, yes_price="0.56")
+
+# v5
+resp = client.orders.create_v2(
+    request=CreateOrderV2Request(
+        ticker="MKT-A",
+        client_order_id="my-idempotency-key",
+        side="bid",                      # book side, not yes/no
+        count=Decimal("1"),
+        price=Decimal("0.56"),
+        time_in_force="good_till_canceled",
+        self_trade_prevention_type="taker_at_cross",
+    )
+)
+```
+
+### Removed models
+
+These are no longer exported from `kalshi` / `kalshi.models`:
+`CreateOrderRequest`, `AmendOrderRequest`, `AmendOrderResponse`,
+`DecreaseOrderRequest`, `BatchCreateOrdersRequest`, `BatchCreateOrdersResponse`,
+`BatchCreateOrdersResponseEntry`, `BatchCancelOrdersRequest`,
+`BatchCancelOrdersResponse`, `BatchCancelOrdersResponseEntry`,
+`BatchCancelOrdersRequestOrder`, and the `ActionLiteral` alias. Use the `…V2…`
+models instead.
+
+### Other breaking changes
+
+- `communications.quotes.list` / `list_all` (and the `communications.list_quotes`
+  / `list_all_quotes` facades) no longer accept `event_ticker` / `market_ticker`
+  — those filters were removed from `GET /communications/quotes` upstream.
+
+### New in 5.0.0
+
+- RFQ-scoped quote actions: `communications.quotes.accept_for_rfq`,
+  `confirm_for_rfq`, and `delete_for_rfq` (take both `rfq_id` and `quote_id`).
+- `cancel_v2(..., market_ticker=...)` and `BatchCancelOrdersV2RequestOrder.market_ticker`
+  for `-1` (auto-route) exchange indices.
+- `SubaccountBalance.exchange_index`; perps SCM `MarketSettlementEstimate`,
+  `SettlementEstimate.positions`, `GetSettlementEstimateResponse.prev_settlement_prices`.
+
 ## v3 → v4.0.0
 
 v4.0.0 has **one breaking change** — the Self-Clearing-Member "Klear" API

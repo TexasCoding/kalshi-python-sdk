@@ -15,7 +15,7 @@ from tests._request_model_fixtures import minimal_kwargs
 
 # Request bodies must stay `extra="forbid"`. Identified by name suffix per
 # the CLAUDE.md "Adding a new resource" convention. Both `Request` and the
-# longer `RequestOrder` are needed: `BatchCancelOrdersRequestOrder` is a
+# longer `RequestOrder` are needed: `BatchCancelOrdersV2RequestOrder` is a
 # request-body sub-model whose name doesn't end in plain `Request`.
 _REQUEST_BODY_SUFFIXES = ("Request", "RequestOrder")
 

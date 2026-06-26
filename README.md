@@ -11,10 +11,10 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (104 operations across 19 resources, OpenAPI v3.21.0) and WebSocket API (12 typed `subscribe_*` channels + 2 escape-hatch).
+- **Full coverage** of the Kalshi REST API (101 operations across 19 resources, OpenAPI v3.22.0) and WebSocket API (12 typed `subscribe_*` channels + 2 escape-hatch).
 - **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (9 operations). See [Perps (margin) trading](#perps-margin-trading).
 - **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, post-trade (prediction), and RFQ (prediction) sessions (plus order-group management over the order-entry session) with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
-- **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*`. Legacy `/portfolio/orders` keeps working — deprecated no earlier than May 6, 2026.
+- **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` plus batched variants on `/portfolio/events/orders/*` — the only order-write surface.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
 - **Sync and async** clients sharing one transport — no thread-pool wrapping.
 - **Typed end-to-end**: Pydantic v2 models, `mypy --strict` clean, ships `py.typed`. `Literal` types on fixed-enum kwargs.
@@ -113,44 +113,9 @@ with KalshiClient(demo=True) as client:
 
 ## Placing orders
 
-```python
-from kalshi import KalshiClient
-
-with KalshiClient.from_env() as client:
-    order = client.orders.create(
-        ticker="EXAMPLE-25-T",
-        side="yes",
-        action="buy",
-        count=10,
-        yes_price="0.65",          # 65 cents
-        time_in_force="good_till_canceled",
-        client_order_id="my-uuid", # idempotency key
-    )
-    print(order.order_id, order.status)
-```
-
-Prices are decimal dollars (e.g. `"0.65"`) per the Kalshi spec. Internally
-the SDK uses `Decimal` via the `DollarDecimal` type — never `float`.
-
-Every POST/PUT/DELETE-with-body method also accepts a pre-built request model
-as an alternative to individual kwargs (useful for programmatic order
-construction):
-
-```python
-from kalshi import CreateOrderRequest
-
-client.orders.create(request=CreateOrderRequest(
-    ticker="EXAMPLE-25-T", side="yes", action="buy",
-    count=10, yes_price="0.65",
-))
-```
-
-### V2 event-market orders
-
-Spec v3.18.0 introduced the V2 family on `/portfolio/events/orders/*` —
-event-scoped semantics with single-book `bid`/`ask` sides and fixed-point
-dollar prices. Legacy `/portfolio/orders` keeps working and will be
-deprecated no earlier than May 6, 2026.
+Orders are written through the V2 event-market family on
+`/portfolio/events/orders/*` — event-scoped semantics with single-book
+`bid`/`ask` sides and fixed-point dollar prices.
 
 ```python
 import uuid
@@ -163,15 +128,28 @@ with KalshiClient.from_env() as client:
         client_order_id=str(uuid.uuid4()),  # required + server idempotency key
         side="bid",                         # BookSideLiteral: "bid" | "ask"
         count=Decimal("10"),
-        price=Decimal("0.50"),
+        price=Decimal("0.50"),              # 50 cents
         time_in_force="good_till_canceled",
         self_trade_prevention_type="taker_at_cross",
     ))
     print(resp.order_id, resp.remaining_count, resp.fill_count)
 ```
 
-The V2 surface is model-only (no kwarg overload); pass a fully-constructed
-request model. See [V2 orders docs](https://texascoding.github.io/kalshi-python-sdk/resources/orders/#v2-event-market-orders) for amend/decrease/batch variants.
+Prices and counts are `Decimal` — never `float`. Internally the SDK uses the
+`DollarDecimal` type for prices (FixedPointDollars on the wire). `side` is the
+book side (`"bid"` / `"ask"`), not `"yes"` / `"no"`, and `client_order_id` is
+required on `CreateOrderV2Request` (the server uses it for idempotency).
+
+The V2 surface is **model-only** — there is no kwarg overload. Every write
+takes a fully-constructed request model whose `model_config = {"extra":
+"forbid"}` rejects phantom keys at construction time. Cancel takes the order id
+directly:
+
+```python
+client.orders.cancel_v2(resp.order_id)
+```
+
+See [V2 orders docs](https://texascoding.github.io/kalshi-python-sdk/resources/orders/#v2-event-market-orders) for `amend_v2` / `decrease_v2` / `batch_create_v2` / `batch_cancel_v2`.
 
 ## WebSocket streaming
 

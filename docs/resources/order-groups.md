@@ -24,16 +24,26 @@ Auth required throughout.
 ## Lifecycle
 
 ```python
-from kalshi import CreateOrderRequest
+from decimal import Decimal
+
+from kalshi import CreateOrderV2Request
 
 # 1) Create a group with a 100-contract cap.
 group = client.order_groups.create(contracts_limit=100)
 print(group.order_group_id)
 
-# 2) Attach orders by id.
-client.orders.create(
-    ticker="KXPRES-24-DJT", side="yes", action="buy", count=10,
-    yes_price="0.65", order_group_id=group.order_group_id,
+# 2) Attach orders by passing the group id on the order request model.
+client.orders.create_v2(
+    request=CreateOrderV2Request(
+        ticker="KXPRES-24-DJT",
+        client_order_id="og-attach-1",
+        side="bid",
+        count=Decimal("10"),
+        price=Decimal("0.65"),
+        time_in_force="good_till_canceled",
+        self_trade_prevention_type="taker_at_cross",
+        order_group_id=group.order_group_id,
+    )
 )
 
 # 3) Inspect.

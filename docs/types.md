@@ -19,10 +19,26 @@ Used for every price field (`yes_bid`, `yes_ask`, `no_bid`, `no_ask`,
 
 ```python
 from decimal import Decimal
-from kalshi import CreateOrderRequest
+from kalshi import CreateOrderV2Request
 
-CreateOrderRequest(ticker="X", side="yes", action="buy", count=1, yes_price="0.65")
-CreateOrderRequest(ticker="X", side="yes", action="buy", count=1, yes_price=Decimal("0.65"))
+CreateOrderV2Request(
+    ticker="X",
+    client_order_id="my-id-1",
+    side="bid",
+    count=Decimal(1),
+    price="0.65",
+    time_in_force="good_till_canceled",
+    self_trade_prevention_type="taker_at_cross",
+)
+CreateOrderV2Request(
+    ticker="X",
+    client_order_id="my-id-2",
+    side="bid",
+    count=Decimal(1),
+    price=Decimal("0.65"),
+    time_in_force="good_till_canceled",
+    self_trade_prevention_type="taker_at_cross",
+)
 ```
 
 The Kalshi API uses **FixedPointDollars** strings (`"0.5600"`) with up to six
@@ -39,8 +55,8 @@ directly.
 
 ### `OrderPrice`
 
-Request-side dollar price fields (`CreateOrderRequest.yes_price` / `no_price`,
-`AmendOrderRequest`, and the V2 order equivalents) use `OrderPrice` — the same
+Request-side dollar price fields (`CreateOrderV2Request.price`,
+`AmendOrderV2Request.price`) use `OrderPrice` — the same
 wire form and coercion as `DollarDecimal`, plus two construction-time guards: the
 price must be **non-negative** and aligned to the **$0.0001 tick**. A negative or
 sub-tick value (`Decimal("-0.65")`, `Decimal("0.12345")`) raises `ValueError` at
@@ -64,7 +80,6 @@ Some fields are plain `int` cents, **not** `DollarDecimal`:
 | `Balance.balance` / `portfolio_value` | `client.portfolio.balance()` | cents |
 | `Deposit.amount_cents` / `fee_cents` | `client.portfolio.deposits()` | cents |
 | `Withdrawal.amount_cents` / `fee_cents` | `client.portfolio.withdrawals()` | cents |
-| `CreateOrderRequest.buy_max_cost` | `client.orders.create(..., buy_max_cost=500)` | cents — `500` means $5.00 |
 | `ApplySubaccountTransferRequest.amount_cents` | `client.subaccounts.transfer(...)` | cents |
 
 Passing a `Decimal` or `float` to one of these raises `ValueError` at
@@ -90,9 +105,8 @@ Every enum-like kwarg uses a `Literal` alias so your IDE auto-completes and
 
 | Alias | Values |
 |---|---|
-| `SideLiteral` | `"yes"`, `"no"` (V1 orders) |
+| `SideLiteral` | `"yes"`, `"no"` (outcome side on reads — e.g. `Order.outcome_side`, `Fill.outcome_side`) |
 | `BookSideLiteral` | `"bid"`, `"ask"` (V2 event-market orders) |
-| `ActionLiteral` | `"buy"`, `"sell"` |
 | `TimeInForceLiteral` | `"fill_or_kill"`, `"good_till_canceled"`, `"immediate_or_cancel"` |
 | `SelfTradePreventionTypeLiteral` | `"taker_at_cross"`, `"maker"` |
 | `OrderStatusLiteral` | `"resting"`, `"canceled"`, `"executed"` |
@@ -115,9 +129,13 @@ Every enum-like kwarg uses a `Literal` alias so your IDE auto-completes and
 All aliases are exported from the top-level `kalshi` package:
 
 ```python
-from kalshi import SideLiteral, ActionLiteral, TimeInForceLiteral
+from kalshi import BookSideLiteral, TimeInForceLiteral, SelfTradePreventionTypeLiteral
 
-def place(side: SideLiteral, action: ActionLiteral, tif: TimeInForceLiteral) -> None:
+def place(
+    side: BookSideLiteral,
+    tif: TimeInForceLiteral,
+    stp: SelfTradePreventionTypeLiteral,
+) -> None:
     ...
 ```
 

@@ -2,6 +2,49 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 5.0.0 — 2026-06-26
+
+Syncs the upstream OpenAPI spec **3.21.0 → 3.22.0** (#454, #458). The headline
+change is **breaking**: Kalshi removed the V1 order-write endpoints from the
+spec, so the SDK removes the V1 order methods and their models. Order writes now
+go exclusively through the V2 `/portfolio/events/orders` family (the `*_v2`
+methods, which have existed since 3.18.0). See `docs/migration.md` for the
+V1 → V2 mapping.
+
+### Removed (breaking)
+
+- **V1 order-write methods** on `client.orders` (sync + async): `create`,
+  `cancel`, `batch_create`, `batch_cancel`, `amend`, `decrease`. The underlying
+  endpoints (`POST/DELETE /portfolio/orders`, `/portfolio/orders/batched`,
+  `/portfolio/orders/{id}/amend`, `/portfolio/orders/{id}/decrease`) were
+  removed from the spec in 3.22.0. Use the `*_v2` equivalents instead.
+- **V1 order models** (no longer exported from `kalshi` / `kalshi.models`):
+  `CreateOrderRequest`, `AmendOrderRequest`, `AmendOrderResponse`,
+  `DecreaseOrderRequest`, `BatchCreateOrdersRequest`, `BatchCreateOrdersResponse`,
+  `BatchCreateOrdersResponseEntry`, `BatchCancelOrdersRequest`,
+  `BatchCancelOrdersResponse`, `BatchCancelOrdersResponseEntry`,
+  `BatchCancelOrdersRequestOrder`, and the `ActionLiteral` (`buy`/`sell`) alias.
+- **Dead quote filters** — `event_ticker` and `market_ticker` were removed from
+  `GET /communications/quotes` upstream, so they are removed from
+  `client.communications.quotes.list` / `list_all` and the
+  `communications.list_quotes` / `list_all_quotes` facade methods.
+
+### Added
+
+- **RFQ-scoped quote actions** (spec 3.22.0) on `client.communications.quotes`
+  (sync + async): `accept_for_rfq(rfq_id, quote_id, ...)`,
+  `confirm_for_rfq(rfq_id, quote_id)`, `delete_for_rfq(rfq_id, quote_id)` —
+  backing `PUT/DELETE /communications/rfqs/{rfq_id}/quotes/{quote_id}[/accept|/confirm]`.
+- **`cancel_v2` `market_ticker` query param** — required when `exchange_index`
+  is `-1` (auto-route by ticker).
+- **`BatchCancelOrdersV2RequestOrder.market_ticker`** — same auto-route semantics
+  for batch V2 cancels.
+- **`SubaccountBalance.exchange_index`** — the exchange shard a balance is held on.
+- **Perps SCM** (`kalshi.perps.klear`): new `MarketSettlementEstimate` model;
+  `SettlementEstimate.positions` (per-market breakdown map); and
+  `GetSettlementEstimateResponse.prev_settlement_prices` (market → last
+  settlement price, centicents).
+
 ## 4.2.0 — 2026-06-19
 
 Reconciles in-place upstream spec drift detected by the nightly run (#451):

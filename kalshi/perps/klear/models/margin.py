@@ -206,6 +206,16 @@ class GetObligationHistoryResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class MarketSettlementEstimate(BaseModel):
+    """Spec ``MarketSettlementEstimate`` — per-market settlement breakdown (centi units)."""
+
+    quantity_centicount: int
+    variation_margin_centicents: int
+    notional_value_centicents: int
+
+    model_config = {"extra": "allow"}
+
+
 class SettlementEstimate(BaseModel):
     """Spec ``SettlementEstimate`` — estimated next-settlement amounts (centicents)."""
 
@@ -214,6 +224,8 @@ class SettlementEstimate(BaseModel):
     maintenance_margin_delta_centicents: int
     maintenance_margin_required_centicents: int
     total_amount_centicents: int
+    # Spec v3.22.0: per-market breakdown map (market ticker -> estimate); optional.
+    positions: dict[str, MarketSettlementEstimate] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -223,10 +235,14 @@ class GetSettlementEstimateResponse(BaseModel):
 
     ``subtrader_breakdowns`` is the spec ``additionalProperties`` map
     (subtrader-id → :class:`SettlementEstimate`); optional.
+
+    ``prev_settlement_prices`` (spec v3.22.0) maps market ticker → most
+    recent settlement (mark) price in centicents; optional.
     """
 
     user_breakdown: SettlementEstimate
     subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
+    prev_settlement_prices: dict[str, int] | None = None
     settlement_balance_centicents: int
 
     model_config = {"extra": "allow"}

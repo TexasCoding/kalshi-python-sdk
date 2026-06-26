@@ -611,18 +611,29 @@ class TestAsyncKalshiClientFromEnv:
 
 class TestAsyncUnauthenticatedResourceGuards:
     @pytest.mark.asyncio
-    async def test_orders_create_raises_auth_required(self) -> None:
+    async def test_orders_create_v2_raises_auth_required(self) -> None:
         config = KalshiConfig(
             base_url="https://test.kalshi.com/trade-api/v2",
             timeout=5.0,
             max_retries=0,
         )
         transport = AsyncTransport(None, config)
+        from kalshi.models.orders import CreateOrderV2Request
         from kalshi.resources.orders import AsyncOrdersResource
 
         resource = AsyncOrdersResource(transport)
         with pytest.raises(AuthRequiredError):
-            await resource.create(ticker="TEST", side="yes", action="buy", count=1)
+            await resource.create_v2(
+                request=CreateOrderV2Request(
+                    ticker="TEST",
+                    client_order_id="c-1",
+                    side="bid",
+                    count="1",
+                    price="0.50",
+                    time_in_force="good_till_canceled",
+                    self_trade_prevention_type="taker_at_cross",
+                )
+            )
 
     @pytest.mark.asyncio
     async def test_portfolio_balance_raises_auth_required(self) -> None:

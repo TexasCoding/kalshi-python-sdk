@@ -20,9 +20,8 @@ class CreateSubaccountResponse(BaseModel):
 class ApplySubaccountTransferRequest(BaseModel):
     """Body for POST /portfolio/subaccounts/transfer.
 
-    ``amount_cents`` is integer cents per spec (matches the ``buy_max_cost``
-    convention on ``CreateOrderRequest``). Pass ``500`` for $5.00, never
-    a Decimal. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
+    ``amount_cents`` is integer cents per spec (e.g. ``500`` for $5.00, never
+    a Decimal). ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
     primary account and a positive integer for numbered subaccounts. The
     server is the source of truth for the upper bound: spec describes
     ``1-63`` in prose but defines no JSON-schema maximum, and demo has
@@ -49,6 +48,8 @@ class SubaccountBalance(BaseModel):
     """
 
     subaccount_number: int
+    # Spec v3.22.0: exchange shard the balance is held on (required).
+    exchange_index: int
     balance: DollarDecimal
     updated_ts: int
 

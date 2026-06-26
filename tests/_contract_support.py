@@ -353,20 +353,12 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/historical/trades",
     ),
     # ── orders ──────────────────────────────────────────────────────────────
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.create",
-        http_method="POST",
-        path_template="/portfolio/orders",
-        request_body_schema="#/components/schemas/CreateOrderRequest",
-    ),
+    # V1 order-write endpoints (create/cancel/batch_create/batch_cancel/amend/
+    # decrease) were removed from the spec in v3.22.0 — only the V2 family below
+    # remains. Reads (get/list/queue) are unchanged.
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.get",
         http_method="GET",
-        path_template="/portfolio/orders/{order_id}",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.cancel",
-        http_method="DELETE",
         path_template="/portfolio/orders/{order_id}",
     ),
     MethodEndpointEntry(
@@ -380,18 +372,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/portfolio/orders",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.batch_create",
-        http_method="POST",
-        path_template="/portfolio/orders/batched",
-        request_body_schema="#/components/schemas/BatchCreateOrdersRequest",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.batch_cancel",
-        http_method="DELETE",
-        path_template="/portfolio/orders/batched",
-        request_body_schema="#/components/schemas/BatchCancelOrdersRequest",
-    ),
-    MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.fills",
         http_method="GET",
         path_template="/portfolio/fills",
@@ -400,18 +380,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.fills_all",
         http_method="GET",
         path_template="/portfolio/fills",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.amend",
-        http_method="POST",
-        path_template="/portfolio/orders/{order_id}/amend",
-        request_body_schema="#/components/schemas/AmendOrderRequest",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.orders.OrdersResource.decrease",
-        http_method="POST",
-        path_template="/portfolio/orders/{order_id}/decrease",
-        request_body_schema="#/components/schemas/DecreaseOrderRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.queue_positions",
@@ -631,6 +599,23 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.communications.QuotesResource.confirm",
         http_method="PUT",
         path_template="/communications/quotes/{quote_id}/confirm",
+    ),
+    # RFQ-scoped quote actions (spec v3.22.0)
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.delete_for_rfq",
+        http_method="DELETE",
+        path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.accept_for_rfq",
+        http_method="PUT",
+        path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}/accept",
+        request_body_schema="#/components/schemas/AcceptQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.confirm_for_rfq",
+        http_method="PUT",
+        path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}/confirm",
     ),
     # block trade proposals (openapi 3.21.0)
     MethodEndpointEntry(
@@ -896,24 +881,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
 # ``test_exclusion_map_is_current``), so stale entries can't silently
 # accumulate.
 EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
-    # --- CreateOrderRequest spec fields deliberately not on the model ---
-    ("kalshi.models.orders.CreateOrderRequest", "yes_price"): Exclusion(
-        reason=(
-            "cent form redundant with yes_price_dollars; caller passes dollars, "
-            "wire carries dollars"
-        ),
-        kind="wire_normalization",
-    ),
-    ("kalshi.models.orders.CreateOrderRequest", "no_price"): Exclusion(
-        reason=(
-            "cent form redundant with no_price_dollars; caller passes dollars, wire carries dollars"
-        ),
-        kind="wire_normalization",
-    ),
-    ("kalshi.models.orders.CreateOrderRequest", "sell_position_floor"): Exclusion(
-        reason="deprecated in spec (only accepts 0); superseded by reduce_only",
-        kind="spec_deprecated",
-    ),
     # --- cursor exclusions on list_all variants (paginator-handled) ---
     ("kalshi.resources.markets.MarketsResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
@@ -983,93 +950,17 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
-    # --- batch_cancel body param (not a query/path param) ---
-    ("kalshi.resources.orders.OrdersResource.batch_cancel", "orders"): Exclusion(
-        reason="body param (BatchCancelOrdersRequest.orders); not query/path",
-        kind="body_param",
-    ),
     # --- model-first overload kwarg (#56) ---
-    # batch_cancel is the only POST/PUT/DELETE-with-body endpoint covered by
-    # TestRequestParamDrift (DELETE with requestBody). The `request` kwarg is
-    # an SDK-side ergonomic overload, not a spec field. See #56.
-    # No matching AsyncOrdersResource.batch_cancel entry needed: the drift
-    # test indexes EXCLUSIONS by the sync FQN and reuses it for the async
-    # sibling (test_contracts.py: "EXCLUSIONS is indexed by the SYNC method
-    # fqn; async tests reuse the same allowlist entries").
-    ("kalshi.resources.orders.OrdersResource.batch_cancel", "request"): Exclusion(
-        reason="Optional request-model overload; not a spec field. See #56.",
-        kind="body_param",
-    ),
+    # batch_cancel_v2 (DELETE /portfolio/events/orders/batched with a requestBody)
+    # is covered by TestRequestParamDrift. The `request` kwarg is an SDK-side
+    # ergonomic overload, not a spec field. EXCLUSIONS is indexed by the sync FQN;
+    # the async sibling reuses the same allowlist entry.
     ("kalshi.resources.orders.OrdersResource.batch_cancel_v2", "request"): Exclusion(
         reason=(
             "Required request-model kwarg for the model-only V2 surface; "
             "not a spec field. Mirrors batch_cancel."
         ),
         kind="body_param",
-    ),
-    # --- AmendOrderRequest spec fields deliberately not on the model ---
-    ("kalshi.models.orders.AmendOrderRequest", "yes_price"): Exclusion(
-        reason=(
-            "cent form redundant with yes_price_dollars; caller passes dollars, "
-            "wire carries dollars"
-        ),
-        kind="wire_normalization",
-    ),
-    ("kalshi.models.orders.AmendOrderRequest", "no_price"): Exclusion(
-        reason=(
-            "cent form redundant with no_price_dollars; caller passes dollars, wire carries dollars"
-        ),
-        kind="wire_normalization",
-    ),
-    # --- count wire normalization (v0.8.0) ---
-    # Spec has both count (int) and count_fp (FixedPointCount); SDK commits to
-    # emitting count_fp only (serialization_alias="count_fp"). Kalshi accepts
-    # either key per spec description. Documented in CHANGELOG as "count wire
-    # key normalized to count_fp".
-    ("kalshi.models.orders.CreateOrderRequest", "count"): Exclusion(
-        reason=(
-            "SDK emits count_fp (serialization_alias) instead of count; "
-            "Kalshi accepts either; normalized to count_fp per v0.8.0 wire shape decision"
-        ),
-        kind="wire_normalization",
-    ),
-    ("kalshi.models.orders.AmendOrderRequest", "count"): Exclusion(
-        reason=(
-            "SDK emits count_fp (serialization_alias) instead of count; "
-            "Kalshi accepts either; amend() used count_fp pre-v0.8.0 already"
-        ),
-        kind="wire_normalization",
-    ),
-    # --- DecreaseOrderRequest _fp variants not implemented ---
-    # Spec has reduce_by_fp and reduce_to_fp (FixedPointCount string) as
-    # alternatives to reduce_by/reduce_to (int). SDK only emits the integer
-    # forms. Spec says "if both provided they must match" — sending only
-    # integer form is valid. v0.8.0 deferred _fp variants (fractional
-    # contracts not yet relevant for decrease operations).
-    ("kalshi.models.orders.DecreaseOrderRequest", "reduce_by_fp"): Exclusion(
-        reason=(
-            "FixedPointCount variant of reduce_by; SDK emits integer reduce_by only; "
-            "spec accepts either form; _fp variant deferred post-v0.8.0"
-        ),
-        kind="wire_normalization",
-    ),
-    ("kalshi.models.orders.DecreaseOrderRequest", "reduce_to_fp"): Exclusion(
-        reason=(
-            "FixedPointCount variant of reduce_to; SDK emits integer reduce_to only; "
-            "spec accepts either form; _fp variant deferred post-v0.8.0"
-        ),
-        kind="wire_normalization",
-    ),
-    # --- BatchCancelOrdersRequest deprecated ids field ---
-    # Spec has ids (array of strings, marked deprecated) as an alternative to
-    # the preferred orders field. SDK v0.8.0 migrated from ids to orders and
-    # does not emit ids. Documented in CHANGELOG as BREAKING wire field flip.
-    ("kalshi.models.orders.BatchCancelOrdersRequest", "ids"): Exclusion(
-        reason=(
-            "deprecated spec field; SDK v0.8.0 migrated to preferred 'orders' field; "
-            "intentional REMOVE drift documented in CHANGELOG"
-        ),
-        kind="spec_deprecated",
     ),
     # --- CreateOrderGroupRequest / UpdateOrderGroupLimitRequest _fp variants ---
     # Spec has both contracts_limit (int) and contracts_limit_fp (FixedPointCount

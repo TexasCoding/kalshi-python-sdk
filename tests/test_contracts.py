@@ -102,11 +102,6 @@ class TestContractSupportInfra:
         for key in cursor_keys:
             assert EXCLUSIONS[key].kind == "paginator_handled"
 
-    def test_exclusions_bootstrap_has_create_order_request_entries(self) -> None:
-        create_keys = [k for k in EXCLUSIONS if k[0] == "kalshi.models.orders.CreateOrderRequest"]
-        field_names = {k[1] for k in create_keys}
-        assert {"yes_price", "no_price", "sell_position_floor"} <= field_names
-
     def test_method_endpoint_entry_has_request_body_schema(self) -> None:
         entry = MethodEndpointEntry(
             sdk_method="x",
@@ -1195,15 +1190,9 @@ class TestRequestParamDrift:
 # Registry: spec $ref → SDK request model FQN.
 # Update whenever a new POST/PUT/DELETE-with-body endpoint gets a request model.
 BODY_MODEL_MAP: dict[str, str] = {
-    "#/components/schemas/CreateOrderRequest": ("kalshi.models.orders.CreateOrderRequest"),
-    "#/components/schemas/AmendOrderRequest": ("kalshi.models.orders.AmendOrderRequest"),
-    "#/components/schemas/DecreaseOrderRequest": ("kalshi.models.orders.DecreaseOrderRequest"),
-    "#/components/schemas/BatchCreateOrdersRequest": (
-        "kalshi.models.orders.BatchCreateOrdersRequest"
-    ),
-    "#/components/schemas/BatchCancelOrdersRequest": (
-        "kalshi.models.orders.BatchCancelOrdersRequest"
-    ),
+    # V1 order-write request bodies (CreateOrderRequest/AmendOrderRequest/
+    # DecreaseOrderRequest/BatchCreate*/BatchCancel*) were removed in spec v3.22.0
+    # along with their endpoints. Only the V2 family remains.
     "#/components/schemas/CreateOrderV2Request": ("kalshi.models.orders.CreateOrderV2Request"),
     "#/components/schemas/AmendOrderV2Request": ("kalshi.models.orders.AmendOrderV2Request"),
     "#/components/schemas/DecreaseOrderV2Request": ("kalshi.models.orders.DecreaseOrderV2Request"),

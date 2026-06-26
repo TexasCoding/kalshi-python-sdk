@@ -2,37 +2,23 @@
 
 from __future__ import annotations
 
-import logging
-import time
-
 import pytest
 
 from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.models.common import Page
-from kalshi.models.orders import CreateOrderRequest, Fill, Order
-from kalshi.types import to_decimal
+from kalshi.models.orders import Fill, Order
 from tests.integration.assertions import assert_model_fields
-from tests.integration.conftest import skip_if_low_balance
 from tests.integration.coverage_harness import register
-from tests.integration.helpers import await_resource, fill_guarantee, wait_for_resource
-
-logger = logging.getLogger(__name__)
 
 register(
     "OrdersResource",
     [
-        "amend",
         "amend_v2",
-        "batch_cancel",
         "batch_cancel_v2",
-        "batch_create",
         "batch_create_v2",
-        "cancel",
         "cancel_v2",
-        "create",
         "create_v2",
-        "decrease",
         "decrease_v2",
         "fills",
         "fills_all",
@@ -77,141 +63,6 @@ class TestOrdersSync:
             if count >= 2:
                 break
 
-    def test_order_fill_lifecycle(
-        self,
-        sync_client: KalshiClient,
-        demo_market_ticker: str,
-        demo_balance_cents: int,
-        test_run_id: str,
-    ) -> None:
-        """Attempt to produce a fill via opposing orders, verify fill data.
-
-        On demo, self-trading is blocked (the sell side gets canceled).
-        When fills exist (from prior trading or a multi-account setup),
-        this test verifies the full lifecycle. Otherwise it verifies that
-        opposing orders are placed and cleaned up correctly.
-        """
-        skip_if_low_balance(demo_balance_cents, threshold_cents=2000)
-
-        buy_id, sell_id = fill_guarantee(
-            sync_client, demo_market_ticker, test_run_id=test_run_id,
-        )
-
-        # Check order statuses — on demo, self-trade prevention may
-        # cancel one side immediately. Demo's query-exchange replica
-        # lags writes by ~10s, so poll for visibility.
-        buy_order = wait_for_resource(lambda: sync_client.orders.get(buy_id))
-        sell_order = wait_for_resource(lambda: sync_client.orders.get(sell_id))
-        assert_model_fields(buy_order)
-        assert_model_fields(sell_order)
-
-        # Poll for fills (demo server may need time to propagate)
-        our_fills = []
-        for _ in range(3):
-            time.sleep(0.5)
-            page = sync_client.orders.fills(limit=20)
-            our_fills = [
-                f for f in page.items
-                if f.order_id in (buy_id, sell_id)
-            ]
-            if our_fills:
-                break
-
-        if our_fills:
-            fill = our_fills[0]
-            assert isinstance(fill, Fill)
-            assert_model_fields(fill)
-            # ticker is canonical; market_ticker is the legacy alias (per OpenAPI spec)
-            assert fill.ticker == demo_market_ticker
-            assert fill.yes_price is not None
-            assert fill.count is not None
-            assert fill.created_time is not None
-            assert fill.side in ("yes", "no")
-        else:
-            # Self-trading blocked on demo — verify orders were placed
-            # and have expected statuses
-            assert buy_order.order_id == buy_id
-            assert sell_order.order_id == sell_id
-
-    def test_create_get_cancel(
-        self,
-        sync_client: KalshiClient,
-        demo_market_ticker: str,
-        non_marketable_price: str,
-        demo_balance_cents: int,
-        test_run_id: str,
-    ) -> None:
-        """Create an order, retrieve it, then cancel it."""
-        skip_if_low_balance(demo_balance_cents)
-        client_order_id = f"{test_run_id}-create"
-
-        order = sync_client.orders.create(
-            ticker=demo_market_ticker,
-            side="yes",
-            action="buy",
-            count=1,
-            yes_price=non_marketable_price,
-            client_order_id=client_order_id,
-        )
-        assert isinstance(order, Order)
-        assert_model_fields(order)
-        assert order.order_id
-
-        try:
-            retrieved = wait_for_resource(
-                lambda: sync_client.orders.get(order.order_id),
-            )
-            assert isinstance(retrieved, Order)
-            assert_model_fields(retrieved)
-            assert retrieved.order_id == order.order_id
-        finally:
-            try:
-                sync_client.orders.cancel(order.order_id)
-            except Exception:
-                logger.warning("Failed to cancel order %s in teardown", order.order_id)
-
-    def test_batch_create_cancel(
-        self,
-        sync_client: KalshiClient,
-        demo_market_ticker: str,
-        non_marketable_price: str,
-        demo_balance_cents: int,
-        test_run_id: str,
-    ) -> None:
-        """Batch create orders, then batch cancel them."""
-        skip_if_low_balance(demo_balance_cents)
-
-        requests = [
-            CreateOrderRequest(
-                ticker=demo_market_ticker,
-                side="yes",
-                action="buy",
-                count=to_decimal(1),
-                yes_price=to_decimal(non_marketable_price),
-                client_order_id=f"{test_run_id}-batch-{i}",
-            )
-            for i in range(2)
-        ]
-
-        response = sync_client.orders.batch_create(requests)
-        assert len(response.orders) > 0
-        successful = [e.order for e in response.orders if e.order is not None]
-        assert successful, f"All legs failed: {response.orders}"
-        for o in successful:
-            assert isinstance(o, Order)
-            assert_model_fields(o)
-
-        order_ids = [o.order_id for o in successful]
-        try:
-            sync_client.orders.batch_cancel(order_ids)
-        except Exception:
-            # Clean up individually if batch cancel fails
-            for oid in order_ids:
-                try:
-                    sync_client.orders.cancel(oid)
-                except Exception:
-                    logger.warning("Failed to cancel order %s in batch teardown", oid)
-
 
 @pytest.mark.integration
 class TestOrdersAsync:
@@ -246,81 +97,3 @@ class TestOrdersAsync:
             count += 1
             if count >= 3:
                 break
-
-    async def test_create_get_cancel(
-        self,
-        async_client: AsyncKalshiClient,
-        demo_market_ticker: str,
-        non_marketable_price: str,
-        demo_balance_cents: int,
-        test_run_id: str,
-    ) -> None:
-        """Async: create, retrieve, cancel."""
-        skip_if_low_balance(demo_balance_cents)
-        client_order_id = f"{test_run_id}-async-create"
-
-        order = await async_client.orders.create(
-            ticker=demo_market_ticker,
-            side="yes",
-            action="buy",
-            count=1,
-            yes_price=non_marketable_price,
-            client_order_id=client_order_id,
-        )
-        assert isinstance(order, Order)
-        assert_model_fields(order)
-        assert order.order_id
-
-        try:
-            retrieved = await await_resource(
-                lambda: async_client.orders.get(order.order_id),
-            )
-            assert isinstance(retrieved, Order)
-            assert_model_fields(retrieved)
-            assert retrieved.order_id == order.order_id
-        finally:
-            try:
-                await async_client.orders.cancel(order.order_id)
-            except Exception:
-                logger.warning("Failed to cancel async order %s", order.order_id)
-
-    async def test_batch_create_cancel(
-        self,
-        async_client: AsyncKalshiClient,
-        demo_market_ticker: str,
-        non_marketable_price: str,
-        demo_balance_cents: int,
-        test_run_id: str,
-    ) -> None:
-        """Async: batch create, then batch cancel."""
-        skip_if_low_balance(demo_balance_cents)
-
-        requests = [
-            CreateOrderRequest(
-                ticker=demo_market_ticker,
-                side="yes",
-                action="buy",
-                count=to_decimal(1),
-                yes_price=to_decimal(non_marketable_price),
-                client_order_id=f"{test_run_id}-async-batch-{i}",
-            )
-            for i in range(2)
-        ]
-
-        response = await async_client.orders.batch_create(requests)
-        assert len(response.orders) > 0
-        successful = [e.order for e in response.orders if e.order is not None]
-        assert successful, f"All legs failed: {response.orders}"
-        for o in successful:
-            assert isinstance(o, Order)
-            assert_model_fields(o)
-
-        order_ids = [o.order_id for o in successful]
-        try:
-            await async_client.orders.batch_cancel(order_ids)
-        except Exception:
-            for oid in order_ids:
-                try:
-                    await async_client.orders.cancel(oid)
-                except Exception:
-                    logger.warning("Failed to cancel async order %s", oid)

@@ -96,10 +96,9 @@ def _minimal_kwargs_no_override(model_cls: type[BaseModel]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 _OVERRIDES: dict[str, dict[str, Any]] = {
-    # ``DecreaseOrderRequest`` has a ``model_validator`` requiring exactly
+    # ``DecreaseOrderV2Request`` has a ``model_validator`` requiring exactly
     # one of ``reduce_by`` / ``reduce_to``. Both fields are optional so
     # the auto-builder skips them — populate one.
-    "DecreaseOrderRequest": {"reduce_by": 1},
     "DecreaseOrderV2Request": {"reduce_by": Decimal("1")},
 }
 

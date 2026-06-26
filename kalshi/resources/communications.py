@@ -111,8 +111,6 @@ def _list_quotes_params(
     limit: int | None,
     min_ts: int | None,
     max_ts: int | None,
-    event_ticker: str | None,
-    market_ticker: str | None,
     status: QuoteStatusLiteral | None,
     quote_creator_user_id: str | None,
     rfq_creator_user_id: str | None,
@@ -127,8 +125,6 @@ def _list_quotes_params(
         limit=limit,
         min_ts=min_ts,
         max_ts=max_ts,
-        event_ticker=event_ticker,
-        market_ticker=market_ticker,
         status=status,
         quote_creator_user_id=quote_creator_user_id,
         rfq_creator_user_id=rfq_creator_user_id,
@@ -478,8 +474,6 @@ class QuotesResource(SyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -501,8 +495,6 @@ class QuotesResource(SyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -521,8 +513,6 @@ class QuotesResource(SyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -546,8 +536,6 @@ class QuotesResource(SyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -658,6 +646,83 @@ class QuotesResource(SyncResource):
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
         self._put(
             f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )
+
+    # -- RFQ-scoped quote actions (spec v3.22.0) -------------------------------
+    # /communications/rfqs/{rfq_id}/quotes/{quote_id}[/accept|/confirm].
+    # Same semantics as the flat quote actions above, but scoped to the RFQ.
+
+    def delete_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Delete a quote scoped to its RFQ (spec v3.22.0).
+
+        ``DELETE /communications/rfqs/{rfq_id}/quotes/{quote_id}`` — once
+        deleted the quote can no longer be accepted.
+        """
+        self._require_auth()
+        self._delete(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}",
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Accept a quote scoped to its RFQ (spec v3.22.0).
+
+        ``PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/accept`` —
+        acceptance still requires the quoter to confirm.
+        """
+        self._require_auth()
+        body = _build_accept_quote_body(request, accepted_side=accepted_side)
+        self._put(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+
+    def confirm_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Confirm a quote scoped to its RFQ (spec v3.22.0).
+
+        ``PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/confirm`` —
+        starts the order-execution timer.
+        """
+        self._require_auth()
+        # json={} forces Content-Type: application/json — demo rejects empty PUTs.
+        self._put(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}/confirm",
             json={},
             extra_headers=extra_headers,
         )
@@ -953,8 +1018,6 @@ class CommunicationsResource(SyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -970,8 +1033,6 @@ class CommunicationsResource(SyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -989,8 +1050,6 @@ class CommunicationsResource(SyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -1006,8 +1065,6 @@ class CommunicationsResource(SyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -1216,8 +1273,6 @@ class AsyncQuotesResource(AsyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -1239,8 +1294,6 @@ class AsyncQuotesResource(AsyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -1259,8 +1312,6 @@ class AsyncQuotesResource(AsyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -1285,8 +1336,6 @@ class AsyncQuotesResource(AsyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -1401,6 +1450,78 @@ class AsyncQuotesResource(AsyncResource):
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
         await self._put(
             f"/communications/quotes/{_seg(quote_id, name='quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )
+
+    # -- RFQ-scoped quote actions (spec v3.22.0) -------------------------------
+
+    async def delete_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Delete a quote scoped to its RFQ (spec v3.22.0).
+
+        ``DELETE /communications/rfqs/{rfq_id}/quotes/{quote_id}``.
+        """
+        self._require_auth()
+        await self._delete(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}",
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    async def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    async def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    async def accept_for_rfq(
+        self,
+        rfq_id: str,
+        quote_id: str,
+        *,
+        request: AcceptQuoteRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Accept a quote scoped to its RFQ (spec v3.22.0).
+
+        ``PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/accept``.
+        """
+        self._require_auth()
+        body = _build_accept_quote_body(request, accepted_side=accepted_side)
+        await self._put(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+
+    async def confirm_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Confirm a quote scoped to its RFQ (spec v3.22.0).
+
+        ``PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/confirm``.
+        """
+        self._require_auth()
+        # json={} forces Content-Type: application/json — demo rejects empty PUTs.
+        await self._put(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}/confirm",
             json={},
             extra_headers=extra_headers,
         )
@@ -1700,8 +1821,6 @@ class AsyncCommunicationsResource(AsyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -1717,8 +1836,6 @@ class AsyncCommunicationsResource(AsyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,
@@ -1736,8 +1853,6 @@ class AsyncCommunicationsResource(AsyncResource):
         limit: int | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
-        event_ticker: str | None = None,
-        market_ticker: str | None = None,
         status: QuoteStatusLiteral | None = None,
         quote_creator_user_id: str | None = None,
         rfq_creator_user_id: str | None = None,
@@ -1753,8 +1868,6 @@ class AsyncCommunicationsResource(AsyncResource):
             limit=limit,
             min_ts=min_ts,
             max_ts=max_ts,
-            event_ticker=event_ticker,
-            market_ticker=market_ticker,
             status=status,
             quote_creator_user_id=quote_creator_user_id,
             rfq_creator_user_id=rfq_creator_user_id,

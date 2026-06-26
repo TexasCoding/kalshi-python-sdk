@@ -353,25 +353,6 @@ def scope_list_dict(**overrides: Any) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Request bodies
-# ---------------------------------------------------------------------------
-
-
-def create_order_request_kwargs(**overrides: Any) -> dict[str, Any]:
-    """Kwargs for ``CreateOrderRequest(**)`` with all required fields.
-
-    Pre-#172 ``action`` defaulted to ``"buy"``; tests now must pass it.
-    """
-    base: dict[str, Any] = {
-        "ticker": "MKT-A",
-        "side": "yes",
-        "action": "buy",
-    }
-    base.update(overrides)
-    return base
-
-
-# ---------------------------------------------------------------------------
 # WebSocket payloads
 # ---------------------------------------------------------------------------
 
