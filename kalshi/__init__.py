@@ -77,6 +77,7 @@ from kalshi.models import (
     EventMetadata,
     EventPosition,
     EventStatusLiteral,
+    ExchangeIndexStatus,
     ExchangeStatus,
     Fill,
     ForecastPercentilesPoint,
@@ -247,6 +248,7 @@ __all__ = [
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",
+    "ExchangeIndexStatus",
     "ExchangeStatus",
     "Fill",
     "FixClient",
@@ -373,4 +375,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "5.0.0"
+__version__ = "5.0.1"

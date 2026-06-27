@@ -404,6 +404,11 @@ CONTRACT_MAP: list[ContractEntry] = [
     ),
     # -- exchange sub-models (#171) --------------------------------------
     ContractEntry(
+        sdk_model="kalshi.models.exchange.ExchangeIndexStatus",
+        spec_schema="ExchangeIndexStatus",
+        notes="Per-index status on ExchangeStatus.exchange_index_statuses (#460)",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.exchange.Schedule",
         spec_schema="Schedule",
     ),

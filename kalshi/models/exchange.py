@@ -7,12 +7,25 @@ from pydantic import AwareDatetime, BaseModel
 from kalshi.types import NullableList
 
 
+class ExchangeIndexStatus(BaseModel):
+    """Operational status of a single exchange index (shard)."""
+
+    exchange_index: int
+    exchange_active: bool
+    trading_active: bool
+    intra_exchange_transfers_active: bool
+
+    model_config = {"extra": "allow"}
+
+
 class ExchangeStatus(BaseModel):
     """Current exchange operational status."""
 
     exchange_active: bool
     trading_active: bool
+    intra_exchange_transfers_active: bool | None = None
     exchange_estimated_resume_time: AwareDatetime | None = None
+    exchange_index_statuses: NullableList[ExchangeIndexStatus] = []
 
     model_config = {"extra": "allow"}
 

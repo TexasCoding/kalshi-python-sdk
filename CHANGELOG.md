@@ -2,6 +2,28 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 5.0.1 — 2026-06-27
+
+Spec-drift catch-up (#460). Kalshi added fields to the `ExchangeStatus` schema
+in place — without bumping the OpenAPI `version` (still 3.22.0) — so the
+nightly strict contract suite flagged additive drift the day after the 5.0.0
+sync. All changes are additive and backward-compatible.
+
+### Fixed
+
+- **`ExchangeStatus` additive drift.** Added two optional fields that upstream
+  introduced on `GET /exchange/status`:
+  - `intra_exchange_transfers_active: bool | None` — whether intra-exchange
+    transfers are currently permitted (omitted by older servers, hence optional).
+  - `exchange_index_statuses: list[ExchangeIndexStatus]` — per-index (shard)
+    status breakdown; defaults to `[]` when absent or null.
+
+### Added
+
+- **`ExchangeIndexStatus`** model (exported from `kalshi` and `kalshi.models`):
+  per-exchange-index operational status with `exchange_index`, `exchange_active`,
+  `trading_active`, and `intra_exchange_transfers_active`.
+
 ## 5.0.0 — 2026-06-26
 
 Syncs the upstream OpenAPI spec **3.21.0 → 3.22.0** (#454, #458). The headline
