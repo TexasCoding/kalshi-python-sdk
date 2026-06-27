@@ -87,6 +87,65 @@ class TestExchangeStatus:
         assert status.exchange_active is False
         assert status.exchange_estimated_resume_time is None
 
+    @respx.mock
+    def test_defaults_when_new_fields_absent(self, exchange: ExchangeResource) -> None:
+        """intra_exchange_transfers_active and exchange_index_statuses are optional."""
+        respx.get("https://test.kalshi.com/trade-api/v2/exchange/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={"exchange_active": True, "trading_active": True},
+            )
+        )
+        status = exchange.status()
+        assert status.intra_exchange_transfers_active is None
+        assert status.exchange_index_statuses == []
+
+    @respx.mock
+    def test_per_index_breakdown(self, exchange: ExchangeResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/exchange/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exchange_active": True,
+                    "trading_active": True,
+                    "intra_exchange_transfers_active": False,
+                    "exchange_index_statuses": [
+                        {
+                            "exchange_index": 0,
+                            "exchange_active": True,
+                            "trading_active": True,
+                            "intra_exchange_transfers_active": False,
+                        }
+                    ],
+                },
+            )
+        )
+        status = exchange.status()
+        assert status.intra_exchange_transfers_active is False
+        assert len(status.exchange_index_statuses) == 1
+        index_status = status.exchange_index_statuses[0]
+        assert index_status.exchange_index == 0
+        assert index_status.exchange_active is True
+        assert index_status.trading_active is True
+        assert index_status.intra_exchange_transfers_active is False
+
+    @respx.mock
+    def test_null_index_statuses_coerced_to_empty(
+        self, exchange: ExchangeResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/exchange/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exchange_active": True,
+                    "trading_active": True,
+                    "exchange_index_statuses": None,
+                },
+            )
+        )
+        status = exchange.status()
+        assert status.exchange_index_statuses == []
+
 
 class TestExchangeSchedule:
     @respx.mock
@@ -227,6 +286,34 @@ class TestAsyncExchangeStatus:
         status = await async_exchange.status()
         assert status.trading_active is False
         assert status.exchange_estimated_resume_time is not None
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_per_index_breakdown(
+        self, async_exchange: AsyncExchangeResource
+    ) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/exchange/status").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "exchange_active": True,
+                    "trading_active": True,
+                    "intra_exchange_transfers_active": True,
+                    "exchange_index_statuses": [
+                        {
+                            "exchange_index": 0,
+                            "exchange_active": True,
+                            "trading_active": True,
+                            "intra_exchange_transfers_active": True,
+                        }
+                    ],
+                },
+            )
+        )
+        status = await async_exchange.status()
+        assert status.intra_exchange_transfers_active is True
+        assert len(status.exchange_index_statuses) == 1
+        assert status.exchange_index_statuses[0].exchange_index == 0
 
 
 class TestAsyncExchangeSchedule:

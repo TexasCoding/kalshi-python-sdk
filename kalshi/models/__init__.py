@@ -53,6 +53,7 @@ from kalshi.models.events import (
 from kalshi.models.exchange import (
     Announcement,
     DailySchedule,
+    ExchangeIndexStatus,
     ExchangeStatus,
     MaintenanceWindow,
     Schedule,
@@ -228,6 +229,7 @@ __all__ = [
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",
+    "ExchangeIndexStatus",
     "ExchangeStatus",
     "Fill",
     "ForecastPercentilesPoint",
