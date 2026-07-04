@@ -8,6 +8,7 @@ from decimal import Decimal
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi.errors import (
     AuthRequiredError,
@@ -118,6 +119,14 @@ class TestPositions:
         )
         resp = perps_client.portfolio.positions()
         assert resp.positions[0].return_on_equity is None
+
+    def test_position_requires_is_portfolio(self) -> None:
+        # is_portfolio is spec-required (v3.23.0); a 3.23.0 server always sends
+        # it, so omitting it is a hard error rather than a silent default.
+        payload = _long_position()
+        del payload["is_portfolio"]
+        with pytest.raises(ValidationError):
+            MarginPosition.model_validate(payload)
 
     @respx.mock
     def test_empty_positions(self, perps_client: PerpsClient) -> None:

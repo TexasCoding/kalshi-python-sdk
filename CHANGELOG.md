@@ -23,7 +23,10 @@ Every other change is additive and backward-compatible.
 
 - **`ApiKey.subaccount`**, **`CreateApiKeyRequest.subaccount`**,
   **`GenerateApiKeyRequest.subaccount`** (`int | None`) — when set, restricts the
-  API key to a single subaccount (0-63).
+  API key to a single subaccount. `api_keys.create()` / `generate()` (sync +
+  async) accept a `subaccount` kwarg that threads into the body. The request
+  models bound it to the spec's `0-63` range (`ge=0, le=63`) client-side; the
+  response model stays permissive.
 - **`ApplySubaccountTransferRequest.exchange_index`** (`int | None`) — exchange
   shard to apply the transfer on (spec `ExchangeIndex`; defaults to 0).
 - **`SubaccountTransfer`** additive fields: `exchange_index` and `transfer_type`

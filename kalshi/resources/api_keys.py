@@ -28,12 +28,14 @@ def _build_create_api_key_body(
     name: str | None,
     public_key: str | None,
     scopes: builtins.list[str] | None,
+    subaccount: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
         name=name,
         public_key=public_key,
         scopes=scopes,
+        subaccount=subaccount,
     )
     if request is None:
         if name is None or public_key is None:
@@ -42,6 +44,7 @@ def _build_create_api_key_body(
             name=name,
             public_key=public_key,
             scopes=scopes,
+            subaccount=subaccount,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -51,12 +54,13 @@ def _build_generate_api_key_body(
     *,
     name: str | None,
     scopes: builtins.list[str] | None,
+    subaccount: int | None,
 ) -> dict[str, Any]:
-    _check_request_exclusive(request, name=name, scopes=scopes)
+    _check_request_exclusive(request, name=name, scopes=scopes, subaccount=subaccount)
     if request is None:
         if name is None:
             raise TypeError("generate() requires `name` (or pass `request=...`)")
-        request = GenerateApiKeyRequest(name=name, scopes=scopes)
+        request = GenerateApiKeyRequest(name=name, scopes=scopes, subaccount=subaccount)
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
@@ -84,6 +88,7 @@ class ApiKeysResource(SyncResource):
         name: str,
         public_key: str,
         scopes: builtins.list[str] | None = ...,
+        subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     def create(
@@ -93,6 +98,7 @@ class ApiKeysResource(SyncResource):
         name: str | None = None,
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
@@ -101,6 +107,7 @@ class ApiKeysResource(SyncResource):
             name=name,
             public_key=public_key,
             scopes=scopes,
+            subaccount=subaccount,
         )
         data = self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
@@ -115,6 +122,7 @@ class ApiKeysResource(SyncResource):
         *,
         name: str,
         scopes: builtins.list[str] | None = ...,
+        subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     def generate(
@@ -123,10 +131,13 @@ class ApiKeysResource(SyncResource):
         request: GenerateApiKeyRequest | None = None,
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
-        body = _build_generate_api_key_body(request, name=name, scopes=scopes)
+        body = _build_generate_api_key_body(
+            request, name=name, scopes=scopes, subaccount=subaccount
+        )
         data = self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
 
@@ -154,6 +165,7 @@ class AsyncApiKeysResource(AsyncResource):
         name: str,
         public_key: str,
         scopes: builtins.list[str] | None = ...,
+        subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     async def create(
@@ -163,6 +175,7 @@ class AsyncApiKeysResource(AsyncResource):
         name: str | None = None,
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
@@ -171,6 +184,7 @@ class AsyncApiKeysResource(AsyncResource):
             name=name,
             public_key=public_key,
             scopes=scopes,
+            subaccount=subaccount,
         )
         data = await self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
@@ -185,6 +199,7 @@ class AsyncApiKeysResource(AsyncResource):
         *,
         name: str,
         scopes: builtins.list[str] | None = ...,
+        subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     async def generate(
@@ -193,10 +208,13 @@ class AsyncApiKeysResource(AsyncResource):
         request: GenerateApiKeyRequest | None = None,
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
-        body = _build_generate_api_key_body(request, name=name, scopes=scopes)
+        body = _build_generate_api_key_body(
+            request, name=name, scopes=scopes, subaccount=subaccount
+        )
         data = await self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
 

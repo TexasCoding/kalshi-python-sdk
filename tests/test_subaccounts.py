@@ -134,6 +134,23 @@ class TestSubaccountModels:
         assert t.count == 10
         assert t.price_cents == 55
 
+    def test_subaccount_transfer_requires_v3_23_fields(self) -> None:
+        # exchange_index and transfer_type are spec-required (v3.23.0). A
+        # 3.23.0 server always sends them; omitting them is a hard error rather
+        # than silently defaulting — matches the drift suite's spec-required =>
+        # SDK-required enforcement.
+        with pytest.raises(ValidationError):
+            SubaccountTransfer.model_validate(
+                {
+                    "transfer_id": "xfer-3",
+                    "from_subaccount": 0,
+                    "to_subaccount": 1,
+                    "amount_cents": 100,
+                    "created_ts": 1_700_000_200,
+                    # exchange_index + transfer_type intentionally omitted
+                }
+            )
+
     def test_subaccount_netting_config_parses(self) -> None:
         cfg = SubaccountNettingConfig.model_validate(
             {"subaccount_number": 2, "enabled": True},
@@ -731,6 +748,29 @@ class TestAsyncSubaccounts:
         )
         body = json.loads(route.calls[0].request.content)
         assert body["amount_cents"] == 42
+
+    async def test_transfer_position(
+        self,
+        async_subaccounts: AsyncSubaccountsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/positions/transfer",
+        ).mock(return_value=httpx.Response(200, json={"position_transfer_id": "pt-async"}))
+        resp = await async_subaccounts.transfer_position(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=1,
+            market_ticker="MKT-1",
+            side="no",
+            count=4,
+            price_cents=25,
+        )
+        assert isinstance(resp, ApplySubaccountPositionTransferResponse)
+        assert resp.position_transfer_id == "pt-async"
+        body = json.loads(route.calls[0].request.content)
+        assert body["side"] == "no"
+        assert body["price_cents"] == 25
 
     async def test_list_balances(
         self,

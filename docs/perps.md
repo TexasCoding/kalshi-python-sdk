@@ -99,6 +99,12 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
   identifying which subaccount holds the position.
+- **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
+  `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
+  the position is hedged within a portfolio so its margin is computed at the
+  portfolio level. `MarginOrder` gained an optional `order_reason`
+  (`"liquidation"` / `"take_profit_stop_loss"`) identifying system-generated
+  orders.
 
 ## Funding mechanics
 
