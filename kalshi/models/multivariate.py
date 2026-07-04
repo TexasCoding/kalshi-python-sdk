@@ -134,14 +134,3 @@ class LookupTickersResponse(BaseModel):
     market_ticker: str
 
     model_config = {"extra": "allow"}
-
-
-class LookupPoint(BaseModel):
-    """A point in the lookup history of a multivariate collection."""
-
-    event_ticker: str
-    market_ticker: str
-    selected_markets: NullableList[TickerPair]
-    last_queried_ts: AwareDatetime
-
-    model_config = {"extra": "allow"}

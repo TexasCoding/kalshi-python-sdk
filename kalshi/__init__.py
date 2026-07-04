@@ -109,7 +109,6 @@ from kalshi.models import (
     IncentiveProgramTypeLiteral,
     IndexedBalance,
     LiveData,
-    LookupPoint,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MaintenanceWindow,
@@ -306,7 +305,6 @@ __all__ = [
     "KlearClient",
     "KlearConfig",
     "LiveData",
-    "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
@@ -375,4 +373,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "5.0.1"
+__version__ = "6.0.0"

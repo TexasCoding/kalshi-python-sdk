@@ -96,10 +96,40 @@ class TestSubaccountModels:
                 "to_subaccount": 1,
                 "amount_cents": 500,
                 "created_ts": 1_700_000_000,
+                "exchange_index": 0,
+                "transfer_type": "cash",
             }
         )
         assert t.transfer_id == "xfer-1"
         assert t.amount_cents == 500
+        assert t.exchange_index == 0
+        assert t.transfer_type == "cash"
+        # Position-only fields are absent on a cash transfer.
+        assert t.market_ticker is None
+        assert t.side is None
+
+    def test_subaccount_position_transfer_parses(self) -> None:
+        # v3.23.0: position transfers carry market_ticker/side/count/price_cents.
+        t = SubaccountTransfer.model_validate(
+            {
+                "transfer_id": "xfer-2",
+                "from_subaccount": 1,
+                "to_subaccount": 2,
+                "amount_cents": 0,
+                "created_ts": 1_700_000_100,
+                "exchange_index": 0,
+                "transfer_type": "position",
+                "market_ticker": "MKT-1",
+                "side": "yes",
+                "count": 10,
+                "price_cents": 55,
+            }
+        )
+        assert t.transfer_type == "position"
+        assert t.market_ticker == "MKT-1"
+        assert t.side == "yes"
+        assert t.count == 10
+        assert t.price_cents == 55
 
     def test_subaccount_netting_config_parses(self) -> None:
         cfg = SubaccountNettingConfig.model_validate(
@@ -352,6 +382,8 @@ class TestSubaccountsListTransfers:
                             "to_subaccount": 1,
                             "amount_cents": 100,
                             "created_ts": 1,
+                            "exchange_index": 0,
+                            "transfer_type": "cash",
                         },
                     ],
                     "cursor": "next",
@@ -380,6 +412,8 @@ class TestSubaccountsListTransfers:
                                 "to_subaccount": 1,
                                 "amount_cents": 100,
                                 "created_ts": 1,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",
@@ -395,6 +429,8 @@ class TestSubaccountsListTransfers:
                                 "to_subaccount": 0,
                                 "amount_cents": 50,
                                 "created_ts": 2,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                     },
@@ -545,6 +581,8 @@ class TestAsyncSubaccounts:
                                 "to_subaccount": 1,
                                 "amount_cents": 100,
                                 "created_ts": 1,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",

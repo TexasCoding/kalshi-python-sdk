@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from kalshi.models.multivariate import (
     CreateMarketResponse,
-    LookupPoint,
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
@@ -127,21 +126,3 @@ class TestLookupTickersResponseModel:
             }
         )
         assert r.event_ticker == "EVT-1"
-
-
-class TestLookupPointModel:
-    def test_parse_with_selected_markets(self) -> None:
-        lp = LookupPoint.model_validate(
-            {
-                "event_ticker": "EVT-1",
-                "market_ticker": "MKT-1",
-                "selected_markets": [
-                    {"market_ticker": "M-A", "event_ticker": "E-A", "side": "yes"},
-                    {"market_ticker": "M-B", "event_ticker": "E-B", "side": "no"},
-                ],
-                "last_queried_ts": "2026-04-16T10:00:00Z",
-            }
-        )
-        assert len(lp.selected_markets) == 2
-        assert lp.selected_markets[0].side == "yes"
-        assert lp.last_queried_ts is not None

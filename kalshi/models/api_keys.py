@@ -26,6 +26,9 @@ class ApiKey(BaseModel):
     api_key_id: str
     name: str
     scopes: NullableList[str]
+    # Spec v3.23.0: if set, the key is restricted to this single subaccount
+    # (0-63). Optional — omitted for account-wide keys and by older servers.
+    subaccount: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -56,6 +59,8 @@ class CreateApiKeyRequest(BaseModel):
     name: str
     public_key: str
     scopes: list[str] | None = None
+    # Spec v3.23.0: restrict the key to a single subaccount (0-63) when set.
+    subaccount: int | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -73,6 +78,8 @@ class GenerateApiKeyRequest(BaseModel):
 
     name: str
     scopes: list[str] | None = None
+    # Spec v3.23.0: restrict the key to a single subaccount (0-63) when set.
+    subaccount: int | None = None
 
     model_config = {"extra": "forbid"}
 

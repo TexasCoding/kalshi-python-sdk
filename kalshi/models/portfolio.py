@@ -87,7 +87,10 @@ class MarketPosition(BaseModel):
     realized_pnl: DollarDecimal | None = Field(
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )
-    resting_orders_count: int
+    # Spec 3.23.0 dropped this field from the MarketPosition schema (previously
+    # required). Optional/defensive so a server that stops emitting it does not
+    # hard-fail MarketPosition parsing.
+    resting_orders_count: int | None = None
     fees_paid: DollarDecimal | None = Field(
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )

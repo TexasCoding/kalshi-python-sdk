@@ -41,6 +41,10 @@ SelfTradePreventionTypeLiteral = Literal["taker_at_cross", "maker"]
 OrderSourceLiteral = Literal["user", "system"]
 """Order source — user-placed or system (liquidation). Spec ``OrderSource`` (line 2036)."""
 
+OrderReasonLiteral = Literal["liquidation", "take_profit_stop_loss"]
+"""Reason for a system-generated order. Spec ``OrderReason`` — present only for
+liquidation and take-profit/stop-loss orders."""
+
 LastUpdateReasonLiteral = Literal[
     "",
     "Decrease",
@@ -181,6 +185,8 @@ class MarginOrder(BaseModel):
     cancel_order_on_pause: bool | None = None
     order_group_id: str | None = None
     order_source: OrderSourceLiteral | None = None
+    # Spec v3.23.0: present only for system-generated orders (liquidation, TP/SL).
+    order_reason: OrderReasonLiteral | None = None
 
 
 class GetMarginOrderResponse(BaseModel):

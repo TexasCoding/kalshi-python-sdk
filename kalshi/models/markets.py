@@ -108,7 +108,10 @@ class Market(BaseModel):
     settlement_timer_seconds: int
     result: str
     can_close_early: bool
-    fractional_trading_enabled: bool
+    # Spec 3.23.0 dropped this field from the Market schema (previously required).
+    # Optional/defensive: older servers still emit it; newer ones may omit it, so
+    # a bare ``bool`` would hard-fail Market parsing if it disappears.
+    fractional_trading_enabled: bool | None = None
     expiration_value: str
     category: str | None = None
     risk_limit_cents: int | None = None

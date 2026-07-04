@@ -34,6 +34,7 @@ def _long_position() -> dict[str, object]:
         "margin_used": "50.0000",
         "fees": "1.2500",
         "roe": 24.68,
+        "is_portfolio": False,
     }
 
 
@@ -47,6 +48,7 @@ def _short_position() -> dict[str, object]:
         "margin_used": "20.0000",
         "fees": "0.8000",
         "roe": -27.5,
+        "is_portfolio": True,
     }
 
 

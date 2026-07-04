@@ -65,6 +65,9 @@ class MarginRiskPosition(BaseModel):
     maintenance_margin_required: DollarDecimal | None = None
     position_leverage: MultiplierDecimal | None = None
     estimated_liquidation_price: DollarDecimal | None = None
+    # Spec v3.23.0 (required): True when the position is hedged within a
+    # portfolio, so its margin is computed at the portfolio level.
+    is_portfolio: bool
 
 
 class GetMarginRiskResponse(BaseModel):

@@ -56,12 +56,17 @@ class MarginPosition(BaseModel):
     position: FixedPointCount
     entry_price: DollarDecimal
     unrealized_pnl: DollarDecimal
-    margin_used: DollarDecimal
+    # Spec 3.23.0 relaxed margin_used from required to optional (still a property).
+    # Optional/defensive so a response omitting it does not hard-fail parsing.
+    margin_used: DollarDecimal | None = None
     fees: DollarDecimal
     return_on_equity: MultiplierDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices("roe", "return_on_equity"),
     )
+    # Spec v3.23.0 (required): True when the position is hedged within a
+    # portfolio, so its margin is computed at the portfolio level.
+    is_portfolio: bool
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

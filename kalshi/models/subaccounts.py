@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -33,6 +34,10 @@ class ApplySubaccountTransferRequest(BaseModel):
     from_subaccount: StrictInt = Field(ge=0)
     to_subaccount: StrictInt = Field(ge=0)
     amount_cents: StrictInt = Field(gt=0)
+    # Spec v3.23.0: exchange shard to apply the transfer on (spec ExchangeIndex,
+    # integer). Optional — "defaults to 0 if unspecified" per spec, and only 0
+    # is currently supported, so callers rarely set it.
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 
@@ -70,6 +75,11 @@ class SubaccountTransfer(BaseModel):
     ``created_ts`` is a Unix seconds integer per spec (``format: int64``),
     matching ``SubaccountBalance.updated_ts``. This is intentionally
     different from RFQ/Quote timestamps, which are ISO datetime strings.
+
+    Spec v3.23.0 split transfers into two kinds via ``transfer_type``: ``cash``
+    (money moved; ``amount_cents`` set) and ``position`` (contracts moved). The
+    ``market_ticker`` / ``side`` / ``count`` / ``price_cents`` fields are
+    populated only for ``position`` transfers, so they are optional here.
     """
 
     transfer_id: str
@@ -77,6 +87,14 @@ class SubaccountTransfer(BaseModel):
     to_subaccount: int
     amount_cents: int
     created_ts: int
+    # Spec v3.23.0 required additions.
+    exchange_index: int
+    transfer_type: Literal["cash", "position"]
+    # Position-transfer-only fields (absent on cash transfers).
+    market_ticker: str | None = None
+    side: Literal["yes", "no"] | None = None
+    count: int | None = None
+    price_cents: int | None = None
 
     model_config = {"extra": "allow"}
 
