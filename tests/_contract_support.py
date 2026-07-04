@@ -645,12 +645,19 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.create",
         http_method="POST",
         path_template="/portfolio/subaccounts",
+        request_body_schema="#/components/schemas/CreateSubaccountRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer",
         http_method="POST",
         path_template="/portfolio/subaccounts/transfer",
         request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer_position",
+        http_method="POST",
+        path_template="/portfolio/subaccounts/positions/transfer",
+        request_body_schema="#/components/schemas/ApplySubaccountPositionTransferRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_balances",

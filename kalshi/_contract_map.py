@@ -174,6 +174,18 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="ApplySubaccountTransferRequest",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest",
+        spec_schema="ApplySubaccountPositionTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferResponse",
+        spec_schema="ApplySubaccountPositionTransferResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.CreateSubaccountRequest",
+        spec_schema="CreateSubaccountRequest",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.subaccounts.UpdateSubaccountNettingRequest",
         spec_schema="UpdateSubaccountNettingRequest",
     ),

@@ -7,8 +7,9 @@ primary; `1`–`63` are numbered extras. Auth required throughout.
 
 | Method | Endpoint |
 |---|---|
-| `create()` | `POST /portfolio/subaccounts` |
+| `create(*, exchange_index=None)` | `POST /portfolio/subaccounts` |
 | `transfer(*, client_transfer_id, from_subaccount, to_subaccount, amount_cents)` | `POST /portfolio/subaccounts/transfer` |
+| `transfer_position(*, client_transfer_id, from_subaccount, to_subaccount, market_ticker, side, count, price_cents)` | `POST /portfolio/subaccounts/positions/transfer` |
 | `list_balances()` | `GET /portfolio/subaccounts/balances` |
 | `list_transfers(*, cursor=None, limit=None)` | `GET /portfolio/subaccounts/transfers` |
 | `list_all_transfers(*, limit=None, max_pages=None)` | walks `list_transfers` |
@@ -20,31 +21,54 @@ primary; `1`–`63` are numbered extras. Auth required throughout.
 ```python
 resp = client.subaccounts.create()
 print(resp.subaccount_number)
+
+# Or target a specific exchange shard (spec v3.23.0; defaults to 0):
+resp = client.subaccounts.create(exchange_index=0)
 ```
 
-The body is intentionally empty — the SDK sends `json={}` to force a JSON
-content-type so demo doesn't reject the call.
+With no `exchange_index` the SDK sends `json={}` (an empty
+`CreateSubaccountRequest`) to force a JSON content-type so demo doesn't reject
+the call.
 
-## Transfer between subaccounts
+## Transfer cash between subaccounts
 
 `amount_cents` is **integer cents**. `client_transfer_id` is a UUID — the
-idempotency key for the transfer:
+idempotency key for the transfer. `transfer()` returns `None` (the endpoint's
+response body is empty); list transfers to reconcile:
 
 ```python
 import uuid
 
-resp = client.subaccounts.transfer(
+client.subaccounts.transfer(
     client_transfer_id=uuid.uuid4(),     # or str
     from_subaccount=0,                   # primary
     to_subaccount=1,
     amount_cents=500,                    # $5.00
 )
-print(resp.transfer_id)
 ```
 
 `client_transfer_id` accepts a `UUID` or a `str`. On a network failure, retry
-with the same id; the server dedupes. List transfers to reconcile (see
-below).
+with the same id; the server dedupes.
+
+## Transfer a position between subaccounts
+
+Spec v3.23.0 added `transfer_position()` for moving open contracts (not cash)
+between subaccounts. Unlike `transfer()`, it returns a
+`position_transfer_id`. `price_cents` (0–100) sets the cost basis on the
+destination:
+
+```python
+resp = client.subaccounts.transfer_position(
+    client_transfer_id=uuid.uuid4(),     # or str
+    from_subaccount=0,
+    to_subaccount=1,
+    market_ticker="KXBTC-25DEC31-B100000",
+    side="yes",                          # "yes" | "no"
+    count=10,                            # contracts (> 0)
+    price_cents=55,                      # per-contract cents, 0–100
+)
+print(resp.position_transfer_id)
+```
 
 ## List balances
 

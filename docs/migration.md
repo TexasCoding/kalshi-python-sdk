@@ -14,10 +14,17 @@ the OpenAPI spec in 3.23.0, so the SDK removed the matching method and model.
 | `multivariate_collections.lookup_history(...)` (sync + async) | none — the endpoint was deleted upstream |
 | `LookupPoint` model (exported from `kalshi` / `kalshi.models`) | none |
 
-Everything else in 6.0.0 is additive (new optional/required response fields on
-`ApiKey`, `SubaccountTransfer`, `MarginPosition`, `MarginRiskPosition`,
-`MarginOrder`, and the WS `market_lifecycle_v2` payload) and needs no code
-changes. See the [changelog](../CHANGELOG.md) for the full field list.
+Everything else in 6.0.0 is additive and needs no code changes:
+
+- New optional/required response fields on `ApiKey`, `SubaccountTransfer`,
+  `MarginPosition`, `MarginRiskPosition`, `MarginOrder`, and the WS
+  `market_lifecycle_v2` payload.
+- New `subaccounts.transfer_position(...)` method (`POST
+  /portfolio/subaccounts/positions/transfer`) for moving open positions between
+  subaccounts.
+- `subaccounts.create()` gained an optional `exchange_index` argument.
+
+See the [changelog](../CHANGELOG.md) for the full list.
 
 ## v4 → v5.0.0
 

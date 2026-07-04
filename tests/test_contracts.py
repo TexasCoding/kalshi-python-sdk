@@ -1226,6 +1226,12 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
     ),
+    "#/components/schemas/ApplySubaccountPositionTransferRequest": (
+        "kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest"
+    ),
+    "#/components/schemas/CreateSubaccountRequest": (
+        "kalshi.models.subaccounts.CreateSubaccountRequest"
+    ),
     "#/components/schemas/UpdateSubaccountNettingRequest": (
         "kalshi.models.subaccounts.UpdateSubaccountNettingRequest"
     ),

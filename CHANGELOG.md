@@ -35,6 +35,17 @@ Every other change is additive and backward-compatible.
   optional) — reason for a system-generated order.
 - **`MarketLifecyclePayload.price_ranges`** (WS `market_lifecycle_v2`) — valid
   price bands emitted alongside `price_level_structure`.
+- **`subaccounts.transfer_position(...)`** (sync + async) — new
+  `POST /portfolio/subaccounts/positions/transfer` endpoint (spec 3.23.0): moves
+  an open **position** (contracts) between subaccounts, distinct from the
+  cash-only `transfer()`. Returns `ApplySubaccountPositionTransferResponse`
+  (`position_transfer_id`). New models `ApplySubaccountPositionTransferRequest` /
+  `ApplySubaccountPositionTransferResponse` are exported from `kalshi` /
+  `kalshi.models`.
+- **`subaccounts.create(exchange_index=...)`** — `POST /portfolio/subaccounts`
+  gained an optional `CreateSubaccountRequest` body (spec 3.23.0); `create()`
+  now accepts an optional `exchange_index` to target a specific exchange shard.
+  New `CreateSubaccountRequest` model exported from `kalshi` / `kalshi.models`.
 
 ### Fixed
 

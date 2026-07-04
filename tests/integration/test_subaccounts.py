@@ -45,6 +45,7 @@ register(
         "list_balances",
         "list_transfers",
         "transfer",
+        "transfer_position",
         "update_netting",
     ],
 )
@@ -174,6 +175,44 @@ class TestSubaccountsSync:
                 to_subaccount=1,
                 amount_cents=-1,
             )
+
+    def test_transfer_position_rejects_invalid_price(
+        self, sync_client: KalshiClient,
+    ) -> None:
+        # price_cents is bounded 0-100 at the SDK model — a 101c price rejects
+        # before any network call, independent of demo position state.
+        with pytest.raises(ValueError):
+            sync_client.subaccounts.transfer_position(
+                client_transfer_id=str(uuid.uuid4()),
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-DOES-NOT-MATTER",
+                side="yes",
+                count=1,
+                price_cents=101,
+            )
+
+    def test_transfer_position_smoke(
+        self,
+        sync_client: KalshiClient,
+        ephemeral_subaccount: int,
+    ) -> None:
+        # Moving a position requires an open position in the primary subaccount,
+        # which demo may not have. Exercise the request path and skip cleanly if
+        # the server refuses (no position, unknown market, etc.).
+        try:
+            resp = sync_client.subaccounts.transfer_position(
+                client_transfer_id=str(uuid.uuid4()),
+                from_subaccount=0,
+                to_subaccount=ephemeral_subaccount,
+                market_ticker="KXBTCD-99DEC31-B1",
+                side="yes",
+                count=1,
+                price_cents=1,
+            )
+        except KalshiError as e:
+            pytest.skip(f"demo refused position transfer (no position to move?): {e}")
+        assert resp.position_transfer_id
 
 
 @pytest.mark.integration

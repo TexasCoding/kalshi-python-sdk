@@ -10,6 +10,21 @@ from pydantic import BaseModel, Field
 from kalshi.types import DollarDecimal, StrictInt
 
 
+class CreateSubaccountRequest(BaseModel):
+    """Body for POST /portfolio/subaccounts (spec v3.23.0).
+
+    Every field is optional — an empty body spins up the next subaccount on
+    exchange shard ``0``. ``exchange_index`` targets a specific shard (spec
+    ``ExchangeIndex``, integer; "defaults to 0 if unspecified", and only ``0``
+    is currently supported). The SDK validates only the lower bound (``ge=0``),
+    leaving the upper bound to the server.
+    """
+
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
+
+    model_config = {"extra": "forbid"}
+
+
 class CreateSubaccountResponse(BaseModel):
     """Response from POST /portfolio/subaccounts — the new subaccount number."""
 
@@ -40,6 +55,41 @@ class ApplySubaccountTransferRequest(BaseModel):
     exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
+
+
+class ApplySubaccountPositionTransferRequest(BaseModel):
+    """Body for POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
+
+    Moves an open **position** (contracts) between subaccounts — distinct from
+    the cash-only :class:`ApplySubaccountTransferRequest`. ``price_cents`` is the
+    per-contract price in cents (``0``-``100``) used to set the cost basis on the
+    destination subaccount; ``count`` is the number of contracts and must be
+    positive. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the primary
+    account; the SDK enforces only the lower bound (``ge=0``), leaving the upper
+    bound to the server (mirrors :class:`ApplySubaccountTransferRequest`).
+    """
+
+    client_transfer_id: UUID
+    from_subaccount: StrictInt = Field(ge=0)
+    to_subaccount: StrictInt = Field(ge=0)
+    market_ticker: str
+    side: Literal["yes", "no"]
+    count: StrictInt = Field(gt=0)
+    price_cents: StrictInt = Field(ge=0, le=100)
+
+    model_config = {"extra": "forbid"}
+
+
+class ApplySubaccountPositionTransferResponse(BaseModel):
+    """Response from POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
+
+    ``position_transfer_id`` is the server-generated identifier for the applied
+    position transfer.
+    """
+
+    position_transfer_id: str
+
+    model_config = {"extra": "allow"}
 
 
 class SubaccountBalance(BaseModel):

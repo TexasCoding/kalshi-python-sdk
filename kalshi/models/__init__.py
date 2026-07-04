@@ -165,7 +165,10 @@ from kalshi.models.structured_targets import (
     StructuredTarget,
 )
 from kalshi.models.subaccounts import (
+    ApplySubaccountPositionTransferRequest,
+    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
+    CreateSubaccountRequest,
     CreateSubaccountResponse,
     GetSubaccountBalancesResponse,
     GetSubaccountNettingResponse,
@@ -189,6 +192,8 @@ __all__ = [
     "Announcement",
     "ApiKey",
     "ApiUsageLevelGrant",
+    "ApplySubaccountPositionTransferRequest",
+    "ApplySubaccountPositionTransferResponse",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "Balance",
@@ -216,6 +221,7 @@ __all__ = [
     "CreateQuoteResponse",
     "CreateRFQRequest",
     "CreateRFQResponse",
+    "CreateSubaccountRequest",
     "CreateSubaccountResponse",
     "DailySchedule",
     "DecreaseOrderV2Request",
