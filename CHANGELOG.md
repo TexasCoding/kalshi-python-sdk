@@ -2,6 +2,64 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 6.0.0 — 2026-07-04
+
+Syncs the upstream OpenAPI/AsyncAPI specs **3.22.0 → 3.23.0** (#463). The
+headline change is **breaking**: Kalshi removed the multivariate lookup-history
+endpoint from the spec, so the SDK removes the corresponding method and model.
+Every other change is additive and backward-compatible.
+
+### Removed (breaking)
+
+- **`lookup_history()`** on `client.multivariate_collections` (sync + async) and
+  the **`LookupPoint`** model (no longer exported from `kalshi` /
+  `kalshi.models`). Upstream removed the backing `GET
+  /multivariate_event_collections/{collection_ticker}/lookup` operation
+  (`GetMultivariateEventCollectionLookupHistory`) and the `LookupPoint` schema in
+  3.23.0 — the endpoint now 404s. The `lookup_tickers()` sibling (the `PUT` on the
+  same path) is unaffected.
+
+### Added
+
+- **`ApiKey.subaccount`**, **`CreateApiKeyRequest.subaccount`**,
+  **`GenerateApiKeyRequest.subaccount`** (`int | None`) — when set, restricts the
+  API key to a single subaccount. `api_keys.create()` / `generate()` (sync +
+  async) accept a `subaccount` kwarg that threads into the body. The request
+  models bound it to the spec's `0-63` range (`ge=0, le=63`) client-side; the
+  response model stays permissive.
+- **`ApplySubaccountTransferRequest.exchange_index`** (`int | None`) — exchange
+  shard to apply the transfer on (spec `ExchangeIndex`; defaults to 0).
+- **`SubaccountTransfer`** additive fields: `exchange_index` and `transfer_type`
+  (`"cash"`/`"position"`, both required), plus the position-transfer-only
+  `market_ticker` / `side` (`"yes"`/`"no"`) / `count` / `price_cents`.
+- **`MarginPosition.is_portfolio`** and **`MarginRiskPosition.is_portfolio`**
+  (`bool`, required) — true when the position is hedged within a portfolio.
+- **`MarginOrder.order_reason`** (`"liquidation"`/`"take_profit_stop_loss"`,
+  optional) — reason for a system-generated order.
+- **`MarketLifecyclePayload.price_ranges`** (WS `market_lifecycle_v2`) — valid
+  price bands emitted alongside `price_level_structure`.
+- **`subaccounts.transfer_position(...)`** (sync + async) — new
+  `POST /portfolio/subaccounts/positions/transfer` endpoint (spec 3.23.0): moves
+  an open **position** (contracts) between subaccounts, distinct from the
+  cash-only `transfer()`. Returns `ApplySubaccountPositionTransferResponse`
+  (`position_transfer_id`). New models `ApplySubaccountPositionTransferRequest` /
+  `ApplySubaccountPositionTransferResponse` are exported from `kalshi` /
+  `kalshi.models`.
+- **`subaccounts.create(exchange_index=...)`** — `POST /portfolio/subaccounts`
+  gained an optional `CreateSubaccountRequest` body (spec 3.23.0); `create()`
+  now accepts an optional `exchange_index` to target a specific exchange shard.
+  New `CreateSubaccountRequest` model exported from `kalshi` / `kalshi.models`.
+
+### Fixed
+
+- **Defensive optional-ization of fields 3.23.0 removed/relaxed.** The drift
+  suite is spec→SDK only, so a field the spec drops but the SDK still *requires*
+  is a latent `ValidationError` if the server stops emitting it. Three such
+  fields are now `... | None = None`:
+  - `Market.fractional_trading_enabled` (removed from spec),
+  - `MarketPosition.resting_orders_count` (removed from spec),
+  - `MarginPosition.margin_used` (relaxed from required to optional).
+
 ## 5.0.1 — 2026-06-27
 
 Spec-drift catch-up (#460). Kalshi added fields to the `ExchangeStatus` schema

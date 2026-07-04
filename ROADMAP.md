@@ -2,6 +2,27 @@
 
 ## Shipped
 
+- **v6.0.0 (2026-07-04)** — OpenAPI sync v3.22.0 → v3.23.0 (#463). **Breaking:**
+  removed the multivariate lookup-history endpoint (`lookup_history()` +
+  `LookupPoint`), deleted upstream. Additive: subaccount-scoped API keys
+  (`api_keys.create/generate(subaccount=)`), subaccount **position** transfers
+  (`subaccounts.transfer_position()` + models), `subaccounts.create(exchange_index=)`,
+  and new response fields on `SubaccountTransfer`, `MarginOrder`,
+  `MarginPosition` / `MarginRiskPosition` (`is_portfolio`), and the WS
+  `market_lifecycle_v2` payload (`price_ranges`). Defensive optional-ization of
+  three fields the spec removed/relaxed (#464, #465 folded in).
+- **v5.0.1 (2026-06-27)** — spec-drift catch-up (#460): additive `ExchangeStatus`
+  fields (`intra_exchange_transfers_active`, `exchange_index_statuses` +
+  `ExchangeIndexStatus`).
+- **v5.0.0 (2026-06-26)** — OpenAPI sync v3.21.0 → v3.22.0 (#454, #458).
+  **Breaking:** removed the V1 order-write endpoints/models (use the `*_v2`
+  family); added RFQ-scoped quote actions.
+- **v4.2.0 (2026-06-19)** — in-place spec-drift reconciliation (#451): additive
+  fields the live OpenAPI/AsyncAPI specs gained after 4.1.0.
+- **v4.1.0 (2026-06-14)** — OpenAPI sync v3.20.0 → v3.21.0: additive new query
+  params, response fields, and four new endpoints.
+- **v4.0.0 (2026-06-09)** — spec-drift reconciliation against OpenAPI 3.20.0
+  (#443); one breaking change on the Self-Clearing-Member (Klear) surface.
 - **v3.3.0 (2026-06-06)** — complete **FIX protocol** subsystem (FIXT.1.1 /
   FIX50SP2) for both products: `FixClient` (prediction) + `MarginFixClient`
   (margin) over a hand-rolled async session engine, with five session types

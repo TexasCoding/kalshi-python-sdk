@@ -189,6 +189,7 @@ class TestRisk:
                             "maintenance_margin_required": "33.6000",
                             "position_leverage": 2.5,
                             "estimated_liquidation_price": "0.4200",
+                            "is_portfolio": False,
                         },
                         {
                             "subaccount": 1,
@@ -199,6 +200,7 @@ class TestRisk:
                             "maintenance_margin_required": None,
                             "position_leverage": None,
                             "estimated_liquidation_price": None,
+                            "is_portfolio": True,
                         },
                     ],
                 },

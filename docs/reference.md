@@ -68,7 +68,11 @@ every exception class.
 
 ::: kalshi.models.order_groups.UpdateOrderGroupLimitRequest
 
+::: kalshi.models.subaccounts.CreateSubaccountRequest
+
 ::: kalshi.models.subaccounts.ApplySubaccountTransferRequest
+
+::: kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest
 
 ::: kalshi.models.subaccounts.UpdateSubaccountNettingRequest
 

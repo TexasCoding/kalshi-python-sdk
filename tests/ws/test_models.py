@@ -974,6 +974,37 @@ class TestWsV0140Backfill:
         assert msg.msg.price_level_structure == "linear_cent"
         assert msg.msg.yes_sub_title == "Will it happen?"
 
+    def test_market_lifecycle_price_ranges(self) -> None:
+        # #463 (v3.23.0): price_ranges rides created / price_level_structure_updated
+        # events alongside price_level_structure. Each band is {start, end, step}.
+        bands = [
+            {"start": "0.0100", "end": "0.9900", "step": "0.0100"},
+            {"start": "0.9900", "end": "1.0000", "step": "0.0001"},
+        ]
+        msg = MarketLifecycleMessage.model_validate(
+            {
+                "type": "market_lifecycle_v2",
+                "sid": 1,
+                "msg": {
+                    "event_type": "price_level_structure_updated",
+                    "market_ticker": "T",
+                    "price_level_structure": "linear_cent",
+                    "price_ranges": bands,
+                },
+            }
+        )
+        assert msg.msg.price_ranges == bands
+
+    def test_market_lifecycle_price_ranges_absent_is_none(self) -> None:
+        msg = MarketLifecycleMessage.model_validate(
+            {
+                "type": "market_lifecycle_v2",
+                "sid": 1,
+                "msg": {"event_type": "activated", "market_ticker": "T"},
+            }
+        )
+        assert msg.msg.price_ranges is None
+
     def test_order_group_ts_ms(self) -> None:
         msg = OrderGroupMessage.model_validate(
             {

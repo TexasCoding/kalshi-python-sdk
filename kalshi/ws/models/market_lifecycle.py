@@ -49,6 +49,11 @@ class MarketLifecyclePayload(BaseModel):
     cap_strike: DollarDecimal | None = None
     custom_strike: dict[str, Any] | None = None
     price_level_structure: str | None = None
+    # v3.23.0 (#463): emitted alongside price_level_structure on `created` and
+    # `price_level_structure_updated`. Each entry is {start, end, step} in
+    # fixed-point dollars — the valid price bands for the market. Kept as
+    # list[dict] to match Market.price_ranges (no nested model yet).
+    price_ranges: list[dict[str, Any]] | None = None
     yes_sub_title: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 

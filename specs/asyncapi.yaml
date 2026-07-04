@@ -414,7 +414,7 @@ channels:
       - Market specification ignored
 
       - Optional sharding for fanout control:
-        - `shard_factor` (1-100) and `shard_key` (0 <= key < shard_factor)
+        - `shard_factor` (1-100) and `shard_key` (`0 <= key < shard_factor`)
       - RFQ events (RFQCreated, RFQDeleted) always sent
 
       - Quote events (QuoteCreated, QuoteAccepted, QuoteExecuted) are only sent
@@ -1699,6 +1699,10 @@ components:
               market_ticker: INXD-23SEP14-B4487
               event_type: price_level_structure_updated
               price_level_structure: deci_cent
+              price_ranges:
+                - start: '0.0000'
+                  end: '1.0000'
+                  step: '0.0010'
         - name: metadataUpdated
           summary: Market metadata updated event
           payload:
@@ -3173,6 +3177,31 @@ components:
                 - linear_cent
                 - deci_cent
                 - tapered_deci_cent
+            price_ranges:
+              type: array
+              description: >-
+                Optional - Emitted alongside price_level_structure (on market
+                creation and price_level_structure_updated events). The valid
+                price bands for the market, in fixed-point dollars. Use this to
+                determine valid order prices rather than hardcoding a tick size.
+              items:
+                type: object
+                required:
+                  - start
+                  - end
+                  - step
+                properties:
+                  start:
+                    type: string
+                    description: Starting price for this band, in dollars
+                  end:
+                    type: string
+                    description: Ending price for this band, in dollars
+                  step:
+                    type: string
+                    description: >-
+                      Tick size (minimum price increment) within this band, in
+                      dollars
             strike_type:
               type: string
               description: >-

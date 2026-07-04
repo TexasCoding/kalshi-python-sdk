@@ -38,6 +38,8 @@ from kalshi.models import (
     Announcement,
     ApiKey,
     ApiUsageLevelGrant,
+    ApplySubaccountPositionTransferRequest,
+    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
     AssociatedEvent,
     Balance,
@@ -65,6 +67,7 @@ from kalshi.models import (
     CreateQuoteResponse,
     CreateRFQRequest,
     CreateRFQResponse,
+    CreateSubaccountRequest,
     CreateSubaccountResponse,
     DailySchedule,
     DecreaseOrderV2Request,
@@ -109,7 +112,6 @@ from kalshi.models import (
     IncentiveProgramTypeLiteral,
     IndexedBalance,
     LiveData,
-    LookupPoint,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MaintenanceWindow,
@@ -201,6 +203,8 @@ __all__ = [
     "Announcement",
     "ApiKey",
     "ApiUsageLevelGrant",
+    "ApplySubaccountPositionTransferRequest",
+    "ApplySubaccountPositionTransferResponse",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncBlockTradeProposalsResource",
@@ -236,6 +240,7 @@ __all__ = [
     "CreateQuoteResponse",
     "CreateRFQRequest",
     "CreateRFQResponse",
+    "CreateSubaccountRequest",
     "CreateSubaccountResponse",
     "DailySchedule",
     "DecreaseOrderV2Request",
@@ -306,7 +311,6 @@ __all__ = [
     "KlearClient",
     "KlearConfig",
     "LiveData",
-    "LookupPoint",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
@@ -375,4 +379,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "5.0.1"
+__version__ = "6.0.0"

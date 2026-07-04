@@ -645,12 +645,19 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.create",
         http_method="POST",
         path_template="/portfolio/subaccounts",
+        request_body_schema="#/components/schemas/CreateSubaccountRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer",
         http_method="POST",
         path_template="/portfolio/subaccounts/transfer",
         request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer_position",
+        http_method="POST",
+        path_template="/portfolio/subaccounts/positions/transfer",
+        request_body_schema="#/components/schemas/ApplySubaccountPositionTransferRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_balances",
@@ -851,11 +858,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="PUT",
         path_template="/multivariate_event_collections/{collection_ticker}/lookup",
         request_body_schema="#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest",
-    ),
-    MethodEndpointEntry(
-        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.lookup_history"),
-        http_method="GET",
-        path_template="/multivariate_event_collections/{collection_ticker}/lookup",
     ),
 ]
 
@@ -1181,10 +1183,6 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     # Each entry is a spec-documented deviation; flipping it to a hard fail
     # would surface as a real bug (see issue #157 stack for the v2.1.0
     # ``Balance.balance_dollars`` regression that motivated this PR).
-    ("kalshi.models.markets.Market", "response_price_units"): Exclusion(
-        reason="spec marks DEPRECATED; superseded by price_level_structure / price_ranges",
-        kind="spec_deprecated",
-    ),
     ("kalshi.models.orders.Order", "action"): Exclusion(
         reason="spec marks Deprecated; superseded by outcome_side / book_side",
         kind="spec_deprecated",

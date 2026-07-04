@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from kalshi.types import DollarDecimal, StrictInt
+
+
+class CreateSubaccountRequest(BaseModel):
+    """Body for POST /portfolio/subaccounts (spec v3.23.0).
+
+    Every field is optional — an empty body spins up the next subaccount on
+    exchange shard ``0``. ``exchange_index`` targets a specific shard (spec
+    ``ExchangeIndex``, integer; "defaults to 0 if unspecified", and only ``0``
+    is currently supported). The SDK validates only the lower bound (``ge=0``),
+    leaving the upper bound to the server.
+    """
+
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
+
+    model_config = {"extra": "forbid"}
 
 
 class CreateSubaccountResponse(BaseModel):
@@ -33,8 +49,47 @@ class ApplySubaccountTransferRequest(BaseModel):
     from_subaccount: StrictInt = Field(ge=0)
     to_subaccount: StrictInt = Field(ge=0)
     amount_cents: StrictInt = Field(gt=0)
+    # Spec v3.23.0: exchange shard to apply the transfer on (spec ExchangeIndex,
+    # integer). Optional — "defaults to 0 if unspecified" per spec, and only 0
+    # is currently supported, so callers rarely set it.
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
+
+
+class ApplySubaccountPositionTransferRequest(BaseModel):
+    """Body for POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
+
+    Moves an open **position** (contracts) between subaccounts — distinct from
+    the cash-only :class:`ApplySubaccountTransferRequest`. ``price_cents`` is the
+    per-contract price in cents (``0``-``100``) used to set the cost basis on the
+    destination subaccount; ``count`` is the number of contracts and must be
+    positive. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the primary
+    account; the SDK enforces only the lower bound (``ge=0``), leaving the upper
+    bound to the server (mirrors :class:`ApplySubaccountTransferRequest`).
+    """
+
+    client_transfer_id: UUID
+    from_subaccount: StrictInt = Field(ge=0)
+    to_subaccount: StrictInt = Field(ge=0)
+    market_ticker: str
+    side: Literal["yes", "no"]
+    count: StrictInt = Field(gt=0)
+    price_cents: StrictInt = Field(ge=0, le=100)
+
+    model_config = {"extra": "forbid"}
+
+
+class ApplySubaccountPositionTransferResponse(BaseModel):
+    """Response from POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
+
+    ``position_transfer_id`` is the server-generated identifier for the applied
+    position transfer.
+    """
+
+    position_transfer_id: str
+
+    model_config = {"extra": "allow"}
 
 
 class SubaccountBalance(BaseModel):
@@ -70,6 +125,11 @@ class SubaccountTransfer(BaseModel):
     ``created_ts`` is a Unix seconds integer per spec (``format: int64``),
     matching ``SubaccountBalance.updated_ts``. This is intentionally
     different from RFQ/Quote timestamps, which are ISO datetime strings.
+
+    Spec v3.23.0 split transfers into two kinds via ``transfer_type``: ``cash``
+    (money moved; ``amount_cents`` set) and ``position`` (contracts moved). The
+    ``market_ticker`` / ``side`` / ``count`` / ``price_cents`` fields are
+    populated only for ``position`` transfers, so they are optional here.
     """
 
     transfer_id: str
@@ -77,6 +137,14 @@ class SubaccountTransfer(BaseModel):
     to_subaccount: int
     amount_cents: int
     created_ts: int
+    # Spec v3.23.0 required additions.
+    exchange_index: int
+    transfer_type: Literal["cash", "position"]
+    # Position-transfer-only fields (absent on cash transfers).
+    market_ticker: str | None = None
+    side: Literal["yes", "no"] | None = None
+    count: int | None = None
+    price_cents: int | None = None
 
     model_config = {"extra": "allow"}
 

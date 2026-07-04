@@ -123,6 +123,41 @@ class TestApiKeyModels:
                 name="bot", phantom="x",
             )
 
+    # ── #463 subaccount field (spec v3.23.0) ──
+    def test_api_key_parses_subaccount(self) -> None:
+        # Response model: optional; present only for subaccount-scoped keys.
+        k = ApiKey.model_validate(
+            {"api_key_id": "k-1", "name": "bot", "scopes": ["read"], "subaccount": 5},
+        )
+        assert k.subaccount == 5
+
+    def test_api_key_subaccount_absent_is_none(self) -> None:
+        k = ApiKey.model_validate(
+            {"api_key_id": "k-1", "name": "bot", "scopes": ["read"]},
+        )
+        assert k.subaccount is None
+
+    def test_create_request_serializes_subaccount(self) -> None:
+        req = CreateApiKeyRequest(name="bot", public_key=_PUBKEY_PEM, subaccount=5)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["subaccount"] == 5
+
+    @pytest.mark.parametrize("bad", [-1, 64, 99])
+    def test_create_request_rejects_out_of_range_subaccount(self, bad: int) -> None:
+        # Spec bounds subaccount to 0-63 (minimum/maximum); reject client-side.
+        with pytest.raises(ValidationError):
+            CreateApiKeyRequest(name="bot", public_key=_PUBKEY_PEM, subaccount=bad)
+
+    def test_generate_request_serializes_subaccount(self) -> None:
+        req = GenerateApiKeyRequest(name="bot", subaccount=0)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["subaccount"] == 0
+
+    @pytest.mark.parametrize("bad", [-1, 64, 99])
+    def test_generate_request_rejects_out_of_range_subaccount(self, bad: int) -> None:
+        with pytest.raises(ValidationError):
+            GenerateApiKeyRequest(name="bot", subaccount=bad)
+
 
 class TestApiKeysList:
     @respx.mock
@@ -207,6 +242,16 @@ class TestApiKeysCreate:
         assert body["scopes"] == ["read", "write"]
 
     @respx.mock
+    def test_create_with_subaccount(self, api_keys: ApiKeysResource) -> None:
+        # #463 (v3.23.0): subaccount kwarg threads into the request body.
+        route = respx.post("https://test.kalshi.com/trade-api/v2/api_keys").mock(
+            return_value=httpx.Response(201, json={"api_key_id": "k-new"}),
+        )
+        api_keys.create(name="bot", public_key=_PUBKEY_PEM, subaccount=5)
+        body = json.loads(route.calls[0].request.content)
+        assert body["subaccount"] == 5
+
+    @respx.mock
     def test_create_400_maps(self, api_keys: ApiKeysResource) -> None:
         respx.post("https://test.kalshi.com/trade-api/v2/api_keys").mock(
             return_value=httpx.Response(400, json={"message": "bad key"}),
@@ -238,6 +283,20 @@ class TestApiKeysGenerate:
         assert resp.private_key.get_secret_value().startswith("-----BEGIN")
         body = json.loads(route.calls[0].request.content)
         assert body == {"name": "bot"}
+
+    @respx.mock
+    def test_generate_with_subaccount(self, api_keys: ApiKeysResource) -> None:
+        # #463 (v3.23.0): subaccount kwarg threads into the request body.
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(
+            return_value=httpx.Response(
+                201, json={"api_key_id": "k-auto", "private_key": "-----BEGIN..."}
+            ),
+        )
+        api_keys.generate(name="bot", subaccount=0)
+        body = json.loads(route.calls[0].request.content)
+        assert body["subaccount"] == 0
 
     def test_generate_requires_auth(
         self, unauth_api_keys: ApiKeysResource,

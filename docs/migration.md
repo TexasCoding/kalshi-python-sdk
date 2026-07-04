@@ -1,5 +1,31 @@
 # Migration
 
+## v5 → v6.0.0
+
+**Breaking: multivariate lookup-history is gone.** Kalshi removed the
+`GET /multivariate_event_collections/{ticker}/lookup` endpoint
+(`GetMultivariateEventCollectionLookupHistory`) and the `LookupPoint` schema from
+the OpenAPI spec in 3.23.0, so the SDK removed the matching method and model.
+
+### Removed
+
+| Removed (v5)                                        | Replacement |
+| --------------------------------------------------- | ----------- |
+| `multivariate_collections.lookup_history(...)` (sync + async) | none — the endpoint was deleted upstream |
+| `LookupPoint` model (exported from `kalshi` / `kalshi.models`) | none |
+
+Everything else in 6.0.0 is additive and needs no code changes:
+
+- New optional/required response fields on `ApiKey`, `SubaccountTransfer`,
+  `MarginPosition`, `MarginRiskPosition`, `MarginOrder`, and the WS
+  `market_lifecycle_v2` payload.
+- New `subaccounts.transfer_position(...)` method (`POST
+  /portfolio/subaccounts/positions/transfer`) for moving open positions between
+  subaccounts.
+- `subaccounts.create()` gained an optional `exchange_index` argument.
+
+See the [changelog](../CHANGELOG.md) for the full list.
+
 ## v4 → v5.0.0
 
 **Breaking: the V1 order-write API is gone.** Kalshi removed the V1 order
@@ -402,16 +428,14 @@ for position in client.portfolio.positions_all():
 
 ### Multivariate endpoints emit `DeprecationWarning`
 
-Per #269, `multivariate.lookup_tickers`, `multivariate.lookup_history`,
-and `multivariate.create_market` (sync + async) carry
-`@typing_extensions.deprecated` decorators citing the spec's "should
-not be used for new integrations" guidance. Use RFQs instead. The
-endpoints still work; calls just emit a `DeprecationWarning` on first
-use.
+Per #269, `multivariate.lookup_tickers` and `multivariate.create_market`
+(sync + async) carry `@typing_extensions.deprecated` decorators citing
+the spec's "should not be used for new integrations" guidance. Use RFQs
+instead. The endpoints still work; calls just emit a `DeprecationWarning`
+on first use.
 
-`multivariate.lookup_history` also now validates `lookback_seconds`
-locally against the spec enum `{10, 60, 300, 3600}` and raises
-`ValueError` for any other value before the round trip.
+(`multivariate.lookup_history`, also deprecated here in #269, was removed
+entirely in 6.0.0 — see the [v5 → v6.0.0](#v5--v600) section above.)
 
 ### `orders.list(event_ticker=...)` accepts lists
 

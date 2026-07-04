@@ -21,7 +21,10 @@ from kalshi.errors import (
     KalshiValidationError,
 )
 from kalshi.models.subaccounts import (
+    ApplySubaccountPositionTransferRequest,
+    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
+    CreateSubaccountRequest,
     CreateSubaccountResponse,
     GetSubaccountBalancesResponse,
     GetSubaccountNettingResponse,
@@ -96,10 +99,57 @@ class TestSubaccountModels:
                 "to_subaccount": 1,
                 "amount_cents": 500,
                 "created_ts": 1_700_000_000,
+                "exchange_index": 0,
+                "transfer_type": "cash",
             }
         )
         assert t.transfer_id == "xfer-1"
         assert t.amount_cents == 500
+        assert t.exchange_index == 0
+        assert t.transfer_type == "cash"
+        # Position-only fields are absent on a cash transfer.
+        assert t.market_ticker is None
+        assert t.side is None
+
+    def test_subaccount_position_transfer_parses(self) -> None:
+        # v3.23.0: position transfers carry market_ticker/side/count/price_cents.
+        t = SubaccountTransfer.model_validate(
+            {
+                "transfer_id": "xfer-2",
+                "from_subaccount": 1,
+                "to_subaccount": 2,
+                "amount_cents": 0,
+                "created_ts": 1_700_000_100,
+                "exchange_index": 0,
+                "transfer_type": "position",
+                "market_ticker": "MKT-1",
+                "side": "yes",
+                "count": 10,
+                "price_cents": 55,
+            }
+        )
+        assert t.transfer_type == "position"
+        assert t.market_ticker == "MKT-1"
+        assert t.side == "yes"
+        assert t.count == 10
+        assert t.price_cents == 55
+
+    def test_subaccount_transfer_requires_v3_23_fields(self) -> None:
+        # exchange_index and transfer_type are spec-required (v3.23.0). A
+        # 3.23.0 server always sends them; omitting them is a hard error rather
+        # than silently defaulting — matches the drift suite's spec-required =>
+        # SDK-required enforcement.
+        with pytest.raises(ValidationError):
+            SubaccountTransfer.model_validate(
+                {
+                    "transfer_id": "xfer-3",
+                    "from_subaccount": 0,
+                    "to_subaccount": 1,
+                    "amount_cents": 100,
+                    "created_ts": 1_700_000_200,
+                    # exchange_index + transfer_type intentionally omitted
+                }
+            )
 
     def test_subaccount_netting_config_parses(self) -> None:
         cfg = SubaccountNettingConfig.model_validate(
@@ -218,6 +268,94 @@ class TestSubaccountRequestModels:
                 subaccount_number=0, enabled=True, phantom=1,
             )
 
+    # ── #465 CreateSubaccountRequest (v3.23.0) ──
+    def test_create_request_empty_serializes_to_empty_dict(self) -> None:
+        assert CreateSubaccountRequest().model_dump(exclude_none=True) == {}
+
+    def test_create_request_with_exchange_index(self) -> None:
+        body = CreateSubaccountRequest(exchange_index=0).model_dump(exclude_none=True)
+        assert body == {"exchange_index": 0}
+
+    def test_create_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateSubaccountRequest(phantom=1)  # type: ignore[call-arg]
+
+    def test_create_request_rejects_negative_exchange_index(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateSubaccountRequest(exchange_index=-1)
+
+    # ── #464 ApplySubaccountPositionTransferRequest (v3.23.0) ──
+    def test_position_transfer_request_serializes(self) -> None:
+        req = ApplySubaccountPositionTransferRequest(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=1,
+            market_ticker="MKT-1",
+            side="yes",
+            count=5,
+            price_cents=50,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {
+            "client_transfer_id": _TEST_XFER_ID,
+            "from_subaccount": 0,
+            "to_subaccount": 1,
+            "market_ticker": "MKT-1",
+            "side": "yes",
+            "count": 5,
+            "price_cents": 50,
+        }
+
+    def test_position_transfer_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountPositionTransferRequest(  # type: ignore[call-arg]
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=5,
+                price_cents=50,
+                phantom=1,
+            )
+
+    def test_position_transfer_request_rejects_bad_side(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountPositionTransferRequest(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="maybe",  # type: ignore[arg-type]
+                count=5,
+                price_cents=50,
+            )
+
+    def test_position_transfer_request_rejects_zero_count(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountPositionTransferRequest(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=0,
+                price_cents=50,
+            )
+
+    @pytest.mark.parametrize("bad_price", [-1, 101])
+    def test_position_transfer_request_rejects_price_out_of_range(self, bad_price: int) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountPositionTransferRequest(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=5,
+                price_cents=bad_price,
+            )
+
 
 class TestSubaccountsCreate:
     @respx.mock
@@ -237,12 +375,127 @@ class TestSubaccountsCreate:
         assert route.calls[0].request.content == b"{}"
 
     @respx.mock
+    def test_create_with_exchange_index_sends_body(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        # #465 (v3.23.0): create() now serializes an optional CreateSubaccountRequest.
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts",
+        ).mock(return_value=httpx.Response(201, json={"subaccount_number": 6}))
+        resp = subaccounts.create(exchange_index=0)
+        assert resp.subaccount_number == 6
+        assert json.loads(route.calls[0].request.content) == {"exchange_index": 0}
+
+    @respx.mock
     def test_create_500_raises(self, subaccounts: SubaccountsResource) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts",
         ).mock(return_value=httpx.Response(500, json={"message": "boom"}))
         with pytest.raises(KalshiServerError):
             subaccounts.create()
+
+
+class TestSubaccountsTransferPosition:
+    @respx.mock
+    def test_transfer_position_sends_body_and_returns_id(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/positions/transfer",
+        ).mock(return_value=httpx.Response(200, json={"position_transfer_id": "pt-1"}))
+        resp = subaccounts.transfer_position(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=1,
+            market_ticker="MKT-1",
+            side="yes",
+            count=10,
+            price_cents=55,
+        )
+        assert isinstance(resp, ApplySubaccountPositionTransferResponse)
+        assert resp.position_transfer_id == "pt-1"
+        assert json.loads(route.calls[0].request.content) == {
+            "client_transfer_id": _TEST_XFER_ID,
+            "from_subaccount": 0,
+            "to_subaccount": 1,
+            "market_ticker": "MKT-1",
+            "side": "yes",
+            "count": 10,
+            "price_cents": 55,
+        }
+
+    @respx.mock
+    def test_transfer_position_with_request_model(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/positions/transfer",
+        ).mock(return_value=httpx.Response(200, json={"position_transfer_id": "pt-2"}))
+        req = ApplySubaccountPositionTransferRequest(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=1,
+            to_subaccount=2,
+            market_ticker="MKT-2",
+            side="no",
+            count=3,
+            price_cents=0,
+        )
+        resp = subaccounts.transfer_position(request=req)
+        assert resp.position_transfer_id == "pt-2"
+        assert route.called
+
+    def test_transfer_position_requires_args(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        with pytest.raises(TypeError, match="transfer_position"):
+            subaccounts.transfer_position(from_subaccount=0)
+
+    def test_transfer_position_rejects_malformed_uuid(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        with pytest.raises(ValueError):
+            subaccounts.transfer_position(
+                client_transfer_id="not-a-uuid",
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=1,
+                price_cents=1,
+            )
+
+    @respx.mock
+    def test_transfer_position_400_maps(
+        self, subaccounts: SubaccountsResource,
+    ) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/positions/transfer",
+        ).mock(return_value=httpx.Response(400, json={"message": "bad"}))
+        with pytest.raises(KalshiValidationError):
+            subaccounts.transfer_position(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=1,
+                price_cents=1,
+            )
+
+    def test_transfer_position_unauthenticated_raises_before_http(
+        self, config: KalshiConfig,
+    ) -> None:
+        client = SubaccountsResource(SyncTransport(None, config))
+        with pytest.raises(AuthRequiredError):
+            client.transfer_position(
+                client_transfer_id=_TEST_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                market_ticker="MKT-1",
+                side="yes",
+                count=1,
+                price_cents=1,
+            )
 
 
 class TestSubaccountsTransfer:
@@ -352,6 +605,8 @@ class TestSubaccountsListTransfers:
                             "to_subaccount": 1,
                             "amount_cents": 100,
                             "created_ts": 1,
+                            "exchange_index": 0,
+                            "transfer_type": "cash",
                         },
                     ],
                     "cursor": "next",
@@ -380,6 +635,8 @@ class TestSubaccountsListTransfers:
                                 "to_subaccount": 1,
                                 "amount_cents": 100,
                                 "created_ts": 1,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",
@@ -395,6 +652,8 @@ class TestSubaccountsListTransfers:
                                 "to_subaccount": 0,
                                 "amount_cents": 50,
                                 "created_ts": 2,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                     },
@@ -490,6 +749,29 @@ class TestAsyncSubaccounts:
         body = json.loads(route.calls[0].request.content)
         assert body["amount_cents"] == 42
 
+    async def test_transfer_position(
+        self,
+        async_subaccounts: AsyncSubaccountsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/positions/transfer",
+        ).mock(return_value=httpx.Response(200, json={"position_transfer_id": "pt-async"}))
+        resp = await async_subaccounts.transfer_position(
+            client_transfer_id=_TEST_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=1,
+            market_ticker="MKT-1",
+            side="no",
+            count=4,
+            price_cents=25,
+        )
+        assert isinstance(resp, ApplySubaccountPositionTransferResponse)
+        assert resp.position_transfer_id == "pt-async"
+        body = json.loads(route.calls[0].request.content)
+        assert body["side"] == "no"
+        assert body["price_cents"] == 25
+
     async def test_list_balances(
         self,
         async_subaccounts: AsyncSubaccountsResource,
@@ -545,6 +827,8 @@ class TestAsyncSubaccounts:
                                 "to_subaccount": 1,
                                 "amount_cents": 100,
                                 "created_ts": 1,
+                                "exchange_index": 0,
+                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",

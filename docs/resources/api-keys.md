@@ -10,9 +10,15 @@ Auth required throughout (you need an existing key to manage keys).
 | Method | Endpoint |
 |---|---|
 | `list()` | `GET /api_keys` |
-| `create(*, name, public_key, scopes=None)` | `POST /api_keys` |
-| `generate(*, name, scopes=None)` | `POST /api_keys/generate` |
+| `create(*, name, public_key, scopes=None, subaccount=None)` | `POST /api_keys` |
+| `generate(*, name, scopes=None, subaccount=None)` | `POST /api_keys/generate` |
 | `delete(api_key)` | `DELETE /api_keys/{api_key}` |
+
+!!! note "Subaccount-scoped keys (spec v3.23.0)"
+    Pass `subaccount=<0-63>` to `create()` / `generate()` to restrict a key to a
+    single subaccount. Omit it (the default) for an account-wide key. The value is
+    bounded to `0-63` client-side; `ApiKey.subaccount` echoes it back on `list()`
+    (`None` for account-wide keys).
 
 ## List
 

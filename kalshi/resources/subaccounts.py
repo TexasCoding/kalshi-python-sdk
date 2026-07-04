@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any, overload
+from typing import Any, Literal, overload
 from uuid import UUID
 
 from kalshi.models.common import Page
 from kalshi.models.subaccounts import (
+    ApplySubaccountPositionTransferRequest,
+    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
+    CreateSubaccountRequest,
     CreateSubaccountResponse,
     GetSubaccountBalancesResponse,
     GetSubaccountNettingResponse,
@@ -67,6 +70,59 @@ def _build_transfer_body(
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
+def _build_position_transfer_body(
+    request: ApplySubaccountPositionTransferRequest | None,
+    *,
+    client_transfer_id: UUID | str | None,
+    from_subaccount: int | None,
+    to_subaccount: int | None,
+    market_ticker: str | None,
+    side: Literal["yes", "no"] | None,
+    count: int | None,
+    price_cents: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        client_transfer_id=client_transfer_id,
+        from_subaccount=from_subaccount,
+        to_subaccount=to_subaccount,
+        market_ticker=market_ticker,
+        side=side,
+        count=count,
+        price_cents=price_cents,
+    )
+    if request is None:
+        if (
+            client_transfer_id is None
+            or from_subaccount is None
+            or to_subaccount is None
+            or market_ticker is None
+            or side is None
+            or count is None
+            or price_cents is None
+        ):
+            raise TypeError(
+                "transfer_position() requires `client_transfer_id`, `from_subaccount`, "
+                "`to_subaccount`, `market_ticker`, `side`, `count`, and `price_cents` "
+                "(or pass `request=...`)"
+            )
+        # Accept str for caller ergonomics; coerce once to surface a clean
+        # ValueError on malformed strings before the model validator sees them.
+        uid = (
+            client_transfer_id if isinstance(client_transfer_id, UUID) else UUID(client_transfer_id)
+        )
+        request = ApplySubaccountPositionTransferRequest(
+            client_transfer_id=uid,
+            from_subaccount=from_subaccount,
+            to_subaccount=to_subaccount,
+            market_ticker=market_ticker,
+            side=side,
+            count=count,
+            price_cents=price_cents,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
 def _build_update_netting_body(
     request: UpdateSubaccountNettingRequest | None,
     *,
@@ -97,17 +153,25 @@ class SubaccountsResource(SyncResource):
     Subaccount 0 is the primary account; positive integers identify numbered
     subaccounts (spec prose says ``1-63`` but defines no JSON-schema upper
     bound, and demo has been observed allocating numbers above 32).
-    POST /portfolio/subaccounts spins up the next subaccount with an
-    empty body (spec takes no request payload).
+    POST /portfolio/subaccounts spins up the next subaccount; ``exchange_index``
+    optionally targets a specific exchange shard (spec v3.23.0).
     """
 
-    def create(self, *, extra_headers: dict[str, str] | None = None) -> CreateSubaccountResponse:
+    def create(
+        self,
+        *,
+        exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateSubaccountResponse:
         self._require_auth()
-        # Spec defines no requestBody, but httpx omits Content-Type when no
-        # body is passed and demo rejects the POST with `invalid_content_type`.
-        # json={} forces Content-Type: application/json — same workaround
-        # used on order_groups reset/trigger PUTs.
-        data = self._post("/portfolio/subaccounts", json={}, extra_headers=extra_headers)
+        # Spec v3.23.0 defines an optional CreateSubaccountRequest body (a single
+        # optional exchange_index). When exchange_index is None the body is `{}`,
+        # which still forces Content-Type: application/json — demo rejects the
+        # POST with `invalid_content_type` when no body is passed at all.
+        body = CreateSubaccountRequest(exchange_index=exchange_index).model_dump(
+            exclude_none=True, by_alias=True, mode="json"
+        )
+        data = self._post("/portfolio/subaccounts", json=body, extra_headers=extra_headers)
         return CreateSubaccountResponse.model_validate(data)
 
     @overload
@@ -146,6 +210,62 @@ class SubaccountsResource(SyncResource):
             amount_cents=amount_cents,
         )
         self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
+
+    @overload
+    def transfer_position(
+        self,
+        *,
+        request: ApplySubaccountPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse: ...
+    @overload
+    def transfer_position(
+        self,
+        *,
+        client_transfer_id: UUID | str,
+        from_subaccount: int,
+        to_subaccount: int,
+        market_ticker: str,
+        side: Literal["yes", "no"],
+        count: int,
+        price_cents: int,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse: ...
+    def transfer_position(
+        self,
+        *,
+        request: ApplySubaccountPositionTransferRequest | None = None,
+        client_transfer_id: UUID | str | None = None,
+        from_subaccount: int | None = None,
+        to_subaccount: int | None = None,
+        market_ticker: str | None = None,
+        side: Literal["yes", "no"] | None = None,
+        count: int | None = None,
+        price_cents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse:
+        """Move an open position between subaccounts (spec v3.23.0).
+
+        Unlike the cash-only :meth:`transfer`, this moves ``count`` contracts of
+        ``market_ticker`` (``side``) and returns the server-generated
+        ``position_transfer_id``. ``price_cents`` (0-100) sets the cost basis on
+        the destination.
+        """
+        self._require_auth()
+        body = _build_position_transfer_body(
+            request,
+            client_transfer_id=client_transfer_id,
+            from_subaccount=from_subaccount,
+            to_subaccount=to_subaccount,
+            market_ticker=market_ticker,
+            side=side,
+            count=count,
+            price_cents=price_cents,
+        )
+        data = self._post(
+            "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers
+        )
+        return ApplySubaccountPositionTransferResponse.model_validate(data)
 
     def list_balances(
         self, *, extra_headers: dict[str, str] | None = None
@@ -231,12 +351,19 @@ class AsyncSubaccountsResource(AsyncResource):
     """Async subaccounts API."""
 
     async def create(
-        self, *, extra_headers: dict[str, str] | None = None
+        self,
+        *,
+        exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> CreateSubaccountResponse:
         self._require_auth()
-        # json={} forces Content-Type: application/json — demo rejects the
-        # POST with `invalid_content_type` when no body is passed.
-        data = await self._post("/portfolio/subaccounts", json={}, extra_headers=extra_headers)
+        # Spec v3.23.0 optional CreateSubaccountRequest body; `{}` when
+        # exchange_index is None still forces Content-Type: application/json —
+        # demo rejects the POST with `invalid_content_type` when no body is sent.
+        body = CreateSubaccountRequest(exchange_index=exchange_index).model_dump(
+            exclude_none=True, by_alias=True, mode="json"
+        )
+        data = await self._post("/portfolio/subaccounts", json=body, extra_headers=extra_headers)
         return CreateSubaccountResponse.model_validate(data)
 
     @overload
@@ -275,6 +402,59 @@ class AsyncSubaccountsResource(AsyncResource):
             amount_cents=amount_cents,
         )
         await self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
+
+    @overload
+    async def transfer_position(
+        self,
+        *,
+        request: ApplySubaccountPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse: ...
+    @overload
+    async def transfer_position(
+        self,
+        *,
+        client_transfer_id: UUID | str,
+        from_subaccount: int,
+        to_subaccount: int,
+        market_ticker: str,
+        side: Literal["yes", "no"],
+        count: int,
+        price_cents: int,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse: ...
+    async def transfer_position(
+        self,
+        *,
+        request: ApplySubaccountPositionTransferRequest | None = None,
+        client_transfer_id: UUID | str | None = None,
+        from_subaccount: int | None = None,
+        to_subaccount: int | None = None,
+        market_ticker: str | None = None,
+        side: Literal["yes", "no"] | None = None,
+        count: int | None = None,
+        price_cents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ApplySubaccountPositionTransferResponse:
+        """Move an open position between subaccounts (spec v3.23.0).
+
+        Async counterpart of :meth:`SubaccountsResource.transfer_position`.
+        """
+        self._require_auth()
+        body = _build_position_transfer_body(
+            request,
+            client_transfer_id=client_transfer_id,
+            from_subaccount=from_subaccount,
+            to_subaccount=to_subaccount,
+            market_ticker=market_ticker,
+            side=side,
+            count=count,
+            price_cents=price_cents,
+        )
+        data = await self._post(
+            "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers
+        )
+        return ApplySubaccountPositionTransferResponse.model_validate(data)
 
     async def list_balances(
         self, *, extra_headers: dict[str, str] | None = None

@@ -174,45 +174,7 @@ class TestMultivariateLookupTickers:
             mv.lookup_tickers("MVC-1", selected_markets=[])
 
 
-class TestMultivariateLookupHistory:
-    @respx.mock
-    def test_lookup_history(self, mv: MultivariateCollectionsResource) -> None:
-        respx.get(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "lookup_points": [
-                        {
-                            "event_ticker": "EVT-1",
-                            "market_ticker": "MKT-1",
-                            "selected_markets": [],
-                            "last_queried_ts": "2026-04-16T10:00:00Z",
-                        }
-                    ]
-                },
-            )
-        )
-        result = mv.lookup_history("MVC-1", lookback_seconds=60)
-        assert len(result) == 1
-        assert result[0].event_ticker == "EVT-1"
-
-    @pytest.mark.parametrize("bad", [0, 1, 30, 600, 3601, -10])
-    def test_lookup_history_rejects_off_enum_lookback(
-        self, mv: MultivariateCollectionsResource, bad: int
-    ) -> None:
-        with pytest.raises(ValueError, match=r"lookback_seconds must be one of"):
-            mv.lookup_history("MVC-1", lookback_seconds=bad)
-
-    def test_lookup_history_emits_deprecation_warning(
-        self, mv: MultivariateCollectionsResource
-    ) -> None:
-        with respx.mock(base_url=BASE) as router:
-            router.get("/multivariate_event_collections/MVC-1/lookup").mock(
-                return_value=httpx.Response(200, json={"lookup_points": []})
-            )
-            with pytest.warns(DeprecationWarning, match=r"predates RFQs"):
-                mv.lookup_history("MVC-1", lookback_seconds=10)
-
+class TestMultivariateDeprecationWarnings:
     def test_lookup_tickers_emits_deprecation_warning(
         self, mv: MultivariateCollectionsResource
     ) -> None:
@@ -324,15 +286,6 @@ class TestAsyncMultivariateCollectionsResource:
         )
         with pytest.raises(RuntimeError, match="spec drift"):
             await async_mv.lookup_tickers("MVC-1", selected_markets=[])
-
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_lookup_history(self, async_mv: AsyncMultivariateCollectionsResource) -> None:
-        respx.get(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={"lookup_points": []})
-        )
-        result = await async_mv.lookup_history("MVC-1", lookback_seconds=300)
-        assert result == []
 
 
 class TestCreateMarketWireShape:

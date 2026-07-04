@@ -174,6 +174,18 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="ApplySubaccountTransferRequest",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest",
+        spec_schema="ApplySubaccountPositionTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferResponse",
+        spec_schema="ApplySubaccountPositionTransferResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.subaccounts.CreateSubaccountRequest",
+        spec_schema="CreateSubaccountRequest",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.subaccounts.UpdateSubaccountNettingRequest",
         spec_schema="UpdateSubaccountNettingRequest",
     ),
@@ -480,10 +492,6 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="LookupTickersForMarketInMultivariateEventCollectionResponse",
         notes="Spec name is the long-form ...Response; SDK shortens",
     ),
-    ContractEntry(
-        sdk_model="kalshi.models.multivariate.LookupPoint",
-        spec_schema="LookupPoint",
-    ),
 ]
 
 # WS payload models → AsyncAPI schema components.
@@ -542,8 +550,8 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.ws.models.market_lifecycle.MarketLifecyclePayload",
         spec_schema="marketLifecycleV2Payload",
-        notes="SDK conflates lifecycle + event fields. "
-        "Spec has additional_metadata, price_level_structure not in SDK.",
+        notes="SDK conflates lifecycle + event fields; all spec msg fields "
+        "(incl. additional_metadata, price_level_structure, price_ranges) mapped.",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.event_fee.EventFeeUpdatePayload",

@@ -9,11 +9,16 @@ Public listing, auth-required minting. Attribute name on the client:
 `multivariate_collections`.
 
 !!! warning "Deprecated methods"
-    `create_market()`, `lookup_tickers()`, and `lookup_history()` are
-    deprecated — "This endpoint predates RFQs and should not be used for new
-    integrations." Calling them emits a `DeprecationWarning`. Use the
+    `create_market()` and `lookup_tickers()` are deprecated — "This endpoint
+    predates RFQs and should not be used for new integrations." Calling them
+    emits a `DeprecationWarning`. Use the
     [Communications (RFQ/Quote)](communications.md) surface instead. `list()` /
     `list_all()` / `get()` remain supported.
+
+!!! danger "Removed in 6.0.0"
+    `lookup_history()` and the `LookupPoint` model were removed — Kalshi deleted
+    the backing `GET /multivariate_event_collections/{ticker}/lookup` endpoint
+    from the spec in 3.23.0.
 
 ## Quick reference
 
@@ -23,7 +28,6 @@ Public listing, auth-required minting. Attribute name on the client:
 | `get(collection_ticker)` | `GET /multivariate_event_collections/{ticker}` | no |
 | `create_market(collection_ticker, *, selected_markets, with_market_payload=False)` | `POST /multivariate_event_collections/{ticker}` | yes |
 | `lookup_tickers(collection_ticker, *, selected_markets)` | `PUT /multivariate_event_collections/{ticker}/lookup` | yes |
-| `lookup_history(collection_ticker, *, lookback_seconds)` | `GET /multivariate_event_collections/{ticker}/lookup` (with `lookback_seconds` query param) | no |
 
 ## List collections
 
@@ -75,17 +79,6 @@ resp = client.multivariate_collections.create_market(
 print(resp.market_ticker, resp.event_ticker)
 if resp.market is not None:
     print(resp.market.yes_bid, resp.market.yes_ask)
-```
-
-## Recent lookup history
-
-```python
-history = client.multivariate_collections.lookup_history(
-    "KXWEATHER-SPORTS-COMBO",
-    lookback_seconds=3600,
-)
-for point in history:
-    print(point.last_queried_ts, point.market_ticker, point.event_ticker)
 ```
 
 ## Reference

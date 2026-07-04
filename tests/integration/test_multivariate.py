@@ -13,7 +13,6 @@ from kalshi.errors import (
 from kalshi.models.common import Page
 from kalshi.models.multivariate import (
     CreateMarketResponse,
-    LookupPoint,
     LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
@@ -29,7 +28,6 @@ register(
         "get",
         "create_market",
         "lookup_tickers",
-        "lookup_history",
     ],
 )
 
@@ -145,21 +143,6 @@ class TestMultivariateSync:
         assert resp.event_ticker
         assert resp.market_ticker
 
-    def test_lookup_history(
-        self, sync_client: KalshiClient, demo_collection_ticker: str
-    ) -> None:
-        try:
-            points = sync_client.multivariate_collections.lookup_history(
-                demo_collection_ticker,
-                lookback_seconds=3600,
-            )
-        except KalshiNotFoundError:
-            pytest.skip("Demo collection has no lookup history")
-        assert isinstance(points, list)
-        for point in points:
-            assert isinstance(point, LookupPoint)
-            assert_model_fields(point)
-
 
 @pytest.mark.integration
 class TestMultivariateAsync:
@@ -233,18 +216,3 @@ class TestMultivariateAsync:
         assert isinstance(resp, LookupTickersResponse)
         assert resp.event_ticker
         assert resp.market_ticker
-
-    async def test_lookup_history(
-        self, async_client: AsyncKalshiClient, demo_collection_ticker: str
-    ) -> None:
-        try:
-            points = await async_client.multivariate_collections.lookup_history(
-                demo_collection_ticker,
-                lookback_seconds=3600,
-            )
-        except KalshiNotFoundError:
-            pytest.skip("Demo collection has no lookup history")
-        assert isinstance(points, list)
-        for point in points:
-            assert isinstance(point, LookupPoint)
-            assert_model_fields(point)

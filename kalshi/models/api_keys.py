@@ -9,7 +9,7 @@ has Kalshi mint a fresh key pair and returns the private key once
 
 from __future__ import annotations
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, Field, SecretStr
 
 from kalshi.types import NullableList
 
@@ -26,6 +26,9 @@ class ApiKey(BaseModel):
     api_key_id: str
     name: str
     scopes: NullableList[str]
+    # Spec v3.23.0: if set, the key is restricted to this single subaccount
+    # (0-63). Optional — omitted for account-wide keys and by older servers.
+    subaccount: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -56,6 +59,9 @@ class CreateApiKeyRequest(BaseModel):
     name: str
     public_key: str
     scopes: list[str] | None = None
+    # Spec v3.23.0: restrict the key to a single subaccount when set. The spec
+    # declares an explicit minimum/maximum (0-63), so bound it client-side.
+    subaccount: int | None = Field(default=None, ge=0, le=63)
 
     model_config = {"extra": "forbid"}
 
@@ -73,6 +79,9 @@ class GenerateApiKeyRequest(BaseModel):
 
     name: str
     scopes: list[str] | None = None
+    # Spec v3.23.0: restrict the key to a single subaccount when set. The spec
+    # declares an explicit minimum/maximum (0-63), so bound it client-side.
+    subaccount: int | None = Field(default=None, ge=0, le=63)
 
     model_config = {"extra": "forbid"}
 
