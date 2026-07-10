@@ -68,7 +68,8 @@ There is **no** built-in 1000-page cap. If you want one, pass
 A few list endpoints return a plain `list[T]`, not `Page[T]`:
 
 - `client.series.list(...)` — flat list of series.
-- `client.exchange.announcements()` — a flat list.
+- `client.exchange.announcements()` — a flat list (deprecated in v7.0.0; the
+  endpoint was removed upstream and now 404s).
 - `client.order_groups.list()` — no cursor.
 - `client.account.limits()` / `client.exchange.status()` — single objects.
 - `client.markets.bulk_orderbooks(...)` / `bulk_candlesticks(...)` — flat list of up to 100 items.

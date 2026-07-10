@@ -7,7 +7,7 @@ Auth required throughout.
 
 | Method | Endpoint |
 |---|---|
-| `balance(*, subaccount=None)` | `GET /portfolio/balance` |
+| `balance(*, subaccount=None, exchange_index=None)` | `GET /portfolio/balance` |
 | `positions(*, ...)` | `GET /portfolio/positions` |
 | `settlements(...)` / `settlements_all(...)` | `GET /portfolio/settlements` |
 | `fills(...)` / `fills_all(...)` | `GET /portfolio/fills` |
@@ -18,7 +18,8 @@ Auth required throughout.
 `balance()`, `positions()` / `positions_all()`, `settlements()` /
 `settlements_all()`, and `fills()` / `fills_all()` all take an optional
 `subaccount: int` to scope the read to a specific subaccount (omit for the
-primary account).
+primary account). `balance()` also takes an optional `exchange_index: int`
+(spec v3.24.0) to target a specific exchange shard (defaults to 0 server-side).
 
 ## Balance
 

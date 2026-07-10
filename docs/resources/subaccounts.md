@@ -9,7 +9,7 @@ primary; `1`–`63` are numbered extras. Auth required throughout.
 |---|---|
 | `create(*, exchange_index=None)` | `POST /portfolio/subaccounts` |
 | `transfer(*, client_transfer_id, from_subaccount, to_subaccount, amount_cents)` | `POST /portfolio/subaccounts/transfer` |
-| `transfer_position(*, client_transfer_id, from_subaccount, to_subaccount, market_ticker, side, count, price_cents)` | `POST /portfolio/subaccounts/positions/transfer` |
+| `transfer_position(*, client_transfer_id, from_subaccount, to_subaccount, market_ticker, side, count, price)` | `POST /portfolio/subaccounts/positions/transfer` |
 | `list_balances()` | `GET /portfolio/subaccounts/balances` |
 | `list_transfers(*, cursor=None, limit=None)` | `GET /portfolio/subaccounts/transfers` |
 | `list_all_transfers(*, limit=None, max_pages=None)` | walks `list_transfers` |
@@ -53,11 +53,13 @@ with the same id; the server dedupes.
 ## Transfer a position between subaccounts
 
 Spec v3.23.0 added `transfer_position()` for moving open contracts (not cash)
-between subaccounts. Unlike `transfer()`, it returns a
-`position_transfer_id`. `price_cents` (0–100) sets the cost basis on the
-destination:
+between subaccounts. Unlike `transfer()`, it returns a `position_transfer_id`.
+`price` (spec v3.24.0 renamed it from `price_cents`) is the per-contract cost
+basis in **fixed-point dollars** (0–1.0) — pass a `Decimal`:
 
 ```python
+from decimal import Decimal
+
 resp = client.subaccounts.transfer_position(
     client_transfer_id=uuid.uuid4(),     # or str
     from_subaccount=0,
@@ -65,7 +67,7 @@ resp = client.subaccounts.transfer_position(
     market_ticker="KXBTC-25DEC31-B100000",
     side="yes",                          # "yes" | "no"
     count=10,                            # contracts (> 0)
-    price_cents=55,                      # per-contract cents, 0–100
+    price=Decimal("0.55"),               # per-contract dollars, 0–1.0
 )
 print(resp.position_transfer_id)
 ```
@@ -101,8 +103,10 @@ Netting offsets positions across subaccounts so they consume one margin pool.
 
 ```python
 client.subaccounts.update_netting(subaccount_number=1, enabled=True)
-config = client.subaccounts.get_netting()
-print(config.netting_enabled_subaccounts)
+resp = client.subaccounts.get_netting()
+for cfg in resp.netting_configs:
+    # `exchange_index` (int) added in spec v3.24.0.
+    print(cfg.subaccount_number, cfg.enabled, cfg.exchange_index)
 ```
 
 ## Reference

@@ -9,7 +9,7 @@ Top-level exchange status, schedule, announcements, and your account's
 |---|---|---|
 | `status()` | `GET /exchange/status` | no |
 | `schedule()` | `GET /exchange/schedule` | no |
-| `announcements()` | `GET /exchange/announcements` | no |
+| `announcements()` *(deprecated in v7.0.0 — 404s)* | `GET /exchange/announcements` | no |
 | `user_data_timestamp()` | `GET /exchange/user_data_timestamp` | **yes** |
 
 ## Exchange status
@@ -36,9 +36,16 @@ for window in sched.maintenance_windows:
 
 ## Announcements
 
+!!! warning "Deprecated in v7.0.0"
+    Kalshi removed `GET /exchange/announcements` and the `Announcement` schema
+    from the spec in 3.24.0, so the live endpoint now **404s**. `announcements()`
+    (sync + async) and the `Announcement` model are retained — each call emits a
+    `DeprecationWarning` — pending confirmation the removal is permanent, and will
+    be removed in a future major release.
+
 ```python
-for a in client.exchange.announcements():
-    print(a.title, a.message, a.delivery_time)
+for a in client.exchange.announcements():   # emits DeprecationWarning
+    print(a.type, a.message, a.delivery_time, a.status)
 ```
 
 Plain list, not a `Page`.

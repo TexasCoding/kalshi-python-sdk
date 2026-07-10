@@ -179,6 +179,11 @@ with KlearClient(admin_user_id="...", access_token="...", demo=True) as klear:
 Credentials can also come from the environment via `KlearClient.from_env()` (reads
 `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN`).
 
+New in spec v3.24.0: `klear.margin.active_obligations()` returns all
+currently-active settlement obligations (the plural sibling of the single-obligation
+`active_obligation()`), and `klear.margin.settlement_estimate_by_asset_class()`
+returns next-settlement estimates keyed by asset class.
+
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as

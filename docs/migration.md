@@ -1,5 +1,71 @@
 # Migration
 
+## v6 → v7.0.0
+
+Syncs the SDK to OpenAPI/AsyncAPI spec **3.24.0**. One breaking change on the
+subaccounts surface, one soft-deprecation, three new endpoints, and additive
+field/param additions.
+
+### Breaking: position-transfer price is fixed-point dollars, not integer cents
+
+The per-contract price on `subaccounts.transfer_position()` (and the underlying
+`ApplySubaccountPositionTransferRequest` / `SubaccountTransfer` models) is renamed
+from **`price_cents`** (integer cents, 0–100) to **`price`** (`Decimal`,
+fixed-point dollars, 0–1.0). Upstream renamed the wire field `price_cents` →
+`price` (`FixedPointDollars`) in 3.24.0.
+
+```python
+from decimal import Decimal
+
+# v6 (removed)
+# client.subaccounts.transfer_position(
+#     client_transfer_id=..., from_subaccount=0, to_subaccount=1,
+#     market_ticker="MKT-A", side="yes", count=5, price_cents=55,
+# )
+
+# v7 — price is dollars, as a Decimal
+client.subaccounts.transfer_position(
+    client_transfer_id=...,
+    from_subaccount=0,
+    to_subaccount=1,
+    market_ticker="MKT-A",
+    side="yes",
+    count=5,
+    price=Decimal("0.55"),   # 55¢ cost basis
+)
+```
+
+The old client-side `0–100` cap is gone. `price` uses `OrderPrice`, which guards
+non-negativity and the `$0.0001` tick (matching `CreateOrderRequest`); the upper
+bound is the server's to enforce.
+
+### Deprecated: `exchange.announcements()`
+
+Kalshi removed `GET /exchange/announcements` and the `Announcement` schema from
+the spec in 3.24.0, so the live endpoint now 404s. `exchange.announcements()`
+(sync + async) and the `Announcement` model are **retained** but emit a
+`DeprecationWarning` — upstream has transiently dropped endpoints as publishing
+glitches before, so the method is kept pending confirmation the removal is
+permanent. A future major release removes them.
+
+### Added
+
+- **`communications.quotes.get_for_rfq(rfq_id, quote_id)`** (sync + async) —
+  `GET /communications/rfqs/{rfq_id}/quotes/{quote_id}`, the RFQ-scoped get-quote
+  (returns `GetQuoteResponse`, the same payload as the flat `quotes.get`).
+- **`klear.margin.active_obligations()`** (sync + async) —
+  `GET /margin/active_obligations`, all currently-active settlement obligations.
+- **`klear.margin.settlement_estimate_by_asset_class()`** (sync + async) —
+  `GET /margin/settlement_estimate_by_asset_class`, next-settlement estimates
+  keyed by asset class.
+- **`SubaccountNettingConfig.exchange_index`** (`int`, required).
+- **`portfolio.balance(*, exchange_index=...)`** — optional query param to target
+  a specific exchange shard (defaults to 0 server-side).
+- **`ObligationEntry.asset_class`** (perps SCM / Klear; `Literal["Crypto"]`).
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v5 → v6.0.0
 
 **Breaking: multivariate lookup-history is gone.** Kalshi removed the
@@ -24,7 +90,8 @@ Everything else in 6.0.0 is additive and needs no code changes:
   subaccounts.
 - `subaccounts.create()` gained an optional `exchange_index` argument.
 
-See the [changelog](../CHANGELOG.md) for the full list.
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
 
 ## v4 → v5.0.0
 
@@ -435,7 +502,7 @@ instead. The endpoints still work; calls just emit a `DeprecationWarning`
 on first use.
 
 (`multivariate.lookup_history`, also deprecated here in #269, was removed
-entirely in 6.0.0 — see the [v5 → v6.0.0](#v5--v600) section above.)
+entirely in 6.0.0 — see the [v5 → v6.0.0](#v5-v600) section above.)
 
 ### `orders.list(event_ticker=...)` accepts lists
 
