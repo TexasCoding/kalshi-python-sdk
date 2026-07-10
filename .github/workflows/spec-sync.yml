@@ -225,14 +225,16 @@ jobs:
             "${PERPS_ASYNCAPI_SHA}" "${PERPS_SCM_SHA}" | sha256sum | awk '{print $1}')
           export FINGERPRINT
 
-          # Dedup: skip if an open spec-drift issue already embeds this fingerprint.
+          # Dedup: skip if an open weekly (spec-sync-bot) drift issue already
+          # embeds this fingerprint. Scoped to spec-sync-bot so the nightly
+          # tracker (spec-drift-bot) is never mistaken for a weekly snapshot.
           existing=$(gh issue list \
             --repo "${GITHUB_REPOSITORY}" \
             --state open \
             --label spec-drift \
             --limit 200 \
             --json number,body \
-            --jq '[.[] | select(.body | contains("fingerprint:'"${FINGERPRINT}"'"))] | first | .number // empty')
+            --jq '[.[] | select(.body | contains("spec-sync-bot")) | select(.body | contains("fingerprint:'"${FINGERPRINT}"'"))] | first | .number // empty')
 
           if [ -n "${existing}" ]; then
             echo "Drift fingerprint ${FINGERPRINT} already tracked in issue #${existing}; nothing to do."
@@ -246,10 +248,40 @@ jobs:
           python3 scripts/render_drift_body.py > "${body_file}"
 
           today=$(date -u '+%Y-%m-%d')
-          title="Spec drift ${today}: openapi ${OLD_VERSION} → ${NEW_VERSION}"
+          short_fp=${FINGERPRINT:0:8}
+          # Lead the title with a CONTENT signal, not just info.version: Kalshi
+          # changes spec content in place without bumping the version, so a bare
+          # "3.23.0 → 3.23.0" reads like a no-op false alarm. Tag content-only
+          # changes and always surface the path delta + short fingerprint.
+          if [ "${OLD_VERSION}" = "${NEW_VERSION}" ]; then
+            title="Spec drift ${today}: openapi ${NEW_VERSION} [content-changed] (paths ${OLD_PATH_COUNT}→${NEW_PATH_COUNT}, fp ${short_fp})"
+          else
+            title="Spec drift ${today}: openapi ${OLD_VERSION} → ${NEW_VERSION} (paths ${OLD_PATH_COUNT}→${NEW_PATH_COUNT}, fp ${short_fp})"
+          fi
 
-          gh issue create \
+          new_url=$(gh issue create \
             --repo "${GITHUB_REPOSITORY}" \
             --label spec-drift \
             --title "${title}" \
-            --body-file "${body_file}"
+            --body-file "${body_file}")
+          echo "Opened ${new_url}"
+
+          # Supersede older weekly drift snapshots whose fingerprint no longer
+          # matches live upstream — keep exactly one open weekly issue instead of
+          # piling up one per upstream micro-revision. Scoped to spec-sync-bot so
+          # the nightly tracker is never touched here; the freshly-created issue
+          # carries the current fingerprint and is therefore excluded.
+          stale=$(gh issue list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --state open \
+            --label spec-drift \
+            --limit 200 \
+            --json number,body \
+            --jq '[.[] | select(.body | contains("spec-sync-bot")) | select((.body | contains("fingerprint:'"${FINGERPRINT}"'")) | not) | .number] | .[]')
+          for n in ${stale}; do
+            gh issue close "${n}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --reason "not planned" \
+              --comment "Superseded by ${new_url} — upstream specs moved again, so this drift snapshot is stale. Reconcile against current upstream."
+            echo "Superseded #${n}"
+          done

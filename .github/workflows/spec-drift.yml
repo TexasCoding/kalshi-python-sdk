@@ -85,6 +85,14 @@ jobs:
             > /tmp/drift.log 2>&1 || true
           # Keep the last 200 lines so the body stays inside GitHub's limits.
           tail -n 200 /tmp/drift.log > /tmp/drift.tail
+          # Failing-set fingerprint: sha256 over the sorted, unique failing test
+          # IDs. Deterministic upstream yields an identical set every night, so
+          # the tracker step below re-comments only when this fingerprint CHANGES
+          # (kills the daily "Still failing" spam that made #467 noisy).
+          grep -oE '^FAILED [^ ]+' /tmp/drift.log | awk '{print $2}' | sort -u \
+            > /tmp/fail_ids.txt || true
+          fail_fp=$(sha256sum /tmp/fail_ids.txt | awk '{print $1}')
+          echo "fail_fp=${fail_fp}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure spec-drift label exists
         env:
@@ -100,11 +108,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FAIL_FP: ${{ steps.repro.outputs.fail_fp }}
         run: |
           set -euo pipefail
 
           # Stable marker (NOT a content fingerprint): exactly one open tracker
-          # at a time. Re-runs append a dated comment instead of duplicating.
+          # at a time. Re-runs comment only when the FAILING SET changes.
           readonly MARKER='nightly-spec-drift-tracker'
           today=$(date -u '+%Y-%m-%d')
 
@@ -120,9 +129,9 @@ jobs:
           # heredoc) so upstream-sourced log text is never shell-expanded.
           {
             printf '## Nightly strict contract tests failed\n\n'
-            printf 'The scheduled `Spec Drift Detection` run promoted additive drift to an error.\n'
-            printf 'This means upstream OpenAPI/AsyncAPI changed and the SDK contract suite no longer matches.\n\n'
-            printf '**To resolve:** locally run `uv run python scripts/sync_spec.py` + `uv run python scripts/generate.py`, reconcile models/maps, and open a PR with `Closes #<this issue>`.\n\n'
+            printf 'The scheduled `Spec Drift Detection` run found the SDK contract suite no longer matches upstream OpenAPI/AsyncAPI.\n\n'
+            printf '**To resolve:** locally run `uv run python scripts/sync_spec.py` + `uv run python scripts/generate.py`, reconcile models/maps, and open a PR with `Closes #<this issue>`. This tracker auto-closes on the next green scheduled run.\n\n'
+            printf '**To silence** while a reconcile is in flight, add the `spec-drift-ack` label — nightly runs then stop commenting until the failing set changes.\n\n'
             printf -- '- Failing run: %s\n\n' "${RUN_URL}"
             printf '### Failing test output (last 200 lines)\n\n```\n'
             cat /tmp/drift.tail
@@ -130,24 +139,89 @@ jobs:
           } > /tmp/body.md
 
           if [ -n "${existing}" ]; then
+            # Ack/snooze gate: a maintainer already on this drift can add the
+            # `spec-drift-ack` (or `snoozed`) label to silence nightly noise
+            # without closing the tracker.
+            labels=$(gh issue view "${existing}" --repo "${GITHUB_REPOSITORY}" \
+              --json labels --jq '[.labels[].name] | join(",")')
+            case ",${labels}," in
+              *,spec-drift-ack,*|*,snoozed,*)
+                echo "Tracker #${existing} is ack'd/snoozed; not commenting."
+                exit 0 ;;
+            esac
+
+            # Only comment when the FAILING SET changed. A deterministic upstream
+            # produces an identical set every night; re-posting it is spam.
+            last_fp=$(gh issue view "${existing}" --repo "${GITHUB_REPOSITORY}" \
+              --json body,comments --jq '[.body, (.comments[].body)] | .[]' \
+              | grep -oE 'fail-fingerprint:[0-9a-f]+' | tail -1 | cut -d: -f2 || true)
+            if [ "${last_fp}" = "${FAIL_FP}" ]; then
+              echo "Failing set unchanged (fingerprint ${FAIL_FP}); no new comment."
+              exit 0
+            fi
+
             {
-              printf 'Still failing as of **%s** ([run](%s)).\n\n' "${today}" "${RUN_URL}"
+              printf 'Failing set changed as of **%s** ([run](%s)).\n\n' "${today}" "${RUN_URL}"
               printf '### Latest failing output (last 200 lines)\n\n```\n'
               cat /tmp/drift.tail
               printf '\n```\n'
+              printf '\n<!-- fail-fingerprint:%s -->\n' "${FAIL_FP}"
             } > /tmp/comment.md
-            echo "Tracker already open as #${existing}; appending dated comment."
+            echo "Failing set changed (${last_fp:-none} -> ${FAIL_FP}); appending comment."
             gh issue comment "${existing}" \
               --repo "${GITHUB_REPOSITORY}" \
               --body-file /tmp/comment.md
             exit 0
           fi
 
-          # Hidden marker so the dedup query above matches future runs.
+          # Hidden markers so future runs match this tracker (MARKER) and can
+          # diff the failing set (fail-fingerprint).
           printf '\n<!-- spec-drift-bot: do not edit\n%s\n-->\n' "${MARKER}" >> /tmp/body.md
+          printf '<!-- fail-fingerprint:%s -->\n' "${FAIL_FP}" >> /tmp/body.md
 
           gh issue create \
             --repo "${GITHUB_REPOSITORY}" \
             --label spec-drift \
             --title "Nightly spec-drift: strict contract tests failing (since ${today})" \
             --body-file /tmp/body.md
+
+  # Companion to report-failure: when a scheduled strict run goes GREEN, the
+  # drift has been reconciled — close the open nightly tracker so it doesn't
+  # linger open forever (the old workflow only ever opened/commented). Least
+  # privilege: issues:write lives only on this job, and it runs no third-party
+  # actions and no untrusted upstream code (pure `gh` against the repo), so it
+  # needs neither a checkout nor SHA-pinning.
+  report-success:
+    needs: drift-check
+    if: success() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close resolved nightly drift tracker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          readonly MARKER='nightly-spec-drift-tracker'
+          today=$(date -u '+%Y-%m-%d')
+
+          existing=$(gh issue list \
+            --repo "${GITHUB_REPOSITORY}" \
+            --state open \
+            --label spec-drift \
+            --limit 200 \
+            --json number,body \
+            --jq '[.[] | select(.body | contains("'"${MARKER}"'"))] | first | .number // empty')
+
+          if [ -z "${existing}" ]; then
+            echo "No open nightly tracker; nothing to close."
+            exit 0
+          fi
+
+          gh issue close "${existing}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --reason completed \
+            --comment "Resolved — strict contract suite green as of ${today} ([run](${RUN_URL})). Auto-closed by the nightly spec-drift workflow."

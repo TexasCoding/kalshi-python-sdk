@@ -1,11 +1,30 @@
 """Contract tests: verify hand-written SDK models match OpenAPI / AsyncAPI spec schemas.
 
 Drift detection:
-- Additive drift (spec has fields SDK doesn't): **FAILURE** (#163)
-- Unmapped WS payload models: **FAILURE** (#163)
-- Unmapped REST models: WARNING (sub-models / V2 family — separate mapping pass)
-- Required mismatch (spec required, SDK optional): WARNING (SDK is intentionally permissive)
+- Additive drift, spec has a **required** field the SDK doesn't map: **FAILURE**
+  (a new required field is a meaningful model change the SDK must absorb).
+- Additive drift, spec has an **optional** field the SDK doesn't map: soft
+  **WARNING** (``AdditiveOptionalDriftWarning``) — benign, since pydantic ignores
+  extras and existing calls are unaffected. Deliberately a plain ``Warning`` (not
+  ``UserWarning``) so the nightly ``-W error::UserWarning`` gate does not promote
+  it: purely-additive optional drift against a fast-moving upstream should not red
+  CI. Reconcile these in a batch, not per micro-revision.
+- Unmapped WS payload models / additive WS required fields: **FAILURE** (#163)
+- Unmapped REST models: **FAILURE** (#171) via ``test_contract_map_completeness``.
+- Required mismatch (spec required, SDK optional): **FAILURE** (#172)
 - Missing schema in spec: FAILURE
+- Spec operation not in a ``METHOD_ENDPOINT_MAP``: **FAILURE** via
+  ``test_every_spec_endpoint_is_mapped`` (an ADDED upstream endpoint reds CI
+  instead of shipping silently unmapped) unless recorded in
+  ``_UNIMPLEMENTED_ENDPOINTS`` with a reason.
+- SDK **response** field absent from the spec: intentionally NOT gated on the
+  REST response side. The vendored "Kalshi Trade API Manual Endpoints" spec is a
+  curated SUBSET, so the SDK response models are a superset by design (client
+  reshapes like ``Orderbook.yes/no`` and real-but-undocumented fields). Gating it
+  would red CI on every intentional SDK field. Request-BODY drift DOES gate
+  removals (``_check_model_drift``), which is where a rename's dropped old name is
+  caught; a response-only optional rename is the one residual gap (the new name
+  surfaces as an ``AdditiveOptionalDriftWarning`` and is reconciled on the next sync).
 
 Intentional deviations require an entry in ``EXCLUSIONS``
 (``tests/_contract_support.py``) with a typed ``kind`` and ``reason``.
@@ -16,6 +35,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import typing
+import warnings
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -455,6 +475,28 @@ def _build_spec_to_sdk_map(
 # ---------------------------------------------------------------------------
 
 
+class AdditiveOptionalDriftWarning(Warning):
+    """A spec added an OPTIONAL field the SDK doesn't map — benign, non-blocking.
+
+    Deliberately subclasses ``Warning`` and NOT ``UserWarning`` so the nightly
+    strict gate (``pytest -W error::UserWarning``) does not promote it to a
+    failure. Optional additive drift is benign: pydantic ignores unknown fields,
+    so existing calls keep working; the only cost is the SDK not yet exposing the
+    new field. Batch these into a periodic reconcile rather than redding CI on
+    every upstream micro-revision.
+    """
+
+
+def _warn_additive_optional(sdk_model: str, additive_optional: list[str]) -> None:
+    """Emit the non-blocking soft signal for benign additive-optional drift."""
+    for msg in additive_optional:
+        warnings.warn(
+            f"Additive-optional drift in {sdk_model}: {msg}",
+            AdditiveOptionalDriftWarning,
+            stacklevel=2,
+        )
+
+
 def _classify_drift(
     entry: ContractEntry,
     spec: dict[str, Any],
@@ -462,11 +504,19 @@ def _classify_drift(
     model_class: type[PydanticBase],
     *,
     exclusions: dict[tuple[str, str], Exclusion] = EXCLUSIONS,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Compare spec fields against SDK model fields.
 
-    Returns (additive_issues, required_issues).
-    Both are warnings, not failures (SDK is intentionally permissive).
+    Returns ``(additive_required, additive_optional, required_issues)``:
+
+    - ``additive_required`` — spec fields the SDK does not map that the spec marks
+      ``required``. Hard failure: the server always sends them, so a new required
+      field is a meaningful model change the SDK must absorb.
+    - ``additive_optional`` — unmapped spec fields the spec marks optional. Benign;
+      callers emit a non-blocking ``AdditiveOptionalDriftWarning`` (via
+      :func:`_warn_additive_optional`) instead of failing.
+    - ``required_issues`` — fields the spec marks required but the SDK models as
+      optional (SDK too permissive).
 
     Per-field skips are honored in this order:
       1. ``entry.ignored_fields`` — per-contract-entry allowlist (legacy).
@@ -477,22 +527,29 @@ def _classify_drift(
     drift classes pass ``PERPS_EXCLUSIONS`` so perps deviations resolve against
     their own allowlist.
     """
-    additive: list[str] = []
+    additive_required: list[str] = []
+    additive_optional: list[str] = []
     required_issues: list[str] = []
 
     reverse_map = _build_spec_to_sdk_map(model_class)
+    required_fields = _get_required_fields(spec, entry.spec_schema)
 
-    # Check every spec field has a corresponding SDK field
+    # Every spec field should have a corresponding SDK field. Partition the
+    # unmapped ones by whether the spec marks them required (act-now, hard fail)
+    # or optional (benign additive drift, soft warning).
     for spec_field_name in spec_fields:
         if spec_field_name in entry.ignored_fields:
             continue
         if (entry.sdk_model, spec_field_name) in exclusions:
             continue
         if spec_field_name not in reverse_map:
-            additive.append(f"Spec field '{spec_field_name}' has no SDK mapping")
+            msg = f"Spec field '{spec_field_name}' has no SDK mapping"
+            if spec_field_name in required_fields:
+                additive_required.append(msg)
+            else:
+                additive_optional.append(msg)
 
-    # Check required fields in spec vs SDK (warning, not failure)
-    required_fields = _get_required_fields(spec, entry.spec_schema)
+    # Spec-required fields the SDK models as optional (SDK too permissive).
     for req_field in required_fields:
         if req_field in entry.ignored_fields:
             continue
@@ -506,7 +563,7 @@ def _classify_drift(
                     f"Spec requires '{req_field}' but SDK field '{sdk_name}' is optional"
                 )
 
-    return additive, required_issues
+    return additive_required, additive_optional, required_issues
 
 
 # ---------------------------------------------------------------------------
@@ -758,13 +815,17 @@ class TestSpecDrift:
         ids=[e.sdk_model.rsplit(".", 1)[1] for e in CONTRACT_MAP],
     )
     def test_additive_drift(self, entry: ContractEntry) -> None:
-        """Warn about spec fields not present in SDK models."""
+        """Fail on new spec-**required** fields the SDK lacks; soft-warn on optional ones."""
         spec_fields = _get_schema_fields(self.spec, entry.spec_schema)
         model_class = _get_sdk_model_class(entry.sdk_model)
-        additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
-        if additive:
+        additive_required, additive_optional, _ = _classify_drift(
+            entry, self.spec, spec_fields, model_class
+        )
+        _warn_additive_optional(entry.sdk_model, additive_optional)
+        if additive_required:
             pytest.fail(
-                f"Additive drift in {entry.sdk_model}:\n" + "\n".join(f"  - {a}" for a in additive),
+                f"Additive drift (new required fields) in {entry.sdk_model}:\n"
+                + "\n".join(f"  - {a}" for a in additive_required),
             )
 
     @pytest.mark.parametrize(
@@ -782,7 +843,7 @@ class TestSpecDrift:
         """
         spec_fields = _get_schema_fields(self.spec, entry.spec_schema)
         model_class = _get_sdk_model_class(entry.sdk_model)
-        _, required_issues = _classify_drift(entry, self.spec, spec_fields, model_class)
+        _, _, required_issues = _classify_drift(entry, self.spec, spec_fields, model_class)
         if required_issues:
             pytest.fail(
                 f"Required drift in {entry.sdk_model}:\n"
@@ -790,10 +851,23 @@ class TestSpecDrift:
             )
 
     def test_schema_coverage(self) -> None:
-        """Every mapped schema must resolve (supports dotted-path syntax)."""
+        """Every mapped schema must resolve (supports dotted-path syntax).
+
+        Collects ALL unresolved schemas and reports them together, so several
+        simultaneous upstream removals surface in one run instead of one-per-rerun
+        (``_resolve_schema`` ``pytest.fail``\\s on the first miss).
+        """
+        missing: list[str] = []
         for entry in CONTRACT_MAP:
-            # _resolve_schema fails the test internally if the path doesn't resolve.
-            _resolve_schema(self.spec, entry.spec_schema)
+            try:
+                _resolve_schema(self.spec, entry.spec_schema)
+            except pytest.fail.Exception as exc:
+                missing.append(f"{entry.spec_schema} — {exc}")
+        if missing:
+            pytest.fail(
+                "Mapped schemas that no longer resolve in the spec:\n"
+                + "\n".join(f"  - {m}" for m in missing)
+            )
 
     def test_contract_map_completeness(self) -> None:
         """Fail if any SDK model under ``kalshi.models.*`` lacks a ``CONTRACT_MAP`` entry.
@@ -835,6 +909,72 @@ class TestSpecDrift:
             )
 
 
+class TestAdditiveDriftClassification:
+    """Guards the optional-vs-required additive-drift split (soft signal policy).
+
+    Additive drift on a spec-**required** field hard-fails (act now); on a
+    spec-**optional** field it is a non-blocking ``AdditiveOptionalDriftWarning``.
+    The warning is deliberately NOT a ``UserWarning`` so the nightly
+    ``-W error::UserWarning`` gate never promotes benign optional drift to a red
+    build. These tests lock that contract so a future refactor can't silently
+    re-brittle CI against a fast-moving upstream.
+    """
+
+    @staticmethod
+    def _entry() -> ContractEntry:
+        return ContractEntry(
+            sdk_model="tests.synthetic.Fake",
+            spec_schema="Fake",
+            ignored_fields=frozenset(),
+            notes="",
+        )
+
+    @staticmethod
+    def _spec(required: list[str]) -> dict[str, Any]:
+        return {
+            "components": {
+                "schemas": {
+                    "Fake": {
+                        "type": "object",
+                        "properties": {"known": {}, "opt_new": {}, "req_new": {}},
+                        "required": required,
+                    }
+                }
+            }
+        }
+
+    def test_partitions_unmapped_fields_by_required(self) -> None:
+        class Fake(PydanticBase):
+            known: str
+
+        spec = self._spec(required=["known", "req_new"])
+        spec_fields = spec["components"]["schemas"]["Fake"]["properties"]
+        additive_required, additive_optional, required_issues = _classify_drift(
+            self._entry(), spec, spec_fields, Fake
+        )
+
+        assert len(additive_required) == 1 and "req_new" in additive_required[0]
+        assert len(additive_optional) == 1 and "opt_new" in additive_optional[0]
+        # 'known' is mapped and required in both; 'req_new' is unmapped so it
+        # can't be an SDK-optional/spec-required mismatch. No required_issues.
+        assert required_issues == []
+
+    def test_optional_drift_warning_is_not_a_userwarning(self) -> None:
+        # The load-bearing property: nightly runs `-W error::UserWarning`. If this
+        # warning ever became a UserWarning subclass, benign optional drift would
+        # red CI again — exactly the churn this policy removes.
+        assert not issubclass(AdditiveOptionalDriftWarning, UserWarning)
+
+    def test_optional_drift_survives_the_nightly_strict_gate(self) -> None:
+        msgs = ["Spec field 'opt_new' has no SDK mapping"]
+        with pytest.warns(AdditiveOptionalDriftWarning):
+            _warn_additive_optional("tests.synthetic.Fake", msgs)
+        # Under the exact nightly filter, emitting the soft signal must NOT raise.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            _warn_additive_optional("tests.synthetic.Fake", msgs)
+
+
 # ---------------------------------------------------------------------------
 # WS Spec Drift Tests
 # ---------------------------------------------------------------------------
@@ -863,14 +1003,17 @@ class TestWsSpecDrift:
         ids=[e.sdk_model.rsplit(".", 1)[1] for e in WS_CONTRACT_MAP],
     )
     def test_ws_additive_drift(self, entry: ContractEntry) -> None:
-        """Warn about AsyncAPI fields not present in SDK WS models."""
+        """Fail on new spec-**required** WS fields the SDK lacks; soft-warn on optional ones."""
         spec_fields = _get_ws_msg_fields(self.spec, entry.spec_schema)
         model_class = _get_sdk_model_class(entry.sdk_model)
-        additive, _ = _classify_drift(entry, self.spec, spec_fields, model_class)
-        if additive:
+        additive_required, additive_optional, _ = _classify_drift(
+            entry, self.spec, spec_fields, model_class
+        )
+        _warn_additive_optional(entry.sdk_model, additive_optional)
+        if additive_required:
             pytest.fail(
-                f"WS additive drift in {entry.sdk_model}:\n"
-                + "\n".join(f"  - {a}" for a in additive),
+                f"WS additive drift (new required fields) in {entry.sdk_model}:\n"
+                + "\n".join(f"  - {a}" for a in additive_required),
             )
 
     @pytest.mark.parametrize(
@@ -1084,6 +1227,63 @@ def _path_params_from_template(path_template: str) -> set[str]:
     import re
 
     return set(re.findall(r"\{([^}]+)\}", path_template))
+
+
+# Spec operations that exist in a vendored spec but are intentionally NOT
+# implemented in the SDK. Each MUST carry a reason. ``test_every_spec_endpoint_is_mapped``
+# fails if a spec operation is neither mapped in a METHOD_ENDPOINT_MAP nor listed
+# here — so a newly-ADDED upstream endpoint reds CI instead of shipping silently
+# unmapped (the gap that let perps_scm's /margin/active_obligations and
+# /margin/settlement_estimate_by_asset_class appear undetected by the schema diff).
+_UNIMPLEMENTED_ENDPOINTS: dict[tuple[str, str], str] = {
+    ("GET", "/margin/large_trader_positions"): (
+        "perps SCM large-trader surveillance endpoint; outside the client SDK surface"
+    ),
+}
+
+
+def _spec_operations(spec: dict[str, Any]) -> set[tuple[str, str]]:
+    """Return the set of ``(HTTP_METHOD, path_template)`` operations in a spec."""
+    ops: set[tuple[str, str]] = set()
+    for path, item in (spec.get("paths") or {}).items():
+        if not isinstance(item, dict):
+            continue
+        for method in ("get", "post", "put", "delete", "patch"):
+            if method in item:
+                ops.add((method.upper(), path))
+    return ops
+
+
+@pytest.mark.parametrize(
+    ("spec_loader", "endpoint_map", "label"),
+    [
+        (_load_spec, METHOD_ENDPOINT_MAP, "core"),
+        (_load_perps_spec, PERPS_METHOD_ENDPOINT_MAP, "perps"),
+        (_load_perps_scm_spec, PERPS_SCM_METHOD_ENDPOINT_MAP, "perps_scm"),
+    ],
+    ids=["core", "perps", "perps_scm"],
+)
+def test_every_spec_endpoint_is_mapped(
+    spec_loader: Any,
+    endpoint_map: list[MethodEndpointEntry],
+    label: str,
+) -> None:
+    """Fail if a spec operation is neither mapped nor explicitly unimplemented.
+
+    Closes the false-negative gap where a newly-ADDED upstream endpoint shipped
+    untested because nothing asserted spec paths ⊆ ``METHOD_ENDPOINT_MAP``. The
+    reverse direction (a map entry whose path the spec dropped) is caught by the
+    param-drift tests, which fail loud when the path is absent from the spec.
+    """
+    spec_ops = _spec_operations(spec_loader())
+    mapped = {(e.http_method.upper(), e.path_template) for e in endpoint_map}
+    unmapped = spec_ops - mapped - set(_UNIMPLEMENTED_ENDPOINTS)
+    if unmapped:
+        pytest.fail(
+            f"{label}: spec operations not in the endpoint map (add a "
+            f"MethodEndpointEntry, or record in _UNIMPLEMENTED_ENDPOINTS with a reason):\n"
+            + "\n".join(f"  - {m} {p}" for m, p in sorted(unmapped))
+        )
 
 
 @pytest.mark.parametrize(
@@ -1644,6 +1844,40 @@ def test_exclusion_map_is_current() -> None:
                     f"entry is stale. reason={excl.reason!r}"
                 )
 
+            # kwarg_rename anchors a spec param name to a renamed SDK kwarg. It
+            # registers BOTH names: the SDK-side name is validated above (it's in
+            # the signature by design); the SPEC-side name (NOT in the signature)
+            # must still be a real spec parameter for the endpoint. Without this,
+            # a rename silently masks an upstream param removal/rename — the entry
+            # keeps suppressing drift for a param the spec no longer has.
+            if excl.kind == "kwarg_rename" and name not in sdk_params:
+                map_entry = next(
+                    (e for e in METHOD_ENDPOINT_MAP if e.sdk_method == fqn), None
+                )
+                if map_entry is None:
+                    stale.append(
+                        f"EXCLUSIONS[{(fqn, name)}] is a kwarg_rename but {fqn} has "
+                        f"no METHOD_ENDPOINT_MAP entry to anchor the spec param."
+                    )
+                else:
+                    try:
+                        spec_param_names = {
+                            p.get("name")
+                            for p in _resolve_path_params(
+                                spec, map_entry.path_template, map_entry.http_method
+                            )
+                        }
+                    except KeyError:
+                        spec_param_names = set()
+                    if name not in spec_param_names:
+                        stale.append(
+                            f"EXCLUSIONS[{(fqn, name)}] renames spec param {name!r} "
+                            f"on {fqn}, but the spec no longer declares it for "
+                            f"{map_entry.http_method} {map_entry.path_template} — the "
+                            f"rename is stale (upstream removed/renamed the param). "
+                            f"reason={excl.reason!r}"
+                        )
+
         else:
             stale.append(
                 f"EXCLUSIONS[{(fqn, name)}] has unexpected FQN prefix; "
@@ -1831,10 +2065,11 @@ def _assert_perps_response_drift(entry: ContractEntry, spec: dict[str, Any]) -> 
     """Response-side drift assertion for one perps contract entry."""
     spec_fields = _get_schema_fields(spec, entry.spec_schema)
     model_class = _get_sdk_model_class(entry.sdk_model)
-    additive, required_issues = _classify_drift(
+    additive_required, additive_optional, required_issues = _classify_drift(
         entry, spec, spec_fields, model_class, exclusions=PERPS_EXCLUSIONS
     )
-    problems = additive + required_issues
+    _warn_additive_optional(entry.sdk_model, additive_optional)
+    problems = additive_required + required_issues
     if problems:
         pytest.fail(
             f"Perps spec drift in {entry.sdk_model}:\n"
