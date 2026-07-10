@@ -73,10 +73,16 @@ class PortfolioResource(SyncResource):
     """Sync portfolio API."""
 
     def balance(
-        self, *, subaccount: int | None = None, extra_headers: dict[str, str] | None = None
+        self,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Balance:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        # Spec v3.24.0 added the optional `exchange_index` query param (target a
+        # specific exchange shard; defaults to 0 server-side).
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = self._get("/portfolio/balance", params=params, extra_headers=extra_headers)
         return Balance.model_validate(data)
 
@@ -360,10 +366,16 @@ class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
 
     async def balance(
-        self, *, subaccount: int | None = None, extra_headers: dict[str, str] | None = None
+        self,
+        *,
+        subaccount: int | None = None,
+        exchange_index: int | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> Balance:
         self._require_auth()
-        params = _params(subaccount=subaccount)
+        # Spec v3.24.0 added the optional `exchange_index` query param (target a
+        # specific exchange shard; defaults to 0 server-side).
+        params = _params(subaccount=subaccount, exchange_index=exchange_index)
         data = await self._get("/portfolio/balance", params=params, extra_headers=extra_headers)
         return Balance.model_validate(data)
 

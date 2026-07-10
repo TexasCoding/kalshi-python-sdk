@@ -86,6 +86,7 @@ def _obligation(amount: int = -12345) -> dict[str, object]:
         "pnl_centicents": -200,
         "execution_time": "2026-06-01T00:00:00Z",
         "last_updated_ts": "2026-06-01T01:00:00Z",
+        "asset_class": "Crypto",
         "receives": [
             {
                 "id": "r1",

@@ -275,6 +275,13 @@ class TestMethodEndpointMap:
         )
 
         mapped = {entry.sdk_method for entry in METHOD_ENDPOINT_MAP}
+        # Soft-deprecated methods intentionally have NO METHOD_ENDPOINT_MAP entry:
+        # their spec operation was removed upstream but the method is retained
+        # (emits DeprecationWarning) pending confirmation the removal is permanent.
+        # See kalshi/resources/exchange.py::_ANNOUNCEMENTS_DEPRECATED.
+        soft_deprecated = {
+            "kalshi.resources.exchange.ExchangeResource.announcements",
+        }
         missing: list[str] = []
         discovered: list[str] = []
 
@@ -302,7 +309,7 @@ class TestMethodEndpointMap:
                         continue
                     fqn = f"{mod_path}.{cls_name}.{method_name}"
                     discovered.append(fqn)
-                    if fqn not in mapped:
+                    if fqn not in mapped and fqn not in soft_deprecated:
                         missing.append(fqn)
 
         # Guard against tautological pass: if discovery silently returns zero

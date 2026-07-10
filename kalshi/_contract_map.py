@@ -82,10 +82,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MarketOrderbookFp",
         notes="Spec uses 'MarketOrderbookFp', SDK uses 'Orderbook'",
     ),
-    ContractEntry(
-        sdk_model="kalshi.models.exchange.Announcement",
-        spec_schema="Announcement",
-    ),
+    # Announcement intentionally unmapped: spec sync 3.24.0 removed the
+    # `Announcement` schema and GET /exchange/announcements. The SDK model +
+    # method are soft-deprecated (retained pending confirmation the removal is
+    # permanent), so they no longer have a spec schema to drift-check against.
+    # See _SOFT_DEPRECATED_MODELS in tests/test_contracts.py.
     ContractEntry(
         sdk_model="kalshi.models.historical.HistoricalCutoff",
         spec_schema="GetHistoricalCutoffResponse",

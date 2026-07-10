@@ -169,6 +169,10 @@ class ObligationEntry(BaseModel):
     pnl_centicents: int
     execution_time: AwareDatetime
     last_updated_ts: AwareDatetime
+    # Spec (perps SCM) added a required ``asset_class`` on ``ObligationInfo``.
+    # ``AssetClass`` is a single-value string enum today; a Literal keeps it
+    # greppable and validates the wire value (mirrors the other *Literal aliases).
+    asset_class: Literal["Crypto"]
     # From the inline allOf object.
     receives: NullableList[ObligationReceiveInfo]
     settlement_details: NullableList[SettlementDetail]

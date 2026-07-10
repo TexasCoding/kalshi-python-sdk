@@ -286,11 +286,10 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/exchange/schedule",
     ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.exchange.ExchangeResource.announcements",
-        http_method="GET",
-        path_template="/exchange/announcements",
-    ),
+    # announcements() intentionally unmapped: spec sync 3.24.0 removed
+    # GET /exchange/announcements. The method is soft-deprecated (retained,
+    # emits DeprecationWarning) so there is no spec operation to param-drift
+    # against. See _SOFT_DEPRECATED_MODELS in tests/test_contracts.py.
     MethodEndpointEntry(
         sdk_method="kalshi.resources.exchange.ExchangeResource.user_data_timestamp",
         http_method="GET",

@@ -2,6 +2,51 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 7.0.0 — 2026-07-10
+
+Syncs the upstream OpenAPI/AsyncAPI specs **3.23.0 → 3.24.0** (Closes #467, #470).
+One **breaking** rename on the subaccounts surface, a soft-deprecation, and
+additive drift fixes. Kalshi changed spec content without always bumping
+`info.version`, so this also absorbs in-place edits made under the same string.
+
+### Changed (breaking)
+
+- **Position-transfer price is now fixed-point dollars, not integer cents.** The
+  `price_cents` field/kwarg (integer cents, 0-100) on
+  `ApplySubaccountPositionTransferRequest`, `SubaccountTransfer`, and
+  `subaccounts.transfer_position()` (sync + async) is renamed **`price`** and
+  typed `OrderPrice` / `DollarDecimal` (fixed-point dollars, `Decimal`). Pass
+  `price=Decimal("0.50")` where you previously passed `price_cents=50`. The old
+  client-side cap (`le=100` cents) is gone — `OrderPrice` guards only
+  non-negativity and the `$0.0001` tick, leaving the upper bound to the server
+  (matches `CreateOrderRequest`). Upstream renamed the wire field `price_cents`
+  → `price` (`FixedPointDollars`) in 3.24.0.
+
+### Deprecated
+
+- **`exchange.announcements()`** (sync + async) now emits a `DeprecationWarning`.
+  Kalshi removed `GET /exchange/announcements` and the `Announcement` schema from
+  the spec in 3.24.0, so the live endpoint 404s. The method and the `Announcement`
+  model are **retained** (soft-deprecated) pending confirmation the removal is
+  permanent — upstream has transiently dropped endpoints as publishing glitches
+  before (see #452). A future major release removes them once confirmed.
+
+### Added
+
+- **`SubaccountNettingConfig.exchange_index`** (`int`, required) — exchange index
+  of the subaccount.
+- **`portfolio.balance()`** (sync + async) gains an optional **`exchange_index`**
+  query param — target a specific exchange shard (defaults to 0 server-side).
+- **`ObligationEntry.asset_class`** (perps SCM / Klear; `Literal["Crypto"]`,
+  required) — asset class of the settlement obligation.
+
+### Notes
+
+- Three endpoints added upstream in 3.24.0 are recognized but not yet implemented
+  (deferred to follow-up feature work): `GET
+  /communications/rfqs/{rfq_id}/quotes/{quote_id}`, `GET
+  /margin/active_obligations`, and `GET /margin/settlement_estimate_by_asset_class`.
+
 ## 6.0.0 — 2026-07-04
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.22.0 → 3.23.0** (#463). The

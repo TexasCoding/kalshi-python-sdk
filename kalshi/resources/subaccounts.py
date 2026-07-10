@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from decimal import Decimal
 from typing import Any, Literal, overload
 from uuid import UUID
 
@@ -79,7 +80,7 @@ def _build_position_transfer_body(
     market_ticker: str | None,
     side: Literal["yes", "no"] | None,
     count: int | None,
-    price_cents: int | None,
+    price: Decimal | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -89,7 +90,7 @@ def _build_position_transfer_body(
         market_ticker=market_ticker,
         side=side,
         count=count,
-        price_cents=price_cents,
+        price=price,
     )
     if request is None:
         if (
@@ -99,11 +100,11 @@ def _build_position_transfer_body(
             or market_ticker is None
             or side is None
             or count is None
-            or price_cents is None
+            or price is None
         ):
             raise TypeError(
                 "transfer_position() requires `client_transfer_id`, `from_subaccount`, "
-                "`to_subaccount`, `market_ticker`, `side`, `count`, and `price_cents` "
+                "`to_subaccount`, `market_ticker`, `side`, `count`, and `price` "
                 "(or pass `request=...`)"
             )
         # Accept str for caller ergonomics; coerce once to surface a clean
@@ -118,7 +119,7 @@ def _build_position_transfer_body(
             market_ticker=market_ticker,
             side=side,
             count=count,
-            price_cents=price_cents,
+            price=price,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -228,7 +229,7 @@ class SubaccountsResource(SyncResource):
         market_ticker: str,
         side: Literal["yes", "no"],
         count: int,
-        price_cents: int,
+        price: Decimal,
         extra_headers: dict[str, str] | None = None,
     ) -> ApplySubaccountPositionTransferResponse: ...
     def transfer_position(
@@ -241,15 +242,16 @@ class SubaccountsResource(SyncResource):
         market_ticker: str | None = None,
         side: Literal["yes", "no"] | None = None,
         count: int | None = None,
-        price_cents: int | None = None,
+        price: Decimal | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> ApplySubaccountPositionTransferResponse:
-        """Move an open position between subaccounts (spec v3.23.0).
+        """Move an open position between subaccounts (spec v3.24.0).
 
         Unlike the cash-only :meth:`transfer`, this moves ``count`` contracts of
         ``market_ticker`` (``side``) and returns the server-generated
-        ``position_transfer_id``. ``price_cents`` (0-100) sets the cost basis on
-        the destination.
+        ``position_transfer_id``. ``price`` is the per-contract cost basis in
+        fixed-point dollars (0-1.0) — pass a ``Decimal``, e.g. ``Decimal("0.50")``.
+        Spec v3.24.0 renamed this ``price_cents`` (integer cents) → ``price``.
         """
         self._require_auth()
         body = _build_position_transfer_body(
@@ -260,7 +262,7 @@ class SubaccountsResource(SyncResource):
             market_ticker=market_ticker,
             side=side,
             count=count,
-            price_cents=price_cents,
+            price=price,
         )
         data = self._post(
             "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers
@@ -420,7 +422,7 @@ class AsyncSubaccountsResource(AsyncResource):
         market_ticker: str,
         side: Literal["yes", "no"],
         count: int,
-        price_cents: int,
+        price: Decimal,
         extra_headers: dict[str, str] | None = None,
     ) -> ApplySubaccountPositionTransferResponse: ...
     async def transfer_position(
@@ -433,7 +435,7 @@ class AsyncSubaccountsResource(AsyncResource):
         market_ticker: str | None = None,
         side: Literal["yes", "no"] | None = None,
         count: int | None = None,
-        price_cents: int | None = None,
+        price: Decimal | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> ApplySubaccountPositionTransferResponse:
         """Move an open position between subaccounts (spec v3.23.0).
@@ -449,7 +451,7 @@ class AsyncSubaccountsResource(AsyncResource):
             market_ticker=market_ticker,
             side=side,
             count=count,
-            price_cents=price_cents,
+            price=price,
         )
         data = await self._post(
             "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers

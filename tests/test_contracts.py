@@ -800,6 +800,19 @@ def _ws_field_type_violations(
 # ---------------------------------------------------------------------------
 
 
+# SDK models intentionally retained after their spec schema was removed upstream
+# (soft-deprecation). They carry no CONTRACT_MAP entry — there is no spec schema
+# left to drift-check — so test_contract_map_completeness must NOT flag them as
+# unmapped. Each entry pairs with a DeprecationWarning on the owning method and
+# is removed once the upstream removal is confirmed permanent (then the model
+# itself goes too). See kalshi/resources/exchange.py::_ANNOUNCEMENTS_DEPRECATED.
+_SOFT_DEPRECATED_MODELS: frozenset[str] = frozenset(
+    {
+        "kalshi.models.exchange.Announcement",
+    }
+)
+
+
 class TestSpecDrift:
     """Verify hand-written SDK models match the OpenAPI spec."""
 
@@ -899,7 +912,7 @@ class TestSpecDrift:
                     and obj.__module__ == module.__name__
                 ):
                     fqn = f"kalshi.models.{module_name}.{name}"
-                    if fqn not in mapped_models:
+                    if fqn not in mapped_models and fqn not in _SOFT_DEPRECATED_MODELS:
                         unmapped.append(fqn)
 
         if unmapped:
@@ -1238,6 +1251,22 @@ def _path_params_from_template(path_template: str) -> set[str]:
 _UNIMPLEMENTED_ENDPOINTS: dict[tuple[str, str], str] = {
     ("GET", "/margin/large_trader_positions"): (
         "perps SCM large-trader surveillance endpoint; outside the client SDK surface"
+    ),
+    # Added upstream in the 3.24.0 sync. Deferred to follow-up feature work — the
+    # reconcile scope is spec DRIFT on existing surface, not new endpoints. This
+    # allowlist keeps them visible (and reds CI if a future sync makes them
+    # required) without silently dropping them.
+    ("GET", "/communications/rfqs/{rfq_id}/quotes/{quote_id}"): (
+        "new in 3.24.0: get-quote-by-id via the RFQ path; the SDK already exposes "
+        "get-quote via GET /communications/quotes/{quote_id}. Deferred feature work."
+    ),
+    ("GET", "/margin/active_obligations"): (
+        "new in the 3.24.0 perps SCM sync; needs GetActiveMarginObligationsResponse "
+        "modeling. Deferred feature work."
+    ),
+    ("GET", "/margin/settlement_estimate_by_asset_class"): (
+        "new in the 3.24.0 perps SCM sync; needs AssetClass/AssetClassSettlementEstimate "
+        "modeling. Deferred feature work."
     ),
 }
 

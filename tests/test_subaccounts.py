@@ -112,7 +112,8 @@ class TestSubaccountModels:
         assert t.side is None
 
     def test_subaccount_position_transfer_parses(self) -> None:
-        # v3.23.0: position transfers carry market_ticker/side/count/price_cents.
+        # v3.24.0: position transfers carry market_ticker/side/count/price (the
+        # per-contract price is now FixedPointDollars, renamed from price_cents).
         t = SubaccountTransfer.model_validate(
             {
                 "transfer_id": "xfer-2",
@@ -125,14 +126,14 @@ class TestSubaccountModels:
                 "market_ticker": "MKT-1",
                 "side": "yes",
                 "count": 10,
-                "price_cents": 55,
+                "price": "0.55",
             }
         )
         assert t.transfer_type == "position"
         assert t.market_ticker == "MKT-1"
         assert t.side == "yes"
         assert t.count == 10
-        assert t.price_cents == 55
+        assert t.price == Decimal("0.55")
 
     def test_subaccount_transfer_requires_v3_23_fields(self) -> None:
         # exchange_index and transfer_type are spec-required (v3.23.0). A
@@ -153,10 +154,11 @@ class TestSubaccountModels:
 
     def test_subaccount_netting_config_parses(self) -> None:
         cfg = SubaccountNettingConfig.model_validate(
-            {"subaccount_number": 2, "enabled": True},
+            {"subaccount_number": 2, "enabled": True, "exchange_index": 0},
         )
         assert cfg.subaccount_number == 2
         assert cfg.enabled is True
+        assert cfg.exchange_index == 0
 
     def test_get_balances_response_wraps_list(self) -> None:
         resp = GetSubaccountBalancesResponse.model_validate(
@@ -176,7 +178,7 @@ class TestSubaccountModels:
 
     def test_get_netting_response_wraps_list(self) -> None:
         resp = GetSubaccountNettingResponse.model_validate(
-            {"netting_configs": [{"subaccount_number": 1, "enabled": False}]},
+            {"netting_configs": [{"subaccount_number": 1, "enabled": False, "exchange_index": 0}]},
         )
         assert len(resp.netting_configs) == 1
 
@@ -293,7 +295,7 @@ class TestSubaccountRequestModels:
             market_ticker="MKT-1",
             side="yes",
             count=5,
-            price_cents=50,
+            price=Decimal("0.50"),
         )
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         assert body == {
@@ -303,7 +305,7 @@ class TestSubaccountRequestModels:
             "market_ticker": "MKT-1",
             "side": "yes",
             "count": 5,
-            "price_cents": 50,
+            "price": "0.50",
         }
 
     def test_position_transfer_request_forbids_extra(self) -> None:
@@ -315,7 +317,7 @@ class TestSubaccountRequestModels:
                 market_ticker="MKT-1",
                 side="yes",
                 count=5,
-                price_cents=50,
+                price=Decimal("0.50"),
                 phantom=1,
             )
 
@@ -328,7 +330,7 @@ class TestSubaccountRequestModels:
                 market_ticker="MKT-1",
                 side="maybe",  # type: ignore[arg-type]
                 count=5,
-                price_cents=50,
+                price=Decimal("0.50"),
             )
 
     def test_position_transfer_request_rejects_zero_count(self) -> None:
@@ -340,11 +342,14 @@ class TestSubaccountRequestModels:
                 market_ticker="MKT-1",
                 side="yes",
                 count=0,
-                price_cents=50,
+                price=Decimal("0.50"),
             )
 
-    @pytest.mark.parametrize("bad_price", [-1, 101])
-    def test_position_transfer_request_rejects_price_out_of_range(self, bad_price: int) -> None:
+    @pytest.mark.parametrize("bad_price", [Decimal("-0.01"), Decimal("0.123456")])
+    def test_position_transfer_request_rejects_bad_price(self, bad_price: Decimal) -> None:
+        # v3.24.0: `price` is OrderPrice (fixed-point dollars). Negatives and
+        # sub-$0.0001-tick precision fail at construction; the upper bound is the
+        # server's to enforce (mirrors CreateOrderRequest — no client-side cap).
         with pytest.raises(ValidationError):
             ApplySubaccountPositionTransferRequest(
                 client_transfer_id=_TEST_XFER_ID,
@@ -353,7 +358,7 @@ class TestSubaccountRequestModels:
                 market_ticker="MKT-1",
                 side="yes",
                 count=5,
-                price_cents=bad_price,
+                price=bad_price,
             )
 
 
@@ -410,7 +415,7 @@ class TestSubaccountsTransferPosition:
             market_ticker="MKT-1",
             side="yes",
             count=10,
-            price_cents=55,
+            price=Decimal("0.55"),
         )
         assert isinstance(resp, ApplySubaccountPositionTransferResponse)
         assert resp.position_transfer_id == "pt-1"
@@ -421,7 +426,7 @@ class TestSubaccountsTransferPosition:
             "market_ticker": "MKT-1",
             "side": "yes",
             "count": 10,
-            "price_cents": 55,
+            "price": "0.55",
         }
 
     @respx.mock
@@ -438,7 +443,7 @@ class TestSubaccountsTransferPosition:
             market_ticker="MKT-2",
             side="no",
             count=3,
-            price_cents=0,
+            price=Decimal("0"),
         )
         resp = subaccounts.transfer_position(request=req)
         assert resp.position_transfer_id == "pt-2"
@@ -461,7 +466,7 @@ class TestSubaccountsTransferPosition:
                 market_ticker="MKT-1",
                 side="yes",
                 count=1,
-                price_cents=1,
+                price=Decimal("0.01"),
             )
 
     @respx.mock
@@ -479,7 +484,7 @@ class TestSubaccountsTransferPosition:
                 market_ticker="MKT-1",
                 side="yes",
                 count=1,
-                price_cents=1,
+                price=Decimal("0.01"),
             )
 
     def test_transfer_position_unauthenticated_raises_before_http(
@@ -494,7 +499,7 @@ class TestSubaccountsTransferPosition:
                 market_ticker="MKT-1",
                 side="yes",
                 count=1,
-                price_cents=1,
+                price=Decimal("0.01"),
             )
 
 
@@ -698,8 +703,8 @@ class TestSubaccountsNetting:
                 200,
                 json={
                     "netting_configs": [
-                        {"subaccount_number": 0, "enabled": True},
-                        {"subaccount_number": 1, "enabled": False},
+                        {"subaccount_number": 0, "enabled": True, "exchange_index": 0},
+                        {"subaccount_number": 1, "enabled": False, "exchange_index": 0},
                     ],
                 },
             ),
@@ -764,13 +769,13 @@ class TestAsyncSubaccounts:
             market_ticker="MKT-1",
             side="no",
             count=4,
-            price_cents=25,
+            price=Decimal("0.25"),
         )
         assert isinstance(resp, ApplySubaccountPositionTransferResponse)
         assert resp.position_transfer_id == "pt-async"
         body = json.loads(route.calls[0].request.content)
         assert body["side"] == "no"
-        assert body["price_cents"] == 25
+        assert body["price"] == "0.25"
 
     async def test_list_balances(
         self,
