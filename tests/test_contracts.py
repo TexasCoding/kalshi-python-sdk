@@ -800,6 +800,19 @@ def _ws_field_type_violations(
 # ---------------------------------------------------------------------------
 
 
+# SDK models intentionally retained after their spec schema was removed upstream
+# (soft-deprecation). They carry no CONTRACT_MAP entry — there is no spec schema
+# left to drift-check — so test_contract_map_completeness must NOT flag them as
+# unmapped. Each entry pairs with a DeprecationWarning on the owning method and
+# is removed once the upstream removal is confirmed permanent (then the model
+# itself goes too). See kalshi/resources/exchange.py::_ANNOUNCEMENTS_DEPRECATED.
+_SOFT_DEPRECATED_MODELS: frozenset[str] = frozenset(
+    {
+        "kalshi.models.exchange.Announcement",
+    }
+)
+
+
 class TestSpecDrift:
     """Verify hand-written SDK models match the OpenAPI spec."""
 
@@ -899,7 +912,7 @@ class TestSpecDrift:
                     and obj.__module__ == module.__name__
                 ):
                     fqn = f"kalshi.models.{module_name}.{name}"
-                    if fqn not in mapped_models:
+                    if fqn not in mapped_models and fqn not in _SOFT_DEPRECATED_MODELS:
                         unmapped.append(fqn)
 
         if unmapped:

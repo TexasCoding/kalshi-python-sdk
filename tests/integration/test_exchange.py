@@ -35,8 +35,13 @@ class TestExchangeSync:
         assert isinstance(result, Schedule)
         assert_model_fields(result)
 
+    @pytest.mark.skip(
+        reason="GET /exchange/announcements removed upstream in spec v3.24.0; the "
+        "SDK method is soft-deprecated and 404s live (retained pending confirmation)."
+    )
     def test_announcements(self, sync_client: KalshiClient) -> None:
-        result = sync_client.exchange.announcements()
+        with pytest.warns(DeprecationWarning):
+            result = sync_client.exchange.announcements()
         assert isinstance(result, list)
         for item in result:
             assert isinstance(item, Announcement)
@@ -61,8 +66,13 @@ class TestExchangeAsync:
         assert isinstance(result, Schedule)
         assert_model_fields(result)
 
+    @pytest.mark.skip(
+        reason="GET /exchange/announcements removed upstream in spec v3.24.0; the "
+        "SDK method is soft-deprecated and 404s live (retained pending confirmation)."
+    )
     async def test_announcements(self, async_client: AsyncKalshiClient) -> None:
-        result = await async_client.exchange.announcements()
+        with pytest.warns(DeprecationWarning):
+            result = await async_client.exchange.announcements()
         assert isinstance(result, list)
         for item in result:
             assert isinstance(item, Announcement)

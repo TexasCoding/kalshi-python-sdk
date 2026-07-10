@@ -620,6 +620,15 @@ class TestRFQScopedQuoteActions:
     ``/communications/rfqs/{rfq_id}/quotes/{quote_id}[/accept|/confirm]``."""
 
     @respx.mock
+    def test_get_for_rfq_returns_quote(self, comms: CommunicationsResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1",
+        ).mock(return_value=httpx.Response(200, json={"quote": _MINIMAL_QUOTE}))
+        resp = comms.quotes.get_for_rfq("r-1", "q-1")
+        assert isinstance(resp, GetQuoteResponse)
+        assert route.called
+
+    @respx.mock
     def test_delete_for_rfq_sends_delete(self, comms: CommunicationsResource) -> None:
         route = respx.delete(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1",
@@ -781,6 +790,18 @@ class TestAsyncCommunications:
         await async_comms.quotes.confirm_for_rfq("r-1", "q-1")
         assert route.calls[0].request.content == b"{}"
 
+    async def test_get_for_rfq(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.get(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs/r-1/quotes/q-1",
+        ).mock(return_value=httpx.Response(200, json={"quote": _MINIMAL_QUOTE}))
+        resp = await async_comms.quotes.get_for_rfq("r-1", "q-1")
+        assert isinstance(resp, GetQuoteResponse)
+        assert route.called
+
     async def test_delete_for_rfq(
         self,
         async_comms: AsyncCommunicationsResource,
@@ -937,6 +958,12 @@ class TestCommunicationsAuthGuard:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.confirm_quote("q-1")
+
+    def test_get_for_rfq_requires_auth(
+        self, unauth_comms: CommunicationsResource,
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.quotes.get_for_rfq("r-1", "q-1")
 
     def test_delete_for_rfq_requires_auth(
         self, unauth_comms: CommunicationsResource,

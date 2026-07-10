@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from kalshi.types import DollarDecimal, StrictInt
+from kalshi.types import DollarDecimal, OrderPrice, StrictInt
 
 
 class CreateSubaccountRequest(BaseModel):
@@ -58,15 +58,20 @@ class ApplySubaccountTransferRequest(BaseModel):
 
 
 class ApplySubaccountPositionTransferRequest(BaseModel):
-    """Body for POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
+    """Body for POST /portfolio/subaccounts/positions/transfer (spec v3.24.0).
 
     Moves an open **position** (contracts) between subaccounts — distinct from
-    the cash-only :class:`ApplySubaccountTransferRequest`. ``price_cents`` is the
-    per-contract price in cents (``0``-``100``) used to set the cost basis on the
-    destination subaccount; ``count`` is the number of contracts and must be
-    positive. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the primary
-    account; the SDK enforces only the lower bound (``ge=0``), leaving the upper
-    bound to the server (mirrors :class:`ApplySubaccountTransferRequest`).
+    the cash-only :class:`ApplySubaccountTransferRequest`. ``price`` is the
+    per-contract price in **fixed-point dollars** (``0``-``1.0``) used to set the
+    cost basis on the destination subaccount; ``count`` is the number of contracts
+    and must be positive. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
+    primary account; the SDK enforces only the lower bound (``ge=0``), leaving the
+    upper bound to the server (mirrors :class:`ApplySubaccountTransferRequest`).
+
+    Spec v3.24.0 renamed ``price_cents`` (integer cents) → ``price``
+    (``FixedPointDollars``); pass a ``Decimal`` in dollars, e.g. ``Decimal("0.50")``
+    for a 50¢ cost basis. Uses :data:`~kalshi.types.OrderPrice` so a negative or
+    sub-$0.0001-tick value fails at construction rather than as a server 400.
     """
 
     client_transfer_id: UUID
@@ -75,7 +80,7 @@ class ApplySubaccountPositionTransferRequest(BaseModel):
     market_ticker: str
     side: Literal["yes", "no"]
     count: StrictInt = Field(gt=0)
-    price_cents: StrictInt = Field(ge=0, le=100)
+    price: OrderPrice
 
     model_config = {"extra": "forbid"}
 
@@ -128,8 +133,10 @@ class SubaccountTransfer(BaseModel):
 
     Spec v3.23.0 split transfers into two kinds via ``transfer_type``: ``cash``
     (money moved; ``amount_cents`` set) and ``position`` (contracts moved). The
-    ``market_ticker`` / ``side`` / ``count`` / ``price_cents`` fields are
-    populated only for ``position`` transfers, so they are optional here.
+    ``market_ticker`` / ``side`` / ``count`` / ``price`` fields are populated only
+    for ``position`` transfers, so they are optional here. Spec v3.24.0 renamed the
+    per-contract ``price_cents`` (integer cents) → ``price``
+    (``FixedPointDollars``), surfacing as a ``Decimal`` in dollars.
     """
 
     transfer_id: str
@@ -144,7 +151,7 @@ class SubaccountTransfer(BaseModel):
     market_ticker: str | None = None
     side: Literal["yes", "no"] | None = None
     count: int | None = None
-    price_cents: int | None = None
+    price: DollarDecimal | None = None
 
     model_config = {"extra": "allow"}
 
@@ -163,6 +170,8 @@ class SubaccountNettingConfig(BaseModel):
 
     subaccount_number: int
     enabled: bool
+    # Spec v3.24.0: exchange index of the subaccount (required).
+    exchange_index: int
 
     model_config = {"extra": "allow"}
 

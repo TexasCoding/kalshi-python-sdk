@@ -33,10 +33,12 @@ from collections.abc import AsyncIterator, Iterator
 from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
     GetActiveMarginObligationResponse,
+    GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
     GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
+    GetSettlementEstimateByAssetClassResponse,
     GetSettlementEstimateResponse,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
@@ -108,6 +110,13 @@ class MarginResource(KlearSyncResource):
         data = self._get("/margin/active_obligation", extra_headers=extra_headers)
         return GetActiveMarginObligationResponse.model_validate(data)
 
+    def active_obligations(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetActiveMarginObligationsResponse:
+        """``GET /margin/active_obligations`` — all currently-active obligations (spec v3.24.0)."""
+        data = self._get("/margin/active_obligations", extra_headers=extra_headers)
+        return GetActiveMarginObligationsResponse.model_validate(data)
+
     def obligation_history(
         self,
         *,
@@ -152,6 +161,18 @@ class MarginResource(KlearSyncResource):
         """``GET /margin/settlement_estimate`` — next-settlement estimate + breakdowns."""
         data = self._get("/margin/settlement_estimate", extra_headers=extra_headers)
         return GetSettlementEstimateResponse.model_validate(data)
+
+    def settlement_estimate_by_asset_class(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSettlementEstimateByAssetClassResponse:
+        """``GET /margin/settlement_estimate_by_asset_class`` (spec v3.24.0).
+
+        Next-settlement estimates keyed by asset class.
+        """
+        data = self._get(
+            "/margin/settlement_estimate_by_asset_class", extra_headers=extra_headers
+        )
+        return GetSettlementEstimateByAssetClassResponse.model_validate(data)
 
     def settlement_balance(
         self, *, extra_headers: dict[str, str] | None = None
@@ -261,6 +282,13 @@ class AsyncMarginResource(KlearAsyncResource):
         data = await self._get("/margin/active_obligation", extra_headers=extra_headers)
         return GetActiveMarginObligationResponse.model_validate(data)
 
+    async def active_obligations(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetActiveMarginObligationsResponse:
+        """Async :meth:`MarginResource.active_obligations` (spec v3.24.0)."""
+        data = await self._get("/margin/active_obligations", extra_headers=extra_headers)
+        return GetActiveMarginObligationsResponse.model_validate(data)
+
     async def obligation_history(
         self,
         *,
@@ -305,6 +333,15 @@ class AsyncMarginResource(KlearAsyncResource):
         """Async :meth:`MarginResource.settlement_estimate`."""
         data = await self._get("/margin/settlement_estimate", extra_headers=extra_headers)
         return GetSettlementEstimateResponse.model_validate(data)
+
+    async def settlement_estimate_by_asset_class(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetSettlementEstimateByAssetClassResponse:
+        """Async :meth:`MarginResource.settlement_estimate_by_asset_class` (spec v3.24.0)."""
+        data = await self._get(
+            "/margin/settlement_estimate_by_asset_class", extra_headers=extra_headers
+        )
+        return GetSettlementEstimateByAssetClassResponse.model_validate(data)
 
     async def settlement_balance(
         self, *, extra_headers: dict[str, str] | None = None

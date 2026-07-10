@@ -53,12 +53,16 @@ paths:
   /margin/active_obligation:
     get:
       operationId: GetActiveMarginObligation
-      summary: Get Active Margin Obligation
+      summary: Get Active Margin Obligation (Deprecated)
+      deprecated: true
       description: |
-        Returns the clearing member's outstanding settlement obligation for the
-        current cycle, if one exists. A negative amount indicates a net payable
-        to Kalshi Klear; a positive amount indicates a net receivable. Returns
-        null when no obligation is pending.
+        Deprecated: use `/margin/active_obligations`, which covers all asset
+        classes. This endpoint only returns the crypto obligation.
+
+        Returns the clearing member's outstanding crypto settlement obligation
+        for the current cycle, if one exists. A negative amount indicates a net
+        payable to Kalshi Klear; a positive amount indicates a net receivable.
+        Returns null when no obligation is pending.
 
       responses:
         '200':
@@ -66,6 +70,27 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetActiveMarginObligationResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/active_obligations:
+    get:
+      operationId: GetActiveMarginObligations
+      summary: Get Active Margin Obligations
+      description: |
+        Returns the clearing member's outstanding settlement obligations for
+        the current cycle across all asset classes, ordered by asset class
+        then obligation ID. A negative amount indicates a net payable to
+        Kalshi Klear; a positive amount indicates a net receivable. Empty
+        when no obligation is pending.
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetActiveMarginObligationsResponse' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -122,8 +147,15 @@ paths:
   /margin/settlement_estimate:
     get:
       operationId: GetSettlementEstimate
-      summary: Get Settlement Estimate
-      description: Estimated next settlement amounts for the authenticated clearing member, including per-subtrader breakdowns.
+      summary: Get Settlement Estimate (Deprecated)
+      deprecated: true
+      description: |
+        Deprecated: use `/margin/settlement_estimate_by_asset_class`, which
+        covers all asset classes. This endpoint only returns the crypto
+        settlement estimate.
+
+        Estimated next crypto settlement amounts for the authenticated
+        clearing member, including per-subtrader breakdowns.
 
       responses:
         '200':
@@ -131,6 +163,25 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetSettlementEstimateResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/settlement_estimate_by_asset_class:
+    get:
+      operationId: GetSettlementEstimateByAssetClass
+      summary: Get Settlement Estimate By Asset Class
+      description: >-
+        Estimated next settlement amounts for the authenticated clearing
+        member, keyed by asset class, including per-subtrader breakdowns.
+        Asset classes where the member has no margin activity are omitted.
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetSettlementEstimateByAssetClassResponse' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -300,6 +351,12 @@ components:
           type: array
           items: { $ref: '#/components/schemas/MarginReport' }
 
+    AssetClass:
+      type: string
+      # TODO(randy): add other enums once SCMs should be aware of other asset classes
+      enum: [Crypto]
+      description: Asset class of the margin markets covered by this entry.
+
     ObligationInfo:
       type: object
       required:
@@ -311,6 +368,7 @@ components:
         - pnl_centicents
         - execution_time
         - last_updated_ts
+        - asset_class
       properties:
         id: { type: string }
         user_id: { type: string }
@@ -329,6 +387,7 @@ components:
         pnl_centicents: { type: integer, format: int64, description: Realized PnL for this settlement period. }
         execution_time: { type: string, format: date-time, description: Settlement cycle time this obligation belongs to. }
         last_updated_ts: { type: string, format: date-time, description: Timestamp of the last status change on this obligation. }
+        asset_class: { $ref: '#/components/schemas/AssetClass' }
 
     ObligationReceiveInfo:
       type: object
@@ -400,6 +459,15 @@ components:
           $ref: '#/components/schemas/ObligationEntry'
           description: The outstanding settlement obligation for the current cycle, or null when no obligation is pending.
 
+    GetActiveMarginObligationsResponse:
+      type: object
+      required: [obligations]
+      properties:
+        obligations:
+          type: array
+          description: Outstanding settlement obligations for the current cycle across all asset classes, ordered by asset class then obligation ID. Empty when no obligation is pending.
+          items: { $ref: '#/components/schemas/ObligationEntry' }
+
     GetLargeTraderPositionsResponse:
       type: object
       properties:
@@ -468,6 +536,33 @@ components:
           type: object
           description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
           additionalProperties: { type: integer, format: int64 }
+        settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
+
+    AssetClassSettlementEstimate:
+      type: object
+      required: [next_runtime]
+      properties:
+        user_breakdown:
+          $ref: '#/components/schemas/SettlementEstimate'
+          description: Estimated next settlement for this asset class. Null when the member has no activity in this asset class.
+        subtrader_breakdowns:
+          type: object
+          description: Map of subtrader ID to that subtrader's settlement estimate.
+          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        prev_settlement_prices:
+          type: object
+          description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
+          additionalProperties: { type: integer, format: int64 }
+        next_runtime: { type: string, format: date-time, description: Next settlement time for this asset class. }
+
+    GetSettlementEstimateByAssetClassResponse:
+      type: object
+      required: [estimates, settlement_balance_centicents]
+      properties:
+        estimates:
+          type: object
+          description: Map of asset class to the estimated next settlement for that asset class.
+          additionalProperties: { $ref: '#/components/schemas/AssetClassSettlementEstimate' }
         settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
 
     GetSettlementBalanceResponse:

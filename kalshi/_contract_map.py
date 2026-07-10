@@ -82,10 +82,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MarketOrderbookFp",
         notes="Spec uses 'MarketOrderbookFp', SDK uses 'Orderbook'",
     ),
-    ContractEntry(
-        sdk_model="kalshi.models.exchange.Announcement",
-        spec_schema="Announcement",
-    ),
+    # Announcement intentionally unmapped: spec sync 3.24.0 removed the
+    # `Announcement` schema and GET /exchange/announcements. The SDK model +
+    # method are soft-deprecated (retained pending confirmation the removal is
+    # permanent), so they no longer have a spec schema to drift-check against.
+    # See _SOFT_DEPRECATED_MODELS in tests/test_contracts.py.
     ContractEntry(
         sdk_model="kalshi.models.historical.HistoricalCutoff",
         spec_schema="GetHistoricalCutoffResponse",
@@ -828,6 +829,10 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetActiveMarginObligationResponse",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetActiveMarginObligationsResponse",
+        spec_schema="GetActiveMarginObligationsResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.MarketSettlementEstimate",
         spec_schema="MarketSettlementEstimate",
     ),
@@ -838,6 +843,14 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetSettlementEstimateResponse",
         spec_schema="GetSettlementEstimateResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.AssetClassSettlementEstimate",
+        spec_schema="AssetClassSettlementEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetSettlementEstimateByAssetClassResponse",
+        spec_schema="GetSettlementEstimateByAssetClassResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetSettlementBalanceResponse",

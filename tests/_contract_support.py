@@ -286,11 +286,10 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/exchange/schedule",
     ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.exchange.ExchangeResource.announcements",
-        http_method="GET",
-        path_template="/exchange/announcements",
-    ),
+    # announcements() intentionally unmapped: spec sync 3.24.0 removed
+    # GET /exchange/announcements. The method is soft-deprecated (retained,
+    # emits DeprecationWarning) so there is no spec operation to param-drift
+    # against. See _SOFT_DEPRECATED_MODELS in tests/test_contracts.py.
     MethodEndpointEntry(
         sdk_method="kalshi.resources.exchange.ExchangeResource.user_data_timestamp",
         http_method="GET",
@@ -601,6 +600,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/communications/quotes/{quote_id}/confirm",
     ),
     # RFQ-scoped quote actions (spec v3.22.0)
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.get_for_rfq",
+        http_method="GET",
+        path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}",
+    ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.communications.QuotesResource.delete_for_rfq",
         http_method="DELETE",
@@ -1528,6 +1532,11 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/active_obligation",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligations",
+        http_method="GET",
+        path_template="/margin/active_obligations",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history",
         http_method="GET",
         path_template="/margin/obligation_history",
@@ -1541,6 +1550,14 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate",
         http_method="GET",
         path_template="/margin/settlement_estimate",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource"
+            ".settlement_estimate_by_asset_class"
+        ),
+        http_method="GET",
+        path_template="/margin/settlement_estimate_by_asset_class",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance",

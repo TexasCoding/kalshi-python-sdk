@@ -654,6 +654,22 @@ class QuotesResource(SyncResource):
     # /communications/rfqs/{rfq_id}/quotes/{quote_id}[/accept|/confirm].
     # Same semantics as the flat quote actions above, but scoped to the RFQ.
 
+    def get_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
+        """Get a quote scoped to its RFQ (spec v3.24.0).
+
+        ``GET /communications/rfqs/{rfq_id}/quotes/{quote_id}`` — same payload as
+        the flat :meth:`get`, addressed through the parent RFQ.
+        """
+        self._require_auth()
+        data = self._get(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}",
+            extra_headers=extra_headers,
+        )
+        return GetQuoteResponse.model_validate(data)
+
     def delete_for_rfq(
         self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
     ) -> None:
@@ -1455,6 +1471,18 @@ class AsyncQuotesResource(AsyncResource):
         )
 
     # -- RFQ-scoped quote actions (spec v3.22.0) -------------------------------
+
+    async def get_for_rfq(
+        self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetQuoteResponse:
+        """Async :meth:`QuotesResource.get_for_rfq` (spec v3.24.0)."""
+        self._require_auth()
+        data = await self._get(
+            f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}"
+            f"/quotes/{_seg(quote_id, name='quote_id')}",
+            extra_headers=extra_headers,
+        )
+        return GetQuoteResponse.model_validate(data)
 
     async def delete_for_rfq(
         self, rfq_id: str, quote_id: str, *, extra_headers: dict[str, str] | None = None

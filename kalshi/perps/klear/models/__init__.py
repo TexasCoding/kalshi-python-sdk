@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from kalshi.perps.klear.models.common import Error
 from kalshi.perps.klear.models.margin import (
+    AssetClassLiteral,
+    AssetClassSettlementEstimate,
     GetActiveMarginObligationResponse,
+    GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
     GetObligationHistoryResponse,
     GetSettlementBalanceHistoryResponse,
     GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
+    GetSettlementEstimateByAssetClassResponse,
     GetSettlementEstimateResponse,
     MaintenanceMarginDetail,
     MarginReport,
@@ -27,14 +31,18 @@ from kalshi.perps.klear.models.margin import (
 )
 
 __all__ = [
+    "AssetClassLiteral",
+    "AssetClassSettlementEstimate",
     "Error",
     "GetActiveMarginObligationResponse",
+    "GetActiveMarginObligationsResponse",
     "GetGuarantyFundBalanceResponse",
     "GetMarginReportsResponse",
     "GetObligationHistoryResponse",
     "GetSettlementBalanceHistoryResponse",
     "GetSettlementBalanceResponse",
     "GetSettlementBalanceWithdrawalResponse",
+    "GetSettlementEstimateByAssetClassResponse",
     "GetSettlementEstimateResponse",
     "MaintenanceMarginDetail",
     "MarginReport",

@@ -227,7 +227,8 @@ class TestExchangeAnnouncements:
                 },
             )
         )
-        announcements = exchange.announcements()
+        with pytest.warns(DeprecationWarning, match="announcements"):
+            announcements = exchange.announcements()
         assert len(announcements) == 2
         assert announcements[0].type == "info"
         assert announcements[0].message == "Exchange will be down for maintenance."
@@ -242,7 +243,8 @@ class TestExchangeAnnouncements:
                 json={"announcements": []},
             )
         )
-        announcements = exchange.announcements()
+        with pytest.warns(DeprecationWarning, match="announcements"):
+            announcements = exchange.announcements()
         assert announcements == []
 
 
@@ -423,7 +425,8 @@ class TestAsyncExchangeAnnouncements:
                 },
             )
         )
-        announcements = await async_exchange.announcements()
+        with pytest.warns(DeprecationWarning, match="announcements"):
+            announcements = await async_exchange.announcements()
         assert len(announcements) == 1
         assert announcements[0].type == "error"
         assert announcements[0].status == "inactive"
@@ -436,5 +439,6 @@ class TestAsyncExchangeAnnouncements:
         respx.get("https://test.kalshi.com/trade-api/v2/exchange/announcements").mock(
             return_value=httpx.Response(200, json={"announcements": []})
         )
-        announcements = await async_exchange.announcements()
+        with pytest.warns(DeprecationWarning, match="announcements"):
+            announcements = await async_exchange.announcements()
         assert announcements == []

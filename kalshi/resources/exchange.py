@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import warnings
 
 from kalshi.models.exchange import (
     Announcement,
@@ -11,6 +12,20 @@ from kalshi.models.exchange import (
     UserDataTimestamp,
 )
 from kalshi.resources._base import AsyncResource, SyncResource
+
+# Soft-deprecation (spec sync 3.23.0 → 3.24.0): Kalshi removed
+# GET /exchange/announcements from the OpenAPI spec. The method is RETAINED
+# (not deleted) pending confirmation the removal is permanent — upstream has
+# transiently dropped endpoints as publishing glitches before (see the
+# CreateOrder/BatchCreateOrders drop reverted in #452). It now emits a
+# DeprecationWarning and will 404 against the live API until/unless the endpoint
+# returns; a future major release removes it once the removal is confirmed.
+_ANNOUNCEMENTS_DEPRECATED = (
+    "exchange.announcements() is deprecated: Kalshi removed "
+    "GET /exchange/announcements from the OpenAPI spec in v3.24.0, so the live "
+    "endpoint now returns 404. The method is retained pending confirmation the "
+    "removal is permanent and will be removed in a future major release."
+)
 
 
 class ExchangeResource(SyncResource):
@@ -28,6 +43,7 @@ class ExchangeResource(SyncResource):
     def announcements(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> builtins.list[Announcement]:
+        warnings.warn(_ANNOUNCEMENTS_DEPRECATED, DeprecationWarning, stacklevel=2)
         data = self._get("/exchange/announcements", extra_headers=extra_headers)
         raw = data.get("announcements", [])
         return [Announcement.model_validate(a) for a in raw]
@@ -59,6 +75,7 @@ class AsyncExchangeResource(AsyncResource):
     async def announcements(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> builtins.list[Announcement]:
+        warnings.warn(_ANNOUNCEMENTS_DEPRECATED, DeprecationWarning, stacklevel=2)
         data = await self._get("/exchange/announcements", extra_headers=extra_headers)
         raw = data.get("announcements", [])
         return [Announcement.model_validate(a) for a in raw]
