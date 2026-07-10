@@ -601,6 +601,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     # RFQ-scoped quote actions (spec v3.22.0)
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.QuotesResource.get_for_rfq",
+        http_method="GET",
+        path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.communications.QuotesResource.delete_for_rfq",
         http_method="DELETE",
         path_template="/communications/rfqs/{rfq_id}/quotes/{quote_id}",
@@ -1527,6 +1532,11 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/active_obligation",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligations",
+        http_method="GET",
+        path_template="/margin/active_obligations",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.obligation_history",
         http_method="GET",
         path_template="/margin/obligation_history",
@@ -1540,6 +1550,14 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate",
         http_method="GET",
         path_template="/margin/settlement_estimate",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource"
+            ".settlement_estimate_by_asset_class"
+        ),
+        http_method="GET",
+        path_template="/margin/settlement_estimate_by_asset_class",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance",

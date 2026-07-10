@@ -1252,22 +1252,6 @@ _UNIMPLEMENTED_ENDPOINTS: dict[tuple[str, str], str] = {
     ("GET", "/margin/large_trader_positions"): (
         "perps SCM large-trader surveillance endpoint; outside the client SDK surface"
     ),
-    # Added upstream in the 3.24.0 sync. Deferred to follow-up feature work — the
-    # reconcile scope is spec DRIFT on existing surface, not new endpoints. This
-    # allowlist keeps them visible (and reds CI if a future sync makes them
-    # required) without silently dropping them.
-    ("GET", "/communications/rfqs/{rfq_id}/quotes/{quote_id}"): (
-        "new in 3.24.0: get-quote-by-id via the RFQ path; the SDK already exposes "
-        "get-quote via GET /communications/quotes/{quote_id}. Deferred feature work."
-    ),
-    ("GET", "/margin/active_obligations"): (
-        "new in the 3.24.0 perps SCM sync; needs GetActiveMarginObligationsResponse "
-        "modeling. Deferred feature work."
-    ),
-    ("GET", "/margin/settlement_estimate_by_asset_class"): (
-        "new in the 3.24.0 perps SCM sync; needs AssetClass/AssetClassSettlementEstimate "
-        "modeling. Deferred feature work."
-    ),
 }
 
 

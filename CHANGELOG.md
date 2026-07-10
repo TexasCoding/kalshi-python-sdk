@@ -5,9 +5,9 @@ All notable changes to kalshi-sdk will be documented in this file.
 ## 7.0.0 — 2026-07-10
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.23.0 → 3.24.0** (Closes #467, #470).
-One **breaking** rename on the subaccounts surface, a soft-deprecation, and
-additive drift fixes. Kalshi changed spec content without always bumping
-`info.version`, so this also absorbs in-place edits made under the same string.
+One **breaking** rename on the subaccounts surface, a soft-deprecation, three new
+endpoints, and additive drift fixes. Kalshi changed spec content without always
+bumping `info.version`, so this also absorbs in-place edits made under the same string.
 
 ### Changed (breaking)
 
@@ -33,19 +33,24 @@ additive drift fixes. Kalshi changed spec content without always bumping
 
 ### Added
 
+- **`communications.quotes.get_for_rfq(rfq_id, quote_id)`** (sync + async) —
+  `GET /communications/rfqs/{rfq_id}/quotes/{quote_id}`, the RFQ-scoped
+  get-a-quote (returns `GetQuoteResponse`, the same payload as the flat
+  `quotes.get`).
+- **`klear.margin.active_obligations()`** (sync + async) —
+  `GET /margin/active_obligations`, all currently-active settlement obligations
+  (`GetActiveMarginObligationsResponse`; the plural sibling of the single-obligation
+  `active_obligation()`).
+- **`klear.margin.settlement_estimate_by_asset_class()`** (sync + async) —
+  `GET /margin/settlement_estimate_by_asset_class`, next-settlement estimates keyed
+  by asset class (`GetSettlementEstimateByAssetClassResponse` +
+  `AssetClassSettlementEstimate`).
 - **`SubaccountNettingConfig.exchange_index`** (`int`, required) — exchange index
   of the subaccount.
 - **`portfolio.balance()`** (sync + async) gains an optional **`exchange_index`**
   query param — target a specific exchange shard (defaults to 0 server-side).
-- **`ObligationEntry.asset_class`** (perps SCM / Klear; `Literal["Crypto"]`,
-  required) — asset class of the settlement obligation.
-
-### Notes
-
-- Three endpoints added upstream in 3.24.0 are recognized but not yet implemented
-  (deferred to follow-up feature work): `GET
-  /communications/rfqs/{rfq_id}/quotes/{quote_id}`, `GET
-  /margin/active_obligations`, and `GET /margin/settlement_estimate_by_asset_class`.
+- **`ObligationEntry.asset_class`** (perps SCM / Klear; `AssetClassLiteral` =
+  `Literal["Crypto"]`, required) — asset class of the settlement obligation.
 
 ## 6.0.0 — 2026-07-04
 

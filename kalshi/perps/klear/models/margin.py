@@ -73,6 +73,11 @@ MarginReportTypeLiteral = Literal[
 
 # Spec ``GetSettlementBalanceWithdrawalResponse.status`` enum.
 WithdrawalStatusLiteral = Literal["pending", "processing", "processed", "failed"]
+
+# Spec ``AssetClass`` enum (single value today). Named alias mirrors the other
+# *Literal aliases; shared by ObligationEntry.asset_class and the settlement
+# estimates keyed by asset class (spec sync 3.24.0).
+AssetClassLiteral = Literal["Crypto"]
 """Spec withdrawal ``status`` — lifecycle of an async settlement-balance withdrawal."""
 
 
@@ -170,9 +175,7 @@ class ObligationEntry(BaseModel):
     execution_time: AwareDatetime
     last_updated_ts: AwareDatetime
     # Spec (perps SCM) added a required ``asset_class`` on ``ObligationInfo``.
-    # ``AssetClass`` is a single-value string enum today; a Literal keeps it
-    # greppable and validates the wire value (mirrors the other *Literal aliases).
-    asset_class: Literal["Crypto"]
+    asset_class: AssetClassLiteral
     # From the inline allOf object.
     receives: NullableList[ObligationReceiveInfo]
     settlement_details: NullableList[SettlementDetail]
@@ -247,6 +250,53 @@ class GetSettlementEstimateResponse(BaseModel):
     user_breakdown: SettlementEstimate
     subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
     prev_settlement_prices: dict[str, int] | None = None
+    settlement_balance_centicents: int
+
+    model_config = {"extra": "allow"}
+
+
+# ── Spec sync 3.24.0 additions (perps SCM) ──────────────────────────────────
+
+
+class GetActiveMarginObligationsResponse(BaseModel):
+    """Spec ``GetActiveMarginObligationsResponse`` — all currently-active obligations.
+
+    Plural sibling of ``GetActiveMarginObligationResponse`` (the single-obligation
+    ``/margin/active_obligation`` endpoint): wraps the full list rather than one
+    nullable entry. Backs ``GET /margin/active_obligations``.
+    """
+
+    obligations: NullableList[ObligationEntry]
+
+    model_config = {"extra": "allow"}
+
+
+class AssetClassSettlementEstimate(BaseModel):
+    """Spec ``AssetClassSettlementEstimate`` — settlement estimate for one asset class.
+
+    Mirrors :class:`GetSettlementEstimateResponse` (user + per-subtrader breakdowns
+    + previous settlement prices) and adds ``next_runtime``, the next
+    settlement-cycle time. Only ``next_runtime`` is spec-required; the breakdowns
+    are optional.
+    """
+
+    next_runtime: AwareDatetime
+    user_breakdown: SettlementEstimate | None = None
+    subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
+    prev_settlement_prices: dict[str, int] | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetSettlementEstimateByAssetClassResponse(BaseModel):
+    """Spec ``GetSettlementEstimateByAssetClassResponse`` — estimates keyed by asset class.
+
+    ``estimates`` is the spec ``additionalProperties`` map (asset class →
+    :class:`AssetClassSettlementEstimate`). Backs
+    ``GET /margin/settlement_estimate_by_asset_class``.
+    """
+
+    estimates: dict[str, AssetClassSettlementEstimate]
     settlement_balance_centicents: int
 
     model_config = {"extra": "allow"}

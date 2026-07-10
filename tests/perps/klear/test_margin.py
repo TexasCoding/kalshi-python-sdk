@@ -273,6 +273,115 @@ class TestActiveObligation:
 
 
 # --------------------------------------------------------------------------- #
+# active_obligations (plural; spec v3.24.0)
+# --------------------------------------------------------------------------- #
+
+
+class TestActiveObligations:
+    @respx.mock
+    def test_happy_list(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/active_obligations").mock(
+            return_value=httpx.Response(
+                200,
+                json={"obligations": [_obligation(amount=-99999), _obligation(amount=5000)]},
+            )
+        )
+        resp = auth_klear_client.margin.active_obligations()
+        assert len(resp.obligations) == 2
+        assert all(isinstance(o, ObligationEntry) for o in resp.obligations)
+        assert resp.obligations[0].amount_centicents == -99999
+        assert resp.obligations[0].asset_class == "Crypto"
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_null_obligations_coerces_to_empty(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/active_obligations").mock(
+            return_value=httpx.Response(200, json={"obligations": None})
+        )
+        resp = auth_klear_client.margin.active_obligations()
+        assert resp.obligations == []
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_happy(self, auth_async_klear_client: AsyncKlearClient) -> None:
+        respx.get(f"{BASE}/margin/active_obligations").mock(
+            return_value=httpx.Response(200, json={"obligations": [_obligation()]})
+        )
+        resp = await auth_async_klear_client.margin.active_obligations()
+        assert len(resp.obligations) == 1
+        await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
+# settlement_estimate_by_asset_class (spec v3.24.0)
+# --------------------------------------------------------------------------- #
+
+
+class TestSettlementEstimateByAssetClass:
+    @respx.mock
+    def test_happy(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_estimate_by_asset_class").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "estimates": {
+                        "Crypto": {
+                            "next_runtime": "2026-06-02T00:00:00Z",
+                            "user_breakdown": _estimate(),
+                            "subtrader_breakdowns": {"st1": _estimate()},
+                            "prev_settlement_prices": {"BTC-PERP": 5000},
+                        }
+                    },
+                    "settlement_balance_centicents": 123456,
+                },
+            )
+        )
+        resp = auth_klear_client.margin.settlement_estimate_by_asset_class()
+        assert resp.settlement_balance_centicents == 123456
+        crypto = resp.estimates["Crypto"]
+        assert crypto.next_runtime.tzinfo is not None
+        assert crypto.user_breakdown is not None
+        assert crypto.user_breakdown.total_amount_centicents == 1630
+        assert crypto.subtrader_breakdowns is not None
+        assert crypto.subtrader_breakdowns["st1"].variation_margin_centicents == 1000
+        assert crypto.prev_settlement_prices == {"BTC-PERP": 5000}
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_optional_breakdowns_omitted(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_estimate_by_asset_class").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "estimates": {"Crypto": {"next_runtime": "2026-06-02T00:00:00Z"}},
+                    "settlement_balance_centicents": 0,
+                },
+            )
+        )
+        resp = auth_klear_client.margin.settlement_estimate_by_asset_class()
+        crypto = resp.estimates["Crypto"]
+        assert crypto.user_breakdown is None
+        assert crypto.subtrader_breakdowns is None
+        assert crypto.prev_settlement_prices is None
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_happy(self, auth_async_klear_client: AsyncKlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_estimate_by_asset_class").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "estimates": {"Crypto": {"next_runtime": "2026-06-02T00:00:00Z"}},
+                    "settlement_balance_centicents": 7,
+                },
+            )
+        )
+        resp = await auth_async_klear_client.margin.settlement_estimate_by_asset_class()
+        assert resp.settlement_balance_centicents == 7
+        await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
 # obligation_history / obligation_history_all
 # --------------------------------------------------------------------------- #
 
