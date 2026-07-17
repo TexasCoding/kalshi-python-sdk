@@ -3,7 +3,7 @@
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API.
 
-- **Full REST coverage** — 101 operations across 19 resources (OpenAPI v3.24.0),
+- **Full REST coverage** — 101 operations across 19 resources (OpenAPI v3.25.0),
   every kwarg drift-tested against the spec.
 - **V2 event-market orders** — new `create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` family on `/portfolio/events/orders/*`. Legacy `/portfolio/orders`
@@ -15,9 +15,9 @@ markets API.
   backpressure strategies, and an in-memory orderbook builder. Async-only —
   access via `AsyncKalshiClient.ws`.
 - **Perps (margin) API** — standalone `PerpsClient` / `AsyncPerpsClient` +
-  `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
+  `PerpsWebSocket` for the perpetual-futures exchange (35 REST operations, 6 WS
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
-  (9 operations, Bearer token auth). See [Perps](perps.md).
+  (11 operations, Bearer token auth). See [Perps](perps.md).
 - **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)
   for both products: order-entry, drop-copy, market-data, post-trade (prediction),
   and RFQ (prediction) sessions — plus order-group management over the order-entry
