@@ -2,6 +2,28 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 7.1.0 — 2026-07-17
+
+Syncs the upstream OpenAPI/AsyncAPI specs **3.24.0 → 3.25.0** (Closes #475).
+Additive only — no breaking public-API changes.
+
+### Added
+
+- **`MarginMarket.schedule`** (perps) — required field on margin market responses.
+  Typed as `MarginMarketSchedule | None` (null for markets that trade 24/7).
+  Nested `MarginMarketSchedule` exposes `is_open: bool` and
+  `next_close_ts` / `next_open_ts` (`int | None`, Unix epoch seconds; null
+  while the corresponding phase is active). Exported from `kalshi.perps` and
+  `kalshi.perps.models`.
+
+### Spec notes
+
+- Core OpenAPI gained `POST /portfolio/intra_exchange_instance_transfer`
+  (same path/schema as the perps transfer). The endpoint is still marked
+  **currently not available** upstream; the core client records it in
+  `_UNIMPLEMENTED_ENDPOINTS`. Use
+  `PerpsClient.transfers.transfer_instance()` for the margin product surface.
+
 ## 7.0.0 — 2026-07-10
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.23.0 → 3.24.0** (Closes #467, #470).

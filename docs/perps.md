@@ -96,6 +96,12 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
   (`DollarDecimal`, a `FixedPointDollars` USD string) and `ts_ms` (the source
   timestamp in epoch **milliseconds**, `int`). All three are absent from the spec
   `required` list, so they are `None` when the upstream price is unavailable.
+- **Trading schedule** (since the v3.25.0 spec sync / SDK v7.1.0) — `MarginMarket`
+  carries a **required** `schedule` key typed `MarginMarketSchedule | None`.
+  `None` means the market trades 24/7. When present, `MarginMarketSchedule` has
+  `is_open: bool` plus `next_close_ts` / `next_open_ts` (`int | None`, Unix
+  epoch **seconds**): `next_close_ts` is null while closed, `next_open_ts` is
+  null while open.
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
   identifying which subaccount holds the position.

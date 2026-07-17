@@ -2,6 +2,16 @@
 
 ## Shipped
 
+- **v7.1.0 (2026-07-17)** — OpenAPI sync v3.24.0 → v3.25.0 (#475 / #476).
+  Additive: `MarginMarket.schedule` + nested `MarginMarketSchedule` (null for
+  24/7 markets). Core `POST /portfolio/intra_exchange_instance_transfer`
+  recorded unimplemented (currently not available; live on
+  `PerpsClient.transfers.transfer_instance`).
+- **v7.0.0 (2026-07-10)** — OpenAPI sync v3.23.0 → v3.24.0 (#467 / #470 / #472).
+  **Breaking:** position-transfer `price_cents` → `price` (fixed-point dollars).
+  Soft-deprecate `exchange.announcements()`. Additive endpoints and fields
+  (RFQ-scoped quote get, Klear active-obligations plural + settlement-by-asset-class,
+  `portfolio.balance(exchange_index=)`, etc.).
 - **v6.0.0 (2026-07-04)** — OpenAPI sync v3.22.0 → v3.23.0 (#463). **Breaking:**
   removed the multivariate lookup-history endpoint (`lookup_history()` +
   `LookupPoint`), deleted upstream. Additive: subaccount-scoped API keys

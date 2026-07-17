@@ -1,5 +1,26 @@
 # Migration
 
+## v7.0 → v7.1.0
+
+Syncs the SDK to OpenAPI/AsyncAPI spec **3.25.0**. **No breaking changes.**
+
+### Added
+
+- **`MarginMarket.schedule`** (`MarginMarketSchedule | None`, required key) —
+  current trading hours for a margin market. `None` means 24/7. Nested fields:
+  `is_open`, `next_close_ts`, `next_open_ts` (Unix seconds; nullable by phase).
+  If you construct `MarginMarket` instances by hand in tests, pass
+  `schedule=None` or a `MarginMarketSchedule(...)`.
+
+### Deferred
+
+- Core OpenAPI lists `POST /portfolio/intra_exchange_instance_transfer`, still
+  marked **currently not available**. The core client does not expose it; use
+  `PerpsClient.transfers.transfer_instance()` on the margin product.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v6 → v7.0.0
 
 Syncs the SDK to OpenAPI/AsyncAPI spec **3.24.0**. One breaking change on the
