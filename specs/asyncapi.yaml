@@ -81,6 +81,9 @@ info:
     | 27 | Too many requests | The subscription exceeded its command rate limit
     |
 
+    | 28 | Underlying tickers required | Missing underlying_tickers for
+    subscribe_underlyings/unsubscribe_underlyings on pyth_value |
+
 
     ## Terminal Errors
 
@@ -158,6 +161,8 @@ channels:
         $ref: '#/components/messages/updateSubscriptionSingleSidCommand'
       cfbenchmarksUpdateSubscriptionCommand:
         $ref: '#/components/messages/cfbenchmarksUpdateSubscriptionCommand'
+      pythUpdateSubscriptionCommand:
+        $ref: '#/components/messages/pythUpdateSubscriptionCommand'
       listSubscriptionsCommand:
         $ref: '#/components/messages/listSubscriptionsCommand'
       subscribedResponse:
@@ -578,6 +583,39 @@ channels:
         $ref: '#/components/messages/cfbenchmarksValue'
       cfbenchmarksIndexList:
         $ref: '#/components/messages/cfbenchmarksIndexList'
+  pyth_value:
+    address: pyth_value
+    title: Pyth Value Feed
+    description: >
+      Real-time Pyth price updates for configured underlying tickers. Requires
+      authentication.
+
+
+      **Requirements:**
+
+      - Authentication required
+
+      - Seed `underlying_tickers` in the initial subscribe, or add them later
+
+      - Use `underlying_tickers: ["all"]` to receive every available underlying
+
+      - Supports `update_subscription` with `subscribe_underlyings`,
+      `unsubscribe_underlyings`, and `underlying_list` actions
+
+      - Duplicate and out-of-order source timestamps are ignored independently
+      per underlying ticker
+
+
+      Subscribe without `underlying_tickers` to create an empty subscription,
+      then use `underlying_list`
+
+      to discover recently streamed underlyings and `subscribe_underlyings` to
+      receive prices.
+    messages:
+      pythValue:
+        $ref: '#/components/messages/pythValue'
+      pythUnderlyingList:
+        $ref: '#/components/messages/pythUnderlyingList'
 operations:
   sendPing:
     action: receive
@@ -669,6 +707,18 @@ operations:
       $ref: '#/channels/root'
     messages:
       - $ref: '#/channels/root/messages/cfbenchmarksUpdateSubscriptionCommand'
+    tags:
+      - name: commands
+  sendPythUpdateSubscription:
+    action: receive
+    title: Update Subscription - Pyth Underlyings
+    summary: >-
+      Add or remove underlying tickers, or list available underlyings, on a
+      pyth_value subscription
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/pythUpdateSubscriptionCommand'
     tags:
       - name: commands
   receivePing:
@@ -967,6 +1017,26 @@ operations:
       - $ref: '#/channels/cfbenchmarks_value/messages/cfbenchmarksIndexList'
     tags:
       - name: market-data
+  receivePythValue:
+    action: send
+    title: Pyth Value Update
+    summary: Receive deduplicated real-time Pyth prices
+    channel:
+      $ref: '#/channels/pyth_value'
+    messages:
+      - $ref: '#/channels/pyth_value/messages/pythValue'
+    tags:
+      - name: market-data
+  receivePythUnderlyingList:
+    action: send
+    title: Pyth Underlying List
+    summary: Receive recently streamed Pyth underlying tickers
+    channel:
+      $ref: '#/channels/pyth_value'
+    messages:
+      - $ref: '#/channels/pyth_value/messages/pythUnderlyingList'
+    tags:
+      - name: market-data
 components:
   messages:
     incomingPing:
@@ -1101,6 +1171,17 @@ components:
               index_ids:
                 - BRTI
                 - ETHUSD_RTI
+        - name: subscribePythValue
+          summary: Subscribe to pyth_value, seeding underlying tickers
+          payload:
+            id: 10
+            cmd: subscribe
+            params:
+              channels:
+                - pyth_value
+              underlying_tickers:
+                - Metal.XAU/USD
+                - Metal.XAG/USD
     unsubscribeCommand:
       name: unsubscribe
       title: Unsubscribe Command
@@ -1258,6 +1339,44 @@ components:
               action: subscribe_indices
               index_ids:
                 - all
+    pythUpdateSubscriptionCommand:
+      name: pyth_update_subscription
+      title: Update Subscription - Pyth Underlyings
+      summary: >-
+        Add or remove underlying tickers, or list available underlyings, on a
+        pyth_value subscription
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/pythUpdateSubscriptionCommandPayload'
+      examples:
+        - name: underlyingList
+          summary: List recently streamed Pyth underlyings
+          payload:
+            id: 2
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: underlying_list
+        - name: subscribeUnderlyings
+          summary: Add underlying tickers to the subscription
+          payload:
+            id: 3
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: subscribe_underlyings
+              underlying_tickers:
+                - Metal.XAU/USD
+        - name: unsubscribeUnderlyings
+          summary: Remove underlying tickers from the subscription
+          payload:
+            id: 4
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: unsubscribe_underlyings
+              underlying_tickers:
+                - Metal.XAU/USD
     subscribedResponse:
       name: subscribed
       title: Subscribed Response
@@ -1406,6 +1525,9 @@ components:
 
         | 27 | Too many requests | The subscription exceeded its command rate
         limit |
+
+        | 28 | Underlying tickers required | Missing underlying_tickers for
+        subscribe_underlyings/unsubscribe_underlyings on pyth_value |
       contentType: application/json
       payload:
         $ref: '#/components/schemas/errorResponsePayload'
@@ -1578,6 +1700,42 @@ components:
               index_ids:
                 - BRTI
                 - ETHUSD_RTI
+    pythValue:
+      name: pyth_value
+      title: Pyth Value Update
+      summary: Deduplicated real-time Pyth price for an underlying ticker
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/pythValuePayload'
+      examples:
+        - name: pythValueUpdate
+          payload:
+            type: pyth_value
+            sid: 1
+            seq: 42
+            msg:
+              underlying_ticker: Metal.XAU/USD
+              value_usd: '2365.12345000'
+              source_ts_ms: 1710000000100
+              received_at: 1710000000123
+    pythUnderlyingList:
+      name: pyth_value_underlying_list
+      title: Pyth Underlying List
+      summary: Recently streamed Pyth underlying tickers
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/pythUnderlyingListPayload'
+      examples:
+        - name: underlyingListResponse
+          payload:
+            type: pyth_value_underlying_list
+            id: 2
+            sid: 1
+            seq: 1
+            msg:
+              underlying_tickers:
+                - Metal.XAG/USD
+                - Metal.XAU/USD
     ticker:
       name: ticker
       title: Ticker Update
@@ -2112,6 +2270,7 @@ components:
                   - order_group_updates
                   - user_orders
                   - cfbenchmarks_value
+                  - pyth_value
               minItems: 1
             market_ticker:
               description: >-
@@ -2202,6 +2361,15 @@ components:
                 on the initial subscribe (omit to subscribe with no indices and
                 add them later via update_subscription; use ["all"] to track
                 every available index).
+              items:
+                type: string
+              minItems: 1
+            underlying_tickers:
+              type: array
+              description: >-
+                pyth_value channel only. Underlying tickers to seed on the
+                initial subscribe (omit to subscribe with no underlyings and add
+                them later; use ["all"] to track every available underlying).
               items:
                 type: string
               minItems: 1
@@ -2336,6 +2504,56 @@ components:
                 CF Benchmarks index IDs to add or remove. Use ["all"] to track
                 every available index. Required for subscribe_indices and
                 unsubscribe_indices.
+              items:
+                type: string
+              minItems: 1
+    pythUpdateSubscriptionCommandPayload:
+      type: object
+      required:
+        - id
+        - cmd
+        - params
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: update_subscription
+        params:
+          type: object
+          required:
+            - action
+          properties:
+            sid:
+              $ref: '#/components/schemas/subscriptionId'
+              description: Single subscription ID to update (alternative to sids array)
+            sids:
+              type: array
+              description: >-
+                Array containing exactly one subscription ID (alternative to
+                sid)
+              items:
+                $ref: '#/components/schemas/subscriptionId'
+              minItems: 1
+              maxItems: 1
+            action:
+              type: string
+              description: >
+                - `subscribe_underlyings`: add the supplied `underlying_tickers`
+
+                - `unsubscribe_underlyings`: remove the supplied
+                `underlying_tickers`
+
+                - `underlying_list`: return recently streamed underlying tickers
+              enum:
+                - subscribe_underlyings
+                - unsubscribe_underlyings
+                - underlying_list
+            underlying_tickers:
+              type: array
+              description: >-
+                Pyth underlyings to add or remove. Use ["all"] to track every
+                available underlying.
               items:
                 type: string
               minItems: 1
@@ -2490,8 +2708,11 @@ components:
 
                 - 27: Too many requests - The subscription exceeded its command
                 rate limit
+
+                - 28: Underlying tickers required - Missing underlying_tickers
+                for subscribe_underlyings/unsubscribe_underlyings on pyth_value
               minimum: 1
-              maximum: 27
+              maximum: 28
             msg:
               type: string
               description: Human-readable error message
@@ -2641,6 +2862,70 @@ components:
             index_ids:
               type: array
               description: Available CF Benchmarks index IDs
+              items:
+                type: string
+    pythValuePayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: pyth_value
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - underlying_ticker
+            - value_usd
+            - source_ts_ms
+            - received_at
+          properties:
+            underlying_ticker:
+              type: string
+              description: Qualified Pyth underlying ticker
+            value_usd:
+              type: string
+              description: USD value formatted to 8 decimal places
+            source_ts_ms:
+              type: integer
+              description: Pyth source timestamp (unix ms)
+            received_at:
+              type: integer
+              description: When Kalshi received the Pyth update (unix ms)
+    pythUnderlyingListPayload:
+      type: object
+      required:
+        - type
+        - sid
+        - seq
+        - msg
+      properties:
+        type:
+          type: string
+          const: pyth_value_underlying_list
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required:
+            - underlying_tickers
+          properties:
+            underlying_tickers:
+              type: array
+              description: >-
+                Underlying tickers observed on the Pyth stream in the last two
+                hours
               items:
                 type: string
     orderbookSnapshotPayload:
@@ -4046,3 +4331,8 @@ x-error-codes:
     - code: 27
       name: Too many requests
       description: The subscription exceeded its command rate limit
+    - code: 28
+      name: Underlying tickers required
+      description: >-
+        Missing underlying_tickers for
+        subscribe_underlyings/unsubscribe_underlyings on pyth_value
