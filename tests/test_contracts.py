@@ -1252,6 +1252,10 @@ _UNIMPLEMENTED_ENDPOINTS: dict[tuple[str, str], str] = {
     ("GET", "/margin/large_trader_positions"): (
         "perps SCM large-trader surveillance endpoint; outside the client SDK surface"
     ),
+    ("POST", "/portfolio/intra_exchange_instance_transfer"): (
+        "core OpenAPI marks the endpoint currently not available; implemented on "
+        "PerpsClient.transfers.transfer_instance (same path/schema) for the margin product"
+    ),
 }
 
 

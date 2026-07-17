@@ -45,6 +45,26 @@ class TickerPrice(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class MarginMarketSchedule(BaseModel):
+    """Spec ``MarginMarketSchedule`` — current market trading hours.
+
+    Nested under :class:`MarginMarket.schedule`. The whole object is
+    ``nullable: true`` (null for 24/7 markets); when present, ``is_open`` is
+    always set and the next open/close timestamps are Unix epoch **seconds**
+    (``int64``), null while the corresponding phase is active
+    (``next_close_ts`` null while closed; ``next_open_ts`` null while open).
+    """
+
+    is_open: bool
+    # Spec marks both timestamps required AND nullable — keys always present,
+    # values JSON null depending on open/closed phase. Modeled as required-key /
+    # nullable-value (no default) so required-drift stays aligned.
+    next_close_ts: int | None
+    next_open_ts: int | None
+
+    model_config = {"extra": "allow"}
+
+
 class MarginMarket(BaseModel):
     """Spec ``MarginMarket`` — a margin market with trading stats.
 
@@ -61,6 +81,10 @@ class MarginMarket(BaseModel):
     contract_size: DollarDecimal
     tick_size: DollarDecimal
     fractional_trading_enabled: bool
+    # Spec requires the key; value is null for markets that trade 24/7
+    # (``MarginMarketSchedule`` is ``nullable: true``). No default — missing
+    # key hard-fails so required-drift stays aligned.
+    schedule: MarginMarketSchedule | None
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars

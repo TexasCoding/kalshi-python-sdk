@@ -650,6 +650,10 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MarginMarket",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginMarketSchedule",
+        spec_schema="MarginMarketSchedule",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.models.markets.MarginMarketCandlestick",
         spec_schema="MarginMarketCandlestick",
     ),

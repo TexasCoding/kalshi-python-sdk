@@ -20,6 +20,7 @@ from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
     MarginMarket,
     MarginMarketCandlestick,
+    MarginMarketSchedule,
     MarginOrderbook,
     PriceDistributionHistorical,
 )
@@ -35,6 +36,13 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         "contract_size": "1.000000",
         "tick_size": "0.0100",
         "fractional_trading_enabled": True,
+        # Spec requires schedule; null means 24/7. Populated object used as the
+        # happy-path default so nested field parsing is exercised.
+        "schedule": {
+            "is_open": True,
+            "next_close_ts": 1_700_000_000,
+            "next_open_ts": None,
+        },
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "price": "0.5600",
@@ -105,6 +113,10 @@ class TestList:
         assert m.volume_24h_notional_value == Decimal("140.0000")
         assert m.open_interest_notional_value == Decimal("280.0000")
         assert isinstance(m.volume_notional_value, Decimal)
+        assert isinstance(m.schedule, MarginMarketSchedule)
+        assert m.schedule.is_open is True
+        assert m.schedule.next_close_ts == 1_700_000_000
+        assert m.schedule.next_open_ts is None
 
     @respx.mock
     def test_status_filter(self, perps_client: PerpsClient) -> None:
@@ -128,6 +140,8 @@ class TestList:
                             "contract_size": "1.000000",
                             "tick_size": "0.0100",
                             "fractional_trading_enabled": False,
+                            # required key present, null value = 24/7 market
+                            "schedule": None,
                             "leverage_estimate": None,
                         }
                     ]
@@ -135,6 +149,7 @@ class TestList:
             )
         )
         m = perps_client.markets.list()[0]
+        assert m.schedule is None
         assert m.leverage_estimate is None
         assert m.price is None
         assert m.bid is None

@@ -157,6 +157,11 @@ paths:
         Estimated next crypto settlement amounts for the authenticated
         clearing member, including per-subtrader breakdowns.
 
+        `subtrader_breakdowns` contains at most the 1,000 subtraders with the
+        largest maintenance margin requirement; `omitted_subtrader_count`
+        reports how many were left out. `user_breakdown` always aggregates
+        across all subtraders.
+
       responses:
         '200':
           description: Successful response
@@ -175,6 +180,10 @@ paths:
         Estimated next settlement amounts for the authenticated clearing
         member, keyed by asset class, including per-subtrader breakdowns.
         Asset classes where the member has no margin activity are omitted.
+        `subtrader_breakdowns` contains at most the 1,000 subtraders with the
+        largest maintenance margin requirement; `omitted_subtrader_count`
+        reports how many were left out. `user_breakdown` always aggregates
+        across all subtraders.
 
       responses:
         '200':
@@ -530,8 +539,9 @@ components:
         user_breakdown: { $ref: '#/components/schemas/SettlementEstimate' }
         subtrader_breakdowns:
           type: object
-          description: Map of subtrader ID to that subtrader's settlement estimate.
+          description: Map of subtrader ID to that subtrader's settlement estimate. Contains at most the top 1,000 subtraders by maintenance margin requirement.
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
         prev_settlement_prices:
           type: object
           description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
@@ -547,8 +557,9 @@ components:
           description: Estimated next settlement for this asset class. Null when the member has no activity in this asset class.
         subtrader_breakdowns:
           type: object
-          description: Map of subtrader ID to that subtrader's settlement estimate.
+          description: Map of subtrader ID to that subtrader's settlement estimate. Contains at most the top 1,000 subtraders by maintenance margin requirement.
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
         prev_settlement_prices:
           type: object
           description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
