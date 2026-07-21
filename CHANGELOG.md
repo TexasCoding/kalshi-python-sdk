@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## Unreleased
+
+Syncs upstream OpenAPI/AsyncAPI specs (in-place edits under OpenAPI **3.25.0**
+and a perps OpenAPI path removal). Closes #481, #482.
+
+### Deprecated
+
+- **`PerpsClient.orders.list_fcm()` / `list_all_fcm()`** (sync + async) now emit
+  a `DeprecationWarning`. Kalshi removed `GET /margin/fcm/orders` from the
+  perps OpenAPI, so the live endpoint may 404. Methods are **retained**
+  (soft-deprecated) pending confirmation the removal is permanent — same
+  pattern as `exchange.announcements()` after 3.24.0.
+
+### Changed
+
+- **`SubaccountTransfer` is cash-only on the wire.** Upstream dropped
+  `transfer_type` (was required) and the position-only fields
+  (`market_ticker`, `side`, `count`, `price`) from
+  `GET /portfolio/subaccounts/transfers`. Position moves remain on
+  `POST /portfolio/subaccounts/positions/transfer`
+  (`transfer_position()`). Dropped fields are **defensively optional** on the
+  SDK model so lagging payloads still parse; new responses omit them.
+  `transfer_type` is now `Literal["cash", "position"] | None` (default
+  `None`).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still `3.25.0` (content-only change; paths 91→91).
+- Perps OpenAPI: removed `GET /margin/fcm/orders` and the `fcm` tag (paths
+  32→31). Perps AsyncAPI / SCM specs unchanged.
+
 ## 7.1.0 — 2026-07-17
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.24.0 → 3.25.0** (Closes #475).

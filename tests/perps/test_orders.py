@@ -546,7 +546,7 @@ class TestAmend:
         await async_perps_client.close()
 
 
-# ── list_fcm / list_all_fcm ──────────────────────────────────────────────────
+# ── list_fcm / list_all_fcm (soft-deprecated; path removed from perps OpenAPI) ──
 
 
 class TestListFcm:
@@ -555,7 +555,8 @@ class TestListFcm:
         route = respx.get(f"{BASE}/margin/fcm/orders").mock(
             return_value=httpx.Response(200, json={"orders": [_order_dict()], "cursor": ""})
         )
-        resp = perps_client.orders.list_fcm(subtrader_id="sub-7", ticker="BTC-PERP")
+        with pytest.warns(DeprecationWarning, match=r"list_fcm"):
+            resp = perps_client.orders.list_fcm(subtrader_id="sub-7", ticker="BTC-PERP")
         assert isinstance(resp, GetMarginOrdersResponse)
         q = dict(route.calls[0].request.url.params)
         assert q["subtrader_id"] == "sub-7"
@@ -577,7 +578,8 @@ class TestListFcm:
                 ),
             ]
         )
-        orders = list(perps_client.orders.list_all_fcm(subtrader_id="sub-7"))
+        with pytest.warns(DeprecationWarning, match=r"list_all_fcm|list_fcm"):
+            orders = list(perps_client.orders.list_all_fcm(subtrader_id="sub-7"))
         assert [o.order_id for o in orders] == ["ord-1", "ord-2"]
         for call in route.calls:
             assert "subaccount" not in dict(call.request.url.params)
@@ -588,7 +590,10 @@ class TestListFcm:
             return_value=httpx.Response(200, json={"orders": [], "cursor": ""})
         )
         client = PerpsClient(config=PerpsConfig.demo())
-        with pytest.raises(AuthRequiredError):
+        with (
+            pytest.warns(DeprecationWarning, match=r"list_fcm"),
+            pytest.raises(AuthRequiredError),
+        ):
             client.orders.list_fcm(subtrader_id="sub-7")
         assert not route.called
         client.close()
@@ -598,9 +603,10 @@ class TestListFcm:
         respx.get(f"{BASE}/margin/fcm/orders").mock(
             return_value=httpx.Response(200, json={"orders": [_order_dict()], "cursor": ""})
         )
-        seen = [
-            o.order_id
-            async for o in async_perps_client.orders.list_all_fcm(subtrader_id="sub-7")
-        ]
+        with pytest.warns(DeprecationWarning, match=r"list_all_fcm|list_fcm"):
+            seen = [
+                o.order_id
+                async for o in async_perps_client.orders.list_all_fcm(subtrader_id="sub-7")
+            ]
         assert seen == ["ord-1"]
         await async_perps_client.close()

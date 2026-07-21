@@ -7,16 +7,19 @@ Every endpoint here carries a spec ``security`` block, so each method calls
 ``_require_auth()`` first — an unauthenticated caller gets ``AuthRequiredError``
 before any HTTP request. ``create``, ``cancel``, ``decrease``, and ``amend`` are
 POST/DELETE, which the transport never retries (duplicate-order / cancel-
-idempotency risk); only the GET ``get``/``list``/``list_fcm`` retry.
+idempotency risk); only the GET ``get``/``list`` (and soft-deprecated
+``list_fcm``) retry.
 
 ``subaccount`` routing follows the spec split: ``create`` carries it in the
 request *body* (``CreateMarginOrderRequest.subaccount``), while
-cancel/decrease/amend route it as a *query* param. ``list_fcm`` has no
-``subaccount`` at all — it filters by the required ``subtrader_id``.
+cancel/decrease/amend route it as a *query* param. Soft-deprecated
+``list_fcm`` has no ``subaccount`` at all — it filters by the required
+``subtrader_id``.
 """
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, overload
 
@@ -46,6 +49,19 @@ from kalshi.resources._base import (
     _validate_max_pages,
 )
 from kalshi.types import to_decimal
+
+# Soft-deprecation (spec sync 2026-07-21): Kalshi removed GET /margin/fcm/orders
+# from perps OpenAPI. Methods are RETAINED (not deleted) pending confirmation the
+# removal is permanent — upstream has transiently dropped endpoints as publishing
+# glitches before (see exchange.announcements / #452). Emit DeprecationWarning;
+# live API may 404 until/unless the path returns. Future major release removes
+# them once confirmed.
+_LIST_FCM_DEPRECATED = (
+    "orders.list_fcm() / list_all_fcm() are deprecated: Kalshi removed "
+    "GET /margin/fcm/orders from the perps OpenAPI spec, so the live endpoint "
+    "may return 404. The methods are retained pending confirmation the removal "
+    "is permanent and will be removed in a future major release."
+)
 
 # ---------------------------------------------------------------------------
 # Shared request-body builders (pure: kwargs in, dict[str, Any] out). Both the
@@ -497,8 +513,13 @@ class MarginOrdersResource(SyncResource):
     ) -> GetMarginOrdersResponse:
         """List margin orders for an FCM subtrader, single page (GET /margin/fcm/orders).
 
+        .. deprecated::
+            Soft-deprecated: Kalshi removed ``GET /margin/fcm/orders`` from the
+            perps OpenAPI. Retained pending confirmation; may 404 live.
+
         ``subtrader_id`` is required. No ``subaccount`` param.
         """
+        warnings.warn(_LIST_FCM_DEPRECATED, DeprecationWarning, stacklevel=2)
         self._require_auth()
         params = _list_fcm_params(
             subtrader_id=subtrader_id,
@@ -524,7 +545,13 @@ class MarginOrdersResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarginOrder]:
-        """Auto-paginate FCM subtrader orders (GET /margin/fcm/orders)."""
+        """Auto-paginate FCM subtrader orders (GET /margin/fcm/orders).
+
+        .. deprecated::
+            Soft-deprecated: Kalshi removed ``GET /margin/fcm/orders`` from the
+            perps OpenAPI. Retained pending confirmation; may 404 live.
+        """
+        warnings.warn(_LIST_FCM_DEPRECATED, DeprecationWarning, stacklevel=2)
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_fcm_params(
@@ -811,6 +838,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> GetMarginOrdersResponse:
         """List FCM subtrader orders, single page. See :meth:`MarginOrdersResource.list_fcm`."""
+        warnings.warn(_LIST_FCM_DEPRECATED, DeprecationWarning, stacklevel=2)
         self._require_auth()
         params = _list_fcm_params(
             subtrader_id=subtrader_id,
@@ -836,7 +864,13 @@ class AsyncMarginOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarginOrder]:
-        """Auto-paginate FCM subtrader orders. Returns an async iterator — use ``async for``."""
+        """Auto-paginate FCM subtrader orders. Returns an async iterator — use ``async for``.
+
+        .. deprecated::
+            Soft-deprecated: Kalshi removed ``GET /margin/fcm/orders`` from the
+            perps OpenAPI. Retained pending confirmation; may 404 live.
+        """
+        warnings.warn(_LIST_FCM_DEPRECATED, DeprecationWarning, stacklevel=2)
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _list_fcm_params(

@@ -95,7 +95,8 @@ for t in client.subaccounts.list_all_transfers():
 ```
 
 Standard `Page[SubaccountTransfer]` pagination. `t.created_ts` is Unix
-seconds.
+seconds. Rows are **cash transfers only** — position moves use
+`transfer_position()` and are not listed here.
 
 ## Netting
 

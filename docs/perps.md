@@ -60,7 +60,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 |---|---|
 | `exchange` | `status()`, `enabled()` (per-member access gate), `risk_parameters()` |
 | `markets` | `list()`, `get()`, `orderbook()`, `candlesticks()` |
-| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()`, `list_fcm()` / `list_all_fcm()` |
+| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()`; soft-deprecated `list_fcm()` / `list_all_fcm()` (path removed upstream) |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()` |
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |

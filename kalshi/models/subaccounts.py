@@ -125,18 +125,22 @@ class GetSubaccountBalancesResponse(BaseModel):
 
 
 class SubaccountTransfer(BaseModel):
-    """A past transfer between subaccounts.
+    """A past **cash** transfer between subaccounts.
 
     ``created_ts`` is a Unix seconds integer per spec (``format: int64``),
     matching ``SubaccountBalance.updated_ts``. This is intentionally
     different from RFQ/Quote timestamps, which are ISO datetime strings.
 
-    Spec v3.23.0 split transfers into two kinds via ``transfer_type``: ``cash``
-    (money moved; ``amount_cents`` set) and ``position`` (contracts moved). The
-    ``market_ticker`` / ``side`` / ``count`` / ``price`` fields are populated only
-    for ``position`` transfers, so they are optional here. Spec v3.24.0 renamed the
-    per-contract ``price_cents`` (integer cents) → ``price``
-    (``FixedPointDollars``), surfacing as a ``Decimal`` in dollars.
+    Spec sync (in-place edit under OpenAPI 3.25.0, 2026-07-20/21) narrowed
+    ``GET /portfolio/subaccounts/transfers`` to cash rows only. Upstream
+    dropped ``transfer_type`` and the position-only fields
+    (``market_ticker`` / ``side`` / ``count`` / ``price``) from this schema.
+    Position moves use :class:`ApplySubaccountPositionTransferRequest` /
+    :class:`ApplySubaccountPositionTransferResponse` on
+    ``POST /portfolio/subaccounts/positions/transfer`` — they are not listed
+    here. Fields removed from the wire schema are retained as optional
+    (defensive optional-ization) so payloads from lagging servers still parse;
+    new responses omit them.
     """
 
     transfer_id: str
@@ -144,10 +148,9 @@ class SubaccountTransfer(BaseModel):
     to_subaccount: int
     amount_cents: int
     created_ts: int
-    # Spec v3.23.0 required additions.
     exchange_index: int
-    transfer_type: Literal["cash", "position"]
-    # Position-transfer-only fields (absent on cash transfers).
+    # Soft-kept after upstream removal from SubaccountTransfer (cash-only list).
+    transfer_type: Literal["cash", "position"] | None = None
     market_ticker: str | None = None
     side: Literal["yes", "no"] | None = None
     count: int | None = None

@@ -146,49 +146,6 @@ paths:
           $ref: '#/components/responses/RateLimitError'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /margin/fcm/orders:
-    get:
-      operationId: GetMarginFCMOrders
-      summary: Get FCM Orders
-      description: >
-        Endpoint for FCM members to get margin orders filtered by subtrader ID.
-
-        This endpoint requires FCM member access level and allows filtering
-        margin orders by subtrader ID.
-      tags:
-        - fcm
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
-      parameters:
-        - name: subtrader_id
-          in: query
-          required: true
-          description: >-
-            Restricts the response to margin orders for a specific subtrader
-            (FCM members only)
-          schema:
-            type: string
-        - $ref: '#/components/parameters/TickerQuery'
-        - $ref: '#/components/parameters/MinTsQuery'
-        - $ref: '#/components/parameters/MaxTsQuery'
-        - $ref: '#/components/parameters/StatusQuery'
-        - $ref: '#/components/parameters/MarginOrdersLimitQuery'
-        - $ref: '#/components/parameters/CursorQuery'
-      responses:
-        '200':
-          description: Margin orders retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GetMarginOrdersResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /margin/orders/{order_id}:
     get:
       operationId: GetMarginOrder
@@ -2968,8 +2925,6 @@ tags:
     description: Order group management endpoints
   - name: portfolio
     description: Portfolio and balance information endpoints
-  - name: fcm
-    description: FCM member specific endpoints
   - name: risk
     description: Margin risk metrics, parameters, and limits
   - name: funding

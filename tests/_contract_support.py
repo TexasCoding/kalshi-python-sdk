@@ -1380,16 +1380,10 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/orders/{order_id}/amend",
         request_body_schema="#/components/schemas/AmendMarginOrderRequest",
     ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list_fcm",
-        http_method="GET",
-        path_template="/margin/fcm/orders",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm",
-        http_method="GET",
-        path_template="/margin/fcm/orders",
-    ),
+    # list_fcm / list_all_fcm intentionally unmapped: upstream removed
+    # GET /margin/fcm/orders from perps OpenAPI (spec-drift #482). Methods are
+    # soft-deprecated (retained + DeprecationWarning) pending confirmation —
+    # same pattern as exchange.announcements after 3.24.0.
     # ── perps order_groups (#392) ──────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.order_groups.OrderGroupsResource.list",
@@ -1603,15 +1597,7 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
-    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm", "cursor"): Exclusion(
-        reason="paginator-handled; not a caller-facing kwarg on list_all_fcm",
-        kind="paginator_handled",
-    ),
     ("kalshi.perps.resources.orders.MarginOrdersResource.list_all", "max_pages"): Exclusion(
-        reason="client-side paginator safety cap (#98); not a wire param",
-        kind="client_only",
-    ),
-    ("kalshi.perps.resources.orders.MarginOrdersResource.list_all_fcm", "max_pages"): Exclusion(
         reason="client-side paginator safety cap (#98); not a wire param",
         kind="client_only",
     ),
