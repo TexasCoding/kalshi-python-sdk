@@ -33,6 +33,12 @@ and a perps OpenAPI path removal). Closes #481, #482.
 - Perps OpenAPI: removed `GET /margin/fcm/orders` and the `fcm` tag (paths
   32→31). Perps AsyncAPI / SCM specs unchanged.
 
+### Infra
+
+- Removed Claude Code Action workflows (`claude-code-review.yml`,
+  `claude.yml`) — the automated review check was failing CI without adding
+  required signal.
+
 ## 7.1.0 — 2026-07-17
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.24.0 → 3.25.0** (Closes #475).

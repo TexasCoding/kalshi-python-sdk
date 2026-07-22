@@ -79,13 +79,8 @@ If your change adds a new endpoint, register it in
 
 ## Review cycle
 
-Most PRs receive an automated code review from Claude (the
-`claude-review` check). This is **advisory, not required** — it fails
-by design on Dependabot PRs and on PRs that modify the review workflow
-itself. When it does run, please address the substantive feedback or
-reply with a brief justification for skipping it. Maintainers
-squash-merge after the required CI checks are green and review is
-addressed.
+Maintainers squash-merge after the required CI checks are green and any
+human review feedback is addressed.
 
 ## Reporting bugs / requesting features
 
