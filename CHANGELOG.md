@@ -2,10 +2,11 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## Unreleased
+## 7.2.0 — 2026-07-22
 
-Syncs upstream OpenAPI/AsyncAPI specs (in-place edits under OpenAPI **3.25.0**
-and a perps OpenAPI path removal). Closes #481, #482.
+Reconciles upstream OpenAPI/perps OpenAPI drift under version string **3.25.0**
+(Closes #481, #482). Soft-deprecation + defensive model relaxations only — no
+breaking public-API removals.
 
 ### Deprecated
 
@@ -29,9 +30,10 @@ and a perps OpenAPI path removal). Closes #481, #482.
 
 ### Spec notes
 
-- Core OpenAPI `info.version` still `3.25.0` (content-only change; paths 91→91).
+- Core OpenAPI `info.version` still `3.25.0` (content-only change; paths 91→91,
+  102 operations / 101 mapped).
 - Perps OpenAPI: removed `GET /margin/fcm/orders` and the `fcm` tag (paths
-  32→31). Perps AsyncAPI / SCM specs unchanged.
+  32→31, operations 35→34). Perps AsyncAPI / SCM specs unchanged.
 
 ### Infra
 

@@ -60,7 +60,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 |---|---|
 | `exchange` | `status()`, `enabled()` (per-member access gate), `risk_parameters()` |
 | `markets` | `list()`, `get()`, `orderbook()`, `candlesticks()` |
-| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()`; soft-deprecated `list_fcm()` / `list_all_fcm()` (path removed upstream) |
+| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()` |
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
@@ -69,6 +69,13 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
+
+!!! warning "Deprecated in v7.2.0 — `list_fcm` / `list_all_fcm`"
+    Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI. The SDK
+    methods still exist (sync + async) but emit a `DeprecationWarning` and may
+    404 against the live API. They will be removed in a future major release
+    once the removal is confirmed permanent. Prediction-API FCM
+    (`client.fcm.*` on `/fcm/*`) is unchanged.
 
 ## Value types & timestamps
 

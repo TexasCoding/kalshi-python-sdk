@@ -1,5 +1,57 @@
 # Migration
 
+## v7.1 → v7.2.0
+
+Reconciles in-place OpenAPI/perps OpenAPI edits under version string **3.25.0**
+(no `info.version` bump upstream). **No breaking public-API removals** —
+one soft-deprecation and a defensive model relaxation.
+
+### Deprecated: `PerpsClient.orders.list_fcm()` / `list_all_fcm()`
+
+Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI, so the live
+endpoint may 404. The methods (sync + async) are **retained** and emit a
+`DeprecationWarning` on each call — same soft-deprecation pattern as
+`exchange.announcements()` after 3.24.0. A future major release removes them
+once the removal is confirmed permanent.
+
+```python
+# Still callable, but warns and may 404:
+# perps.orders.list_fcm(subtrader_id="...")
+# list(perps.orders.list_all_fcm(subtrader_id="..."))
+```
+
+Prediction-API FCM routes (`client.fcm.orders` / `client.fcm.positions` on
+`/fcm/*`) are **unchanged**.
+
+### Changed: `SubaccountTransfer` is cash-only on the wire
+
+`GET /portfolio/subaccounts/transfers` no longer returns position-transfer
+rows. Upstream dropped `transfer_type` and the position-only fields
+(`market_ticker`, `side`, `count`, `price`) from the schema.
+
+- New responses omit those fields; `t.transfer_type` is `None` unless a lagging
+  server still sends it.
+- Position moves continue via `subaccounts.transfer_position()` (and its
+  request/response models) — not via the transfers list.
+- The SDK keeps the dropped fields as **optional** so older payloads still
+  parse (defensive optional-ization).
+
+```python
+page = client.subaccounts.list_transfers()
+for t in page:
+    # cash row only
+    print(t.transfer_id, t.amount_cents, t.from_subaccount, t.to_subaccount)
+    # t.transfer_type may be None (no longer required on the wire)
+```
+
+### Infra
+
+Claude Code Action workflows (`claude-review` / `@claude`) were removed from
+CI; they are not part of the public SDK surface.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v7.0 → v7.1.0
 
 Syncs the SDK to OpenAPI/AsyncAPI spec **3.25.0**. **No breaking changes.**
