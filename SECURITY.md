@@ -68,7 +68,7 @@ Out of scope:
 - Spec-sync workflow runs with `contents: read` only; it cannot push,
   open PRs, or execute upstream-derived Python.
 - Third-party Actions SHA-pinned in workflows that hold elevated
-  permissions (release, spec-sync, claude review).
+  permissions (release, spec-sync).
 - RSA-PSS request signing with timestamp; signatures rejected if
   clock-skew exceeds the API's tolerance.
 

@@ -198,7 +198,7 @@ class GetMarginOrderResponse(BaseModel):
 
 
 class GetMarginOrdersResponse(BaseModel):
-    """Paginated envelope for ``GET /margin/orders`` and ``GET /margin/fcm/orders``.
+    """Paginated envelope for ``GET /margin/orders`` (and soft-deprecated FCM list).
 
     Spec ``GetMarginOrdersResponse`` (line 1759). ``cursor`` drives
     ``list_all()`` / ``list_all_fcm()``.

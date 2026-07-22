@@ -92,6 +92,8 @@ class TestSubaccountModels:
         assert bal.updated_ts == 1_700_000_000
 
     def test_subaccount_transfer_parses(self) -> None:
+        # Spec sync (2026-07-20/21): GET transfers is cash-only; transfer_type
+        # and position fields are no longer on the wire schema.
         t = SubaccountTransfer.model_validate(
             {
                 "transfer_id": "xfer-1",
@@ -100,20 +102,18 @@ class TestSubaccountModels:
                 "amount_cents": 500,
                 "created_ts": 1_700_000_000,
                 "exchange_index": 0,
-                "transfer_type": "cash",
             }
         )
         assert t.transfer_id == "xfer-1"
         assert t.amount_cents == 500
         assert t.exchange_index == 0
-        assert t.transfer_type == "cash"
-        # Position-only fields are absent on a cash transfer.
+        assert t.transfer_type is None
         assert t.market_ticker is None
         assert t.side is None
 
-    def test_subaccount_position_transfer_parses(self) -> None:
-        # v3.24.0: position transfers carry market_ticker/side/count/price (the
-        # per-contract price is now FixedPointDollars, renamed from price_cents).
+    def test_subaccount_transfer_soft_keeps_legacy_position_fields(self) -> None:
+        # Lagging servers / cached payloads with the pre-removal shape still
+        # parse: transfer_type and position-only fields are optional.
         t = SubaccountTransfer.model_validate(
             {
                 "transfer_id": "xfer-2",
@@ -135,11 +135,9 @@ class TestSubaccountModels:
         assert t.count == 10
         assert t.price == Decimal("0.55")
 
-    def test_subaccount_transfer_requires_v3_23_fields(self) -> None:
-        # exchange_index and transfer_type are spec-required (v3.23.0). A
-        # 3.23.0 server always sends them; omitting them is a hard error rather
-        # than silently defaulting — matches the drift suite's spec-required =>
-        # SDK-required enforcement.
+    def test_subaccount_transfer_requires_exchange_index(self) -> None:
+        # exchange_index remains spec-required. transfer_type was removed from
+        # the wire schema and is optional on the SDK (defensive optional-ization).
         with pytest.raises(ValidationError):
             SubaccountTransfer.model_validate(
                 {
@@ -148,7 +146,7 @@ class TestSubaccountModels:
                     "to_subaccount": 1,
                     "amount_cents": 100,
                     "created_ts": 1_700_000_200,
-                    # exchange_index + transfer_type intentionally omitted
+                    # exchange_index intentionally omitted
                 }
             )
 
@@ -611,7 +609,6 @@ class TestSubaccountsListTransfers:
                             "amount_cents": 100,
                             "created_ts": 1,
                             "exchange_index": 0,
-                            "transfer_type": "cash",
                         },
                     ],
                     "cursor": "next",
@@ -641,7 +638,6 @@ class TestSubaccountsListTransfers:
                                 "amount_cents": 100,
                                 "created_ts": 1,
                                 "exchange_index": 0,
-                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",
@@ -658,7 +654,6 @@ class TestSubaccountsListTransfers:
                                 "amount_cents": 50,
                                 "created_ts": 2,
                                 "exchange_index": 0,
-                                "transfer_type": "cash",
                             },
                         ],
                     },
@@ -833,7 +828,6 @@ class TestAsyncSubaccounts:
                                 "amount_cents": 100,
                                 "created_ts": 1,
                                 "exchange_index": 0,
-                                "transfer_type": "cash",
                             },
                         ],
                         "cursor": "p2",

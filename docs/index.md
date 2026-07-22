@@ -15,7 +15,7 @@ markets API.
   backpressure strategies, and an in-memory orderbook builder. Async-only —
   access via `AsyncKalshiClient.ws`.
 - **Perps (margin) API** — standalone `PerpsClient` / `AsyncPerpsClient` +
-  `PerpsWebSocket` for the perpetual-futures exchange (35 REST operations, 6 WS
+  `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
   (11 operations, Bearer token auth). See [Perps](perps.md).
 - **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)

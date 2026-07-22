@@ -2,6 +2,45 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 7.2.0 — 2026-07-22
+
+Reconciles upstream OpenAPI/perps OpenAPI drift under version string **3.25.0**
+(Closes #481, #482). Soft-deprecation + defensive model relaxations only — no
+breaking public-API removals.
+
+### Deprecated
+
+- **`PerpsClient.orders.list_fcm()` / `list_all_fcm()`** (sync + async) now emit
+  a `DeprecationWarning`. Kalshi removed `GET /margin/fcm/orders` from the
+  perps OpenAPI, so the live endpoint may 404. Methods are **retained**
+  (soft-deprecated) pending confirmation the removal is permanent — same
+  pattern as `exchange.announcements()` after 3.24.0.
+
+### Changed
+
+- **`SubaccountTransfer` is cash-only on the wire.** Upstream dropped
+  `transfer_type` (was required) and the position-only fields
+  (`market_ticker`, `side`, `count`, `price`) from
+  `GET /portfolio/subaccounts/transfers`. Position moves remain on
+  `POST /portfolio/subaccounts/positions/transfer`
+  (`transfer_position()`). Dropped fields are **defensively optional** on the
+  SDK model so lagging payloads still parse; new responses omit them.
+  `transfer_type` is now `Literal["cash", "position"] | None` (default
+  `None`).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still `3.25.0` (content-only change; paths 91→91,
+  102 operations / 101 mapped).
+- Perps OpenAPI: removed `GET /margin/fcm/orders` and the `fcm` tag (paths
+  32→31, operations 35→34). Perps AsyncAPI / SCM specs unchanged.
+
+### Infra
+
+- Removed Claude Code Action workflows (`claude-code-review.yml`,
+  `claude.yml`) — the automated review check was failing CI without adding
+  required signal.
+
 ## 7.1.0 — 2026-07-17
 
 Syncs the upstream OpenAPI/AsyncAPI specs **3.24.0 → 3.25.0** (Closes #475).

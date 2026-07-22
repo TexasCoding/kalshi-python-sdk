@@ -2,6 +2,11 @@
 
 ## Shipped
 
+- **v7.2.0 (2026-07-22)** — Spec-drift reconcile under OpenAPI 3.25.0
+  (#481 / #482 / #483). Soft-deprecate perps `orders.list_fcm` /
+  `list_all_fcm` (upstream removed `GET /margin/fcm/orders`).
+  `SubaccountTransfer` cash-only on the wire (`transfer_type` + position
+  fields defensive-optional). Removed Claude Code Action CI workflows.
 - **v7.1.0 (2026-07-17)** — OpenAPI sync v3.24.0 → v3.25.0 (#475 / #476).
   Additive: `MarginMarket.schedule` + nested `MarginMarketSchedule` (null for
   24/7 markets). Core `POST /portfolio/intra_exchange_instance_transfer`
