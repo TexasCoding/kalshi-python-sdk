@@ -1,4 +1,4 @@
-"""Historical resource — cutoff, markets, fills, orders, trades."""
+"""Historical resource — cutoff, markets, fills, orders, trades, positions."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from kalshi.models.historical import (
 )
 from kalshi.models.markets import Candlestick, Market
 from kalshi.models.orders import Fill, Order
+from kalshi.models.portfolio import MarketPosition, PositionsResponse
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
@@ -89,6 +90,27 @@ def _historical_trades_params(
         min_ts=min_ts,
         max_ts=max_ts,
         is_block_trade=_bool_param(is_block_trade),
+    )
+
+
+def _historical_positions_params(
+    *,
+    limit: int | None,
+    cursor: str | None,
+    ticker: str | None,
+    event_ticker: str | None,
+) -> dict[str, Any]:
+    """Query params for GET /historical/positions.
+
+    Spec params are a subset of /portfolio/positions (no ``count_filter``,
+    no ``subaccount``).
+    """
+    limit = _validate_limit(limit, hi=1000)
+    return _params(
+        limit=limit,
+        cursor=cursor,
+        ticker=ticker,
+        event_ticker=event_ticker,
     )
 
 
@@ -324,6 +346,63 @@ class HistoricalResource(SyncResource):
             extra_headers=extra_headers,
         )
 
+    def positions(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> PositionsResponse:
+        """Settled market positions archived to the historical database.
+
+        Positions whose markets were archived before
+        ``market_positions_last_updated_ts`` on :meth:`cutoff` are available
+        here. Unsettled positions remain on ``GET /portfolio/positions``.
+        """
+        self._require_auth()
+        params = _historical_positions_params(
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+        )
+        data = self._get("/historical/positions", params=params, extra_headers=extra_headers)
+        return PositionsResponse.model_validate(data)
+
+    def positions_all(
+        self,
+        *,
+        limit: int | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[MarketPosition]:
+        """Auto-paginate ``/historical/positions``, yielding each ``MarketPosition``.
+
+        Mirrors :meth:`kalshi.resources.portfolio.PortfolioResource.positions_all`.
+        ``event_positions`` aggregates are not iterated (page boundaries cut them
+        arbitrarily); use :meth:`positions` page-by-page for the event view.
+        """
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _historical_positions_params(
+            limit=limit,
+            cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+        )
+        return self._list_all(
+            "/historical/positions",
+            MarketPosition,
+            "market_positions",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncHistoricalResource(AsyncResource):
     """Async historical data API."""
@@ -552,6 +631,65 @@ class AsyncHistoricalResource(AsyncResource):
             "/historical/trades",
             Trade,
             "trades",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    async def positions(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> PositionsResponse:
+        """Settled market positions archived to the historical database.
+
+        Positions whose markets were archived before
+        ``market_positions_last_updated_ts`` on :meth:`cutoff` are available
+        here. Unsettled positions remain on ``GET /portfolio/positions``.
+        """
+        self._require_auth()
+        params = _historical_positions_params(
+            limit=limit,
+            cursor=cursor,
+            ticker=ticker,
+            event_ticker=event_ticker,
+        )
+        data = await self._get(
+            "/historical/positions", params=params, extra_headers=extra_headers
+        )
+        return PositionsResponse.model_validate(data)
+
+    def positions_all(
+        self,
+        *,
+        limit: int | None = None,
+        ticker: str | None = None,
+        event_ticker: str | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[MarketPosition]:
+        """Auto-paginate ``/historical/positions``, yielding each ``MarketPosition``.
+
+        Mirrors :meth:`kalshi.resources.portfolio.AsyncPortfolioResource.positions_all`.
+        ``event_positions`` aggregates are not iterated (page boundaries cut them
+        arbitrarily); use :meth:`positions` page-by-page for the event view.
+        """
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _historical_positions_params(
+            limit=limit,
+            cursor=None,
+            ticker=ticker,
+            event_ticker=event_ticker,
+        )
+        return self._list_all(
+            "/historical/positions",
+            MarketPosition,
+            "market_positions",
             params=params,
             max_pages=max_pages,
             extra_headers=extra_headers,

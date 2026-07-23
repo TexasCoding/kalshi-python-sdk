@@ -21,6 +21,8 @@ class HistoricalCutoff(BaseModel):
     market_settled_ts: AwareDatetime
     trades_created_ts: AwareDatetime
     orders_updated_ts: AwareDatetime
+    # Spec v3.26.0 — archival boundary for GET /historical/positions.
+    market_positions_last_updated_ts: AwareDatetime | None = None
 
     model_config = {"extra": "allow"}
 

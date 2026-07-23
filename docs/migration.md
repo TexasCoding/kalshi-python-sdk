@@ -1,5 +1,31 @@
 # Migration
 
+## v7.2 → v7.3.0
+
+Syncs the SDK to core OpenAPI **3.26.0** and closes residual Klear settlement
+additive-optional drift (Closes #484). **No breaking changes.**
+
+### Added
+
+- **`historical.positions()` / `positions_all()`** (sync + async) —
+  `GET /historical/positions`. Auth required. Returns `PositionsResponse`
+  (same shape as `portfolio.positions()`). Filters: `limit`, `cursor`,
+  `ticker`, `event_ticker` only — no `count_filter` / `subaccount`.
+- **`HistoricalCutoff.market_positions_last_updated_ts`**
+  (`AwareDatetime | None`) — archival boundary for historical positions.
+- **`omitted_subtrader_count`** (`int | None`) on
+  `GetSettlementEstimateResponse` and `AssetClassSettlementEstimate` (Klear).
+
+```python
+co = client.historical.cutoff()
+if co.market_positions_last_updated_ts is not None:
+    for mp in client.historical.positions_all():
+        print(mp.ticker, mp.position)
+```
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v7.1 → v7.2.0
 
 Reconciles in-place OpenAPI/perps OpenAPI edits under version string **3.25.0**

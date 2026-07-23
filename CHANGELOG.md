@@ -2,6 +2,40 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 7.3.0 — 2026-07-23
+
+Syncs the upstream core OpenAPI **3.25.0 → 3.26.0** and closes the remaining
+Klear settlement additive-optional drift (Closes #484). Additive only — no
+breaking public-API changes.
+
+### Added
+
+- **`historical.positions()` / `positions_all()`** (sync + async) —
+  `GET /historical/positions`. Settled market positions archived to the
+  historical database (positions whose markets were archived before
+  `market_positions_last_updated_ts` on `GET /historical/cutoff`). Returns
+  `PositionsResponse` (same shape as `portfolio.positions()`). Query params
+  are a subset of the live portfolio surface: `limit`, `cursor`, `ticker`,
+  `event_ticker` (no `count_filter` / `subaccount`). Auth required.
+  `positions_all()` auto-paginates `market_positions` (mirrors
+  `portfolio.positions_all()`).
+- **`HistoricalCutoff.market_positions_last_updated_ts`**
+  (`AwareDatetime | None`) — archival boundary for historical positions.
+  Unsettled positions remain on `GET /portfolio/positions`.
+- **`GetSettlementEstimateResponse.omitted_subtrader_count`** and
+  **`AssetClassSettlementEstimate.omitted_subtrader_count`** (Klear SCM;
+  `int | None`) — number of subtraders omitted from `subtrader_breakdowns`
+  (their amounts remain included in `user_breakdown`).
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.25.0 → 3.26.0** (paths 91→92, 103 operations /
+  102 mapped). Still unimplemented:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()` on the margin product).
+- Perps OpenAPI / AsyncAPI / SCM specs unchanged in content for this release
+  beyond the Klear field already present on the SCM settlement schemas.
+
 ## 7.2.0 — 2026-07-22
 
 Reconciles upstream OpenAPI/perps OpenAPI drift under version string **3.25.0**

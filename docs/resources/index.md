@@ -83,7 +83,8 @@ A few public-looking endpoints also require auth at the SDK layer:
   book behind auth.
 - `series.forecast_percentile_history()` — auth required.
 - `exchange.user_data_timestamp()` — auth required.
-- All of `historical.fills` / `historical.orders` (user data).
+- All of `historical.fills` / `historical.orders` / `historical.positions`
+  (user data).
 
 Use `client.is_authenticated` to branch on it explicitly:
 

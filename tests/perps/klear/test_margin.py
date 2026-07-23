@@ -330,6 +330,7 @@ class TestSettlementEstimateByAssetClass:
                             "user_breakdown": _estimate(),
                             "subtrader_breakdowns": {"st1": _estimate()},
                             "prev_settlement_prices": {"BTC-PERP": 5000},
+                            "omitted_subtrader_count": 2,
                         }
                     },
                     "settlement_balance_centicents": 123456,
@@ -345,6 +346,7 @@ class TestSettlementEstimateByAssetClass:
         assert crypto.subtrader_breakdowns is not None
         assert crypto.subtrader_breakdowns["st1"].variation_margin_centicents == 1000
         assert crypto.prev_settlement_prices == {"BTC-PERP": 5000}
+        assert crypto.omitted_subtrader_count == 2
         auth_klear_client.close()
 
     @respx.mock
@@ -363,6 +365,7 @@ class TestSettlementEstimateByAssetClass:
         assert crypto.user_breakdown is None
         assert crypto.subtrader_breakdowns is None
         assert crypto.prev_settlement_prices is None
+        assert crypto.omitted_subtrader_count is None
         auth_klear_client.close()
 
     @respx.mock
@@ -461,6 +464,7 @@ class TestSettlementEstimate:
                     "user_breakdown": _estimate(),
                     "subtrader_breakdowns": {"st1": _estimate(), "st2": _estimate()},
                     "settlement_balance_centicents": 50000,
+                    "omitted_subtrader_count": 3,
                 },
             )
         )
@@ -470,6 +474,7 @@ class TestSettlementEstimate:
         assert isinstance(resp.settlement_balance_centicents, int)
         assert set(resp.subtrader_breakdowns or {}) == {"st1", "st2"}
         assert isinstance(resp.subtrader_breakdowns["st1"], SettlementEstimate)  # type: ignore[index]
+        assert resp.omitted_subtrader_count == 3
         auth_klear_client.close()
 
     @respx.mock

@@ -2,6 +2,10 @@
 
 ## Shipped
 
+- **v7.3.0 (2026-07-23)** — OpenAPI sync 3.25.0 → 3.26.0 (#484). Additive:
+  `historical.positions()` / `positions_all()` (`GET /historical/positions`),
+  `HistoricalCutoff.market_positions_last_updated_ts`, and Klear
+  `omitted_subtrader_count` on settlement-estimate responses.
 - **v7.2.0 (2026-07-22)** — Spec-drift reconcile under OpenAPI 3.25.0
   (#481 / #482 / #483). Soft-deprecate perps `orders.list_fcm` /
   `list_all_fcm` (upstream removed `GET /margin/fcm/orders`).
