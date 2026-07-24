@@ -11,9 +11,17 @@ import respx
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import KalshiNotFoundError
+from kalshi.errors import AuthRequiredError, KalshiNotFoundError
 from kalshi.resources.historical import AsyncHistoricalResource, HistoricalResource
-from tests._model_fixtures import candlestick_dict, fill_dict, market_dict, order_dict, trade_dict
+from tests._model_fixtures import (
+    candlestick_dict,
+    event_position_dict,
+    fill_dict,
+    market_dict,
+    market_position_dict,
+    order_dict,
+    trade_dict,
+)
 
 
 @pytest.fixture
@@ -33,6 +41,16 @@ def historical(test_auth: KalshiAuth, config: KalshiConfig) -> HistoricalResourc
 @pytest.fixture
 def async_historical(test_auth: KalshiAuth, config: KalshiConfig) -> AsyncHistoricalResource:
     return AsyncHistoricalResource(AsyncTransport(test_auth, config))
+
+
+@pytest.fixture
+def unauth_historical(config: KalshiConfig) -> HistoricalResource:
+    return HistoricalResource(SyncTransport(None, config))
+
+
+@pytest.fixture
+def unauth_async_historical(config: KalshiConfig) -> AsyncHistoricalResource:
+    return AsyncHistoricalResource(AsyncTransport(None, config))
 
 
 BASE = "https://test.kalshi.com/trade-api/v2"
@@ -58,6 +76,27 @@ class TestHistoricalCutoff:
         assert cutoff.market_settled_ts is not None
         assert cutoff.trades_created_ts is not None
         assert cutoff.orders_updated_ts is not None
+        assert cutoff.market_positions_last_updated_ts is None
+
+    @respx.mock
+    def test_returns_cutoff_with_market_positions_ts(
+        self, historical: HistoricalResource
+    ) -> None:
+        """Spec v3.26.0: optional market_positions_last_updated_ts archival boundary."""
+        respx.get(f"{BASE}/historical/cutoff").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "market_settled_ts": "2026-04-01T00:00:00Z",
+                    "trades_created_ts": "2026-04-01T00:00:00Z",
+                    "orders_updated_ts": "2026-04-01T00:00:00Z",
+                    "market_positions_last_updated_ts": "2026-03-15T12:00:00Z",
+                },
+            )
+        )
+        cutoff = historical.cutoff()
+        assert cutoff.market_positions_last_updated_ts is not None
+        assert cutoff.market_positions_last_updated_ts.year == 2026
 
 
 class TestHistoricalMarkets:
@@ -766,3 +805,230 @@ class TestAsyncHistoricalOrders:
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["max_ts"] == "1700099999"
+
+
+# ── Historical positions (spec v3.26.0 / #484) ─────────────────────────────
+
+
+class TestHistoricalPositions:
+    @respx.mock
+    def test_returns_positions(self, historical: HistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "market_positions": [
+                        market_position_dict(
+                            ticker="MKT-A",
+                            total_traded_dollars="100.0000",
+                            position_fp="50.00",
+                            market_exposure_dollars="25.0000",
+                            realized_pnl_dollars="10.0000",
+                            fees_paid_dollars="1.5000",
+                            resting_orders_count=0,
+                        )
+                    ],
+                    "event_positions": [
+                        event_position_dict(
+                            event_ticker="EVT-1",
+                            total_cost_dollars="200.0000",
+                            total_cost_shares_fp="100.00",
+                            event_exposure_dollars="50.0000",
+                            realized_pnl_dollars="20.0000",
+                            fees_paid_dollars="3.0000",
+                        )
+                    ],
+                    "cursor": "next-page",
+                },
+            )
+        )
+        resp = historical.positions()
+        assert len(resp.market_positions) == 1
+        assert resp.market_positions[0].ticker == "MKT-A"
+        assert resp.market_positions[0].position == Decimal("50.00")
+        assert resp.market_positions[0].total_traded == Decimal("100.0000")
+        assert len(resp.event_positions) == 1
+        assert resp.event_positions[0].event_ticker == "EVT-1"
+        assert resp.has_next is True
+        assert resp.cursor == "next-page"
+
+    @respx.mock
+    def test_empty_positions(self, historical: HistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200,
+                json={"market_positions": [], "event_positions": []},
+            )
+        )
+        resp = historical.positions()
+        assert resp.market_positions == []
+        assert resp.event_positions == []
+        assert resp.has_next is False
+
+    @respx.mock
+    def test_positions_with_filters(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        historical.positions(
+            limit=50,
+            cursor="abc",
+            ticker="MKT-A",
+            event_ticker="EVT-X",
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "50"
+        assert params["cursor"] == "abc"
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        # Historical positions do not accept portfolio-only params.
+        assert "count_filter" not in params
+        assert "subaccount" not in params
+
+    def test_positions_requires_auth(self, unauth_historical: HistoricalResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_historical.positions()
+
+    def test_count_filter_kwarg_rejected(self, historical: HistoricalResource) -> None:
+        """Historical positions is a subset of portfolio positions — no count_filter."""
+        with pytest.raises(TypeError, match="count_filter"):
+            historical.positions(count_filter="position")  # type: ignore[call-arg]
+
+
+class TestHistoricalPositionsAll:
+    @respx.mock
+    def test_positions_all_paginates(self, historical: HistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [
+                            market_position_dict(ticker="A"),
+                            market_position_dict(ticker="B"),
+                        ],
+                        "event_positions": [],
+                        "cursor": "page2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="C")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker for p in historical.positions_all()]
+        assert tickers == ["A", "B", "C"]
+
+    @respx.mock
+    def test_positions_all_forwards_filters_and_omits_cursor(
+        self, historical: HistoricalResource
+    ) -> None:
+        route = respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        list(
+            historical.positions_all(
+                limit=100,
+                ticker="MKT-A",
+                event_ticker="EVT-X",
+            )
+        )
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "100"
+        assert params["ticker"] == "MKT-A"
+        assert params["event_ticker"] == "EVT-X"
+        assert "cursor" not in params
+
+    def test_positions_all_requires_auth(self, unauth_historical: HistoricalResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_historical.positions_all())
+
+    def test_positions_all_rejects_zero_max_pages(self, historical: HistoricalResource) -> None:
+        with pytest.raises(ValueError, match="max_pages must be positive"):
+            list(historical.positions_all(max_pages=0))
+
+
+class TestAsyncHistoricalPositions:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_positions(self, async_historical: AsyncHistoricalResource) -> None:
+        respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "market_positions": [market_position_dict(ticker="MKT-A", position_fp="10.00")],
+                    "event_positions": [],
+                    "cursor": "",
+                },
+            )
+        )
+        resp = await async_historical.positions()
+        assert len(resp.market_positions) == 1
+        assert resp.market_positions[0].ticker == "MKT-A"
+        assert resp.market_positions[0].position == Decimal("10.00")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_positions_with_filters(self, async_historical: AsyncHistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        await async_historical.positions(limit=25, ticker="MKT-B", event_ticker="EVT-Y")
+        params = dict(route.calls[0].request.url.params)
+        assert params["limit"] == "25"
+        assert params["ticker"] == "MKT-B"
+        assert params["event_ticker"] == "EVT-Y"
+
+    @pytest.mark.asyncio
+    async def test_positions_requires_auth(
+        self, unauth_async_historical: AsyncHistoricalResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_historical.positions()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_positions_all_paginates(
+        self, async_historical: AsyncHistoricalResource
+    ) -> None:
+        respx.get(f"{BASE}/historical/positions").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="A")],
+                        "event_positions": [],
+                        "cursor": "p2",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "market_positions": [market_position_dict(ticker="B")],
+                        "event_positions": [],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        tickers = [p.ticker async for p in async_historical.positions_all()]
+        assert tickers == ["A", "B"]
+
+    @pytest.mark.asyncio
+    async def test_positions_all_requires_auth(
+        self, unauth_async_historical: AsyncHistoricalResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            async for _ in unauth_async_historical.positions_all():
+                pass

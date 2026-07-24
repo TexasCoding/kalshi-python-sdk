@@ -122,7 +122,7 @@ tests/
 
 ## API Reference
 
-- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.25.0, 102 operations; 101 mapped in the core SDK — `POST /portfolio/intra_exchange_instance_transfer` is currently not available upstream)
+- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.26.0, 103 operations; 102 mapped in the core SDK — `POST /portfolio/intra_exchange_instance_transfer` is currently not available upstream)
 - AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (13 WebSocket channels)
 - Base URL: https://api.elections.kalshi.com/trade-api/v2
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2

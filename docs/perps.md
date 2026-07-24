@@ -197,6 +197,12 @@ currently-active settlement obligations (the plural sibling of the single-obliga
 `active_obligation()`), and `klear.margin.settlement_estimate_by_asset_class()`
 returns next-settlement estimates keyed by asset class.
 
+Settlement-estimate responses also expose optional
+`omitted_subtrader_count` (`int | None`, SDK v7.3.0) on
+`GetSettlementEstimateResponse` and each `AssetClassSettlementEstimate` — the
+number of subtraders left out of `subtrader_breakdowns` (their amounts remain
+in `user_breakdown`).
+
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as

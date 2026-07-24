@@ -10,6 +10,7 @@ from kalshi.models.common import Page
 from kalshi.models.historical import HistoricalCutoff, Trade
 from kalshi.models.markets import Candlestick, Market
 from kalshi.models.orders import Fill, Order
+from kalshi.models.portfolio import MarketPosition, PositionsResponse
 from tests.integration.assertions import assert_model_fields
 from tests.integration.coverage_harness import register
 
@@ -25,6 +26,8 @@ register(
         "markets_all",
         "orders",
         "orders_all",
+        "positions",
+        "positions_all",
         "trades",
         "trades_all",
     ],
@@ -126,6 +129,21 @@ class TestHistoricalSync:
             if count >= 2:
                 break
 
+    def test_positions(self, sync_client: KalshiClient) -> None:
+        result = sync_client.historical.positions(limit=5)
+        assert isinstance(result, PositionsResponse)
+        for item in result.market_positions:
+            assert isinstance(item, MarketPosition)
+            assert_model_fields(item)
+
+    def test_positions_all(self, sync_client: KalshiClient) -> None:
+        for count, position in enumerate(sync_client.historical.positions_all(limit=2)):
+            assert isinstance(position, MarketPosition)
+            assert_model_fields(position)
+
+            if count >= 2:
+                break
+
 
 @pytest.mark.integration
 class TestHistoricalAsync:
@@ -220,6 +238,22 @@ class TestHistoricalAsync:
         async for trade in async_client.historical.trades_all(limit=2):
             assert isinstance(trade, Trade)
             assert_model_fields(trade)
+            count += 1
+            if count >= 3:
+                break
+
+    async def test_positions(self, async_client: AsyncKalshiClient) -> None:
+        result = await async_client.historical.positions(limit=5)
+        assert isinstance(result, PositionsResponse)
+        for item in result.market_positions:
+            assert isinstance(item, MarketPosition)
+            assert_model_fields(item)
+
+    async def test_positions_all(self, async_client: AsyncKalshiClient) -> None:
+        count = 0
+        async for position in async_client.historical.positions_all(limit=2):
+            assert isinstance(position, MarketPosition)
+            assert_model_fields(position)
             count += 1
             if count >= 3:
                 break

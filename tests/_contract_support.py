@@ -351,6 +351,16 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/historical/trades",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.historical.HistoricalResource.positions",
+        http_method="GET",
+        path_template="/historical/positions",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.historical.HistoricalResource.positions_all",
+        http_method="GET",
+        path_template="/historical/positions",
+    ),
     # ── orders ──────────────────────────────────────────────────────────────
     # V1 order-write endpoints (create/cancel/batch_create/batch_cancel/amend/
     # decrease) were removed from the spec in v3.22.0 — only the V2 family below
@@ -920,6 +930,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    ("kalshi.resources.historical.HistoricalResource.positions_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.orders.OrdersResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1234,6 +1248,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.historical.HistoricalResource.fills_all",
     "kalshi.resources.historical.HistoricalResource.orders_all",
     "kalshi.resources.historical.HistoricalResource.trades_all",
+    "kalshi.resources.historical.HistoricalResource.positions_all",
     "kalshi.resources.orders.OrdersResource.list_all",
     "kalshi.resources.orders.OrdersResource.fills_all",
     "kalshi.resources.communications.CommunicationsResource.list_all_rfqs",
@@ -1264,6 +1279,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.historical.AsyncHistoricalResource.fills_all",
     "kalshi.resources.historical.AsyncHistoricalResource.orders_all",
     "kalshi.resources.historical.AsyncHistoricalResource.trades_all",
+    "kalshi.resources.historical.AsyncHistoricalResource.positions_all",
     "kalshi.resources.orders.AsyncOrdersResource.list_all",
     "kalshi.resources.orders.AsyncOrdersResource.fills_all",
     "kalshi.resources.communications.AsyncCommunicationsResource.list_all_rfqs",

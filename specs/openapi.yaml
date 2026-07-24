@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.25.0
+  version: 3.26.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -1529,7 +1529,7 @@ paths:
     post:
       operationId: CreateSubaccount
       summary: Create Subaccount
-      description: 'Creates a new subaccount for the authenticated user. This endpoint is currently only available to institutions and market makers. Subaccounts are numbered sequentially starting from 1. Maximum 63 numbered subaccounts per user (64 including the primary account).'
+      description: 'Creates a new subaccount for the authenticated user. This endpoint is available to all users on the Advanced API tier and above. Subaccounts are numbered sequentially starting from 1. Maximum 63 numbered subaccounts per user (64 including the primary account).'
       tags:
         - portfolio
       security:
@@ -3544,6 +3544,7 @@ paths:
         - `market_settled_ts` : Markets that **settled** before this timestamp, and their candlesticks, must be accessed via `GET /historical/markets` and `GET /historical/markets/{ticker}/candlesticks`.
         - `trades_created_ts` : Trades that were **filled** before this timestamp must be accessed via `GET /historical/fills`.
         - `orders_updated_ts` : Orders that were **canceled or fully executed** before this timestamp must be accessed via `GET /historical/orders`. Resting (active) orders are always available in `GET /portfolio/orders`.
+        - `market_positions_last_updated_ts` : Settled positions **archived from the live data set** before this timestamp must be accessed via `GET /historical/positions`. Unsettled positions are always available in `GET /portfolio/positions`.
       tags:
         - historical
       responses:
@@ -3662,6 +3663,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetOrdersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /historical/positions:
+    get:
+      operationId: GetHistoricalPositions
+      summary: Get Historical Positions
+      description: ' Endpoint for getting settled market positions that have been archived to the historical database. Positions whose markets were archived before `market_positions_last_updated_ts` on `GET /historical/cutoff` are available via this endpoint. Positions are archived per whole event: a settled event''s positions move here together and are never split between this endpoint and `GET /portfolio/positions`. Unsettled positions are always available via `GET /portfolio/positions`.'
+      tags:
+        - historical
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/TickerQuery'
+        - $ref: '#/components/parameters/SingleEventTickerQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/CursorQuery'
+      responses:
+        '200':
+          description: Historical positions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetPositionsResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
         '401':
@@ -4779,6 +4810,11 @@ components:
           format: date-time
           description: |
             Cutoff based on **order cancellation or execution time**. Orders canceled or fully executed before this timestamp must be accessed via `GET /historical/orders`. Resting (active) orders are always available in `GET /portfolio/orders`.
+        market_positions_last_updated_ts:
+          type: string
+          format: date-time
+          description: |
+            Cutoff based on **position last-update time**. Settled positions archived from the live data set before this timestamp are served through the historical section of position reads.
 
     GetUserDataTimestampResponse:
       type: object

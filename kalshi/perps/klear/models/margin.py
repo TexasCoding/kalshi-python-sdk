@@ -245,12 +245,16 @@ class GetSettlementEstimateResponse(BaseModel):
 
     ``prev_settlement_prices`` (spec v3.22.0) maps market ticker → most
     recent settlement (mark) price in centicents; optional.
+
+    ``omitted_subtrader_count`` is the number of subtraders omitted from
+    ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
     """
 
     user_breakdown: SettlementEstimate
     subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
     prev_settlement_prices: dict[str, int] | None = None
     settlement_balance_centicents: int
+    omitted_subtrader_count: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -278,12 +282,16 @@ class AssetClassSettlementEstimate(BaseModel):
     + previous settlement prices) and adds ``next_runtime``, the next
     settlement-cycle time. Only ``next_runtime`` is spec-required; the breakdowns
     are optional.
+
+    ``omitted_subtrader_count`` is the number of subtraders omitted from
+    ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
     """
 
     next_runtime: AwareDatetime
     user_breakdown: SettlementEstimate | None = None
     subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
     prev_settlement_prices: dict[str, int] | None = None
+    omitted_subtrader_count: int | None = None
 
     model_config = {"extra": "allow"}
 
