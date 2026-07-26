@@ -1071,6 +1071,26 @@ class TestStrictIntRejectsBoolOnRequestModels:
                 {"enabled": True},
             ),
             (
+                "kalshi.models.subaccounts:LockSubaccountForSettlementAdvanceRequest",
+                "subaccount_number",
+                {},
+            ),
+            (
+                "kalshi.models.subaccounts:LockSubaccountForSettlementAdvanceRequest",
+                "exchange_index",
+                {"subaccount_number": 0},
+            ),
+            (
+                "kalshi.models.subaccounts:UnlockSubaccountForSettlementAdvanceRequest",
+                "subaccount_number",
+                {},
+            ),
+            (
+                "kalshi.models.subaccounts:UnlockSubaccountForSettlementAdvanceRequest",
+                "exchange_index",
+                {"subaccount_number": 0},
+            ),
+            (
                 "kalshi.models.communications:CreateQuoteRequest",
                 "subaccount",
                 {

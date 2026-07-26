@@ -68,7 +68,10 @@ exposed by each resource method stays in lockstep with the OpenAPI spec.
 | `client.order_groups.create` | `CreateOrderGroupRequest` |
 | `client.order_groups.update_limit` | `UpdateOrderGroupLimitRequest` |
 | `client.subaccounts.transfer` | `ApplySubaccountTransferRequest` |
+| `client.subaccounts.transfer_position` | `ApplySubaccountPositionTransferRequest` |
 | `client.subaccounts.update_netting` | `UpdateSubaccountNettingRequest` |
+| `client.subaccounts.lock_settlement_advance` | `LockSubaccountForSettlementAdvanceRequest` |
+| `client.subaccounts.unlock_settlement_advance` | `UnlockSubaccountForSettlementAdvanceRequest` |
 
 All are importable from the top-level `kalshi` package.
 
