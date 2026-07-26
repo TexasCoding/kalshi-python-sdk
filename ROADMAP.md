@@ -2,6 +2,10 @@
 
 ## Shipped
 
+- **v7.4.0 (2026-07-26)** — OpenAPI 3.26.0 content reconcile (#486). Additive:
+  `subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`, and
+  `SubaccountBalance` settlement-advance fields (`voluntarily_locked`,
+  `settlement_advance`, `settlement_advance_state`).
 - **v7.3.0 (2026-07-23)** — OpenAPI sync 3.25.0 → 3.26.0 (#484). Additive:
   `historical.positions()` / `positions_all()` (`GET /historical/positions`),
   `HistoricalCutoff.market_positions_last_updated_ts`, and Klear

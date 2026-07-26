@@ -2,6 +2,40 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 7.4.0 — 2026-07-26
+
+Reconciles upstream core OpenAPI content under version string **3.26.0**
+(paths 92→93, 103→105 operations; 104 mapped) for the settlement-advance
+subaccount surface (Closes #486). Additive only — no breaking public-API
+removals.
+
+### Added
+
+- **`subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`**
+  (sync + async) — `PUT` / `DELETE`
+  `/portfolio/subaccounts/settlement-advance-lock`. Lock cancels resting
+  orders, prevents trading, and returns
+  `LockSubaccountForSettlementAdvanceResponse.settlement_advance_state`
+  (UUID CAS token). Unlock returns `None` (empty success body) and is
+  rejected while an outstanding settlement advance remains. Body:
+  required `subaccount_number`, optional `exchange_index`. Auth required.
+  Request models: `LockSubaccountForSettlementAdvanceRequest`,
+  `UnlockSubaccountForSettlementAdvanceRequest` (`extra="forbid"`).
+- **`SubaccountBalance.voluntarily_locked`** (`bool`, required) — whether
+  the subaccount is voluntarily locked for settlement-advance computation.
+- **`SubaccountBalance.settlement_advance`** (`DollarDecimal`, required) —
+  outstanding settlement advance in dollars.
+- **`SubaccountBalance.settlement_advance_state`** (`UUID | None`) —
+  current CAS token when one has been established.
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.26.0** (content-only change; paths
+  92→93, 105 operations / 104 mapped). Still unimplemented:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()` on the margin product).
+- Perps OpenAPI / AsyncAPI / SCM specs unchanged for this release.
+
 ## 7.3.0 — 2026-07-23
 
 Syncs the upstream core OpenAPI **3.25.0 → 3.26.0** and closes the remaining

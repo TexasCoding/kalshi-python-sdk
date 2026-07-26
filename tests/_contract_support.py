@@ -699,6 +699,18 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/subaccounts/netting",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.lock_settlement_advance",
+        http_method="PUT",
+        path_template="/portfolio/subaccounts/settlement-advance-lock",
+        request_body_schema="#/components/schemas/LockSubaccountForSettlementAdvanceRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.unlock_settlement_advance",
+        http_method="DELETE",
+        path_template="/portfolio/subaccounts/settlement-advance-lock",
+        request_body_schema="#/components/schemas/UnlockSubaccountForSettlementAdvanceRequest",
+    ),
     # ── portfolio ───────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.portfolio.PortfolioResource.balance",
@@ -979,6 +991,39 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason=(
             "Required request-model kwarg for the model-only V2 surface; "
             "not a spec field. Mirrors batch_cancel."
+        ),
+        kind="body_param",
+    ),
+    # unlock_settlement_advance (DELETE with requestBody): TestRequestParamDrift
+    # only compares query/path params, so body kwargs + the model-first
+    # `request` overload must be allowlisted. Body shape is covered by
+    # TestRequestBodyDrift via UnlockSubaccountForSettlementAdvanceRequest.
+    ("kalshi.resources.subaccounts.SubaccountsResource.unlock_settlement_advance", "request"): (
+        Exclusion(
+            reason=(
+                "Model-first overload for DELETE-with-body settlement-advance unlock; "
+                "not a query/path param. Body checked via TestRequestBodyDrift."
+            ),
+            kind="body_param",
+        )
+    ),
+    (
+        "kalshi.resources.subaccounts.SubaccountsResource.unlock_settlement_advance",
+        "subaccount_number",
+    ): Exclusion(
+        reason=(
+            "Request-body field on DELETE /portfolio/subaccounts/settlement-advance-lock; "
+            "not a query/path param. Body checked via TestRequestBodyDrift."
+        ),
+        kind="body_param",
+    ),
+    (
+        "kalshi.resources.subaccounts.SubaccountsResource.unlock_settlement_advance",
+        "exchange_index",
+    ): Exclusion(
+        reason=(
+            "Request-body field on DELETE /portfolio/subaccounts/settlement-advance-lock; "
+            "not a query/path param. Body checked via TestRequestBodyDrift."
         ),
         kind="body_param",
     ),

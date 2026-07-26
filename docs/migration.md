@@ -1,5 +1,33 @@
 # Migration
 
+## v7.3 → v7.4.0
+
+Reconciles upstream core OpenAPI content under version string **3.26.0** for
+the settlement-advance subaccount surface (Closes #486). **No breaking
+public-API removals.** Response parsing for `list_balances()` now expects the
+new required balance fields from the live API.
+
+### Added
+
+- **`subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`**
+  (sync + async) — lock/unlock a subaccount for settlement-advance work.
+- **`SubaccountBalance.voluntarily_locked`**, **`settlement_advance`**,
+  optional **`settlement_advance_state`**.
+
+```python
+lock = client.subaccounts.lock_settlement_advance(subaccount_number=1)
+print(lock.settlement_advance_state)
+
+resp = client.subaccounts.list_balances()
+for bal in resp.subaccount_balances:
+    print(bal.voluntarily_locked, bal.settlement_advance)
+
+client.subaccounts.unlock_settlement_advance(subaccount_number=1)
+```
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v7.2 → v7.3.0
 
 Syncs the SDK to core OpenAPI **3.26.0** and closes residual Klear settlement

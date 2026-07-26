@@ -15,6 +15,8 @@ primary; `1`–`63` are numbered extras. Auth required throughout.
 | `list_all_transfers(*, limit=None, max_pages=None)` | walks `list_transfers` |
 | `update_netting(*, subaccount_number, enabled)` | `PUT /portfolio/subaccounts/netting` |
 | `get_netting()` | `GET /portfolio/subaccounts/netting` |
+| `lock_settlement_advance(*, subaccount_number, exchange_index=None)` | `PUT /portfolio/subaccounts/settlement-advance-lock` |
+| `unlock_settlement_advance(*, subaccount_number, exchange_index=None)` | `DELETE /portfolio/subaccounts/settlement-advance-lock` |
 
 ## Create a subaccount
 
@@ -77,11 +79,41 @@ print(resp.position_transfer_id)
 ```python
 resp = client.subaccounts.list_balances()
 for bal in resp.subaccount_balances:
-    print(bal.subaccount_number, bal.balance, bal.updated_ts)
+    print(
+        bal.subaccount_number,
+        bal.balance,
+        bal.updated_ts,
+        bal.voluntarily_locked,
+        bal.settlement_advance,
+        bal.settlement_advance_state,
+    )
 ```
 
-`bal.balance` is a `DollarDecimal` (dollars). `bal.updated_ts` is Unix seconds
-(not ISO datetime).
+`bal.balance` and `bal.settlement_advance` are `DollarDecimal` (dollars).
+`bal.updated_ts` is Unix seconds (not ISO datetime). `bal.voluntarily_locked`
+is whether the subaccount is locked for settlement-advance computation;
+`bal.settlement_advance_state` is the optional CAS token (`UUID | None`).
+
+## Settlement advance lock
+
+Lock a subaccount before settlement-advance work (cancels resting orders and
+prevents trading). Unlock is rejected while an outstanding settlement advance
+remains.
+
+```python
+lock = client.subaccounts.lock_settlement_advance(
+    subaccount_number=1,
+    exchange_index=0,  # optional; defaults to 0 server-side
+)
+print(lock.settlement_advance_state)  # UUID CAS token
+
+# After the advance is cleared:
+client.subaccounts.unlock_settlement_advance(subaccount_number=1)
+```
+
+Both methods also accept a pre-built request model
+(`LockSubaccountForSettlementAdvanceRequest` /
+`UnlockSubaccountForSettlementAdvanceRequest`). Auth required.
 
 ## List transfers
 
