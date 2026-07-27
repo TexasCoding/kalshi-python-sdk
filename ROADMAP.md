@@ -2,6 +2,12 @@
 
 ## Shipped
 
+- **v8.0.0 (2026-07-27)** — Spec-drift reconcile under OpenAPI 3.26.0
+  (#489 / #490). **Breaking:** removed the settlement-advance subaccount
+  surface added in v7.4.0 (`lock_settlement_advance` /
+  `unlock_settlement_advance` + models + `SubaccountBalance` advance fields)
+  after upstream deleted the endpoint. Additive: WS quote payload
+  `rfq_creator_id` / `subaccount` fields.
 - **v7.4.0 (2026-07-26)** — OpenAPI 3.26.0 content reconcile (#486). Additive:
   `subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`, and
   `SubaccountBalance` settlement-advance fields (`voluntarily_locked`,

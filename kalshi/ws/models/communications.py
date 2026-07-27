@@ -93,6 +93,9 @@ class QuoteCreatedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
+    # AsyncAPI content (2026-07-27): RFQ creator + own subaccount when applicable.
+    rfq_creator_id: str | None = None
+    subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -130,6 +133,9 @@ class QuoteAcceptedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
+    # AsyncAPI content (2026-07-27): RFQ creator + own subaccount when applicable.
+    rfq_creator_id: str | None = None
+    subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -144,6 +150,8 @@ class QuoteExecutedPayload(BaseModel):
     client_order_id: str
     market_ticker: str
     executed_ts: AwareDatetime
+    # AsyncAPI content (2026-07-27): own subaccount when the quote used one.
+    subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

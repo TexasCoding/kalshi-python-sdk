@@ -2,6 +2,42 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 8.0.0 — 2026-07-27
+
+Reconciles upstream core OpenAPI / AsyncAPI content under version string
+**3.26.0** (paths 93→92, 105→103 operations; 102 mapped) after Kalshi removed
+the short-lived settlement-advance subaccount surface (Closes #489, #490).
+**Breaking** for callers that adopted the v7.4.0 settlement-advance API.
+
+### Removed (breaking)
+
+- **`subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`**
+  (sync + async) and request/response models
+  `LockSubaccountForSettlementAdvanceRequest`,
+  `LockSubaccountForSettlementAdvanceResponse`,
+  `UnlockSubaccountForSettlementAdvanceRequest`. Upstream deleted
+  `PUT`/`DELETE` `/portfolio/subaccounts/settlement-advance-lock` and the
+  matching schemas from OpenAPI 3.26.0 content.
+- **`SubaccountBalance.voluntarily_locked`**, **`settlement_advance`**, and
+  **`settlement_advance_state`** — also dropped from the upstream
+  `SubaccountBalance` schema. `list_balances()` responses no longer include
+  these fields.
+
+### Added
+
+- **WebSocket quote payloads** (AsyncAPI content): optional
+  `rfq_creator_id` and `subaccount` on `QuoteCreatedPayload` /
+  `QuoteAcceptedPayload`, and optional `subaccount` on
+  `QuoteExecutedPayload` (own subaccount only; never the counterparty's).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.26.0** (content-only change; paths
+  93→92, 103 operations / 102 mapped). Still unimplemented:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()` on the margin product).
+- Perps OpenAPI / AsyncAPI / SCM specs unchanged for this release.
+
 ## 7.4.0 — 2026-07-26
 
 Reconciles upstream core OpenAPI content under version string **3.26.0**

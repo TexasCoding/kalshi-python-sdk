@@ -28,26 +28,15 @@ from kalshi.models.subaccounts import (
     CreateSubaccountResponse,
     GetSubaccountBalancesResponse,
     GetSubaccountNettingResponse,
-    LockSubaccountForSettlementAdvanceRequest,
-    LockSubaccountForSettlementAdvanceResponse,
     SubaccountBalance,
     SubaccountNettingConfig,
     SubaccountTransfer,
-    UnlockSubaccountForSettlementAdvanceRequest,
     UpdateSubaccountNettingRequest,
 )
 from kalshi.resources.subaccounts import (
     AsyncSubaccountsResource,
     SubaccountsResource,
 )
-
-# Required settlement-advance fields on SubaccountBalance (OpenAPI 3.26.0 content).
-_BALANCE_ADVANCE_FIELDS = {
-    "voluntarily_locked": False,
-    "settlement_advance": "0.0000",
-}
-
-_TEST_ADVANCE_STATE = "550e8400-e29b-41d4-a716-446655440099"
 
 
 @pytest.fixture
@@ -96,44 +85,11 @@ class TestSubaccountModels:
                 "exchange_index": 0,
                 "balance": "12.3400",
                 "updated_ts": 1_700_000_000,
-                **_BALANCE_ADVANCE_FIELDS,
             }
         )
         assert bal.subaccount_number == 1
         assert bal.balance == Decimal("12.3400")
         assert bal.updated_ts == 1_700_000_000
-        assert bal.voluntarily_locked is False
-        assert bal.settlement_advance == Decimal("0.0000")
-        assert bal.settlement_advance_state is None
-
-    def test_subaccount_balance_settlement_advance_fields(self) -> None:
-        state = "550e8400-e29b-41d4-a716-446655440099"
-        bal = SubaccountBalance.model_validate(
-            {
-                "subaccount_number": 2,
-                "exchange_index": 0,
-                "balance": "1.00",
-                "updated_ts": 1,
-                "voluntarily_locked": True,
-                "settlement_advance": "3.5000",
-                "settlement_advance_state": state,
-            }
-        )
-        assert bal.voluntarily_locked is True
-        assert bal.settlement_advance == Decimal("3.5000")
-        assert str(bal.settlement_advance_state) == state
-
-    def test_subaccount_balance_requires_settlement_advance_fields(self) -> None:
-        with pytest.raises(ValidationError):
-            SubaccountBalance.model_validate(
-                {
-                    "subaccount_number": 0,
-                    "exchange_index": 0,
-                    "balance": "1.00",
-                    "updated_ts": 1,
-                    # voluntarily_locked / settlement_advance intentionally omitted
-                }
-            )
 
     def test_subaccount_transfer_parses(self) -> None:
         # Spec sync (2026-07-20/21): GET transfers is cash-only; transfer_type
@@ -211,7 +167,6 @@ class TestSubaccountModels:
                         "exchange_index": 0,
                         "balance": "100.00",
                         "updated_ts": 1,
-                        **_BALANCE_ADVANCE_FIELDS,
                     },
                 ],
             },
@@ -403,45 +358,6 @@ class TestSubaccountRequestModels:
                 count=5,
                 price=bad_price,
             )
-
-    # ── Settlement-advance lock / unlock request models (#486) ──
-    def test_lock_settlement_advance_request_serializes(self) -> None:
-        req = LockSubaccountForSettlementAdvanceRequest(subaccount_number=1)
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        assert body == {"subaccount_number": 1}
-
-    def test_lock_settlement_advance_request_with_exchange_index(self) -> None:
-        req = LockSubaccountForSettlementAdvanceRequest(
-            subaccount_number=0, exchange_index=0,
-        )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        assert body == {"subaccount_number": 0, "exchange_index": 0}
-
-    def test_lock_settlement_advance_request_forbids_extra(self) -> None:
-        with pytest.raises(ValidationError):
-            LockSubaccountForSettlementAdvanceRequest(  # type: ignore[call-arg]
-                subaccount_number=0, phantom=1,
-            )
-
-    def test_unlock_settlement_advance_request_serializes(self) -> None:
-        req = UnlockSubaccountForSettlementAdvanceRequest(
-            subaccount_number=2, exchange_index=0,
-        )
-        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
-        assert body == {"subaccount_number": 2, "exchange_index": 0}
-
-    def test_unlock_settlement_advance_request_forbids_extra(self) -> None:
-        with pytest.raises(ValidationError):
-            UnlockSubaccountForSettlementAdvanceRequest(  # type: ignore[call-arg]
-                subaccount_number=0, phantom=1,
-            )
-
-    def test_lock_settlement_advance_response_parses_uuid(self) -> None:
-        resp = LockSubaccountForSettlementAdvanceResponse.model_validate(
-            {"settlement_advance_state": _TEST_ADVANCE_STATE},
-        )
-        assert str(resp.settlement_advance_state) == _TEST_ADVANCE_STATE
-
 
 class TestSubaccountsCreate:
     @respx.mock
@@ -646,14 +562,12 @@ class TestSubaccountsListBalances:
                             "exchange_index": 0,
                             "balance": "10.00",
                             "updated_ts": 1,
-                            **_BALANCE_ADVANCE_FIELDS,
                         },
                         {
                             "subaccount_number": 1,
                             "exchange_index": 0,
                             "balance": "5.00",
                             "updated_ts": 2,
-                            **_BALANCE_ADVANCE_FIELDS,
                         },
                     ],
                 },
@@ -663,7 +577,6 @@ class TestSubaccountsListBalances:
         assert isinstance(resp, GetSubaccountBalancesResponse)
         assert len(resp.subaccount_balances) == 2
         assert resp.subaccount_balances[0].balance == Decimal("10.00")
-        assert resp.subaccount_balances[0].voluntarily_locked is False
 
     @respx.mock
     def test_empty_list(self, subaccounts: SubaccountsResource) -> None:
@@ -875,7 +788,6 @@ class TestAsyncSubaccounts:
                             "exchange_index": 0,
                             "balance": "1.00",
                             "updated_ts": 1,
-                            **_BALANCE_ADVANCE_FIELDS,
                         },
                     ],
                 },
@@ -953,126 +865,6 @@ class TestAsyncSubaccounts:
         resp = await async_subaccounts.get_netting()
         assert resp.netting_configs == []
 
-    async def test_lock_settlement_advance(
-        self,
-        async_subaccounts: AsyncSubaccountsResource,
-        respx_mock: respx.MockRouter,
-    ) -> None:
-        route = respx_mock.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"settlement_advance_state": _TEST_ADVANCE_STATE},
-            ),
-        )
-        resp = await async_subaccounts.lock_settlement_advance(subaccount_number=1)
-        assert str(resp.settlement_advance_state) == _TEST_ADVANCE_STATE
-        assert json.loads(route.calls[0].request.content) == {"subaccount_number": 1}
-
-    async def test_unlock_settlement_advance(
-        self,
-        async_subaccounts: AsyncSubaccountsResource,
-        respx_mock: respx.MockRouter,
-    ) -> None:
-        route = respx_mock.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(return_value=httpx.Response(200, json={}))
-        result = await async_subaccounts.unlock_settlement_advance(subaccount_number=1)
-        assert result is None
-        assert json.loads(route.calls[0].request.content) == {"subaccount_number": 1}
-
-
-class TestSubaccountsSettlementAdvance:
-    @respx.mock
-    def test_lock_settlement_advance_kwargs(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        route = respx.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"settlement_advance_state": _TEST_ADVANCE_STATE},
-            ),
-        )
-        resp = subaccounts.lock_settlement_advance(
-            subaccount_number=1, exchange_index=0,
-        )
-        assert isinstance(resp, LockSubaccountForSettlementAdvanceResponse)
-        assert str(resp.settlement_advance_state) == _TEST_ADVANCE_STATE
-        assert json.loads(route.calls[0].request.content) == {
-            "subaccount_number": 1,
-            "exchange_index": 0,
-        }
-
-    @respx.mock
-    def test_lock_settlement_advance_request_model(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        route = respx.put(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"settlement_advance_state": _TEST_ADVANCE_STATE},
-            ),
-        )
-        req = LockSubaccountForSettlementAdvanceRequest(subaccount_number=0)
-        resp = subaccounts.lock_settlement_advance(request=req)
-        assert str(resp.settlement_advance_state) == _TEST_ADVANCE_STATE
-        assert json.loads(route.calls[0].request.content) == {"subaccount_number": 0}
-
-    def test_lock_settlement_advance_requires_subaccount(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        with pytest.raises(TypeError, match="subaccount_number"):
-            subaccounts.lock_settlement_advance()
-
-    def test_lock_settlement_advance_rejects_mixed_args(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        req = LockSubaccountForSettlementAdvanceRequest(subaccount_number=0)
-        with pytest.raises(TypeError, match="either `request="):
-            subaccounts.lock_settlement_advance(request=req, subaccount_number=1)
-
-    @respx.mock
-    def test_unlock_settlement_advance_kwargs(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(return_value=httpx.Response(200, json={}))
-        result = subaccounts.unlock_settlement_advance(subaccount_number=2)
-        assert result is None
-        assert json.loads(route.calls[0].request.content) == {"subaccount_number": 2}
-
-    @respx.mock
-    def test_unlock_settlement_advance_request_model(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        route = respx.delete(
-            "https://test.kalshi.com/trade-api/v2/portfolio/subaccounts/"
-            "settlement-advance-lock",
-        ).mock(return_value=httpx.Response(200, json={}))
-        req = UnlockSubaccountForSettlementAdvanceRequest(
-            subaccount_number=3, exchange_index=0,
-        )
-        result = subaccounts.unlock_settlement_advance(request=req)
-        assert result is None
-        assert json.loads(route.calls[0].request.content) == {
-            "subaccount_number": 3,
-            "exchange_index": 0,
-        }
-
-    def test_unlock_settlement_advance_requires_subaccount(
-        self, subaccounts: SubaccountsResource,
-    ) -> None:
-        with pytest.raises(TypeError, match="subaccount_number"):
-            subaccounts.unlock_settlement_advance()
-
 
 class TestSubaccountsAuthGuard:
     def test_create_requires_auth(
@@ -1123,19 +915,6 @@ class TestSubaccountsAuthGuard:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_subaccounts.get_netting()
-
-    def test_lock_settlement_advance_requires_auth(
-        self, unauth_subaccounts: SubaccountsResource,
-    ) -> None:
-        with pytest.raises(AuthRequiredError):
-            unauth_subaccounts.lock_settlement_advance(subaccount_number=0)
-
-    def test_unlock_settlement_advance_requires_auth(
-        self, unauth_subaccounts: SubaccountsResource,
-    ) -> None:
-        with pytest.raises(AuthRequiredError):
-            unauth_subaccounts.unlock_settlement_advance(subaccount_number=0)
-
 
 class TestClientWiring:
     def test_sync_client_exposes_subaccounts(
