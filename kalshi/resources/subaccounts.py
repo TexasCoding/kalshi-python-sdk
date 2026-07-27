@@ -16,10 +16,7 @@ from kalshi.models.subaccounts import (
     CreateSubaccountResponse,
     GetSubaccountBalancesResponse,
     GetSubaccountNettingResponse,
-    LockSubaccountForSettlementAdvanceRequest,
-    LockSubaccountForSettlementAdvanceResponse,
     SubaccountTransfer,
-    UnlockSubaccountForSettlementAdvanceRequest,
     UpdateSubaccountNettingRequest,
 )
 from kalshi.resources._base import (
@@ -147,54 +144,6 @@ def _build_update_netting_body(
         request = UpdateSubaccountNettingRequest(
             subaccount_number=subaccount_number,
             enabled=enabled,
-        )
-    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
-
-
-def _build_lock_settlement_advance_body(
-    request: LockSubaccountForSettlementAdvanceRequest | None,
-    *,
-    subaccount_number: int | None,
-    exchange_index: int | None,
-) -> dict[str, Any]:
-    _check_request_exclusive(
-        request,
-        subaccount_number=subaccount_number,
-        exchange_index=exchange_index,
-    )
-    if request is None:
-        if subaccount_number is None:
-            raise TypeError(
-                "lock_settlement_advance() requires `subaccount_number` "
-                "(or pass `request=...`)"
-            )
-        request = LockSubaccountForSettlementAdvanceRequest(
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
-        )
-    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
-
-
-def _build_unlock_settlement_advance_body(
-    request: UnlockSubaccountForSettlementAdvanceRequest | None,
-    *,
-    subaccount_number: int | None,
-    exchange_index: int | None,
-) -> dict[str, Any]:
-    _check_request_exclusive(
-        request,
-        subaccount_number=subaccount_number,
-        exchange_index=exchange_index,
-    )
-    if request is None:
-        if subaccount_number is None:
-            raise TypeError(
-                "unlock_settlement_advance() requires `subaccount_number` "
-                "(or pass `request=...`)"
-            )
-        request = UnlockSubaccountForSettlementAdvanceRequest(
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -399,87 +348,6 @@ class SubaccountsResource(SyncResource):
         data = self._get("/portfolio/subaccounts/netting", extra_headers=extra_headers)
         return GetSubaccountNettingResponse.model_validate(data)
 
-    @overload
-    def lock_settlement_advance(
-        self,
-        *,
-        request: LockSubaccountForSettlementAdvanceRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse: ...
-    @overload
-    def lock_settlement_advance(
-        self,
-        *,
-        subaccount_number: int,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse: ...
-    def lock_settlement_advance(
-        self,
-        *,
-        request: LockSubaccountForSettlementAdvanceRequest | None = None,
-        subaccount_number: int | None = None,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse:
-        """Lock a subaccount for settlement-advance computation.
-
-        Cancels resting orders, prevents trading, and returns a new
-        ``settlement_advance_state`` CAS token. Auth required.
-        """
-        self._require_auth()
-        body = _build_lock_settlement_advance_body(
-            request,
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
-        )
-        data = self._put(
-            "/portfolio/subaccounts/settlement-advance-lock",
-            json=body,
-            extra_headers=extra_headers,
-        )
-        return LockSubaccountForSettlementAdvanceResponse.model_validate(data)
-
-    @overload
-    def unlock_settlement_advance(
-        self,
-        *,
-        request: UnlockSubaccountForSettlementAdvanceRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None: ...
-    @overload
-    def unlock_settlement_advance(
-        self,
-        *,
-        subaccount_number: int,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None: ...
-    def unlock_settlement_advance(
-        self,
-        *,
-        request: UnlockSubaccountForSettlementAdvanceRequest | None = None,
-        subaccount_number: int | None = None,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None:
-        """Unlock a subaccount previously locked for settlement advance.
-
-        Rejected while the subaccount has an outstanding settlement advance.
-        Auth required. Returns ``None`` (empty success body).
-        """
-        self._require_auth()
-        body = _build_unlock_settlement_advance_body(
-            request,
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
-        )
-        self._delete_with_body(
-            "/portfolio/subaccounts/settlement-advance-lock",
-            json=body,
-            extra_headers=extra_headers,
-        )
-
 
 class AsyncSubaccountsResource(AsyncResource):
     """Async subaccounts API."""
@@ -670,82 +538,3 @@ class AsyncSubaccountsResource(AsyncResource):
         self._require_auth()
         data = await self._get("/portfolio/subaccounts/netting", extra_headers=extra_headers)
         return GetSubaccountNettingResponse.model_validate(data)
-
-    @overload
-    async def lock_settlement_advance(
-        self,
-        *,
-        request: LockSubaccountForSettlementAdvanceRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse: ...
-    @overload
-    async def lock_settlement_advance(
-        self,
-        *,
-        subaccount_number: int,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse: ...
-    async def lock_settlement_advance(
-        self,
-        *,
-        request: LockSubaccountForSettlementAdvanceRequest | None = None,
-        subaccount_number: int | None = None,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> LockSubaccountForSettlementAdvanceResponse:
-        """Lock a subaccount for settlement-advance computation.
-
-        Async counterpart of :meth:`SubaccountsResource.lock_settlement_advance`.
-        """
-        self._require_auth()
-        body = _build_lock_settlement_advance_body(
-            request,
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
-        )
-        data = await self._put(
-            "/portfolio/subaccounts/settlement-advance-lock",
-            json=body,
-            extra_headers=extra_headers,
-        )
-        return LockSubaccountForSettlementAdvanceResponse.model_validate(data)
-
-    @overload
-    async def unlock_settlement_advance(
-        self,
-        *,
-        request: UnlockSubaccountForSettlementAdvanceRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None: ...
-    @overload
-    async def unlock_settlement_advance(
-        self,
-        *,
-        subaccount_number: int,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None: ...
-    async def unlock_settlement_advance(
-        self,
-        *,
-        request: UnlockSubaccountForSettlementAdvanceRequest | None = None,
-        subaccount_number: int | None = None,
-        exchange_index: int | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> None:
-        """Unlock a subaccount previously locked for settlement advance.
-
-        Async counterpart of :meth:`SubaccountsResource.unlock_settlement_advance`.
-        """
-        self._require_auth()
-        body = _build_unlock_settlement_advance_body(
-            request,
-            subaccount_number=subaccount_number,
-            exchange_index=exchange_index,
-        )
-        await self._delete_with_body(
-            "/portfolio/subaccounts/settlement-advance-lock",
-            json=body,
-            extra_headers=extra_headers,
-        )

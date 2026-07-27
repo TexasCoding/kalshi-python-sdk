@@ -1,5 +1,42 @@
 # Migration
 
+## v7.4 → v8.0.0
+
+Reconciles upstream core OpenAPI / AsyncAPI content under version string
+**3.26.0** after Kalshi removed the settlement-advance subaccount surface
+(Closes #489, #490). **Breaking** for callers that adopted the v7.4.0
+settlement-advance API (methods, request models, and balance fields).
+
+### Removed
+
+- **`subaccounts.lock_settlement_advance()` / `unlock_settlement_advance()`**
+  (sync + async) and
+  `LockSubaccountForSettlementAdvanceRequest` /
+  `LockSubaccountForSettlementAdvanceResponse` /
+  `UnlockSubaccountForSettlementAdvanceRequest`.
+- **`SubaccountBalance.voluntarily_locked`**, **`settlement_advance`**,
+  **`settlement_advance_state`**.
+
+```python
+# No longer available — the upstream endpoints 404:
+# client.subaccounts.lock_settlement_advance(subaccount_number=1)
+# client.subaccounts.unlock_settlement_advance(subaccount_number=1)
+
+resp = client.subaccounts.list_balances()
+for bal in resp.subaccount_balances:
+    print(bal.subaccount_number, bal.balance, bal.updated_ts)
+    # bal.voluntarily_locked / bal.settlement_advance removed
+```
+
+### Added (non-breaking)
+
+- Optional **`rfq_creator_id`** / **`subaccount`** on WS
+  `QuoteCreatedPayload` / `QuoteAcceptedPayload`, and optional
+  **`subaccount`** on `QuoteExecutedPayload`.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v7.3 → v7.4.0
 
 Reconciles upstream core OpenAPI content under version string **3.26.0** for

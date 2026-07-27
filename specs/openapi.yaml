@@ -1730,75 +1730,6 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /portfolio/subaccounts/settlement-advance-lock:
-    put:
-      operationId: LockSubaccountForSettlementAdvance
-      summary: Lock Subaccount for Settlement Advance
-      description: >-
-        Locks a subaccount for settlement advance computation. Locking cancels
-        resting orders, prevents trading, and returns a new state token.
-      tags:
-        - portfolio
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LockSubaccountForSettlementAdvanceRequest'
-      responses:
-        '200':
-          description: Subaccount locked successfully
-          content:
-            application/json:
-              schema:
-                $ref: >-
-                  #/components/schemas/LockSubaccountForSettlementAdvanceResponse
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-    delete:
-      operationId: UnlockSubaccountForSettlementAdvance
-      summary: Unlock Subaccount for Settlement Advance
-      description: >-
-        Unlocks a subaccount. Unlocking is rejected while the subaccount has an
-        outstanding settlement advance.
-      tags:
-        - portfolio
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UnlockSubaccountForSettlementAdvanceRequest'
-      responses:
-        '200':
-          description: Subaccount unlocked successfully
-          content:
-            application/json:
-              schema:
-                $ref: >-
-                  #/components/schemas/UnlockSubaccountForSettlementAdvanceResponse
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /portfolio/subaccounts/positions/transfer:
     post:
       x-excluded: true
@@ -5652,54 +5583,6 @@ components:
     ApplySubaccountTransferResponse:
       type: object
       description: Empty response indicating successful transfer.
-    LockSubaccountForSettlementAdvanceRequest:
-      type: object
-      required:
-        - subaccount_number
-      properties:
-        subaccount_number:
-          type: integer
-          nullable: true
-          description: Subaccount number (0 for primary, 1-63 for numbered subaccounts).
-          x-oapi-codegen-extra-tags:
-            validate: required
-        exchange_index:
-          allOf:
-            - $ref: '#/components/schemas/ExchangeIndex'
-          description: Identifier for an exchange shard. Defaults to 0 if unspecified.
-          x-go-type-skip-optional-pointer: true
-          x-oapi-codegen-extra-tags:
-            validate: gte=0
-    LockSubaccountForSettlementAdvanceResponse:
-      type: object
-      required:
-        - settlement_advance_state
-      properties:
-        settlement_advance_state:
-          type: string
-          format: uuid
-          description: New state token for settlement advance compare-and-swap requests.
-    UnlockSubaccountForSettlementAdvanceRequest:
-      type: object
-      required:
-        - subaccount_number
-      properties:
-        subaccount_number:
-          type: integer
-          nullable: true
-          description: Subaccount number (0 for primary, 1-63 for numbered subaccounts).
-          x-oapi-codegen-extra-tags:
-            validate: required
-        exchange_index:
-          allOf:
-            - $ref: '#/components/schemas/ExchangeIndex'
-          description: Identifier for an exchange shard. Defaults to 0 if unspecified.
-          x-go-type-skip-optional-pointer: true
-          x-oapi-codegen-extra-tags:
-            validate: gte=0
-    UnlockSubaccountForSettlementAdvanceResponse:
-      type: object
-      description: Empty response indicating the subaccount was unlocked successfully.
     ApplySubaccountPositionTransferRequest:
       type: object
       required:
@@ -5789,8 +5672,6 @@ components:
         - exchange_index
         - balance
         - updated_ts
-        - voluntarily_locked
-        - settlement_advance
       properties:
         subaccount_number:
           type: integer
@@ -5805,18 +5686,6 @@ components:
           type: integer
           format: int64
           description: Unix timestamp of last balance update.
-        voluntarily_locked:
-          type: boolean
-          description: >-
-            Whether this subaccount is voluntarily locked for settlement advance
-            computation.
-        settlement_advance_state:
-          type: string
-          format: uuid
-          description: Current settlement advance state token, if one has been established.
-        settlement_advance:
-          $ref: '#/components/schemas/FixedPointDollars'
-          description: Outstanding settlement advance in dollars.
     GetSubaccountTransfersResponse:
       type: object
       required:

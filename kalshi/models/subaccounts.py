@@ -105,11 +105,6 @@ class SubaccountBalance(BaseModel):
     ``format: date-time`` and surface as ``datetime``; subaccount
     timestamps follow the spec's int wire format. Callers wanting a
     ``datetime`` can ``datetime.fromtimestamp(obj.updated_ts, tz=timezone.utc)``.
-
-    Spec content under OpenAPI 3.26.0 (2026-07-25) added settlement-advance
-    fields: ``voluntarily_locked`` / ``settlement_advance`` (required) and
-    optional ``settlement_advance_state`` (CAS token from
-    :meth:`~kalshi.resources.subaccounts.SubaccountsResource.lock_settlement_advance`).
     """
 
     subaccount_number: int
@@ -117,10 +112,6 @@ class SubaccountBalance(BaseModel):
     exchange_index: int
     balance: DollarDecimal
     updated_ts: int
-    # Settlement-advance surface (OpenAPI 3.26.0 content, 2026-07-25).
-    voluntarily_locked: bool
-    settlement_advance: DollarDecimal
-    settlement_advance_state: UUID | None = None
 
     model_config = {"extra": "allow"}
 
@@ -131,46 +122,6 @@ class GetSubaccountBalancesResponse(BaseModel):
     subaccount_balances: list[SubaccountBalance]
 
     model_config = {"extra": "allow"}
-
-
-class LockSubaccountForSettlementAdvanceRequest(BaseModel):
-    """Body for PUT /portfolio/subaccounts/settlement-advance-lock.
-
-    Locks a subaccount for settlement-advance computation (cancels resting
-    orders and prevents trading). ``subaccount_number`` uses ``0`` for the
-    primary account; ``exchange_index`` defaults to ``0`` when omitted.
-    """
-
-    subaccount_number: StrictInt = Field(ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
-
-
-class LockSubaccountForSettlementAdvanceResponse(BaseModel):
-    """Response from PUT /portfolio/subaccounts/settlement-advance-lock.
-
-    ``settlement_advance_state`` is the new compare-and-swap token for
-    subsequent settlement-advance requests.
-    """
-
-    settlement_advance_state: UUID
-
-    model_config = {"extra": "allow"}
-
-
-class UnlockSubaccountForSettlementAdvanceRequest(BaseModel):
-    """Body for DELETE /portfolio/subaccounts/settlement-advance-lock.
-
-    Unlock is rejected while the subaccount has an outstanding settlement
-    advance. Same ``subaccount_number`` / ``exchange_index`` semantics as
-    :class:`LockSubaccountForSettlementAdvanceRequest`.
-    """
-
-    subaccount_number: StrictInt = Field(ge=0)
-    exchange_index: StrictInt | None = Field(default=None, ge=0)
-
-    model_config = {"extra": "forbid"}
 
 
 class SubaccountTransfer(BaseModel):

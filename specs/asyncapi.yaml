@@ -2115,6 +2115,7 @@ components:
               quote_id: quote_456
               rfq_id: rfq_123
               quote_creator_id: comm_def456
+              rfq_creator_id: comm_abc123
               market_ticker: FED-23DEC-T3.00
               event_ticker: FED-23DEC
               yes_bid_dollars: '0.35'
@@ -2123,6 +2124,7 @@ components:
               no_contracts_offered_fp: '200.00'
               rfq_target_cost_dollars: '0.35'
               created_ts: '2024-12-01T10:02:00Z'
+              subaccount: 3
     quoteAccepted:
       name: quote_accepted
       title: Quote Accepted
@@ -2140,6 +2142,7 @@ components:
               quote_id: quote_456
               rfq_id: rfq_123
               quote_creator_id: comm_def456
+              rfq_creator_id: comm_abc123
               market_ticker: FED-23DEC-T3.00
               event_ticker: FED-23DEC
               yes_bid_dollars: '0.35'
@@ -2149,6 +2152,7 @@ components:
               yes_contracts_offered_fp: '100.00'
               no_contracts_offered_fp: '200.00'
               rfq_target_cost_dollars: '0.35'
+              subaccount: 3
     quoteExecuted:
       name: quote_executed
       title: Quote Executed
@@ -2179,6 +2183,7 @@ components:
               client_order_id: my_client_order_123
               market_ticker: FED-23DEC-T3.00
               executed_ts: '2024-12-01T10:05:00Z'
+              subaccount: 3
   schemas:
     commandId:
       type: integer
@@ -4098,6 +4103,9 @@ components:
             quote_creator_id:
               type: string
               description: Public communications ID of the quote creator (anonymized)
+            rfq_creator_id:
+              type: string
+              description: Public communications ID of the RFQ creator (anonymized)
             market_ticker:
               type: string
               description: Market ticker for the quote
@@ -4123,6 +4131,14 @@ components:
               type: string
               description: Timestamp when the quote was created
               format: date-time
+            subaccount:
+              type: integer
+              description: >
+                Optional - Present only when your side of this quote used a
+                subaccount.
+
+                Contains your own subaccount number; the counterparty's
+                subaccount is never shared.
     quoteAcceptedPayload:
       type: object
       required:
@@ -4154,6 +4170,9 @@ components:
             quote_creator_id:
               type: string
               description: Public communications ID of the quote creator (anonymized)
+            rfq_creator_id:
+              type: string
+              description: Public communications ID of the RFQ creator (anonymized)
             market_ticker:
               type: string
               description: Market ticker for the quote
@@ -4184,6 +4203,14 @@ components:
             rfq_target_cost_dollars:
               type: string
               description: Target cost from the RFQ in dollars (optional)
+            subaccount:
+              type: integer
+              description: >
+                Optional - Present only when your side of this quote used a
+                subaccount.
+
+                Contains your own subaccount number; the counterparty's
+                subaccount is never shared.
     quoteExecutedPayload:
       type: object
       required:
@@ -4237,6 +4264,14 @@ components:
               type: string
               description: Timestamp when the quote was executed and orders were placed
               format: date-time
+            subaccount:
+              type: integer
+              description: >
+                Optional - Present only when your side of this quote used a
+                subaccount.
+
+                Contains your own subaccount number; the counterparty's
+                subaccount is never shared.
   securitySchemes:
     apiKey:
       type: apiKey

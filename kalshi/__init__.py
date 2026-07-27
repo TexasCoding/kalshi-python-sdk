@@ -112,8 +112,6 @@ from kalshi.models import (
     IncentiveProgramTypeLiteral,
     IndexedBalance,
     LiveData,
-    LockSubaccountForSettlementAdvanceRequest,
-    LockSubaccountForSettlementAdvanceResponse,
     LookupTickersForMarketInMultivariateEventCollectionRequest,
     LookupTickersResponse,
     MaintenanceWindow,
@@ -166,7 +164,6 @@ from kalshi.models import (
     TimeInForceLiteral,
     TotalRestingOrderValue,
     Trade,
-    UnlockSubaccountForSettlementAdvanceRequest,
     UpdateOrderGroupLimitRequest,
     UpdateSubaccountNettingRequest,
     UserDataTimestamp,
@@ -314,8 +311,6 @@ __all__ = [
     "KlearClient",
     "KlearConfig",
     "LiveData",
-    "LockSubaccountForSettlementAdvanceRequest",
-    "LockSubaccountForSettlementAdvanceResponse",
     "LookupTickersForMarketInMultivariateEventCollectionRequest",
     "LookupTickersResponse",
     "MaintenanceWindow",
@@ -376,7 +371,6 @@ __all__ = [
     "TimeInForceLiteral",
     "TotalRestingOrderValue",
     "Trade",
-    "UnlockSubaccountForSettlementAdvanceRequest",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubaccountNettingRequest",
     "UserDataTimestamp",
@@ -385,4 +379,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "7.4.0"
+__version__ = "8.0.0"

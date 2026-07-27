@@ -160,10 +160,7 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.SubaccountBalance",
         spec_schema="SubaccountBalance",
-        notes=(
-            "balance + settlement_advance use DollarDecimal; updated_ts is Unix int; "
-            "settlement_advance_state is UUID | None"
-        ),
+        notes="balance uses DollarDecimal; updated_ts is Unix int",
     ),
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.SubaccountTransfer",
@@ -184,19 +181,6 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferResponse",
         spec_schema="ApplySubaccountPositionTransferResponse",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.subaccounts.LockSubaccountForSettlementAdvanceRequest",
-        spec_schema="LockSubaccountForSettlementAdvanceRequest",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.subaccounts.LockSubaccountForSettlementAdvanceResponse",
-        spec_schema="LockSubaccountForSettlementAdvanceResponse",
-        notes="settlement_advance_state is UUID",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.subaccounts.UnlockSubaccountForSettlementAdvanceRequest",
-        spec_schema="UnlockSubaccountForSettlementAdvanceRequest",
     ),
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.CreateSubaccountRequest",

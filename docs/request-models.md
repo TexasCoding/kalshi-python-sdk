@@ -70,8 +70,6 @@ exposed by each resource method stays in lockstep with the OpenAPI spec.
 | `client.subaccounts.transfer` | `ApplySubaccountTransferRequest` |
 | `client.subaccounts.transfer_position` | `ApplySubaccountPositionTransferRequest` |
 | `client.subaccounts.update_netting` | `UpdateSubaccountNettingRequest` |
-| `client.subaccounts.lock_settlement_advance` | `LockSubaccountForSettlementAdvanceRequest` |
-| `client.subaccounts.unlock_settlement_advance` | `UnlockSubaccountForSettlementAdvanceRequest` |
 
 All are importable from the top-level `kalshi` package.
 
