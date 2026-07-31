@@ -72,7 +72,6 @@ every exception class.
 
 ::: kalshi.models.subaccounts.ApplySubaccountTransferRequest
 
-::: kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest
 
 ::: kalshi.models.subaccounts.UpdateSubaccountNettingRequest
 

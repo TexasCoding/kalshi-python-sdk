@@ -9,7 +9,6 @@ primary; `1`–`63` are numbered extras. Auth required throughout.
 |---|---|
 | `create(*, exchange_index=None)` | `POST /portfolio/subaccounts` |
 | `transfer(*, client_transfer_id, from_subaccount, to_subaccount, amount_cents)` | `POST /portfolio/subaccounts/transfer` |
-| `transfer_position(*, client_transfer_id, from_subaccount, to_subaccount, market_ticker, side, count, price)` | `POST /portfolio/subaccounts/positions/transfer` |
 | `list_balances()` | `GET /portfolio/subaccounts/balances` |
 | `list_transfers(*, cursor=None, limit=None)` | `GET /portfolio/subaccounts/transfers` |
 | `list_all_transfers(*, limit=None, max_pages=None)` | walks `list_transfers` |
@@ -50,27 +49,10 @@ client.subaccounts.transfer(
 `client_transfer_id` accepts a `UUID` or a `str`. On a network failure, retry
 with the same id; the server dedupes.
 
-## Transfer a position between subaccounts
-
-Spec v3.23.0 added `transfer_position()` for moving open contracts (not cash)
-between subaccounts. Unlike `transfer()`, it returns a `position_transfer_id`.
-`price` (spec v3.24.0 renamed it from `price_cents`) is the per-contract cost
-basis in **fixed-point dollars** (0–1.0) — pass a `Decimal`:
-
-```python
-from decimal import Decimal
-
-resp = client.subaccounts.transfer_position(
-    client_transfer_id=uuid.uuid4(),     # or str
-    from_subaccount=0,
-    to_subaccount=1,
-    market_ticker="KXBTC-25DEC31-B100000",
-    side="yes",                          # "yes" | "no"
-    count=10,                            # contracts (> 0)
-    price=Decimal("0.55"),               # per-contract dollars, 0–1.0
-)
-print(resp.position_transfer_id)
-```
+!!! note "Position transfers removed in OpenAPI 3.27.0"
+    `subaccounts.transfer_position()` and the
+    `POST /portfolio/subaccounts/positions/transfer` endpoint were deleted
+    upstream and removed from the SDK in v9.0.0. Only cash transfers remain.
 
 ## List balances
 
@@ -96,8 +78,7 @@ for t in client.subaccounts.list_all_transfers():
 ```
 
 Standard `Page[SubaccountTransfer]` pagination. `t.created_ts` is Unix
-seconds. Rows are **cash transfers only** — position moves use
-`transfer_position()` and are not listed here.
+seconds. Rows are **cash transfers only**.
 
 ## Netting
 

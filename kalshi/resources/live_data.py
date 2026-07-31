@@ -10,6 +10,8 @@ from __future__ import annotations
 import builtins
 
 from kalshi.models.live_data import (
+    EventLiveData,
+    GetEventLiveDataResponse,
     GetGameStatsResponse,
     GetLiveDataResponse,
     GetLiveDatasResponse,
@@ -39,6 +41,27 @@ class LiveDataResource(SyncResource):
             extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
+
+    def get_event(
+        self,
+        event_ticker: str,
+        *,
+        range: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EventLiveData:
+        """``GET /live_data/events/{event_ticker}`` — event-keyed live data.
+
+        Serves crypto price charts, commodity timeseries, weather observations,
+        and similar event-scoped payloads. Optional ``range`` is a chart-window
+        hint (e.g. ``15min``, ``1h``, ``1d``) when the underlying type supports it.
+        """
+        params = _params(range=range)
+        data = self._get(
+            f"/live_data/events/{_seg(event_ticker, name='event_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetEventLiveDataResponse.model_validate(data).live_data
 
     def get_typed(
         self,
@@ -133,6 +156,25 @@ class AsyncLiveDataResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return GetLiveDataResponse.model_validate(data).live_data
+
+    async def get_event(
+        self,
+        event_ticker: str,
+        *,
+        range: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EventLiveData:
+        """``GET /live_data/events/{event_ticker}`` — event-keyed live data.
+
+        Async counterpart of :meth:`LiveDataResource.get_event`.
+        """
+        params = _params(range=range)
+        data = await self._get(
+            f"/live_data/events/{_seg(event_ticker, name='event_ticker')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetEventLiveDataResponse.model_validate(data).live_data
 
     async def get_typed(
         self,

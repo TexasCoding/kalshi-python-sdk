@@ -34,7 +34,7 @@ import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel
+from pydantic import AfterValidator, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, NullableList
 
@@ -144,12 +144,14 @@ class MaintenanceMarginDetail(BaseModel):
     """Spec ``MaintenanceMarginDetail`` — maintenance-margin requirement + delta.
 
     ``subtrader_id`` may be an empty string when not populated.
+    ``margin_group_id`` is set when the subtrader is part of a subtrader group.
     """
 
     id: str
     subtrader_id: str
     maintenance_margin_centicents: int
     maintenance_margin_delta_centicents: int
+    margin_group_id: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -248,6 +250,10 @@ class GetSettlementEstimateResponse(BaseModel):
 
     ``omitted_subtrader_count`` is the number of subtraders omitted from
     ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
+
+    ``group_breakdowns`` maps margin group ID → netted portfolio estimate;
+    ``omitted_group_count`` is how many groups were omitted from that map
+    (amounts still roll into ``user_breakdown``).
     """
 
     user_breakdown: SettlementEstimate
@@ -255,6 +261,8 @@ class GetSettlementEstimateResponse(BaseModel):
     prev_settlement_prices: dict[str, int] | None = None
     settlement_balance_centicents: int
     omitted_subtrader_count: int | None = None
+    group_breakdowns: dict[str, SettlementEstimate] | None = None
+    omitted_group_count: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -285,6 +293,9 @@ class AssetClassSettlementEstimate(BaseModel):
 
     ``omitted_subtrader_count`` is the number of subtraders omitted from
     ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
+
+    ``group_breakdowns`` / ``omitted_group_count`` mirror
+    :class:`GetSettlementEstimateResponse` for subtrader groups.
     """
 
     next_runtime: AwareDatetime
@@ -292,6 +303,8 @@ class AssetClassSettlementEstimate(BaseModel):
     subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
     prev_settlement_prices: dict[str, int] | None = None
     omitted_subtrader_count: int | None = None
+    group_breakdowns: dict[str, SettlementEstimate] | None = None
+    omitted_group_count: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -402,3 +415,54 @@ class GetSettlementBalanceHistoryResponse(BaseModel):
         return bool(self.cursor)
 
     model_config = {"extra": "allow"}
+
+
+# ── Spec sync: margin subtrader groups (perps SCM) ──────────────────────────
+
+
+class MarginSubtraderGroup(BaseModel):
+    """Spec ``MarginSubtraderGroup`` — a netted portfolio of subtraders."""
+
+    group_id: str
+    member_subtrader_ids: NullableList[str]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarginSubtraderGroupsResponse(BaseModel):
+    """Response from GET /fcm/margin/subtrader_groups."""
+
+    groups: NullableList[MarginSubtraderGroup]
+
+    model_config = {"extra": "allow"}
+
+
+class CreateMarginSubtraderGroupRequest(BaseModel):
+    """Body for POST /fcm/margin/subtrader_groups.
+
+    ``subtrader_ids`` must be non-empty; members must not already belong to
+    another group. Grouped subtraders are margined as one netted portfolio.
+    """
+
+    subtrader_ids: list[str] = Field(min_length=1)
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateMarginSubtraderGroupResponse(BaseModel):
+    """Response from POST /fcm/margin/subtrader_groups."""
+
+    group_id: str
+
+    model_config = {"extra": "allow"}
+
+
+class UpdateMarginSubtraderGroupRequest(BaseModel):
+    """Body for PUT /fcm/margin/subtrader_groups/{group_id}.
+
+    Full replacement membership list (not a patch).
+    """
+
+    subtrader_ids: list[str] = Field(min_length=1)
+
+    model_config = {"extra": "forbid"}

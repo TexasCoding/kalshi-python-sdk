@@ -825,3 +825,84 @@ class TestSettlementBalanceWithdrawal:
         resp = await auth_async_klear_client.margin.settlement_balance_withdrawal(id="wd-9")
         assert resp.status == "failed"
         await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
+# Subtrader groups
+# --------------------------------------------------------------------------- #
+
+
+class TestSubtraderGroups:
+    @respx.mock
+    def test_list_subtrader_groups(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/fcm/margin/subtrader_groups").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "groups": [
+                        {
+                            "group_id": "11111111-1111-1111-1111-111111111111",
+                            "member_subtrader_ids": ["st-a", "st-b"],
+                        }
+                    ]
+                },
+            )
+        )
+        resp = auth_klear_client.margin.list_subtrader_groups()
+        assert len(resp.groups) == 1
+        assert resp.groups[0].group_id == "11111111-1111-1111-1111-111111111111"
+        assert resp.groups[0].member_subtrader_ids == ["st-a", "st-b"]
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_create_subtrader_group(self, auth_klear_client: KlearClient) -> None:
+        route = respx.post(f"{BASE}/fcm/margin/subtrader_groups").mock(
+            return_value=httpx.Response(
+                200, json={"group_id": "22222222-2222-2222-2222-222222222222"}
+            )
+        )
+        resp = auth_klear_client.margin.create_subtrader_group(
+            subtrader_ids=["st-a", "st-b"]
+        )
+        assert resp.group_id == "22222222-2222-2222-2222-222222222222"
+        assert json.loads(route.calls[0].request.content) == {
+            "subtrader_ids": ["st-a", "st-b"]
+        }
+        # Bearer injected
+        assert "Authorization" in route.calls[0].request.headers
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_update_subtrader_group(self, auth_klear_client: KlearClient) -> None:
+        gid = "33333333-3333-3333-3333-333333333333"
+        route = respx.put(f"{BASE}/fcm/margin/subtrader_groups/{gid}").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        auth_klear_client.margin.update_subtrader_group(
+            gid, subtrader_ids=["st-c"]
+        )
+        assert json.loads(route.calls[0].request.content) == {
+            "subtrader_ids": ["st-c"]
+        }
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_delete_subtrader_group(self, auth_klear_client: KlearClient) -> None:
+        gid = "44444444-4444-4444-4444-444444444444"
+        route = respx.delete(f"{BASE}/fcm/margin/subtrader_groups/{gid}").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        auth_klear_client.margin.delete_subtrader_group(gid)
+        assert route.called
+        auth_klear_client.close()
+
+    def test_create_requires_args(self, auth_klear_client: KlearClient) -> None:
+        with pytest.raises(TypeError, match="create_subtrader_group"):
+            auth_klear_client.margin.create_subtrader_group()
+        auth_klear_client.close()
+
+    def test_create_request_rejects_empty_list(self) -> None:
+        from kalshi.perps.klear.models.margin import CreateMarginSubtraderGroupRequest
+
+        with pytest.raises(ValidationError):
+            CreateMarginSubtraderGroupRequest(subtrader_ids=[])

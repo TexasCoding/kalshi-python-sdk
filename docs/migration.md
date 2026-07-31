@@ -1,5 +1,59 @@
 # Migration
 
+## v8.0 → v9.0.0
+
+Syncs the SDK to core OpenAPI **3.27.0** (and the matching perps / SCM
+content) after Kalshi removed subaccount **position** transfers and added
+event-keyed live data plus FCM/SCM group surfaces (Closes #492).
+**Breaking** for callers of `subaccounts.transfer_position()`.
+
+### Removed
+
+- **`subaccounts.transfer_position()`** (sync + async) and
+  `ApplySubaccountPositionTransferRequest` /
+  `ApplySubaccountPositionTransferResponse`. Upstream deleted
+  `POST /portfolio/subaccounts/positions/transfer` and the matching schemas.
+
+```python
+# No longer available — the upstream endpoint 404s:
+# client.subaccounts.transfer_position(
+#     client_transfer_id=...,
+#     from_subaccount=0,
+#     to_subaccount=1,
+#     market_ticker="...",
+#     side="yes",
+#     count=1,
+#     price=Decimal("0.50"),
+# )
+
+# Cash transfers are unchanged:
+client.subaccounts.transfer(
+    client_transfer_id=...,
+    from_subaccount=0,
+    to_subaccount=1,
+    amount_cents=500,
+)
+```
+
+### Added (non-breaking)
+
+- **`live_data.get_event(event_ticker, *, range=None)`** → `EventLiveData`
+  (`GET /live_data/events/{event_ticker}`).
+- **`DecreaseOrderV2Request.market_ticker`** (optional; required when
+  `exchange_index=-1`).
+- **`Series.exchange_index`** (optional).
+- **WS** `MarketLifecyclePayload.exchange_index` (optional).
+- **Perps** `fcm.create_subtrader(subtrader_suffix=...)`
+  (`POST /margin/fcm/subtraders`).
+- **Klear/SCM** subtrader groups: `list_subtrader_groups`,
+  `create_subtrader_group`, `update_subtrader_group`,
+  `delete_subtrader_group` under `klear.margin`, plus optional
+  `group_breakdowns` / `omitted_group_count` on settlement estimates and
+  `margin_group_id` on `MaintenanceMarginDetail`.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v7.4 → v8.0.0
 
 Reconciles upstream core OpenAPI / AsyncAPI content under version string

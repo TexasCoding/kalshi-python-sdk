@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from decimal import Decimal
-from typing import Any, Literal, overload
+from typing import Any, overload
 from uuid import UUID
 
 from kalshi.models.common import Page
 from kalshi.models.subaccounts import (
-    ApplySubaccountPositionTransferRequest,
-    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
     CreateSubaccountRequest,
     CreateSubaccountResponse,
@@ -67,59 +64,6 @@ def _build_transfer_body(
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
-        )
-    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
-
-
-def _build_position_transfer_body(
-    request: ApplySubaccountPositionTransferRequest | None,
-    *,
-    client_transfer_id: UUID | str | None,
-    from_subaccount: int | None,
-    to_subaccount: int | None,
-    market_ticker: str | None,
-    side: Literal["yes", "no"] | None,
-    count: int | None,
-    price: Decimal | None,
-) -> dict[str, Any]:
-    _check_request_exclusive(
-        request,
-        client_transfer_id=client_transfer_id,
-        from_subaccount=from_subaccount,
-        to_subaccount=to_subaccount,
-        market_ticker=market_ticker,
-        side=side,
-        count=count,
-        price=price,
-    )
-    if request is None:
-        if (
-            client_transfer_id is None
-            or from_subaccount is None
-            or to_subaccount is None
-            or market_ticker is None
-            or side is None
-            or count is None
-            or price is None
-        ):
-            raise TypeError(
-                "transfer_position() requires `client_transfer_id`, `from_subaccount`, "
-                "`to_subaccount`, `market_ticker`, `side`, `count`, and `price` "
-                "(or pass `request=...`)"
-            )
-        # Accept str for caller ergonomics; coerce once to surface a clean
-        # ValueError on malformed strings before the model validator sees them.
-        uid = (
-            client_transfer_id if isinstance(client_transfer_id, UUID) else UUID(client_transfer_id)
-        )
-        request = ApplySubaccountPositionTransferRequest(
-            client_transfer_id=uid,
-            from_subaccount=from_subaccount,
-            to_subaccount=to_subaccount,
-            market_ticker=market_ticker,
-            side=side,
-            count=count,
-            price=price,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -211,63 +155,6 @@ class SubaccountsResource(SyncResource):
             amount_cents=amount_cents,
         )
         self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
-
-    @overload
-    def transfer_position(
-        self,
-        *,
-        request: ApplySubaccountPositionTransferRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse: ...
-    @overload
-    def transfer_position(
-        self,
-        *,
-        client_transfer_id: UUID | str,
-        from_subaccount: int,
-        to_subaccount: int,
-        market_ticker: str,
-        side: Literal["yes", "no"],
-        count: int,
-        price: Decimal,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse: ...
-    def transfer_position(
-        self,
-        *,
-        request: ApplySubaccountPositionTransferRequest | None = None,
-        client_transfer_id: UUID | str | None = None,
-        from_subaccount: int | None = None,
-        to_subaccount: int | None = None,
-        market_ticker: str | None = None,
-        side: Literal["yes", "no"] | None = None,
-        count: int | None = None,
-        price: Decimal | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse:
-        """Move an open position between subaccounts (spec v3.24.0).
-
-        Unlike the cash-only :meth:`transfer`, this moves ``count`` contracts of
-        ``market_ticker`` (``side``) and returns the server-generated
-        ``position_transfer_id``. ``price`` is the per-contract cost basis in
-        fixed-point dollars (0-1.0) — pass a ``Decimal``, e.g. ``Decimal("0.50")``.
-        Spec v3.24.0 renamed this ``price_cents`` (integer cents) → ``price``.
-        """
-        self._require_auth()
-        body = _build_position_transfer_body(
-            request,
-            client_transfer_id=client_transfer_id,
-            from_subaccount=from_subaccount,
-            to_subaccount=to_subaccount,
-            market_ticker=market_ticker,
-            side=side,
-            count=count,
-            price=price,
-        )
-        data = self._post(
-            "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers
-        )
-        return ApplySubaccountPositionTransferResponse.model_validate(data)
 
     def list_balances(
         self, *, extra_headers: dict[str, str] | None = None
@@ -404,59 +291,6 @@ class AsyncSubaccountsResource(AsyncResource):
             amount_cents=amount_cents,
         )
         await self._post("/portfolio/subaccounts/transfer", json=body, extra_headers=extra_headers)
-
-    @overload
-    async def transfer_position(
-        self,
-        *,
-        request: ApplySubaccountPositionTransferRequest,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse: ...
-    @overload
-    async def transfer_position(
-        self,
-        *,
-        client_transfer_id: UUID | str,
-        from_subaccount: int,
-        to_subaccount: int,
-        market_ticker: str,
-        side: Literal["yes", "no"],
-        count: int,
-        price: Decimal,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse: ...
-    async def transfer_position(
-        self,
-        *,
-        request: ApplySubaccountPositionTransferRequest | None = None,
-        client_transfer_id: UUID | str | None = None,
-        from_subaccount: int | None = None,
-        to_subaccount: int | None = None,
-        market_ticker: str | None = None,
-        side: Literal["yes", "no"] | None = None,
-        count: int | None = None,
-        price: Decimal | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> ApplySubaccountPositionTransferResponse:
-        """Move an open position between subaccounts (spec v3.23.0).
-
-        Async counterpart of :meth:`SubaccountsResource.transfer_position`.
-        """
-        self._require_auth()
-        body = _build_position_transfer_body(
-            request,
-            client_transfer_id=client_transfer_id,
-            from_subaccount=from_subaccount,
-            to_subaccount=to_subaccount,
-            market_ticker=market_ticker,
-            side=side,
-            count=count,
-            price=price,
-        )
-        data = await self._post(
-            "/portfolio/subaccounts/positions/transfer", json=body, extra_headers=extra_headers
-        )
-        return ApplySubaccountPositionTransferResponse.model_validate(data)
 
     async def list_balances(
         self, *, extra_headers: dict[str, str] | None = None

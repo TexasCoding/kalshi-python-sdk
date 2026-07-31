@@ -38,8 +38,6 @@ from kalshi.models import (
     Announcement,
     ApiKey,
     ApiUsageLevelGrant,
-    ApplySubaccountPositionTransferRequest,
-    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
     AssociatedEvent,
     Balance,
@@ -77,6 +75,7 @@ from kalshi.models import (
     Event,
     EventCandlesticks,
     EventFeeChange,
+    EventLiveData,
     EventMetadata,
     EventPosition,
     EventStatusLiteral,
@@ -89,6 +88,7 @@ from kalshi.models import (
     GetApiKeysResponse,
     GetBlockTradeProposalsResponse,
     GetCommunicationsIDResponse,
+    GetEventLiveDataResponse,
     GetFiltersBySportsResponse,
     GetGameStatsResponse,
     GetIncentiveProgramsResponse,
@@ -203,8 +203,6 @@ __all__ = [
     "Announcement",
     "ApiKey",
     "ApiUsageLevelGrant",
-    "ApplySubaccountPositionTransferRequest",
-    "ApplySubaccountPositionTransferResponse",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "AsyncBlockTradeProposalsResource",
@@ -250,6 +248,7 @@ __all__ = [
     "Event",
     "EventCandlesticks",
     "EventFeeChange",
+    "EventLiveData",
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",
@@ -266,6 +265,7 @@ __all__ = [
     "GetApiKeysResponse",
     "GetBlockTradeProposalsResponse",
     "GetCommunicationsIDResponse",
+    "GetEventLiveDataResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",
@@ -379,4 +379,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "8.0.0"
+__version__ = "9.0.0"

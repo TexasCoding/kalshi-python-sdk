@@ -220,6 +220,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/live_data/milestone/{milestone_id}",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.get_event",
+        http_method="GET",
+        path_template="/live_data/events/{event_ticker}",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.live_data.LiveDataResource.get_typed",
         http_method="GET",
         path_template="/live_data/{type}/milestone/{milestone_id}",
@@ -666,12 +671,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="POST",
         path_template="/portfolio/subaccounts/transfer",
         request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
-    ),
-    MethodEndpointEntry(
-        sdk_method="kalshi.resources.subaccounts.SubaccountsResource.transfer_position",
-        http_method="POST",
-        path_template="/portfolio/subaccounts/positions/transfer",
-        request_body_schema="#/components/schemas/ApplySubaccountPositionTransferRequest",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.list_balances",
@@ -1524,6 +1523,13 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/portfolio/margin/subaccounts/transfer",
         request_body_schema="#/components/schemas/ApplySubaccountTransferRequest",
     ),
+    # ── perps FCM ──────────────────────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.create_subtrader",
+        http_method="POST",
+        path_template="/margin/fcm/subtraders",
+        request_body_schema="#/components/schemas/CreateMarginFCMSubtraderRequest",
+    ),
 ]
 
 # SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
@@ -1599,6 +1605,29 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_withdrawal",
         http_method="GET",
         path_template="/margin/settlement_balance_withdrawal",
+    ),
+    # ── perps SCM subtrader groups ─────────────────────────────────────────
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.list_subtrader_groups",
+        http_method="GET",
+        path_template="/fcm/margin/subtrader_groups",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.create_subtrader_group",
+        http_method="POST",
+        path_template="/fcm/margin/subtrader_groups",
+        request_body_schema="#/components/schemas/CreateMarginSubtraderGroupRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.update_subtrader_group",
+        http_method="PUT",
+        path_template="/fcm/margin/subtrader_groups/{group_id}",
+        request_body_schema="#/components/schemas/UpdateMarginSubtraderGroupRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.delete_subtrader_group",
+        http_method="DELETE",
+        path_template="/fcm/margin/subtrader_groups/{group_id}",
     ),
 ]
 

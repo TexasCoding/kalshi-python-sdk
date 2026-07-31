@@ -68,6 +68,8 @@ from kalshi.models.incentive_programs import (
     IncentiveProgramTypeLiteral,
 )
 from kalshi.models.live_data import (
+    EventLiveData,
+    GetEventLiveDataResponse,
     GetGameStatsResponse,
     GetLiveDataResponse,
     GetLiveDatasResponse,
@@ -165,8 +167,6 @@ from kalshi.models.structured_targets import (
     StructuredTarget,
 )
 from kalshi.models.subaccounts import (
-    ApplySubaccountPositionTransferRequest,
-    ApplySubaccountPositionTransferResponse,
     ApplySubaccountTransferRequest,
     CreateSubaccountRequest,
     CreateSubaccountResponse,
@@ -192,8 +192,6 @@ __all__ = [
     "Announcement",
     "ApiKey",
     "ApiUsageLevelGrant",
-    "ApplySubaccountPositionTransferRequest",
-    "ApplySubaccountPositionTransferResponse",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
     "Balance",
@@ -231,6 +229,7 @@ __all__ = [
     "Event",
     "EventCandlesticks",
     "EventFeeChange",
+    "EventLiveData",
     "EventMetadata",
     "EventPosition",
     "EventStatusLiteral",
@@ -243,6 +242,7 @@ __all__ = [
     "GetApiKeysResponse",
     "GetBlockTradeProposalsResponse",
     "GetCommunicationsIDResponse",
+    "GetEventLiveDataResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",

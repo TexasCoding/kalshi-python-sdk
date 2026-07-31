@@ -26,10 +26,36 @@ class LiveData(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class EventLiveData(BaseModel):
+    """Live-data payload keyed by event ticker (not milestone).
+
+    Spec ``EventLiveData`` (OpenAPI 3.27.0) — used for event-keyed series such as
+    crypto price charts, commodity timeseries, and weather observations.
+    ``type`` names the schema of ``details``. Unlike :class:`LiveData`, there is
+    no ``milestone_id``.
+    """
+
+    type: str
+    details: dict[str, Any]
+    is_historical: bool | None = None
+    default_range: str | None = None
+    range_options: list[str] | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class GetLiveDataResponse(BaseModel):
     """Response from GET /live_data/milestone/{milestone_id}."""
 
     live_data: LiveData
+
+    model_config = {"extra": "allow"}
+
+
+class GetEventLiveDataResponse(BaseModel):
+    """Response from GET /live_data/events/{event_ticker}."""
+
+    live_data: EventLiveData
 
     model_config = {"extra": "allow"}
 

@@ -155,11 +155,12 @@ paths:
         settlement estimate.
 
         Estimated next crypto settlement amounts for the authenticated
-        clearing member, including per-subtrader breakdowns.
+        clearing member, including per-subtrader and per-group breakdowns.
 
-        `subtrader_breakdowns` contains at most the 1,000 subtraders with the
-        largest maintenance margin requirement; `omitted_subtrader_count`
-        reports how many were left out. `user_breakdown` always aggregates
+        `subtrader_breakdowns` and `group_breakdowns` together contain at most
+        the 1,000 entries with the largest maintenance margin requirement;
+        `omitted_subtrader_count` and `omitted_group_count` report how many
+        entries of each type were left out. `user_breakdown` always aggregates
         across all subtraders.
 
       responses:
@@ -178,11 +179,13 @@ paths:
       summary: Get Settlement Estimate By Asset Class
       description: >-
         Estimated next settlement amounts for the authenticated clearing
-        member, keyed by asset class, including per-subtrader breakdowns.
-        Asset classes where the member has no margin activity are omitted.
-        `subtrader_breakdowns` contains at most the 1,000 subtraders with the
-        largest maintenance margin requirement; `omitted_subtrader_count`
-        reports how many were left out. `user_breakdown` always aggregates
+        member, keyed by asset class, including per-subtrader and per-group
+        breakdowns. Asset classes where the member has no margin activity are
+        omitted.
+        `subtrader_breakdowns` and `group_breakdowns` together contain at most
+        the 1,000 entries with the largest maintenance margin requirement;
+        `omitted_subtrader_count` and `omitted_group_count` report how many
+        entries of each type were left out. `user_breakdown` always aggregates
         across all subtraders.
 
       responses:
@@ -288,6 +291,81 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /fcm/margin/subtrader_groups:
+    get:
+      operationId: GetMarginSubtraderGroups
+      summary: Get Subtrader Groups
+      description: List the clearing member's margin subtrader groups and their members.
+
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetMarginSubtraderGroupsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    post:
+      operationId: CreateMarginSubtraderGroup
+      summary: Create Subtrader Group
+      description: Create a margin subtrader group. Grouped subtraders are margined as one netted portfolio at each settlement.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMarginSubtraderGroupRequest' }
+      responses:
+        '200':
+          description: Group created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateMarginSubtraderGroupResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /fcm/margin/subtrader_groups/{group_id}:
+    parameters:
+      - name: group_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: UpdateMarginSubtraderGroup
+      summary: Update Subtrader Group
+      description: Replace a margin subtrader group's membership.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMarginSubtraderGroupRequest' }
+      responses:
+        '200': { description: Group updated }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      operationId: DeleteMarginSubtraderGroup
+      summary: Delete Subtrader Group
+      description: Delete a margin subtrader group if it exists.
+
+      responses:
+        '200': { description: Group deleted or already absent }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
 components:
   securitySchemes:
     kalshiBearer:
@@ -310,6 +388,16 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     ForbiddenError:
       description: Caller is not permitted to access this resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ConflictError:
+      description: Request conflicts with existing state
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -347,6 +435,8 @@ components:
             - market_price_snapshot
             - funding_periods
             - settlement_periods
+            - maintenance_margin
+            - maintenance_margin_aggregate
         url: { type: string, description: Presigned download URL (omitted from logs). }
         date: { type: string, format: date }
         created_ts: { type: string, format: date-time }
@@ -434,7 +524,8 @@ components:
         - maintenance_margin_delta_centicents
       properties:
         id: { type: string }
-        subtrader_id: { type: string, description: Empty when not populated. }
+        subtrader_id: { type: string, description: Empty when not populated or when the subtrader is part of a subtrader group. }
+        margin_group_id: { type: string, description: Set when the subtrader is part of a subtrader group. }
         maintenance_margin_centicents: { type: integer, format: int64, description: Maintenance margin requirement after this settlement. }
         maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin between the previous settlement and this one. }
 
@@ -539,9 +630,14 @@ components:
         user_breakdown: { $ref: '#/components/schemas/SettlementEstimate' }
         subtrader_breakdowns:
           type: object
-          description: Map of subtrader ID to that subtrader's settlement estimate. Contains at most the top 1,000 subtraders by maintenance margin requirement.
+          description: Map of subtrader ID to that portfolio's settlement estimate.
+          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        group_breakdowns:
+          type: object
+          description: Map of margin group ID to that portfolio's netted settlement estimate.
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
         omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
+        omitted_group_count: { type: integer, format: int64, description: Number of groups omitted from group_breakdowns. Their amounts are still included in user_breakdown. }
         prev_settlement_prices:
           type: object
           description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
@@ -557,9 +653,14 @@ components:
           description: Estimated next settlement for this asset class. Null when the member has no activity in this asset class.
         subtrader_breakdowns:
           type: object
-          description: Map of subtrader ID to that subtrader's settlement estimate. Contains at most the top 1,000 subtraders by maintenance margin requirement.
+          description: Map of subtrader ID to that portfolio's settlement estimate.
+          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
+        group_breakdowns:
+          type: object
+          description: Map of margin group ID to that portfolio's netted settlement estimate.
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
         omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
+        omitted_group_count: { type: integer, format: int64, description: Number of groups omitted from group_breakdowns. Their amounts are still included in user_breakdown. }
         prev_settlement_prices:
           type: object
           description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
@@ -637,3 +738,46 @@ components:
         cursor:
           type: string
           description: Pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
+    CreateMarginSubtraderGroupRequest:
+      type: object
+      required: [subtrader_ids]
+      properties:
+        subtrader_ids:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+          description: List of subtrader IDs belonging to the clearing member that will comprise the group. Subtraders must not belong to another group.
+
+    CreateMarginSubtraderGroupResponse:
+      type: object
+      required: [group_id]
+      properties:
+        group_id: { type: string, format: uuid }
+
+    UpdateMarginSubtraderGroupRequest:
+      type: object
+      required: [subtrader_ids]
+      properties:
+        subtrader_ids:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+          description: Full desired list of subtrader IDs belonging to the clearing member. Subtraders must not belong to another group.
+
+    MarginSubtraderGroup:
+      type: object
+      required: [group_id, member_subtrader_ids]
+      properties:
+        group_id: { type: string, format: uuid }
+        member_subtrader_ids:
+          type: array
+          items: { type: string }
+
+    GetMarginSubtraderGroupsResponse:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/MarginSubtraderGroup' }

@@ -66,6 +66,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
+| `fcm` | `create_subtrader(subtrader_suffix=...)` — `POST /margin/fcm/subtraders` |
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -201,7 +202,18 @@ Settlement-estimate responses also expose optional
 `omitted_subtrader_count` (`int | None`, SDK v7.3.0) on
 `GetSettlementEstimateResponse` and each `AssetClassSettlementEstimate` — the
 number of subtraders left out of `subtrader_breakdowns` (their amounts remain
-in `user_breakdown`).
+in `user_breakdown`). SDK v9.0.0 adds optional `group_breakdowns` /
+`omitted_group_count` for netted subtrader groups, and optional
+`margin_group_id` on `MaintenanceMarginDetail`.
+
+Subtrader groups (SDK v9.0.0) — margined as one netted portfolio:
+
+```python
+groups = klear.margin.list_subtrader_groups()
+created = klear.margin.create_subtrader_group(subtrader_ids=["st-a", "st-b"])
+klear.margin.update_subtrader_group(created.group_id, subtrader_ids=["st-a", "st-c"])
+klear.margin.delete_subtrader_group(created.group_id)
+```
 
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
 10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.

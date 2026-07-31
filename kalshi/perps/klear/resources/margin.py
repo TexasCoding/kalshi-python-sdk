@@ -32,21 +32,31 @@ from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
+    CreateMarginSubtraderGroupRequest,
+    CreateMarginSubtraderGroupResponse,
     GetActiveMarginObligationResponse,
     GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
+    GetMarginSubtraderGroupsResponse,
     GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
     GetSettlementEstimateByAssetClassResponse,
     GetSettlementEstimateResponse,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
+    UpdateMarginSubtraderGroupRequest,
     WithdrawSettlementBalanceRequest,
     WithdrawSettlementBalanceResponse,
 )
 from kalshi.perps.klear.resources._base import KlearAsyncResource, KlearSyncResource
-from kalshi.resources._base import _params, _validate_limit, _validate_max_pages
+from kalshi.resources._base import (
+    _check_request_exclusive,
+    _params,
+    _seg,
+    _validate_limit,
+    _validate_max_pages,
+)
 from kalshi.types import DollarDecimal, to_decimal
 
 
@@ -258,6 +268,68 @@ class MarginResource(KlearSyncResource):
         )
         return GetSettlementBalanceWithdrawalResponse.model_validate(data)
 
+    def list_subtrader_groups(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetMarginSubtraderGroupsResponse:
+        """``GET /fcm/margin/subtrader_groups`` — list margin subtrader groups."""
+        data = self._get("/fcm/margin/subtrader_groups", extra_headers=extra_headers)
+        return GetMarginSubtraderGroupsResponse.model_validate(data)
+
+    def create_subtrader_group(
+        self,
+        *,
+        request: CreateMarginSubtraderGroupRequest | None = None,
+        subtrader_ids: list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginSubtraderGroupResponse:
+        """``POST /fcm/margin/subtrader_groups`` — create a netted subtrader group."""
+        _check_request_exclusive(request, subtrader_ids=subtrader_ids)
+        if request is None:
+            if subtrader_ids is None:
+                raise TypeError(
+                    "create_subtrader_group() requires `subtrader_ids` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
+        data = self._post(
+            "/fcm/margin/subtrader_groups",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return CreateMarginSubtraderGroupResponse.model_validate(data)
+
+    def update_subtrader_group(
+        self,
+        group_id: str,
+        *,
+        request: UpdateMarginSubtraderGroupRequest | None = None,
+        subtrader_ids: list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``PUT /fcm/margin/subtrader_groups/{group_id}`` — replace group membership."""
+        _check_request_exclusive(request, subtrader_ids=subtrader_ids)
+        if request is None:
+            if subtrader_ids is None:
+                raise TypeError(
+                    "update_subtrader_group() requires `subtrader_ids` "
+                    "(or pass `request=...`)"
+                )
+            request = UpdateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
+        self._put(
+            f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+
+    def delete_subtrader_group(
+        self, group_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """``DELETE /fcm/margin/subtrader_groups/{group_id}`` — delete a group."""
+        self._delete(
+            f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncMarginResource(KlearAsyncResource):
     """Async Klear (SCM) margin API — all nine endpoints + two paginators."""
@@ -421,3 +493,65 @@ class AsyncMarginResource(KlearAsyncResource):
             extra_headers=extra_headers,
         )
         return GetSettlementBalanceWithdrawalResponse.model_validate(data)
+
+    async def list_subtrader_groups(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetMarginSubtraderGroupsResponse:
+        """Async :meth:`MarginResource.list_subtrader_groups`."""
+        data = await self._get("/fcm/margin/subtrader_groups", extra_headers=extra_headers)
+        return GetMarginSubtraderGroupsResponse.model_validate(data)
+
+    async def create_subtrader_group(
+        self,
+        *,
+        request: CreateMarginSubtraderGroupRequest | None = None,
+        subtrader_ids: list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginSubtraderGroupResponse:
+        """Async :meth:`MarginResource.create_subtrader_group`."""
+        _check_request_exclusive(request, subtrader_ids=subtrader_ids)
+        if request is None:
+            if subtrader_ids is None:
+                raise TypeError(
+                    "create_subtrader_group() requires `subtrader_ids` "
+                    "(or pass `request=...`)"
+                )
+            request = CreateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
+        data = await self._post(
+            "/fcm/margin/subtrader_groups",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return CreateMarginSubtraderGroupResponse.model_validate(data)
+
+    async def update_subtrader_group(
+        self,
+        group_id: str,
+        *,
+        request: UpdateMarginSubtraderGroupRequest | None = None,
+        subtrader_ids: list[str] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`MarginResource.update_subtrader_group`."""
+        _check_request_exclusive(request, subtrader_ids=subtrader_ids)
+        if request is None:
+            if subtrader_ids is None:
+                raise TypeError(
+                    "update_subtrader_group() requires `subtrader_ids` "
+                    "(or pass `request=...`)"
+                )
+            request = UpdateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
+        await self._put(
+            f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+
+    async def delete_subtrader_group(
+        self, group_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Async :meth:`MarginResource.delete_subtrader_group`."""
+        await self._delete(
+            f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
+            extra_headers=extra_headers,
+        )
