@@ -2,6 +2,11 @@
 
 ## Shipped
 
+- **v9.0.0 (2026-07-31)** — OpenAPI sync 3.26.0 → 3.27.0 (#492). **Breaking:**
+  removed `subaccounts.transfer_position()` after upstream deleted position
+  transfers. Additive: `live_data.get_event()`,
+  `DecreaseOrderV2Request.market_ticker`, `Series.exchange_index`, perps
+  `fcm.create_subtrader()`, Klear subtrader groups + settlement group fields.
 - **v8.0.0 (2026-07-27)** — Spec-drift reconcile under OpenAPI 3.26.0
   (#489 / #490). **Breaking:** removed the settlement-advance subaccount
   surface added in v7.4.0 (`lock_settlement_advance` /

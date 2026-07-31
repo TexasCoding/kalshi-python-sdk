@@ -55,6 +55,9 @@ class MarketLifecyclePayload(BaseModel):
     # list[dict] to match Market.price_ranges (no nested model yet).
     price_ranges: list[dict[str, Any]] | None = None
     yes_sub_title: str | None = None
+    # OpenAPI/AsyncAPI content 3.27.0: optional on `created` lifecycle events —
+    # exchange shard the market lives on.
+    exchange_index: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

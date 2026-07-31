@@ -219,11 +219,16 @@ class DecreaseOrderV2Request(BaseModel):
 
     Spec marks all fields optional but server requires exactly one of
     ``reduce_by`` or ``reduce_to``. Enforced at construction.
+
+    ``market_ticker`` (OpenAPI 3.27.0) is required when ``exchange_index`` is
+    ``-1`` (auto-route by ticker), matching cancel/batch-cancel.
     """
 
     reduce_by: FixedPointCount | None = None
     reduce_to: FixedPointCount | None = None
+    # No ``ge=0``: ExchangeIndex permits ``-1`` to auto-route by market ticker.
     exchange_index: StrictInt | None = None
+    market_ticker: str | None = None
 
     model_config = {"extra": "forbid"}
 

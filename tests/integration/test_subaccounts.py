@@ -46,7 +46,6 @@ register(
         "list_balances",
         "list_transfers",
         "transfer",
-        "transfer_position",
         "update_netting",
     ],
 )
@@ -177,48 +176,8 @@ class TestSubaccountsSync:
                 amount_cents=-1,
             )
 
-    def test_transfer_position_rejects_invalid_price(
-        self, sync_client: KalshiClient,
-    ) -> None:
-        # v3.24.0: `price` is OrderPrice (fixed-point dollars). A negative price
-        # rejects before any network call, independent of demo position state
-        # (the old 0-100c cap is gone; the server enforces the upper bound).
-        with pytest.raises(ValueError):
-            sync_client.subaccounts.transfer_position(
-                client_transfer_id=str(uuid.uuid4()),
-                from_subaccount=0,
-                to_subaccount=1,
-                market_ticker="MKT-DOES-NOT-MATTER",
-                side="yes",
-                count=1,
-                price=Decimal("-0.01"),
-            )
-
-    def test_transfer_position_smoke(
-        self,
-        sync_client: KalshiClient,
-        ephemeral_subaccount: int,
-    ) -> None:
-        # Moving a position requires an open position in the primary subaccount,
-        # which demo may not have. Exercise the request path and skip cleanly if
-        # the server refuses (no position, unknown market, etc.).
-        try:
-            resp = sync_client.subaccounts.transfer_position(
-                client_transfer_id=str(uuid.uuid4()),
-                from_subaccount=0,
-                to_subaccount=ephemeral_subaccount,
-                market_ticker="KXBTCD-99DEC31-B1",
-                side="yes",
-                count=1,
-                price=Decimal("0.01"),
-            )
-        except KalshiError as e:
-            pytest.skip(f"demo refused position transfer (no position to move?): {e}")
-        assert resp.position_transfer_id
 
 
-@pytest.mark.integration
-@pytest.mark.integration_real_api_only
 class TestSubaccountsRealApiOnly:
     """Endpoints demo cannot service.
 

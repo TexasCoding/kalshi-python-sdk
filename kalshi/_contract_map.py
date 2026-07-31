@@ -175,14 +175,6 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="ApplySubaccountTransferRequest",
     ),
     ContractEntry(
-        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest",
-        spec_schema="ApplySubaccountPositionTransferRequest",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.subaccounts.ApplySubaccountPositionTransferResponse",
-        spec_schema="ApplySubaccountPositionTransferResponse",
-    ),
-    ContractEntry(
         sdk_model="kalshi.models.subaccounts.CreateSubaccountRequest",
         spec_schema="CreateSubaccountRequest",
     ),
@@ -219,6 +211,11 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.live_data.LiveData",
         spec_schema="LiveData",
         notes="details is dict[str, Any] per spec additionalProperties:true",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.EventLiveData",
+        spec_schema="EventLiveData",
+        notes="event-keyed live data; details is dict[str, Any]",
     ),
     ContractEntry(
         sdk_model="kalshi.models.markets.MarketCandlesticks",
@@ -799,6 +796,15 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.perps.models.transfers.CreateSubaccountResponse",
         spec_schema="CreateSubaccountResponse",
     ),
+    # ── perps FCM subtraders ──
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.CreateMarginFCMSubtraderRequest",
+        spec_schema="CreateMarginFCMSubtraderRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.CreateMarginFCMSubtraderResponse",
+        spec_schema="CreateMarginFCMSubtraderResponse",
+    ),
 ]
 
 PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
@@ -875,5 +881,26 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
         spec_schema="SettlementBalanceHistoryEntry",
+    ),
+    # ── perps SCM subtrader groups ──
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MarginSubtraderGroup",
+        spec_schema="MarginSubtraderGroup",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetMarginSubtraderGroupsResponse",
+        spec_schema="GetMarginSubtraderGroupsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.CreateMarginSubtraderGroupRequest",
+        spec_schema="CreateMarginSubtraderGroupRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.CreateMarginSubtraderGroupResponse",
+        spec_schema="CreateMarginSubtraderGroupResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.UpdateMarginSubtraderGroupRequest",
+        spec_schema="UpdateMarginSubtraderGroupRequest",
     ),
 ]

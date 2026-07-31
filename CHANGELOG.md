@@ -2,6 +2,56 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 9.0.0 — 2026-07-31
+
+Syncs upstream core OpenAPI **3.26.0 → 3.27.0** (paths stay 92; 103 operations /
+102 mapped) and the matching perps + SCM OpenAPI content (Closes #492).
+**Breaking** for callers of the subaccount position-transfer API.
+
+### Removed (breaking)
+
+- **`subaccounts.transfer_position()`** (sync + async) and models
+  `ApplySubaccountPositionTransferRequest` /
+  `ApplySubaccountPositionTransferResponse`. Upstream deleted
+  `POST /portfolio/subaccounts/positions/transfer` and the matching schemas
+  from OpenAPI 3.27.0. Cash `transfer()` is unchanged.
+
+### Added
+
+- **`live_data.get_event(event_ticker, *, range=None)`** (sync + async) —
+  `GET /live_data/events/{event_ticker}`. Returns `EventLiveData` (`type`,
+  `details`, optional `is_historical` / `default_range` / `range_options`).
+  Models: `EventLiveData`, `GetEventLiveDataResponse`.
+- **`DecreaseOrderV2Request.market_ticker`** (`str | None`) — required by the
+  server when `exchange_index` is `-1` (auto-route by ticker).
+- **`Series.exchange_index`** (`int | None`) — exchange shard for the series.
+- **WS** `MarketLifecyclePayload.exchange_index` (`int | None`) — optional on
+  market-lifecycle `created` events (AsyncAPI).
+- **Perps** `PerpsClient.fcm.create_subtrader(...)` (sync + async) —
+  `POST /margin/fcm/subtraders`. Body:
+  `CreateMarginFCMSubtraderRequest(subtrader_suffix=...)` (`^[a-z0-9]{1,16}$`);
+  returns `CreateMarginFCMSubtraderResponse.subtrader_id`.
+- **Klear/SCM** subtrader groups on `KlearClient.margin` (sync + async):
+  - `list_subtrader_groups()` — `GET /fcm/margin/subtrader_groups`
+  - `create_subtrader_group(subtrader_ids=...)` — `POST /fcm/margin/subtrader_groups`
+  - `update_subtrader_group(group_id, subtrader_ids=...)` — `PUT .../{group_id}`
+  - `delete_subtrader_group(group_id)` — `DELETE .../{group_id}`
+  Models: `MarginSubtraderGroup`, `GetMarginSubtraderGroupsResponse`,
+  `CreateMarginSubtraderGroupRequest` / `Response`,
+  `UpdateMarginSubtraderGroupRequest`.
+- **Klear settlement estimates**: optional `group_breakdowns` /
+  `omitted_group_count` on `GetSettlementEstimateResponse` and
+  `AssetClassSettlementEstimate`; optional `margin_group_id` on
+  `MaintenanceMarginDetail`.
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.27.0** (103 operations / 102 mapped). Still
+  unimplemented: `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()` on the margin product).
+- Perps OpenAPI: +1 operation (`POST /margin/fcm/subtraders`).
+- Perps SCM OpenAPI: +4 subtrader-group operations.
+
 ## 8.0.0 — 2026-07-27
 
 Reconciles upstream core OpenAPI / AsyncAPI content under version string

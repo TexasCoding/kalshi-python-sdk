@@ -653,6 +653,31 @@ class TestDecreaseOrderV2:
         body = json.loads(request.content)
         assert body.get("exchange_index") == 0
 
+    @respx.mock
+    def test_market_ticker_with_auto_exchange_index(
+        self, orders: OrdersResource,
+    ) -> None:
+        """Spec 3.27.0: market_ticker required when exchange_index is -1."""
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/ord-1/decrease",
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"order_id": "ord-1", "remaining_count": "0", "ts_ms": 0},
+            )
+        )
+        orders.decrease_v2(
+            "ord-1",
+            request=DecreaseOrderV2Request(
+                reduce_by=Decimal("2"),
+                exchange_index=-1,
+                market_ticker="MKT-A",
+            ),
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["exchange_index"] == -1
+        assert body["market_ticker"] == "MKT-A"
+
 
 class TestBatchCreateV2:
     @respx.mock

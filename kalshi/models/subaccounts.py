@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from kalshi.types import DollarDecimal, OrderPrice, StrictInt
+from kalshi.types import DollarDecimal, StrictInt
 
 
 class CreateSubaccountRequest(BaseModel):
@@ -57,46 +57,6 @@ class ApplySubaccountTransferRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-class ApplySubaccountPositionTransferRequest(BaseModel):
-    """Body for POST /portfolio/subaccounts/positions/transfer (spec v3.24.0).
-
-    Moves an open **position** (contracts) between subaccounts — distinct from
-    the cash-only :class:`ApplySubaccountTransferRequest`. ``price`` is the
-    per-contract price in **fixed-point dollars** (``0``-``1.0``) used to set the
-    cost basis on the destination subaccount; ``count`` is the number of contracts
-    and must be positive. ``from_subaccount`` / ``to_subaccount`` use ``0`` for the
-    primary account; the SDK enforces only the lower bound (``ge=0``), leaving the
-    upper bound to the server (mirrors :class:`ApplySubaccountTransferRequest`).
-
-    Spec v3.24.0 renamed ``price_cents`` (integer cents) → ``price``
-    (``FixedPointDollars``); pass a ``Decimal`` in dollars, e.g. ``Decimal("0.50")``
-    for a 50¢ cost basis. Uses :data:`~kalshi.types.OrderPrice` so a negative or
-    sub-$0.0001-tick value fails at construction rather than as a server 400.
-    """
-
-    client_transfer_id: UUID
-    from_subaccount: StrictInt = Field(ge=0)
-    to_subaccount: StrictInt = Field(ge=0)
-    market_ticker: str
-    side: Literal["yes", "no"]
-    count: StrictInt = Field(gt=0)
-    price: OrderPrice
-
-    model_config = {"extra": "forbid"}
-
-
-class ApplySubaccountPositionTransferResponse(BaseModel):
-    """Response from POST /portfolio/subaccounts/positions/transfer (spec v3.23.0).
-
-    ``position_transfer_id`` is the server-generated identifier for the applied
-    position transfer.
-    """
-
-    position_transfer_id: str
-
-    model_config = {"extra": "allow"}
-
-
 class SubaccountBalance(BaseModel):
     """Balance for a single subaccount.
 
@@ -135,10 +95,8 @@ class SubaccountTransfer(BaseModel):
     ``GET /portfolio/subaccounts/transfers`` to cash rows only. Upstream
     dropped ``transfer_type`` and the position-only fields
     (``market_ticker`` / ``side`` / ``count`` / ``price``) from this schema.
-    Position moves use :class:`ApplySubaccountPositionTransferRequest` /
-    :class:`ApplySubaccountPositionTransferResponse` on
-    ``POST /portfolio/subaccounts/positions/transfer`` — they are not listed
-    here. Fields removed from the wire schema are retained as optional
+    Spec 3.27.0 later removed ``POST /portfolio/subaccounts/positions/transfer``
+    entirely. Fields removed from the wire schema are retained as optional
     (defensive optional-ization) so payloads from lagging servers still parse;
     new responses omit them.
     """

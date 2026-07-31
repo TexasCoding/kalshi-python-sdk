@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.26.0
+  version: 3.27.0
   description: >-
     Manually defined OpenAPI spec for endpoints being migrated to spec-first
     approach
@@ -1578,6 +1578,7 @@ paths:
           kalshiAccessTimestamp: []
       parameters:
         - $ref: '#/components/parameters/OrderGroupIdPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
         - $ref: '#/components/parameters/ExchangeIndexQuery'
       requestBody:
         required: true
@@ -1632,9 +1633,7 @@ paths:
     post:
       operationId: IntraExchangeInstanceTransfer
       summary: Intra Account Transfer
-      description: >-
-        Endpoint for transferring funds within the same account. This endpoint
-        is currently not available.
+      description: Endpoint for transferring funds within the same account.
       tags:
         - portfolio
       security:
@@ -1728,47 +1727,6 @@ paths:
           $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-  /portfolio/subaccounts/positions/transfer:
-    post:
-      x-excluded: true
-      operationId: ApplySubaccountPositionTransfer
-      summary: Transfer Position Between Subaccounts
-      description: >-
-        Moves an existing position between two of the authenticated user's own
-        subaccounts. Use 0 for the primary account, or 1-63 for numbered
-        subaccounts. The transfer is idempotent on `client_transfer_id`:
-        retrying with the same value returns 409. `price` is the per-contract
-        transfer price as a fixed-point dollar string, and is always the
-        YES-side price regardless of `side` — the receiving subaccount pays the
-        sending subaccount for the position at that price. See the
-        [Subaccounts](/getting_started/subaccounts) page for worked examples.
-      tags:
-        - portfolio
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApplySubaccountPositionTransferRequest'
-      responses:
-        '200':
-          description: Position transfer completed successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApplySubaccountPositionTransferResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /portfolio/subaccounts/balances:
@@ -3177,6 +3135,44 @@ paths:
           description: Game stats not found
         '500':
           description: Internal server error
+  /live_data/events/{event_ticker}:
+    get:
+      operationId: GetEventLiveData
+      summary: Get Event Live Data
+      description: >-
+        Get live data for an event by its event ticker. Serves event-keyed live
+        data such as crypto price charts, commodity price timeseries, and
+        weather observations. The `type` field in the response names the schema
+        of the `details` object.
+      tags:
+        - live-data
+      parameters:
+        - name: event_ticker
+          in: path
+          required: true
+          description: Event ticker
+          schema:
+            type: string
+        - name: range
+          in: query
+          required: false
+          description: >-
+            Optional chart range hint (e.g. `15min`, `1h`, `1d`). When the
+            underlying live data type supports it, restricts the returned
+            timeseries to the requested window.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Live data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetEventLiveDataResponse'
+        '404':
+          description: Live data not found
+        '500':
+          description: Internal server error
   /structured_targets:
     get:
       operationId: GetStructuredTargets
@@ -4456,9 +4452,7 @@ components:
       example: '10.00'
     ExchangeIndex:
       type: integer
-      description: >-
-        Identifier for an exchange shard. Defaults to 0 if unspecified. Note:
-        currently only 0 supported.
+      description: Identifier for an exchange shard. Defaults to 0 if unspecified.
       example: 0
     FeeType:
       type: string
@@ -4616,9 +4610,6 @@ components:
         details:
           type: string
           description: Additional details about the error, if available
-        service:
-          type: string
-          description: The name of the service that generated the error
     SelfTradePreventionType:
       type: string
       enum:
@@ -5464,6 +5455,43 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LiveData'
+    EventLiveData:
+      type: object
+      required:
+        - type
+        - details
+      properties:
+        type:
+          type: string
+          description: Type of live data. Names the schema of the details object.
+        details:
+          type: object
+          additionalProperties: true
+          description: >-
+            Live data details as a flexible object whose shape depends on the
+            type.
+        is_historical:
+          type: boolean
+          description: >-
+            Present for crypto live data. True when the event has matured and
+            the payload is a frozen historical snapshot.
+        default_range:
+          type: string
+          description: >-
+            Chart range the client should default to (e.g. `15min`, `1h`).
+            Omitted when unset.
+        range_options:
+          type: array
+          items:
+            type: string
+          description: Chart range menu options. Omitted when unset.
+    GetEventLiveDataResponse:
+      type: object
+      required:
+        - live_data
+      properties:
+        live_data:
+          $ref: '#/components/schemas/EventLiveData'
     GetGameStatsResponse:
       type: object
       properties:
@@ -5583,79 +5611,6 @@ components:
     ApplySubaccountTransferResponse:
       type: object
       description: Empty response indicating successful transfer.
-    ApplySubaccountPositionTransferRequest:
-      type: object
-      required:
-        - client_transfer_id
-        - from_subaccount
-        - to_subaccount
-        - market_ticker
-        - side
-        - count
-        - price
-      properties:
-        client_transfer_id:
-          type: string
-          format: uuid
-          description: >-
-            Unique client-provided transfer ID for idempotency. Retrying with
-            the same value returns 409.
-          x-oapi-codegen-extra-tags:
-            validate: required
-        from_subaccount:
-          type: integer
-          nullable: true
-          description: >-
-            Source subaccount number (0 for primary, 1-63 for numbered
-            subaccounts).
-          x-oapi-codegen-extra-tags:
-            validate: required
-        to_subaccount:
-          type: integer
-          nullable: true
-          description: >-
-            Destination subaccount number (0 for primary, 1-63 for numbered
-            subaccounts).
-          x-oapi-codegen-extra-tags:
-            validate: required
-        market_ticker:
-          type: string
-          description: >-
-            Ticker of the market whose position is being moved. The market must
-            be on exchange shard 0; markets on any other shard are rejected.
-          x-oapi-codegen-extra-tags:
-            validate: required
-        side:
-          type: string
-          enum:
-            - 'yes'
-            - 'no'
-          description: Side of the position to move.
-          x-oapi-codegen-extra-tags:
-            validate: required
-        count:
-          type: integer
-          nullable: true
-          description: Number of contracts to move (must be greater than 0).
-          x-oapi-codegen-extra-tags:
-            validate: required
-        price:
-          $ref: '#/components/schemas/FixedPointDollars'
-          description: >-
-            Per-contract price in fixed-point dollars (0 to 1.00 inclusive): the
-            cash consideration the receiving subaccount pays the sending
-            subaccount for the position. Always the YES-side price, even when
-            `side` is `no`; a NO position transferred at `price` p carries a
-            per-contract NO-side value of 1.00 − p.
-          x-go-type-skip-optional-pointer: true
-    ApplySubaccountPositionTransferResponse:
-      type: object
-      required:
-        - position_transfer_id
-      properties:
-        position_transfer_id:
-          type: string
-          description: Server-generated identifier for the position transfer.
     GetSubaccountBalancesResponse:
       type: object
       required:
@@ -6821,9 +6776,8 @@ components:
           minimum: 0
           description: >-
             Optional subaccount number to use for this order group (0 for
-            primary, 1-63 for subaccounts)
-          default: 0
-          x-go-type-skip-optional-pointer: true
+            primary, 1-63 for subaccounts). Subaccount-restricted API keys must
+            omit this field or pass their locked subaccount.
         contracts_limit:
           type: integer
           format: int64
@@ -7819,6 +7773,9 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
+          description: >-
+            Exchange shard index. Defaults to 0. Use -1 to auto-route by market
+            ticker.
           x-go-type-skip-optional-pointer: true
     AmendOrderResponse:
       type: object
@@ -7931,11 +7888,10 @@ components:
         subaccount:
           type: integer
           minimum: 0
-          default: 0
           description: >-
             The subaccount number to use for this order. 0 is the primary
-            subaccount.
-          x-go-type-skip-optional-pointer: true
+            subaccount. Subaccount-restricted API keys must omit this field or
+            pass their locked subaccount.
         order_group_id:
           type: string
           description: The order group this order is part of
@@ -8040,6 +7996,10 @@ components:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
           x-go-type-skip-optional-pointer: true
+        market_ticker:
+          type: string
+          description: Market ticker. Required when exchange_index is -1 (auto).
+          x-go-type-skip-optional-pointer: true
     DecreaseOrderV2Response:
       type: object
       required:
@@ -8114,6 +8074,9 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
+          description: >-
+            Exchange shard index. Defaults to 0. Use -1 to auto-route by market
+            ticker.
           x-go-type-skip-optional-pointer: true
     AmendOrderV2Response:
       type: object
@@ -8292,11 +8255,10 @@ components:
               subaccount:
                 type: integer
                 minimum: 0
-                default: 0
                 description: >-
                   Optional subaccount number to use for this cancellation (0 for
-                  primary, 1-63 for subaccounts).
-                x-go-type-skip-optional-pointer: true
+                  primary, 1-63 for subaccounts). Subaccount-restricted API keys
+                  must omit this field or pass their locked subaccount.
               exchange_index:
                 allOf:
                   - $ref: '#/components/schemas/ExchangeIndex'
@@ -9047,6 +9009,7 @@ components:
             calculations.
         additional_prohibitions:
           type: array
+          nullable: true
           items:
             type: string
           description: >-
@@ -9061,6 +9024,11 @@ components:
           type: string
           format: date-time
           description: Timestamp of when this series' metadata was last updated.
+        exchange_index:
+          allOf:
+            - $ref: '#/components/schemas/ExchangeIndex'
+          x-go-type-skip-optional-pointer: true
+          x-omitempty: false
     SeriesFeeChange:
       type: object
       required:

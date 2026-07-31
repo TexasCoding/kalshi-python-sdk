@@ -6,10 +6,8 @@ reuse the prediction-API transport/HTTP helpers but override ``_get``/``_post``
 to merge the Klear Bearer header onto every request — the paginators
 (``_list``/``_list_all``) route through ``_get``, so they are covered too.
 
-Only ``_get``/``_post`` are overridden because the entire Klear surface is
-GET/POST. If a future spec revision adds a PUT/DELETE Klear endpoint, override
-the matching base helper here too (otherwise its requests would go out
-unauthenticated).
+``_get``/``_post``/``_put``/``_delete`` are overridden so every Klear request
+carries the Bearer header (subtrader-group CRUD uses PUT/DELETE).
 """
 
 from __future__ import annotations
@@ -65,6 +63,29 @@ class KlearSyncResource(SyncResource):
             path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
         )
 
+    def _put(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        return super()._put(
+            path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
+        )
+
+    def _delete(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        return super()._delete(
+            path, params=params, extra_headers=self._with_auth(extra_headers)
+        )
+
 
 class KlearAsyncResource(AsyncResource):
     """Async Klear resource base — transport + Bearer header injection."""
@@ -97,4 +118,27 @@ class KlearAsyncResource(AsyncResource):
     ) -> dict[str, Any]:
         return await super()._post(
             path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
+        )
+
+    async def _put(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        return await super()._put(
+            path, params=params, json=json, extra_headers=self._with_auth(extra_headers)
+        )
+
+    async def _delete(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        return await super()._delete(
+            path, params=params, extra_headers=self._with_auth(extra_headers)
         )

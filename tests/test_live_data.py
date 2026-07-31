@@ -11,6 +11,7 @@ from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiNotFoundError
 from kalshi.models.live_data import (
+    EventLiveData,
     GetGameStatsResponse,
     LiveData,
 )
@@ -46,6 +47,14 @@ _LD_JSON = {
         "clock": "10:32",
         "period": "Q2",
     },
+}
+
+_EVENT_LD_JSON = {
+    "type": "crypto_price",
+    "details": {"price": "65000.12", "points": [{"t": 1, "v": 1.0}]},
+    "is_historical": False,
+    "default_range": "1h",
+    "range_options": ["15min", "1h", "1d"],
 }
 
 
@@ -138,6 +147,38 @@ class TestLiveDataGetTyped:
         ld = live_data.get_typed("football_game", "ms-1")
         assert ld.milestone_id == "ms-1"
         assert route.called
+
+
+class TestLiveDataGetEvent:
+    @respx.mock
+    def test_get_event_unwraps(self, live_data: LiveDataResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/events/KXBTCD-25",
+        ).mock(return_value=httpx.Response(200, json={"live_data": _EVENT_LD_JSON}))
+        ld = live_data.get_event("KXBTCD-25")
+        assert isinstance(ld, EventLiveData)
+        assert ld.type == "crypto_price"
+        assert ld.default_range == "1h"
+        assert ld.range_options == ["15min", "1h", "1d"]
+        assert ld.is_historical is False
+
+    @respx.mock
+    def test_get_event_sends_range(
+        self, live_data: LiveDataResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/events/KXBTCD-25",
+        ).mock(return_value=httpx.Response(200, json={"live_data": _EVENT_LD_JSON}))
+        live_data.get_event("KXBTCD-25", range="15min")
+        assert dict(route.calls[0].request.url.params) == {"range": "15min"}
+
+    @respx.mock
+    def test_get_event_404_maps(self, live_data: LiveDataResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/events/nope",
+        ).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with pytest.raises(KalshiNotFoundError):
+            live_data.get_event("nope")
 
 
 class TestLiveDataBatch:

@@ -1833,6 +1833,7 @@ components:
             msg:
               market_ticker: INXD-23SEP14-B4487
               event_type: created
+              exchange_index: 0
               open_ts: 1694635200
               close_ts: 1694721600
               price_level_structure: linear_cent
@@ -1899,6 +1900,7 @@ components:
             msg:
               market_ticker: KXMVE-TEST-EVENT-M1
               event_type: created
+              exchange_index: 0
               open_ts: 1773936000
               close_ts: 1774022400
               additional_metadata:
@@ -1926,6 +1928,7 @@ components:
             sid: 5
             msg:
               event_ticker: KXQUICKSETTLE-26JAN25H2150
+              exchange_index: 0
               title: What will 1+1 equal on Jan 25 at 21:50?
               subtitle: Jan 25 at 21:50
               collateral_return_type: MECNET
@@ -3412,6 +3415,11 @@ components:
               description: >-
                 Unique identifier for markets. This is what you use to
                 differentiate updates for different markets
+            exchange_index:
+              type: integer
+              description: >-
+                Optional - This key will ONLY exist when the market is created.
+                Identifier for the exchange shard the market lives on
             open_ts:
               type: integer
               description: >-
@@ -3581,6 +3589,7 @@ components:
           type: object
           required:
             - event_ticker
+            - exchange_index
             - title
             - subtitle
             - collateral_return_type
@@ -3589,6 +3598,9 @@ components:
             event_ticker:
               type: string
               description: Unique identifier for the event being created
+            exchange_index:
+              type: integer
+              description: Identifier for the exchange shard the event's markets live on
             title:
               type: string
               description: Title of event

@@ -35,6 +35,8 @@ class Series(BaseModel):
         validation_alias=AliasChoices("volume_fp", "volume"),
     )
     last_updated_ts: AwareDatetime | None = None
+    # Spec 3.27.0: exchange shard for the series (optional; defaults server-side).
+    exchange_index: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

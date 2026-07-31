@@ -19,6 +19,7 @@ from kalshi.perps.config import (
     PerpsConfig,
 )
 from kalshi.perps.resources.exchange import PerpsExchangeResource
+from kalshi.perps.resources.fcm import FcmResource
 from kalshi.perps.resources.funding import FundingResource
 from kalshi.perps.resources.margin_account import MarginAccountResource
 from kalshi.perps.resources.markets import PerpsMarketsResource
@@ -159,6 +160,7 @@ class PerpsClient:
         self.margin = MarginAccountResource(self._transport)
         self.funding = FundingResource(self._transport)
         self.transfers = TransfersResource(self._transport)
+        self.fcm = FcmResource(self._transport)
 
     @property
     def is_authenticated(self) -> bool:

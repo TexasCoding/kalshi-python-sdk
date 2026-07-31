@@ -1443,9 +1443,6 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
     ),
-    "#/components/schemas/ApplySubaccountPositionTransferRequest": (
-        "kalshi.models.subaccounts.ApplySubaccountPositionTransferRequest"
-    ),
     "#/components/schemas/CreateSubaccountRequest": (
         "kalshi.models.subaccounts.CreateSubaccountRequest"
     ),
@@ -1488,6 +1485,10 @@ PERPS_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.perps.models.transfers.ApplySubaccountTransferRequest"
     ),
+    # ── perps FCM ──
+    "#/components/schemas/CreateMarginFCMSubtraderRequest": (
+        "kalshi.perps.models.fcm.CreateMarginFCMSubtraderRequest"
+    ),
 }
 
 PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
@@ -1495,6 +1496,13 @@ PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
     # ── perps SCM/Klear margin (#400) ──
     "#/components/schemas/WithdrawSettlementBalanceRequest": (
         "kalshi.perps.klear.models.margin.WithdrawSettlementBalanceRequest"
+    ),
+    # ── perps SCM subtrader groups ──
+    "#/components/schemas/CreateMarginSubtraderGroupRequest": (
+        "kalshi.perps.klear.models.margin.CreateMarginSubtraderGroupRequest"
+    ),
+    "#/components/schemas/UpdateMarginSubtraderGroupRequest": (
+        "kalshi.perps.klear.models.margin.UpdateMarginSubtraderGroupRequest"
     ),
 }
 

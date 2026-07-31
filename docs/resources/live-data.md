@@ -1,8 +1,8 @@
 # Live data
 
-Real-time state attached to a [milestone](milestones.md) — score, clock,
-period, weather, etc. Pair with milestones to render live UI alongside
-Kalshi markets.
+Real-time state for markets — either keyed by a [milestone](milestones.md)
+(score, clock, period, weather, …) or by an **event ticker** (crypto charts,
+commodity timeseries, weather observations).
 
 Public — no auth required.
 
@@ -11,16 +11,31 @@ Public — no auth required.
 | Method | Endpoint |
 |---|---|
 | `get(milestone_id, *, include_player_stats=None)` | `GET /live_data/milestone/{milestone_id}` |
+| `get_event(event_ticker, *, range=None)` | `GET /live_data/events/{event_ticker}` |
 | `batch(milestone_ids, *, include_player_stats=None)` | `GET /live_data/batch` |
 | `game_stats(milestone_id)` | `GET /live_data/milestone/{milestone_id}/game_stats` |
-| `get_typed(live_data_type, milestone_id)` | `GET /live_data/{type}/milestone/{milestone_id}` (legacy) |
+| `get_typed(milestone_type, milestone_id)` | `GET /live_data/{type}/milestone/{milestone_id}` (legacy) |
 
 ## Get one milestone's live data
 
 ```python
 live = client.live_data.get("ms_abc", include_player_stats=True)
-print(live.live_data_type, live.payload)
+print(live.type, live.milestone_id, live.details)
 ```
+
+`LiveData.details` is a loose `dict[str, Any]` — the shape varies by
+`type` (football vs political race vs weather).
+
+## Get event-keyed live data
+
+```python
+live = client.live_data.get_event("KXBTCD-25", range="1h")
+print(live.type, live.details, live.default_range, live.range_options)
+print(live.is_historical)  # True for matured crypto snapshots
+```
+
+`EventLiveData` has no `milestone_id`. Optional `range` is a chart-window
+hint (`15min`, `1h`, `1d`, …) when the underlying type supports it.
 
 ## Batch (up to 100 milestones)
 
@@ -30,7 +45,7 @@ entries = client.live_data.batch(
     include_player_stats=False,
 )
 for entry in entries:
-    print(entry.milestone_id, entry.payload)
+    print(entry.milestone_id, entry.type, entry.details)
 ```
 
 `milestone_ids` is required and non-empty — passing `[]` raises `ValueError`.
@@ -39,17 +54,18 @@ Cap: 100 ids per call.
 ## Game stats / play-by-play
 
 ```python
-pbp = client.live_data.game_stats("ms_abc")
-if pbp.pbp is None:
+resp = client.live_data.game_stats("ms_abc")
+if resp.pbp is None:
     print("no play-by-play for this milestone type")
 else:
-    for period in pbp.pbp.periods:
-        for play in period.plays:
-            print(play.timestamp, play.description)
+    for period in resp.pbp.periods:
+        for event in period.events:
+            print(event)  # free-form dict; shape varies by sport
 ```
 
 `game_stats` works only for sports milestones with play-by-play coverage.
-Other milestone types return `pbp=None`.
+Other milestone types return `pbp=None`. Each period's `events` is a list of
+loose dicts (no fixed play schema upstream).
 
 ## Legacy `get_typed`
 
@@ -59,7 +75,8 @@ live = client.live_data.get_typed("sports_game", "ms_abc")
 
 Prefer `get()` over `get_typed()`. The latter wraps the legacy
 `/live_data/{type}/milestone/{id}` path and is retained only for callers that
-still depend on it.
+still depend on it. The Python kwarg is `milestone_type` (not `type`) to avoid
+shadowing the built-in; the wire path still uses `{type}`.
 
 ## Reference
 
