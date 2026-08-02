@@ -23,7 +23,7 @@ dependencies = [
     "httpx>=0.27,<1",
     "pydantic>=2.4,<3",
     "cryptography>=43,<50",
-    "websockets>=14,<17",
+    "websockets>=14,<18",
     "typing-extensions>=4.5",
 ]
 
