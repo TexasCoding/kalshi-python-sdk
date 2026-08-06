@@ -532,17 +532,6 @@ def quote_executed_payload_dict(**overrides: Any) -> dict[str, Any]:
     return base
 
 
-def multivariate_payload_dict(**overrides: Any) -> dict[str, Any]:
-    """Spec-shaped MultivariatePayload msg dict."""
-    base: dict[str, Any] = {
-        "collection_ticker": "COLL-A",
-        "selected_markets": [],
-        "market_ticker": "MKT-A",
-        "event_ticker": "EVT-A",
-    }
-    base.update(overrides)
-    return base
-
 
 def market_lifecycle_payload_dict(**overrides: Any) -> dict[str, Any]:
     """Spec-shaped MarketLifecyclePayload msg dict.

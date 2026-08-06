@@ -2,6 +2,47 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 10.0.0 — 2026-08-06
+
+Reconciles upstream OpenAPI **3.27.0** content drift plus AsyncAPI / perps
+OpenAPI changes (Closes #496, #497). **Breaking** for callers of multivariate
+lookup (REST + WS).
+
+### Removed (breaking)
+
+- **`multivariate_collections.lookup_tickers()`** (sync + async) and models
+  `LookupTickersForMarketInMultivariateEventCollectionRequest` /
+  `LookupTickersResponse`. Upstream deleted
+  `PUT /multivariate_event_collections/{collection_ticker}/lookup` and the
+  matching schemas. `create_market()` remains (still deprecated).
+- **WS `subscribe_multivariate()`** plus `MultivariateMessage` /
+  `MultivariatePayload` / `SelectedMarket`. AsyncAPI removed the
+  `multivariate` channel and `multivariateLookupPayload` schema.
+  `subscribe_multivariate_lifecycle()` is unchanged.
+
+### Added
+
+- **`portfolio.intra_exchange_transfers()`** /
+  **`intra_exchange_transfers_all()`** /
+  **`get_intra_exchange_transfer(transfer_id)`** (sync + async) —
+  `GET /portfolio/intra_exchange_instance_transfers` and
+  `GET /portfolio/intra_exchange_instance_transfers/{transfer_id}`.
+  Model: `IntraExchangeInstanceTransfer` (`amount` is fixed-point dollars).
+  Complements `PerpsClient.transfers.transfer_instance()` (POST create).
+- **`MultivariateEventCollection.exchange_index`** (`int | None`) — optional
+  exchange shard inherited from the collection's series.
+- **Perps** `MarginMarket.long_leverage_estimates` /
+  `short_leverage_estimates` (`dict[str, MultiplierDecimal] | None`).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.27.0** (paths 92→92; 103→104 operations;
+  103 mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()`).
+- AsyncAPI: channels 15→14 (`multivariate` removed).
+- Perps OpenAPI: additive optional leverage side maps on `MarginMarket`.
+
 ## 9.0.0 — 2026-07-31
 
 Syncs upstream core OpenAPI **3.26.0 → 3.27.0** (paths stay 92; 103 operations /

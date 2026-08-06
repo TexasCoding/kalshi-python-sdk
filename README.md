@@ -171,13 +171,12 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (12 typed + 2 escape-hatch). Twelve have dedicated
+Available channels (11 typed + 2 escape-hatch). Eleven have dedicated
 `subscribe_*` methods — `subscribe_ticker`, `subscribe_trade`,
 `subscribe_orderbook_delta`, `subscribe_fill`, `subscribe_market_positions`,
 `subscribe_user_orders`, `subscribe_order_group`,
-`subscribe_market_lifecycle`, `subscribe_multivariate`,
-`subscribe_multivariate_lifecycle`, `subscribe_communications`,
-`subscribe_cfbenchmarks_value`. The
+`subscribe_market_lifecycle`, `subscribe_multivariate_lifecycle`,
+`subscribe_communications`, `subscribe_cfbenchmarks_value`. The
 AsyncAPI-declared `control_frames` and `root` channels are reachable
 through the generic `subscribe(channel, ...)` escape hatch. See
 [docs/websockets.md](docs/websockets.md#the-12-channels) for the full

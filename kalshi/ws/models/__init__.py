@@ -38,9 +38,6 @@ from kalshi.ws.models.market_positions import (
 )
 from kalshi.ws.models.multivariate import (
     MultivariateLifecycleMessage,
-    MultivariateMessage,
-    MultivariatePayload,
-    SelectedMarket,
 )
 from kalshi.ws.models.order_group import (
     OrderGroupMessage,
@@ -83,8 +80,6 @@ __all__ = [
     "MarketPositionsPayload",
     # Multivariate
     "MultivariateLifecycleMessage",
-    "MultivariateMessage",
-    "MultivariatePayload",
     "OkMessage",
     # Order group
     "OrderGroupMessage",
@@ -99,7 +94,6 @@ __all__ = [
     "QuoteExecutedPayload",
     "RfqCreatedPayload",
     "RfqDeletedPayload",
-    "SelectedMarket",
     "SubscribedMessage",
     "SubscriptionInfo",
     # Ticker

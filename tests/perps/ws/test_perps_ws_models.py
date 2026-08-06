@@ -627,8 +627,7 @@ class TestSubscribeHelpers:
 
         for name in (
             "subscribe_market_positions",
-            "subscribe_multivariate",
-            "subscribe_multivariate_lifecycle",
+                        "subscribe_multivariate_lifecycle",
             "subscribe_communications",
             "subscribe_market_lifecycle",
         ):

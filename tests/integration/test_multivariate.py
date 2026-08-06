@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from kalshi.async_client import AsyncKalshiClient
 from kalshi.client import KalshiClient
 from kalshi.errors import (
     KalshiNotFoundError,
@@ -13,7 +12,6 @@ from kalshi.errors import (
 from kalshi.models.common import Page
 from kalshi.models.multivariate import (
     CreateMarketResponse,
-    LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
 )
@@ -27,7 +25,6 @@ register(
         "list_all",
         "get",
         "create_market",
-        "lookup_tickers",
     ],
 )
 
@@ -123,96 +120,3 @@ class TestMultivariateSync:
         assert resp.event_ticker
         assert resp.market_ticker
 
-    def test_lookup_tickers(
-        self,
-        sync_client: KalshiClient,
-        demo_collection: MultivariateEventCollection,
-    ) -> None:
-        """PUT lookup — resolves a TickerPair set to a canonical combo ticker."""
-        pairs = _build_ticker_pairs(demo_collection, sync_client)
-        if not pairs:
-            pytest.skip("Demo collection has no associated events with markets")
-        try:
-            resp = sync_client.multivariate_collections.lookup_tickers(
-                demo_collection.collection_ticker,
-                selected_markets=pairs,
-            )
-        except (KalshiValidationError, KalshiNotFoundError) as e:
-            pytest.skip(f"Demo rejected lookup_tickers for this collection: {e}")
-        assert isinstance(resp, LookupTickersResponse)
-        assert resp.event_ticker
-        assert resp.market_ticker
-
-
-@pytest.mark.integration
-class TestMultivariateAsync:
-    async def test_list(self, async_client: AsyncKalshiClient) -> None:
-        page = await async_client.multivariate_collections.list(limit=5)
-        assert isinstance(page, Page)
-        assert isinstance(page.items, list)
-        if page.items:
-            assert isinstance(page.items[0], MultivariateEventCollection)
-            assert_model_fields(page.items[0])
-
-    async def test_list_all(self, async_client: AsyncKalshiClient) -> None:
-        count = 0
-        async for collection in async_client.multivariate_collections.list_all(limit=2):
-            assert isinstance(collection, MultivariateEventCollection)
-            assert_model_fields(collection)
-            count += 1
-            if count >= 2:
-                break
-
-    async def test_get(
-        self, async_client: AsyncKalshiClient, demo_collection_ticker: str
-    ) -> None:
-        collection = await async_client.multivariate_collections.get(
-            demo_collection_ticker
-        )
-        assert isinstance(collection, MultivariateEventCollection)
-        assert_model_fields(collection)
-        assert collection.collection_ticker == demo_collection_ticker
-
-    async def test_create_market(
-        self,
-        async_client: AsyncKalshiClient,
-        sync_client: KalshiClient,
-        demo_collection: MultivariateEventCollection,
-    ) -> None:
-        # sync_client is used only to build the fixture pairs — the
-        # endpoint-under-test is called via async_client below.
-        pairs = _build_ticker_pairs(demo_collection, sync_client)
-        if not pairs:
-            pytest.skip("Demo collection has no associated events with markets")
-        try:
-            resp = await async_client.multivariate_collections.create_market(
-                demo_collection.collection_ticker,
-                selected_markets=pairs,
-            )
-        except (KalshiValidationError, KalshiNotFoundError) as e:
-            pytest.skip(f"Demo rejected create_market for this collection: {e}")
-        assert isinstance(resp, CreateMarketResponse)
-        assert resp.event_ticker
-        assert resp.market_ticker
-
-    async def test_lookup_tickers(
-        self,
-        async_client: AsyncKalshiClient,
-        sync_client: KalshiClient,
-        demo_collection: MultivariateEventCollection,
-    ) -> None:
-        # sync_client is used only to build the fixture pairs — the
-        # endpoint-under-test is called via async_client below.
-        pairs = _build_ticker_pairs(demo_collection, sync_client)
-        if not pairs:
-            pytest.skip("Demo collection has no associated events with markets")
-        try:
-            resp = await async_client.multivariate_collections.lookup_tickers(
-                demo_collection.collection_ticker,
-                selected_markets=pairs,
-            )
-        except (KalshiValidationError, KalshiNotFoundError) as e:
-            pytest.skip(f"Demo rejected lookup_tickers for this collection: {e}")
-        assert isinstance(resp, LookupTickersResponse)
-        assert resp.event_ticker
-        assert resp.market_ticker

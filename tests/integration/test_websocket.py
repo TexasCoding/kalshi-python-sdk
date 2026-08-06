@@ -178,24 +178,6 @@ class TestWebSocketLive:
         assert isinstance(msg, CommunicationsMessage)
         assert msg.type == "communications"
 
-    @retry_transient(max_retries=2, delay=1.0)
-    async def test_ws_subscribe_multivariate(
-        self,
-        ws_session: KalshiWebSocket,
-    ) -> None:
-        """Subscribe to multivariate channel. Skip if demo has no active collections."""
-        from kalshi.ws.models.multivariate import MultivariateMessage
-        stream = await ws_session.subscribe_multivariate()
-        try:
-            msg = await asyncio.wait_for(stream.__anext__(), timeout=15.0)
-        except TimeoutError:
-            pytest.skip(
-                "No multivariate frame within 15s — demo likely has no active "
-                "collections, and 'multivariate_lookup' envelope key is "
-                "spec-inferred (no live capture during v0.14.0 work)"
-            )
-        assert isinstance(msg, MultivariateMessage)
-        assert msg.type == "multivariate_lookup"
 
     @retry_transient(max_retries=2, delay=1.0)
     async def test_ws_subscribe_multivariate_lifecycle(

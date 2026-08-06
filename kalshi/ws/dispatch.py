@@ -18,7 +18,7 @@ from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
-from kalshi.ws.models.multivariate import MultivariateLifecycleMessage, MultivariateMessage
+from kalshi.ws.models.multivariate import MultivariateLifecycleMessage
 from kalshi.ws.models.order_group import OrderGroupMessage
 from kalshi.ws.models.orderbook_delta import OrderbookDeltaMessage, OrderbookSnapshotMessage
 from kalshi.ws.models.ticker import TickerMessage
@@ -41,7 +41,6 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "order_group_updates": OrderGroupMessage,
     "market_lifecycle_v2": MarketLifecycleMessage,
     "event_fee_update": EventFeeUpdateMessage,
-    "multivariate_lookup": MultivariateMessage,
     "multivariate_market_lifecycle": MultivariateLifecycleMessage,
     "communications": CommunicationsMessage,
     "cfbenchmarks_value": CFBenchmarksValueMessage,

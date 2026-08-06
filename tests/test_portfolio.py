@@ -1312,3 +1312,105 @@ class TestAsyncPortfolioFillsAll:
         with pytest.raises(AuthRequiredError):
             async for _ in unauth_async_portfolio.fills_all():
                 pass
+
+
+# ── Intra-exchange instance transfers (#496/#497) ───────────────────────
+
+
+_TRANSFER = {
+    "transfer_id": "xfer-1",
+    "source": "event_contract",
+    "destination": "margined",
+    "source_exchange_shard": 0,
+    "destination_exchange_shard": 0,
+    "amount": "25.5000",
+    "status": "complete",
+    "created_ts": 1_700_000_000,
+}
+
+
+class TestPortfolioIntraExchangeTransfers:
+    @respx.mock
+    def test_returns_page(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/intra_exchange_instance_transfers"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"transfers": [_TRANSFER], "cursor": "next"}
+            )
+        )
+        page = portfolio.intra_exchange_transfers(limit=10)
+        assert len(page.items) == 1
+        t = page.items[0]
+        assert t.transfer_id == "xfer-1"
+        assert t.source == "event_contract"
+        assert t.destination == "margined"
+        assert t.amount == Decimal("25.5000")
+        assert t.status == "complete"
+        assert page.cursor == "next"
+
+    @respx.mock
+    def test_all_paginates(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/intra_exchange_instance_transfers"
+        ).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"transfers": [{**_TRANSFER, "transfer_id": "a"}], "cursor": "c1"}
+                ),
+                httpx.Response(
+                    200, json={"transfers": [{**_TRANSFER, "transfer_id": "b"}], "cursor": ""}
+                ),
+            ]
+        )
+        ids = [t.transfer_id for t in portfolio.intra_exchange_transfers_all()]
+        assert ids == ["a", "b"]
+
+    @respx.mock
+    def test_get_by_id(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/"
+            "intra_exchange_instance_transfers/xfer-1"
+        ).mock(return_value=httpx.Response(200, json={"transfer": _TRANSFER}))
+        t = portfolio.get_intra_exchange_transfer("xfer-1")
+        assert t.transfer_id == "xfer-1"
+        assert t.amount == Decimal("25.5000")
+
+    def test_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.intra_exchange_transfers()
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.get_intra_exchange_transfer("xfer-1")
+
+
+class TestAsyncPortfolioIntraExchangeTransfers:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_page(self, async_portfolio: AsyncPortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/intra_exchange_instance_transfers"
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"transfers": [_TRANSFER], "cursor": ""}
+            )
+        )
+        page = await async_portfolio.intra_exchange_transfers()
+        assert len(page.items) == 1
+        assert page.items[0].transfer_id == "xfer-1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_get_by_id(self, async_portfolio: AsyncPortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/"
+            "intra_exchange_instance_transfers/xfer-1"
+        ).mock(return_value=httpx.Response(200, json={"transfer": _TRANSFER}))
+        t = await async_portfolio.get_intra_exchange_transfer("xfer-1")
+        assert t.status == "complete"
+
+    @pytest.mark.asyncio
+    async def test_requires_auth(
+        self, unauth_async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_portfolio.intra_exchange_transfers()

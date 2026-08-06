@@ -482,13 +482,9 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="Long-form CreateMarketInMultivariateEventCollectionResponse",
     ),
     ContractEntry(
-        sdk_model="kalshi.models.multivariate.LookupTickersForMarketInMultivariateEventCollectionRequest",
-        spec_schema="LookupTickersForMarketInMultivariateEventCollectionRequest",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.models.multivariate.LookupTickersResponse",
-        spec_schema="LookupTickersForMarketInMultivariateEventCollectionResponse",
-        notes="Spec name is the long-form ...Response; SDK shortens",
+        sdk_model="kalshi.models.portfolio.IntraExchangeInstanceTransfer",
+        spec_schema="IntraExchangeInstanceTransfer",
+        notes="GET transfer history/detail response item (#496/#497)",
     ),
 ]
 
@@ -564,15 +560,6 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         "'market_positions'. Pattern matches the directly-confirmed "
         "user_order drift. No direct demo capture (demo account idle for "
         "positions during capture window).",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.ws.models.multivariate.MultivariatePayload",
-        spec_schema="multivariateLookupPayload",
-        notes="Aligned to spec v0.14.0 (2026-04-19): envelope type is "
-        "'multivariate_lookup' on the wire; channel name stays 'multivariate'. "
-        "MultivariateLifecycleMessage (type 'multivariate_market_lifecycle') "
-        "is unaffected -- separate spec-aligned sibling. No direct demo "
-        "capture (no active collections emitting).",
     ),
     ContractEntry(
         sdk_model="kalshi.ws.models.order_group.OrderGroupPayload",

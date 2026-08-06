@@ -80,6 +80,7 @@ from kalshi.models import (
     EventPosition,
     EventStatusLiteral,
     ExchangeIndexStatus,
+    ExchangeInstanceLiteral,
     ExchangeStatus,
     Fill,
     ForecastPercentilesPoint,
@@ -111,9 +112,9 @@ from kalshi.models import (
     IncentiveProgramStatusLiteral,
     IncentiveProgramTypeLiteral,
     IndexedBalance,
+    IntraExchangeInstanceTransfer,
+    IntraExchangeInstanceTransferStatusLiteral,
     LiveData,
-    LookupTickersForMarketInMultivariateEventCollectionRequest,
-    LookupTickersResponse,
     MaintenanceWindow,
     Market,
     MarketCandlesticks,
@@ -253,6 +254,7 @@ __all__ = [
     "EventPosition",
     "EventStatusLiteral",
     "ExchangeIndexStatus",
+    "ExchangeInstanceLiteral",
     "ExchangeStatus",
     "Fill",
     "FixClient",
@@ -288,6 +290,8 @@ __all__ = [
     "IncentiveProgramStatusLiteral",
     "IncentiveProgramTypeLiteral",
     "IndexedBalance",
+    "IntraExchangeInstanceTransfer",
+    "IntraExchangeInstanceTransferStatusLiteral",
     "KalshiAuth",
     "KalshiAuthError",
     "KalshiBackpressureError",
@@ -311,8 +315,6 @@ __all__ = [
     "KlearClient",
     "KlearConfig",
     "LiveData",
-    "LookupTickersForMarketInMultivariateEventCollectionRequest",
-    "LookupTickersResponse",
     "MaintenanceWindow",
     "MarginFixClient",
     "Market",
@@ -379,4 +381,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "9.0.0"
+__version__ = "10.0.0"

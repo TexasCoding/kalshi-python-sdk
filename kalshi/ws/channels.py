@@ -56,7 +56,6 @@ _CHANNEL_PARAMS: dict[str, frozenset[str]] = {
     "market_lifecycle_v2": frozenset({
         "market_ticker", "market_tickers", "market_id", "market_ids",
     }),
-    "multivariate": frozenset(),
     "multivariate_market_lifecycle": frozenset(),
     "communications": frozenset({"shard_factor", "shard_key"}),
     # CF Benchmarks index value feed: seeded with index_ids only — market_*

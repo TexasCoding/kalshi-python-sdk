@@ -9,11 +9,18 @@ Public listing, auth-required minting. Attribute name on the client:
 `multivariate_collections`.
 
 !!! warning "Deprecated methods"
-    `create_market()` and `lookup_tickers()` are deprecated — "This endpoint
-    predates RFQs and should not be used for new integrations." Calling them
-    emits a `DeprecationWarning`. Use the
-    [Communications (RFQ/Quote)](communications.md) surface instead. `list()` /
-    `list_all()` / `get()` remain supported.
+    `create_market()` is deprecated — "This endpoint predates RFQs and should
+    not be used for new integrations." Calling it emits a `DeprecationWarning`.
+    Use the [Communications (RFQ/Quote)](communications.md) surface instead.
+    `list()` / `list_all()` / `get()` remain supported.
+
+!!! danger "Removed in 10.0.0"
+    `lookup_tickers()` and the
+    `LookupTickersForMarketInMultivariateEventCollectionRequest` /
+    `LookupTickersResponse` models were removed — Kalshi deleted
+    `PUT /multivariate_event_collections/{ticker}/lookup` from the OpenAPI
+    spec, and the AsyncAPI `multivariate` / `multivariate_lookup` channel
+    with it.
 
 !!! danger "Removed in 6.0.0"
     `lookup_history()` and the `LookupPoint` model were removed — Kalshi deleted
@@ -27,7 +34,6 @@ Public listing, auth-required minting. Attribute name on the client:
 | `list(...)` / `list_all(...)` | `GET /multivariate_event_collections` | no |
 | `get(collection_ticker)` | `GET /multivariate_event_collections/{ticker}` | no |
 | `create_market(collection_ticker, *, selected_markets, with_market_payload=False)` | `POST /multivariate_event_collections/{ticker}` | yes |
-| `lookup_tickers(collection_ticker, *, selected_markets)` | `PUT /multivariate_event_collections/{ticker}/lookup` | yes |
 
 ## List collections
 
@@ -38,7 +44,7 @@ page = client.multivariate_collections.list(
     limit=100,
 )
 for c in page:
-    print(c.collection_ticker, c.title)
+    print(c.collection_ticker, c.title, c.exchange_index)
 ```
 
 ## Select legs
@@ -54,19 +60,6 @@ legs = [
     TickerPair(event_ticker="KXYANKEES-26-SAT", market_ticker="KXYANKEES-26-SAT-WIN"),
 ]
 ```
-
-## Lookup the auto-generated ticker (no mint)
-
-```python
-resp = client.multivariate_collections.lookup_tickers(
-    "KXWEATHER-SPORTS-COMBO",
-    selected_markets=legs,
-)
-print(resp.market_ticker, resp.event_ticker)
-```
-
-Wire-level note: this endpoint is a `PUT` — unusual for a read operation, but
-matches the OpenAPI spec.
 
 ## Mint a combo market
 

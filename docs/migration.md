@@ -1,5 +1,45 @@
 # Migration
 
+## v9.0 → v10.0.0
+
+Reconciles upstream OpenAPI **3.27.0** content (paths still 92; +2 GET
+transfer-history ops), AsyncAPI removal of the `multivariate` channel, and
+perps `MarginMarket` leverage side maps (Closes #496, #497). **Breaking** for
+callers of multivariate lookup (REST + WS).
+
+### Removed
+
+- **`multivariate_collections.lookup_tickers()`** (sync + async) and
+  `LookupTickersForMarketInMultivariateEventCollectionRequest` /
+  `LookupTickersResponse`. Upstream deleted
+  `PUT /multivariate_event_collections/{collection_ticker}/lookup`.
+- **WS `subscribe_multivariate()`** and `MultivariateMessage` /
+  `MultivariatePayload`. Use RFQs for new multivariate integrations; lifecycle
+  remains on `subscribe_multivariate_lifecycle()`.
+
+```python
+# No longer available — the upstream REST endpoint and WS channel are gone:
+# client.multivariate_collections.lookup_tickers("MVC-1", selected_markets=[...])
+# await ws.subscribe_multivariate()
+
+# create_market is still present (deprecated; predates RFQs):
+# client.multivariate_collections.create_market(...)
+```
+
+### Added (non-breaking)
+
+- **`portfolio.intra_exchange_transfers()`** /
+  **`intra_exchange_transfers_all()`** /
+  **`get_intra_exchange_transfer(transfer_id)`** — history/detail for
+  event↔margined fund moves. Create transfers still via
+  `PerpsClient.transfers.transfer_instance()`.
+- **`MultivariateEventCollection.exchange_index`** (optional).
+- **Perps** `MarginMarket.long_leverage_estimates` /
+  `short_leverage_estimates` (optional).
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v8.0 → v9.0.0
 
 Syncs the SDK to core OpenAPI **3.27.0** (and the matching perps / SCM
@@ -713,14 +753,13 @@ for position in client.portfolio.positions_all():
 
 ### Multivariate endpoints emit `DeprecationWarning`
 
-Per #269, `multivariate.lookup_tickers` and `multivariate.create_market`
-(sync + async) carry `@typing_extensions.deprecated` decorators citing
-the spec's "should not be used for new integrations" guidance. Use RFQs
-instead. The endpoints still work; calls just emit a `DeprecationWarning`
-on first use.
+Per #269, `multivariate.create_market` (sync + async) carries a
+`@typing_extensions.deprecated` decorator citing the spec's "should not be
+used for new integrations" guidance. Use RFQs instead. The endpoint still
+works; calls just emit a `DeprecationWarning` on first use.
 
-(`multivariate.lookup_history`, also deprecated here in #269, was removed
-entirely in 6.0.0 — see the [v5 → v6.0.0](#v5-v600) section above.)
+(`multivariate.lookup_history` was removed in 6.0.0;
+`multivariate.lookup_tickers` was removed in 10.0.0 — see the sections above.)
 
 ### `orders.list(event_ticker=...)` accepts lists
 

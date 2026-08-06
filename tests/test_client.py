@@ -1048,15 +1048,6 @@ class TestUnauthenticatedResourceGuards:
             client.multivariate_collections.create_market("MVC-1", selected_markets=[])
         client.close()
 
-    def test_multivariate_lookup_tickers_raises_auth_required(self) -> None:
-        config = KalshiConfig(
-            base_url="https://test.kalshi.com/trade-api/v2",
-            timeout=5.0,
-        )
-        client = KalshiClient(config=config, demo=True)
-        with pytest.raises(AuthRequiredError):
-            client.multivariate_collections.lookup_tickers("MVC-1", selected_markets=[])
-        client.close()
 
     @respx.mock
     def test_markets_list_does_not_raise_auth_required(self) -> None:

@@ -798,35 +798,6 @@ class TestCreateMarketInMultivariateRequest:
             )
 
 
-class TestLookupTickersRequest:
-    def test_requires_selected_markets(self) -> None:
-        from pydantic import ValidationError
-
-        from kalshi.models.multivariate import (
-            LookupTickersForMarketInMultivariateEventCollectionRequest,
-        )
-
-        with pytest.raises(ValidationError):
-            LookupTickersForMarketInMultivariateEventCollectionRequest()  # type: ignore[call-arg]
-
-    def test_forbid_extra(self) -> None:
-        from pydantic import ValidationError
-
-        from kalshi.models.multivariate import (
-            LookupTickersForMarketInMultivariateEventCollectionRequest,
-            TickerPair,
-        )
-
-        pair = TickerPair(event_ticker="E1", market_ticker="M1", side="yes")
-        with pytest.raises(ValidationError):
-            LookupTickersForMarketInMultivariateEventCollectionRequest(
-                selected_markets=[pair],
-                bogus=1,  # type: ignore[call-arg]
-            )
-
-
-# ---------- P2#4: AwareDatetime on REST response models ----------
-
 
 class TestAwareDatetimeRejectsNaive:
     """REST models reject naive datetimes at construction (#221 P2.4)."""

@@ -203,3 +203,32 @@ class Settlement(BaseModel):
     value: int | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+ExchangeInstanceLiteral = Literal["event_contract", "margined"]
+"""Exchange instance for intra-exchange fund movement (event vs margined)."""
+
+IntraExchangeInstanceTransferStatusLiteral = Literal["pending", "complete"]
+"""Status of an intra-exchange instance transfer."""
+
+
+class IntraExchangeInstanceTransfer(BaseModel):
+    """A single intra-exchange instance transfer history entry.
+
+    Spec ``IntraExchangeInstanceTransfer``. ``amount`` is a fixed-point
+    dollar string (``FixedPointDollars``), not centicents — unlike the
+    POST request body's integer ``amount`` on
+    :class:`~kalshi.perps.models.transfers.IntraExchangeInstanceTransferRequest`.
+    """
+
+    transfer_id: str
+    source: ExchangeInstanceLiteral
+    destination: ExchangeInstanceLiteral
+    source_exchange_shard: int
+    destination_exchange_shard: int
+    amount: DollarDecimal
+    status: IntraExchangeInstanceTransferStatusLiteral
+    created_ts: int
+
+    model_config = {"extra": "allow"}
+

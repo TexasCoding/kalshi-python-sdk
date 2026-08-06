@@ -1606,9 +1606,12 @@ paths:
       operationId: GetBalance
       summary: Get Balance
       description: >-
-        Endpoint for getting the balance and portfolio value of a member. Both
-        values are returned in cents. This endpoint also accepts API keys with
-        the 'read::portfolio_balance' scope.
+        Endpoint for getting the balance and portfolio value of a member. By
+        default the returned balance is the primary account's available balance.
+        Pass a non-zero `subaccount` to fetch that subaccount's balance on a
+        specific exchange index instead (`exchange_index`, defaulting to 0).
+        When `subaccount` is omitted or 0, `exchange_index` has no effect. This
+        endpoint also accepts API keys with the 'read::portfolio_balance' scope.
       tags:
         - portfolio
       security:
@@ -1617,7 +1620,15 @@ paths:
           kalshiAccessTimestamp: []
       parameters:
         - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
-        - $ref: '#/components/parameters/ExchangeIndexQuery'
+        - name: exchange_index
+          in: query
+          schema:
+            $ref: '#/components/schemas/ExchangeIndex'
+          x-go-type-skip-optional-pointer: true
+          description: >-
+            Exchange index to read the subaccount balance from, paired with a
+            non-zero `subaccount`. Defaults to 0. Ignored when `subaccount` is
+            omitted or 0.
       responses:
         '200':
           description: Balance retrieved successfully
@@ -1659,6 +1670,64 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /portfolio/intra_exchange_instance_transfers:
+    get:
+      operationId: GetIntraExchangeInstanceTransfers
+      summary: Get Intra Account Transfers
+      description: Endpoint for fetching intra-exchange account transfer history.
+      tags:
+        - portfolio
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/TransfersLimitQuery'
+        - $ref: '#/components/parameters/CursorQuery'
+      responses:
+        '200':
+          description: Transfers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetIntraExchangeInstanceTransfersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /portfolio/intra_exchange_instance_transfers/{transfer_id}:
+    get:
+      operationId: GetIntraExchangeInstanceTransfer
+      summary: Get Intra Account Transfer
+      description: Endpoint for getting a single intra-account transfer by id.
+      tags:
+        - portfolio
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: transfer_id
+          in: path
+          required: true
+          description: Transfer id returned by creation endpoint
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The requested transfer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetIntraExchangeInstanceTransferResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /portfolio/subaccounts:
@@ -3513,70 +3582,6 @@ paths:
           $ref: '#/components/responses/BadRequestError'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /multivariate_event_collections/{collection_ticker}/lookup:
-    put:
-      operationId: LookupTickersForMarketInMultivariateEventCollection
-      summary: Lookup Tickers For Market In Multivariate Event Collection
-      deprecated: true
-      description: >-
-        DEPRECATED: This endpoint predates RFQs and should not be used for new
-        integrations. Endpoint for looking up an individual market in a
-        multivariate event collection. If
-        CreateMarketInMultivariateEventCollection has never been hit with that
-        variable combination before, this will return a 404.
-      x-mint:
-        content: >
-          <Warning>
-
-          This endpoint is deprecated and predates RFQs. Do not use it for new
-          integrations.
-
-          </Warning>
-
-
-          <Note>
-
-          **Rate limit:** 2 tokens per request. See `GET
-          /trade-api/v2/account/endpoint_costs` for current non-default endpoint
-          costs.
-
-          </Note>
-      tags:
-        - multivariate
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
-      parameters:
-        - name: collection_ticker
-          in: path
-          required: true
-          description: Collection ticker
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: >-
-                #/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest
-      responses:
-        '200':
-          description: Market looked up successfully
-          content:
-            application/json:
-              schema:
-                $ref: >-
-                  #/components/schemas/LookupTickersForMarketInMultivariateEventCollectionResponse
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '401':
-          $ref: '#/components/responses/UnauthorizedError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
   /incentive_programs:
     get:
       operationId: GetIncentivePrograms
@@ -4150,6 +4155,19 @@ components:
         minimum: 1
         maximum: 500
         default: 100
+        x-oapi-codegen-extra-tags:
+          validate: omitempty,min=1,max=500
+    TransfersLimitQuery:
+      name: limit
+      in: query
+      description: Number of results per page. Defaults to 100. Maximum value is 500.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+        maximum: 500
+        default: 100
+        x-go-type-skip-optional-pointer: true
         x-oapi-codegen-extra-tags:
           validate: omitempty,min=1,max=500
     MarketLimitQuery:
@@ -5554,7 +5572,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/IndexedBalance'
-          description: Balance broken down per exchange index.
+          description: >-
+            User balance breakdown per exchange instance, omitted only when
+            using a subaccount-restricted API key.
     CreateSubaccountRequest:
       type: object
       properties:
@@ -5833,6 +5853,11 @@ components:
             - applied
             - failed
             - returned
+          x-enum-varnames:
+            - DepositStatusPending
+            - DepositStatusApplied
+            - DepositStatusFailed
+            - DepositStatusReturned
           description: >-
             Current status of the deposit. 'applied' means funds are reflected
             in balance.
@@ -5895,6 +5920,11 @@ components:
             - applied
             - failed
             - returned
+          x-enum-varnames:
+            - WithdrawalStatusPending
+            - WithdrawalStatusApplied
+            - WithdrawalStatusFailed
+            - WithdrawalStatusReturned
           description: >-
             Current status of the withdrawal. 'applied' means funds have been
             deducted from balance.
@@ -6693,14 +6723,22 @@ components:
           description: The amount to transfer in centicents
         source_exchange_shard:
           type: integer
+          minimum: 0
+          maximum: 100
           default: 0
           x-go-type-skip-optional-pointer: true
           description: Source exchange shard index (default 0)
+          x-oapi-codegen-extra-tags:
+            validate: gte=0,lte=100
         destination_exchange_shard:
           type: integer
+          minimum: 0
+          maximum: 100
           default: 0
           x-go-type-skip-optional-pointer: true
           description: Destination exchange shard index (default 0)
+          x-oapi-codegen-extra-tags:
+            validate: gte=0,lte=100
     IntraExchangeInstanceTransferResponse:
       type: object
       required:
@@ -6709,6 +6747,72 @@ components:
         transfer_id:
           type: string
           description: The ID of the transfer that was created
+    IntraExchangeInstanceTransferStatus:
+      type: string
+      enum:
+        - pending
+        - complete
+      x-enum-varnames:
+        - IntraExchangeInstanceTransferStatusPending
+        - IntraExchangeInstanceTransferStatusComplete
+      description: Transfer status.
+    IntraExchangeInstanceTransfer:
+      type: object
+      required:
+        - transfer_id
+        - source
+        - destination
+        - source_exchange_shard
+        - destination_exchange_shard
+        - amount
+        - status
+        - created_ts
+      properties:
+        transfer_id:
+          type: string
+          description: Unique transfer id
+        source:
+          $ref: '#/components/schemas/ExchangeInstance'
+          description: Source exchange instance
+        destination:
+          $ref: '#/components/schemas/ExchangeInstance'
+          description: Destination exchange instance
+        source_exchange_shard:
+          type: integer
+          description: Source exchange shard index
+        destination_exchange_shard:
+          type: integer
+          description: Destination exchange shard index
+        amount:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Transfer amount in dollars
+        status:
+          $ref: '#/components/schemas/IntraExchangeInstanceTransferStatus'
+        created_ts:
+          type: integer
+          format: int64
+          description: Unix timestamp when the transfer was created
+    GetIntraExchangeInstanceTransfersResponse:
+      type: object
+      required:
+        - transfers
+      properties:
+        transfers:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntraExchangeInstanceTransfer'
+        cursor:
+          type: string
+          description: >-
+            Cursor for the next page of results. Omitted when there are no
+            further pages.
+    GetIntraExchangeInstanceTransferResponse:
+      type: object
+      required:
+        - transfer
+      properties:
+        transfer:
+          $ref: '#/components/schemas/IntraExchangeInstanceTransfer'
     OrderGroup:
       type: object
       required:
@@ -8378,6 +8482,12 @@ components:
           description: >-
             Series associated with the collection. Events produced in the
             collection will be associated with this series.
+        exchange_index:
+          allOf:
+            - $ref: '#/components/schemas/ExchangeIndex'
+          description: Exchange index inherited from the collection's series.
+          x-go-type-skip-optional-pointer: true
+          x-omitempty: false
         title:
           type: string
           description: Title of the collection.
@@ -8491,30 +8601,6 @@ components:
           description: Side of the market (yes or no).
           x-oapi-codegen-extra-tags:
             validate: required,oneof=yes no
-    LookupTickersForMarketInMultivariateEventCollectionRequest:
-      type: object
-      required:
-        - selected_markets
-      properties:
-        selected_markets:
-          type: array
-          items:
-            $ref: '#/components/schemas/TickerPair'
-          description: >-
-            List of selected markets that act as parameters to determine which
-            market is produced.
-    LookupTickersForMarketInMultivariateEventCollectionResponse:
-      type: object
-      required:
-        - event_ticker
-        - market_ticker
-      properties:
-        event_ticker:
-          type: string
-          description: Event ticker for the looked up market.
-        market_ticker:
-          type: string
-          description: Market ticker for the looked up market.
     CreateMarketInMultivariateEventCollectionRequest:
       type: object
       required:

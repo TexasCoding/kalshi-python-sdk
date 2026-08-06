@@ -45,6 +45,8 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         },
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
+        "long_leverage_estimates": {"1000": 2.4, "10000": 1.9},
+        "short_leverage_estimates": {"1000": 2.6, "10000": 2.1},
         "price": "0.5600",
         "bid": "0.5500",
         "ask": "0.5700",
@@ -107,6 +109,14 @@ class TestList:
             "1000": Decimal("2.5"),
             "10000": Decimal("2.0"),
             "100000": Decimal("1.5"),
+        }
+        assert m.long_leverage_estimates == {
+            "1000": Decimal("2.4"),
+            "10000": Decimal("1.9"),
+        }
+        assert m.short_leverage_estimates == {
+            "1000": Decimal("2.6"),
+            "10000": Decimal("2.1"),
         }
         assert m.volume == Decimal("1000.00")
         assert m.volume_notional_value == Decimal("560.0000")
