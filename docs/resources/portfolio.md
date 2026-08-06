@@ -14,6 +14,8 @@ Auth required throughout.
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
 | `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
+| `intra_exchange_transfers(...)` / `intra_exchange_transfers_all(...)` | `GET /portfolio/intra_exchange_instance_transfers` |
+| `get_intra_exchange_transfer(transfer_id)` | `GET /portfolio/intra_exchange_instance_transfers/{transfer_id}` |
 
 `balance()`, `positions()` / `positions_all()`, `settlements()` /
 `settlements_all()`, and `fills()` / `fills_all()` all take an optional
@@ -185,6 +187,29 @@ for w in client.portfolio.withdrawals_all():
 which is `None` until the transfer settles.
 
 Both `*_all` variants accept `max_pages=N` to bound iteration.
+
+## Intra-exchange instance transfers
+
+New in v10.0.0. History and detail for fund moves between the
+`event_contract` and `margined` exchange instances. **Creating** a transfer
+is still on the perps surface
+(`PerpsClient.transfers.transfer_instance()`); these GETs are on the core
+portfolio API.
+
+```python
+page = client.portfolio.intra_exchange_transfers(limit=50)
+for t in page:
+    print(t.transfer_id, t.source, t.destination, t.amount, t.status)
+
+for t in client.portfolio.intra_exchange_transfers_all():
+    ...
+
+t = client.portfolio.get_intra_exchange_transfer("xfer-...")
+print(t.status, t.created_ts)
+```
+
+`IntraExchangeInstanceTransfer.amount` is a fixed-point dollar
+`DollarDecimal` (not the integer centicents used on the POST create body).
 
 ## Position fields
 

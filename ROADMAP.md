@@ -2,6 +2,13 @@
 
 ## Shipped
 
+- **v10.0.0 (2026-08-06)** — Spec-drift reconcile (#496 / #497). **Breaking:**
+  removed `multivariate_collections.lookup_tickers()` and WS
+  `subscribe_multivariate()` after upstream deleted the REST lookup endpoint
+  and AsyncAPI `multivariate` channel. Additive:
+  `portfolio.intra_exchange_transfers()` / `get_intra_exchange_transfer()`,
+  `MultivariateEventCollection.exchange_index`, perps
+  `MarginMarket.long_leverage_estimates` / `short_leverage_estimates`.
 - **v9.0.0 (2026-07-31)** — OpenAPI sync 3.26.0 → 3.27.0 (#492). **Breaking:**
   removed `subaccounts.transfer_position()` after upstream deleted position
   transfers. Additive: `live_data.get_event()`,

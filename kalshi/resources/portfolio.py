@@ -10,6 +10,7 @@ from kalshi.models.orders import Fill
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
+    IntraExchangeInstanceTransfer,
     MarketPosition,
     PositionsResponse,
     Settlement,
@@ -21,6 +22,7 @@ from kalshi.resources._base import (
     SyncResource,
     _fills_params,
     _params,
+    _seg,
     _validate_limit,
     _validate_max_pages,
 )
@@ -361,6 +363,66 @@ class PortfolioResource(SyncResource):
             extra_headers=extra_headers,
         )
 
+    def intra_exchange_transfers(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[IntraExchangeInstanceTransfer]:
+        """List intra-exchange instance transfer history.
+
+        ``GET /portfolio/intra_exchange_instance_transfers``. Complements
+        :meth:`~kalshi.perps.resources.transfers.TransfersResource.transfer_instance`
+        (POST create on the margin product).
+        """
+        self._require_auth()
+        _validate_limit(limit, hi=500)
+        params = _params(limit=limit, cursor=cursor)
+        return self._list(
+            "/portfolio/intra_exchange_instance_transfers",
+            IntraExchangeInstanceTransfer,
+            "transfers",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def intra_exchange_transfers_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[IntraExchangeInstanceTransfer]:
+        """Auto-paginate intra-exchange instance transfers."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/intra_exchange_instance_transfers",
+            IntraExchangeInstanceTransfer,
+            "transfers",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    def get_intra_exchange_transfer(
+        self,
+        transfer_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> IntraExchangeInstanceTransfer:
+        """Get a single intra-exchange instance transfer by id."""
+        self._require_auth()
+        data = self._get(
+            f"/portfolio/intra_exchange_instance_transfers/"
+            f"{_seg(transfer_id, name='transfer_id')}",
+            extra_headers=extra_headers,
+        )
+        return IntraExchangeInstanceTransfer.model_validate(data.get("transfer", data))
+
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
@@ -657,3 +719,58 @@ class AsyncPortfolioResource(AsyncResource):
             max_pages=max_pages,
             extra_headers=extra_headers,
         )
+
+    async def intra_exchange_transfers(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[IntraExchangeInstanceTransfer]:
+        """List intra-exchange instance transfer history (async)."""
+        self._require_auth()
+        _validate_limit(limit, hi=500)
+        params = _params(limit=limit, cursor=cursor)
+        return await self._list(
+            "/portfolio/intra_exchange_instance_transfers",
+            IntraExchangeInstanceTransfer,
+            "transfers",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def intra_exchange_transfers_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[IntraExchangeInstanceTransfer]:
+        """Auto-paginate intra-exchange instance transfers (async)."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=500)
+        params = _params(limit=limit)
+        return self._list_all(
+            "/portfolio/intra_exchange_instance_transfers",
+            IntraExchangeInstanceTransfer,
+            "transfers",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    async def get_intra_exchange_transfer(
+        self,
+        transfer_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> IntraExchangeInstanceTransfer:
+        """Get a single intra-exchange instance transfer by id (async)."""
+        self._require_auth()
+        data = await self._get(
+            f"/portfolio/intra_exchange_instance_transfers/"
+            f"{_seg(transfer_id, name='transfer_id')}",
+            extra_headers=extra_headers,
+        )
+        return IntraExchangeInstanceTransfer.model_validate(data.get("transfer", data))

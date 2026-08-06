@@ -90,6 +90,9 @@ class MarginMarket(BaseModel):
     # Leverage (1 / margin_rate) keyed by notional position size in dollars
     # ("1000", "10000", ...). Null when margin config or price data is missing.
     leverage_estimates: dict[str, MultiplierDecimal] | None = None
+    # Side-specific leverage maps (same notional keys as leverage_estimates).
+    long_leverage_estimates: dict[str, MultiplierDecimal] | None = None
+    short_leverage_estimates: dict[str, MultiplierDecimal] | None = None
     price: DollarDecimal | None = None
     bid: DollarDecimal | None = None
     ask: DollarDecimal | None = None

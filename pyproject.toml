@@ -1,6 +1,6 @@
 [project]
 name = "kalshi-sdk"
-version = "9.0.0"
+version = "10.0.0"
 description = "A professional Python SDK for the Kalshi prediction markets and Perps (margin) APIs"
 readme = "README.md"
 license = { text = "MIT" }
@@ -79,10 +79,10 @@ markers = [
     "integration_real_api_only: endpoints the demo server cannot service (auth-gated roles, demo-broken). Skipped under the default integration run; enable explicitly with -m integration_real_api_only against a prod-like account.",
 ]
 filterwarnings = [
-    # `kalshi.resources.multivariate.{lookup_tickers,lookup_history,create_market}`
-    # are flagged `@deprecated` per spec (the endpoints predate RFQs). Tests
-    # that exercise them on purpose would drown CI in noise; user callers
-    # still see the warning in their own code.
+    # `kalshi.resources.multivariate.create_market` is flagged `@deprecated`
+    # per spec (the endpoint predates RFQs). Tests that exercise it on purpose
+    # would drown CI in noise; user callers still see the warning in their own
+    # code.
     "ignore:This endpoint predates RFQs.*:DeprecationWarning",
 ]
 

@@ -32,7 +32,6 @@ from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage, MarketPositionsPayload
 from kalshi.ws.models.multivariate import (
     MultivariateLifecycleMessage,
-    MultivariateMessage,
 )
 from kalshi.ws.models.order_group import OrderGroupMessage, OrderGroupPayload
 from kalshi.ws.models.orderbook_delta import (
@@ -687,61 +686,6 @@ class TestMarketLifecycleModel:
 
 
 class TestMultivariateModel:
-    def test_parse_multivariate(self) -> None:
-        raw = {
-            "type": "multivariate",
-            "sid": 8,
-            "msg": {
-                "collection_ticker": "COL-1",
-                "event_ticker": "EVT-1",
-                "market_ticker": "MKT-A",
-                "selected_markets": [
-                    {
-                        "event_ticker": "EVT-1",
-                        "market_ticker": "MKT-A",
-                        "side": "yes",
-                    },
-                    {
-                        "event_ticker": "EVT-1",
-                        "market_ticker": "MKT-B",
-                        "side": "no",
-                    },
-                ],
-            },
-        }
-        msg = MultivariateMessage.model_validate(raw)
-        assert msg.type == "multivariate"
-        assert msg.msg.collection_ticker == "COL-1"
-        assert len(msg.msg.selected_markets) == 2
-        assert msg.msg.selected_markets[0].market_ticker == "MKT-A"
-        assert msg.msg.selected_markets[1].side == "no"
-
-    def test_multivariate_no_seq(self) -> None:
-        """`seq` is optional on this channel — full payload must still parse without it."""
-        raw = {
-            "type": "multivariate",
-            "sid": 8,
-            "msg": {
-                "collection_ticker": "COL-1",
-                "selected_markets": [],
-                "market_ticker": "MKT-A",
-                "event_ticker": "EVT-1",
-            },
-        }
-        msg = MultivariateMessage.model_validate(raw)
-        assert msg.seq is None
-
-    def test_multivariate_missing_required_raises(self) -> None:
-        """Post-#172: MultivariatePayload requires market_ticker / event_ticker.
-        Omitting them must raise instead of leaving them None."""
-        raw = {
-            "type": "multivariate",
-            "sid": 8,
-            "msg": {"collection_ticker": "COL-1", "selected_markets": []},
-        }
-        with pytest.raises(ValidationError):
-            MultivariateMessage.model_validate(raw)
-
     def test_multivariate_lifecycle(self) -> None:
         raw = {
             "type": "multivariate_market_lifecycle",

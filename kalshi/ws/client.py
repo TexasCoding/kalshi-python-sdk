@@ -36,7 +36,7 @@ from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
-from kalshi.ws.models.multivariate import MultivariateLifecycleMessage, MultivariateMessage
+from kalshi.ws.models.multivariate import MultivariateLifecycleMessage
 from kalshi.ws.models.order_group import OrderGroupMessage
 from kalshi.ws.models.orderbook_delta import OrderbookDeltaMessage, OrderbookSnapshotMessage
 from kalshi.ws.models.ticker import TickerMessage
@@ -852,14 +852,6 @@ class KalshiWebSocket:
             params["market_tickers"] = tickers
         return await self._do_subscribe(
             "market_lifecycle_v2", params=params,
-            overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
-        )
-
-    async def subscribe_multivariate(
-        self, *, maxsize: int = 1000,
-    ) -> AsyncIterator[MultivariateMessage]:
-        return await self._do_subscribe(
-            "multivariate",
             overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
 

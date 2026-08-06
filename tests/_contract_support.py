@@ -759,6 +759,23 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/fills",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers",
+        http_method="GET",
+        path_template="/portfolio/intra_exchange_instance_transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all"
+        ),
+        http_method="GET",
+        path_template="/portfolio/intra_exchange_instance_transfers",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.get_intra_exchange_transfer",
+        http_method="GET",
+        path_template="/portfolio/intra_exchange_instance_transfers/{transfer_id}",
+    ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.list",
@@ -866,12 +883,6 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/multivariate_event_collections/{collection_ticker}",
         request_body_schema="#/components/schemas/CreateMarketInMultivariateEventCollectionRequest",
     ),
-    MethodEndpointEntry(
-        sdk_method=("kalshi.resources.multivariate.MultivariateCollectionsResource.lookup_tickers"),
-        http_method="PUT",
-        path_template="/multivariate_event_collections/{collection_ticker}/lookup",
-        request_body_schema="#/components/schemas/LookupTickersForMarketInMultivariateEventCollectionRequest",
-    ),
 ]
 
 
@@ -966,6 +977,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         kind="paginator_handled",
     ),
     ("kalshi.resources.portfolio.PortfolioResource.fills_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all",
+        "cursor",
+    ): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
@@ -1258,6 +1276,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.PortfolioResource.withdrawals_all",
     "kalshi.resources.portfolio.PortfolioResource.positions_all",
     "kalshi.resources.portfolio.PortfolioResource.fills_all",
+    "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all",
     "kalshi.resources.fcm.FcmResource.orders_all",
     "kalshi.resources.fcm.FcmResource.positions_all",
     "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
@@ -1289,6 +1308,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.AsyncPortfolioResource.withdrawals_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.positions_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.fills_all",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.intra_exchange_transfers_all",
     "kalshi.resources.fcm.AsyncFcmResource.orders_all",
     "kalshi.resources.fcm.AsyncFcmResource.positions_all",
     "kalshi.resources.incentive_programs.AsyncIncentiveProgramsResource.list_all",

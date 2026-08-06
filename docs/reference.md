@@ -62,8 +62,6 @@ every exception class.
 
 ::: kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest
 
-::: kalshi.models.multivariate.LookupTickersForMarketInMultivariateEventCollectionRequest
-
 ::: kalshi.models.order_groups.CreateOrderGroupRequest
 
 ::: kalshi.models.order_groups.UpdateOrderGroupLimitRequest

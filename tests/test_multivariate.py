@@ -139,53 +139,8 @@ class TestMultivariateCreateMarket:
             unauth_mv.create_market("MVC-1", selected_markets=[])
 
 
-class TestMultivariateLookupTickers:
-    @respx.mock
-    def test_lookup_tickers(self, mv: MultivariateCollectionsResource) -> None:
-        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "event_ticker": "EVT-1",
-                    "market_ticker": "MKT-1",
-                },
-            )
-        )
-        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
-        result = mv.lookup_tickers("MVC-1", selected_markets=pairs)
-        assert result.event_ticker == "EVT-1"
-
-    def test_lookup_tickers_auth_guard(self, unauth_mv: MultivariateCollectionsResource) -> None:
-        with pytest.raises(AuthRequiredError):
-            unauth_mv.lookup_tickers("MVC-1", selected_markets=[])
-
-    @respx.mock
-    def test_lookup_tickers_raises_on_204_spec_drift(
-        self,
-        mv: MultivariateCollectionsResource,
-    ) -> None:
-        # Spec says this endpoint returns 200 with a body. If it ever
-        # regresses to 204, we want a clear RuntimeError, not an opaque
-        # Pydantic validation error on `model_validate(None)`. Issue #72.
-        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(204),
-        )
-        with pytest.raises(RuntimeError, match="spec drift"):
-            mv.lookup_tickers("MVC-1", selected_markets=[])
-
 
 class TestMultivariateDeprecationWarnings:
-    def test_lookup_tickers_emits_deprecation_warning(
-        self, mv: MultivariateCollectionsResource
-    ) -> None:
-        with respx.mock(base_url=BASE) as router:
-            router.put("/multivariate_event_collections/MVC-1/lookup").mock(
-                return_value=httpx.Response(
-                    200, json={"event_ticker": "EVT-1", "market_ticker": "MKT-1"}
-                )
-            )
-            with pytest.warns(DeprecationWarning, match=r"predates RFQs"):
-                mv.lookup_tickers("MVC-1", selected_markets=[])
 
     def test_create_market_emits_deprecation_warning(
         self, mv: MultivariateCollectionsResource
@@ -257,35 +212,8 @@ class TestAsyncMultivariateCollectionsResource:
         with pytest.raises(AuthRequiredError):
             await unauth_async_mv.create_market("MVC-1", selected_markets=[])
 
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_lookup_tickers(self, async_mv: AsyncMultivariateCollectionsResource) -> None:
-        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
-        )
-        result = await async_mv.lookup_tickers("MVC-1", selected_markets=[])
-        assert result.event_ticker == "E"
 
-    @pytest.mark.asyncio
-    async def test_lookup_tickers_auth_guard(
-        self,
-        unauth_async_mv: AsyncMultivariateCollectionsResource,
-    ) -> None:
-        with pytest.raises(AuthRequiredError):
-            await unauth_async_mv.lookup_tickers("MVC-1", selected_markets=[])
 
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_lookup_tickers_raises_on_204_spec_drift(
-        self,
-        async_mv: AsyncMultivariateCollectionsResource,
-    ) -> None:
-        # Async sibling of the sync spec-drift guard. Issue #72.
-        respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(204),
-        )
-        with pytest.raises(RuntimeError, match="spec drift"):
-            await async_mv.lookup_tickers("MVC-1", selected_markets=[])
 
 
 class TestCreateMarketWireShape:
@@ -395,42 +323,3 @@ class TestCreateMarketWireShape:
         )
 
 
-class TestLookupTickersWireShape:
-    """v0.8.0: lookup_tickers() builds LookupTickersForMarketInMultivariateEventCollectionRequest
-    internally and serializes via model_dump."""
-
-    @respx.mock
-    def test_only_selected_markets_in_body(self, mv: MultivariateCollectionsResource) -> None:
-        import json
-
-        route = respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
-        )
-        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
-        mv.lookup_tickers("MVC-1", selected_markets=pairs)
-
-        body = json.loads(route.calls[0].request.content)
-        assert set(body.keys()) == {"selected_markets"}
-        assert len(body["selected_markets"]) == 1
-
-    @respx.mock
-    @pytest.mark.asyncio
-    async def test_async_only_selected_markets_in_body(
-        self,
-        test_auth: KalshiAuth,
-        config: KalshiConfig,
-    ) -> None:
-        import json
-
-        from kalshi._base_client import AsyncTransport
-
-        async_mv = AsyncMultivariateCollectionsResource(AsyncTransport(test_auth, config))
-        route = respx.put(f"{BASE}/multivariate_event_collections/MVC-1/lookup").mock(
-            return_value=httpx.Response(200, json={"event_ticker": "E", "market_ticker": "M"})
-        )
-        pairs = [TickerPair(market_ticker="M-A", event_ticker="E-A", side="yes")]
-        await async_mv.lookup_tickers("MVC-1", selected_markets=pairs)
-
-        body = json.loads(route.calls[0].request.content)
-        assert set(body.keys()) == {"selected_markets"}
-        assert len(body["selected_markets"]) == 1

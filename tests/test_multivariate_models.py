@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from kalshi.models.multivariate import (
     CreateMarketResponse,
-    LookupTickersResponse,
     MultivariateEventCollection,
     TickerPair,
 )
@@ -117,12 +116,3 @@ class TestCreateMarketResponseModel:
         assert r.market is None
 
 
-class TestLookupTickersResponseModel:
-    def test_parse(self) -> None:
-        r = LookupTickersResponse.model_validate(
-            {
-                "event_ticker": "EVT-1",
-                "market_ticker": "MKT-1",
-            }
-        )
-        assert r.event_ticker == "EVT-1"

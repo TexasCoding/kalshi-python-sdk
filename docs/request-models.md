@@ -64,7 +64,6 @@ exposed by each resource method stays in lockstep with the OpenAPI spec.
 | `client.communications.block_trade_proposals.create` | `ProposeBlockTradeRequest` |
 | `client.communications.block_trade_proposals.accept` | `AcceptBlockTradeProposalRequest` |
 | `client.multivariate_collections.create_market` | `CreateMarketInMultivariateEventCollectionRequest` |
-| `client.multivariate_collections.lookup_tickers` | `LookupTickersForMarketInMultivariateEventCollectionRequest` |
 | `client.order_groups.create` | `CreateOrderGroupRequest` |
 | `client.order_groups.update_limit` | `UpdateOrderGroupLimitRequest` |
 | `client.subaccounts.transfer` | `ApplySubaccountTransferRequest` |

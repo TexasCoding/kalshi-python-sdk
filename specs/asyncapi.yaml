@@ -380,30 +380,6 @@ channels:
         $ref: '#/components/messages/multivariateMarketLifecycle'
       eventLifecycle:
         $ref: '#/components/messages/eventLifecycle'
-  multivariate:
-    address: multivariate
-    title: Multivariate Lookups (Deprecated)
-    description: >
-      Deprecated: this channel predates RFQs and should not be used for new
-      integrations.
-
-
-      Multivariate collection lookup notifications.
-
-
-      **Requirements:**
-
-      - No additional channel-level authentication beyond the authenticated
-      WebSocket connection
-
-      - No filtering parameters; subscription is global
-
-
-      **Use case:** Tracking multivariate lookup interest for legacy
-      integrations
-    messages:
-      multivariateLookup:
-        $ref: '#/components/messages/multivariateLookup'
   communications:
     address: communications
     title: Communications
@@ -911,16 +887,6 @@ operations:
       $ref: '#/channels/multivariate_market_lifecycle'
     messages:
       - $ref: '#/channels/multivariate_market_lifecycle/messages/eventLifecycle'
-    tags:
-      - name: market-data
-  receiveMultivariateLookup:
-    action: send
-    title: Multivariate Lookup
-    summary: Receive multivariate collection lookup notifications
-    channel:
-      $ref: '#/channels/multivariate'
-    messages:
-      - $ref: '#/channels/multivariate/messages/multivariateLookup'
     tags:
       - name: market-data
   receiveRFQCreated:
@@ -1960,31 +1926,6 @@ components:
               event_ticker: KXBTCD-26MAY2018
               fee_type_override: null
               fee_multiplier_override: null
-    multivariateLookup:
-      name: multivariate_lookup
-      title: Multivariate Lookup (Deprecated)
-      summary: Deprecated multivariate collection lookup notification
-      description: This message predates RFQs and should not be used for new integrations.
-      contentType: application/json
-      payload:
-        $ref: '#/components/schemas/multivariateLookupPayload'
-      examples:
-        - name: lookupRecorded
-          summary: Multivariate lookup recorded
-          payload:
-            type: multivariate_lookup
-            sid: 13
-            msg:
-              collection_ticker: KXOSCARWINNERS-25
-              event_ticker: KXOSCARWINNERS-25C0CE5
-              market_ticker: KXOSCARWINNERS-25C0CE5-36353
-              selected_markets:
-                - event_ticker: KXOSCARACTO-25
-                  market_ticker: KXOSCARACTO-25-AB
-                  side: 'yes'
-                - event_ticker: KXOSCARACTR-25
-                  market_ticker: KXOSCARACTR-25-DM
-                  side: 'yes'
     marketPosition:
       name: market_position
       title: Market Position Update
@@ -2273,7 +2214,6 @@ components:
                   - market_positions
                   - market_lifecycle_v2
                   - multivariate_market_lifecycle
-                  - multivariate
                   - communications
                   - order_group_updates
                   - user_orders
@@ -3482,6 +3422,7 @@ components:
                 - center_half_edge_deci_cent
                 - center_quint_edge_quint_cent
                 - center_quint_edge_deci_cent
+                - center_centi_edge_centi_cent
             price_ranges:
               type: array
               description: >-
@@ -3669,47 +3610,6 @@ components:
               description: >-
                 Event fee multiplier override. `null` when the override has been
                 cleared.
-    multivariateLookupPayload:
-      type: object
-      required:
-        - type
-        - sid
-        - msg
-      properties:
-        type:
-          type: string
-          const: multivariate_lookup
-        sid:
-          $ref: '#/components/schemas/subscriptionId'
-        msg:
-          type: object
-          required:
-            - collection_ticker
-            - event_ticker
-            - market_ticker
-            - selected_markets
-          properties:
-            collection_ticker:
-              type: string
-            event_ticker:
-              type: string
-            market_ticker:
-              type: string
-            selected_markets:
-              type: array
-              items:
-                type: object
-                required:
-                  - event_ticker
-                  - market_ticker
-                  - side
-                properties:
-                  event_ticker:
-                    type: string
-                  market_ticker:
-                    type: string
-                  side:
-                    $ref: '#/components/schemas/marketSide'
     marketPositionPayload:
       type: object
       required:

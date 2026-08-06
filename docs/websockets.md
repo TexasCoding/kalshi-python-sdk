@@ -29,7 +29,7 @@ SDK's perspective on it.
   on every delta.
 - `on_state_change=` and `on_error=` hooks on the constructor for observability.
 
-## The 12 channels
+## The 11 channels
 
 | SDK method | Wire channel | Message `type` field | Message class | Auth |
 |---|---|---|---|---|
@@ -37,7 +37,6 @@ SDK's perspective on it.
 | `subscribe_trade` | `trade` | `trade` | `TradeMessage` | public |
 | `subscribe_orderbook_delta` | `orderbook_delta` | `orderbook_snapshot` → `orderbook_delta` | `OrderbookSnapshotMessage` / `OrderbookDeltaMessage` | public |
 | `subscribe_market_lifecycle` | `market_lifecycle_v2` | `market_lifecycle_v2` / `event_fee_update` | `MarketLifecycleMessage` / `EventFeeUpdateMessage` | public |
-| `subscribe_multivariate` | `multivariate` | `multivariate_lookup` | `MultivariateMessage` | public |
 | `subscribe_multivariate_lifecycle` | `multivariate_market_lifecycle` | `multivariate_market_lifecycle` | `MultivariateLifecycleMessage` | public |
 | `subscribe_fill` | `fill` | `fill` | `FillMessage` | private |
 | `subscribe_user_orders` | `user_orders` | `user_order` (singular) | `UserOrdersMessage` | private |
@@ -47,8 +46,8 @@ SDK's perspective on it.
 | `subscribe_cfbenchmarks_value` | `cfbenchmarks_value` | `cfbenchmarks_value` / `cfbenchmarks_value_indexlist` | `CFBenchmarksValueMessage` / `CFBenchmarksIndexListMessage` | private |
 
 The `type` column matters when filtering raw logs — note the singular forms
-for `user_order`, `market_position`, and the `multivariate_lookup` /
-`multivariate` mismatch.
+for `user_order` and `market_position`. The standalone `multivariate` /
+`multivariate_lookup` channel was removed from AsyncAPI (SDK v10.0.0).
 
 !!! warning "Migration (v3.1.0): `event_fee_update` rides `market_lifecycle_v2`"
     Since the v3.20.0 spec sync (SDK v3.1.0) the `market_lifecycle_v2` channel
