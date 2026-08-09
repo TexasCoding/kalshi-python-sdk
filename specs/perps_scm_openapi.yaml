@@ -38,7 +38,7 @@ paths:
 
       parameters:
         - { name: start_date, in: query, required: true, schema: { type: string, format: date } }
-        - { name: end_date,   in: query, required: true, schema: { type: string, format: date } }
+        - { name: end_date,   in: query, required: true, schema: { type: string, format: date }, description: "Must be within 90 days of start_date." }
       responses:
         '200':
           description: Successful response
@@ -46,30 +46,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/GetMarginReportsResponse' }
         '400': { $ref: '#/components/responses/BadRequestError' }
-        '401': { $ref: '#/components/responses/UnauthorizedError' }
-        '403': { $ref: '#/components/responses/ForbiddenError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-
-  /margin/active_obligation:
-    get:
-      operationId: GetActiveMarginObligation
-      summary: Get Active Margin Obligation (Deprecated)
-      deprecated: true
-      description: |
-        Deprecated: use `/margin/active_obligations`, which covers all asset
-        classes. This endpoint only returns the crypto obligation.
-
-        Returns the clearing member's outstanding crypto settlement obligation
-        for the current cycle, if one exists. A negative amount indicates a net
-        payable to Kalshi Klear; a positive amount indicates a net receivable.
-        Returns null when no obligation is pending.
-
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GetActiveMarginObligationResponse' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -103,15 +79,91 @@ paths:
 
       parameters:
         - { name: limit, in: query, required: false, schema: { type: integer, default: 20, maximum: 100 }, description: Number of results per page. }
-        - { name: cursor, in: query, required: false, schema: { type: string, format: date-time }, description: Cursor from a previous response to fetch the next page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
       responses:
         '200':
           description: Successful response
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetObligationHistoryResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/obligations/{obligation_id}/settlement_details:
+    get:
+      operationId: GetObligationSettlementDetails
+      summary: Get Obligation Settlement Details
+      description: >-
+        Pages the full per-market, per-subtrader settlement breakdown of one
+        obligation. The inline settlement_details array on obligation
+        responses is capped at 1000 rows (settlement_details_truncated is set
+        when the cap applied); this endpoint serves the complete set.
+      parameters:
+        - { name: obligation_id, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 1000, maximum: 1000 }, description: Number of rows per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetObligationSettlementDetailsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/obligations/{obligation_id}/funding_payments:
+    get:
+      operationId: GetObligationFundingPayments
+      summary: Get Obligation Funding Payments
+      description: >-
+        Pages the full per-market, per-subtrader, per-funding-period funding
+        breakdown of one obligation. The inline funding_payments array on
+        obligation responses is capped at 1000 rows (funding_payments_truncated
+        is set when the cap applied); this endpoint serves the complete set.
+      parameters:
+        - { name: obligation_id, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 1000, maximum: 1000 }, description: Number of rows per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetObligationFundingPaymentsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/obligations/{obligation_id}/maintenance_margin_details:
+    get:
+      operationId: GetObligationMaintenanceMarginDetails
+      summary: Get Obligation Maintenance Margin Details
+      description: >-
+        Pages the full per-subtrader maintenance margin breakdown of one
+        obligation. The inline maintenance_margin_details array on obligation
+        responses is capped at 1000 rows (maintenance_margin_details_truncated
+        is set when the cap applied); this endpoint serves the complete set.
+      parameters:
+        - { name: obligation_id, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 1000, maximum: 1000 }, description: Number of rows per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetObligationMaintenanceMarginDetailsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /margin/large_trader_positions:
@@ -140,35 +192,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetLargeTraderPositionsResponse' }
-        '401': { $ref: '#/components/responses/UnauthorizedError' }
-        '403': { $ref: '#/components/responses/ForbiddenError' }
-        '500': { $ref: '#/components/responses/InternalServerError' }
-
-  /margin/settlement_estimate:
-    get:
-      operationId: GetSettlementEstimate
-      summary: Get Settlement Estimate (Deprecated)
-      deprecated: true
-      description: |
-        Deprecated: use `/margin/settlement_estimate_by_asset_class`, which
-        covers all asset classes. This endpoint only returns the crypto
-        settlement estimate.
-
-        Estimated next crypto settlement amounts for the authenticated
-        clearing member, including per-subtrader and per-group breakdowns.
-
-        `subtrader_breakdowns` and `group_breakdowns` together contain at most
-        the 1,000 entries with the largest maintenance margin requirement;
-        `omitted_subtrader_count` and `omitted_group_count` report how many
-        entries of each type were left out. `user_breakdown` always aggregates
-        across all subtraders.
-
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GetSettlementEstimateResponse' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -483,7 +506,7 @@ components:
             pays the clearing member.
         fees_centicents: { type: integer, format: int64, description: Trading fees incurred during the settlement period. }
         maintenance_margin_centicents: { type: integer, format: int64, description: Current maintenance margin requirement for this obligation. }
-        pnl_centicents: { type: integer, format: int64, description: Realized PnL for this settlement period. }
+        pnl_centicents: { type: integer, format: int64, description: "Total PnL for this settlement period; the sum of the settlement details for this settlement cycle." }
         execution_time: { type: string, format: date-time, description: Settlement cycle time this obligation belongs to. }
         last_updated_ts: { type: string, format: date-time, description: Timestamp of the last status change on this obligation. }
         asset_class: { $ref: '#/components/schemas/AssetClass' }
@@ -504,6 +527,7 @@ components:
         - id
         - market_ticker
         - subtrader_id
+        - position_quantity_fp
         - pnl_centicents
         - total_fees_centicents
         - total_amount_centicents
@@ -511,9 +535,29 @@ components:
         id: { type: string }
         market_ticker: { type: string }
         subtrader_id: { type: string }
-        pnl_centicents: { type: integer, format: int64, description: PnL. }
+        position_quantity_fp: { type: string, description: "Signed position at settlement as a fixed-point contract count (e.g. \"1.25\")." }
+        pnl_centicents: { type: integer, format: int64, description: Total PnL for this market and subtrader over the settlement period, including the market's net funding (itemized per funding period in the entry's funding_payments). }
         total_fees_centicents: { type: integer, format: int64, description: Total fees. }
         total_amount_centicents: { type: integer, format: int64, description: Total amount. }
+
+    FundingPaymentDetail:
+      type: object
+      required:
+        - id
+        - market_ticker
+        - subtrader_id
+        - funding_time
+        - position_quantity_fp
+        - notional_value_centicents
+        - funding_amount_centicents
+      properties:
+        id: { type: string }
+        market_ticker: { type: string }
+        subtrader_id: { type: string }
+        funding_time: { type: string, format: date-time, description: The funding period this payment applies to. }
+        position_quantity_fp: { type: string, description: "Signed position at funding time as a fixed-point contract count (e.g. \"1.25\")." }
+        notional_value_centicents: { type: integer, format: int64, description: Signed notional value (position times mark price) the funding payment was computed from. }
+        funding_amount_centicents: { type: integer, format: int64, description: Signed funding amount; positive when received, negative when paid. }
 
     MaintenanceMarginDetail:
       type: object
@@ -533,7 +577,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/ObligationInfo'
         - type: object
-          required: [receives, settlement_details, maintenance_margin_details]
+          required: [receives, settlement_details, maintenance_margin_details, funding_payments]
           properties:
             receives:
               type: array
@@ -551,13 +595,21 @@ components:
               description: |
                 Breakdown of the maintenance margin requirement and the delta
                 from the prior settlement.
-
-    GetActiveMarginObligationResponse:
-      type: object
-      properties:
-        obligation:
-          $ref: '#/components/schemas/ObligationEntry'
-          description: The outstanding settlement obligation for the current cycle, or null when no obligation is pending.
+            funding_payments:
+              type: array
+              items: { $ref: '#/components/schemas/FundingPaymentDetail' }
+              description: |
+                Per-market, per-subtrader, per-funding-period breakdown of the
+                funding payments settled by this obligation.
+            settlement_details_truncated:
+              type: boolean
+              description: Set when settlement_details was capped at the 1000-row inline limit; page the full set via /margin/obligations/{obligation_id}/settlement_details.
+            maintenance_margin_details_truncated:
+              type: boolean
+              description: Set when maintenance_margin_details was capped at the 1000-row inline limit; page the full set via /margin/obligations/{obligation_id}/maintenance_margin_details.
+            funding_payments_truncated:
+              type: boolean
+              description: Set when funding_payments was capped at the 1000-row inline limit; page the full set via /margin/obligations/{obligation_id}/funding_payments.
 
     GetActiveMarginObligationsResponse:
       type: object
@@ -590,8 +642,40 @@ components:
           items: { $ref: '#/components/schemas/ObligationEntry' }
         cursor:
           type: string
-          format: date-time
-          description: Pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
+    GetObligationSettlementDetailsResponse:
+      type: object
+      required: [settlement_details]
+      properties:
+        settlement_details:
+          type: array
+          items: { $ref: '#/components/schemas/SettlementDetail' }
+        cursor:
+          type: string
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
+    GetObligationFundingPaymentsResponse:
+      type: object
+      required: [funding_payments]
+      properties:
+        funding_payments:
+          type: array
+          items: { $ref: '#/components/schemas/FundingPaymentDetail' }
+        cursor:
+          type: string
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
+    GetObligationMaintenanceMarginDetailsResponse:
+      type: object
+      required: [maintenance_margin_details]
+      properties:
+        maintenance_margin_details:
+          type: array
+          items: { $ref: '#/components/schemas/MaintenanceMarginDetail' }
+        cursor:
+          type: string
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
 
     MarketSettlementEstimate:
       type: object
@@ -622,27 +706,6 @@ components:
           type: object
           description: Map of market ticker to that market's settlement estimate.
           additionalProperties: { $ref: '#/components/schemas/MarketSettlementEstimate' }
-
-    GetSettlementEstimateResponse:
-      type: object
-      required: [user_breakdown, settlement_balance_centicents]
-      properties:
-        user_breakdown: { $ref: '#/components/schemas/SettlementEstimate' }
-        subtrader_breakdowns:
-          type: object
-          description: Map of subtrader ID to that portfolio's settlement estimate.
-          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
-        group_breakdowns:
-          type: object
-          description: Map of margin group ID to that portfolio's netted settlement estimate.
-          additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
-        omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
-        omitted_group_count: { type: integer, format: int64, description: Number of groups omitted from group_breakdowns. Their amounts are still included in user_breakdown. }
-        prev_settlement_prices:
-          type: object
-          description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
-          additionalProperties: { type: integer, format: int64 }
-        settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
 
     AssetClassSettlementEstimate:
       type: object

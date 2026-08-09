@@ -1563,11 +1563,6 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/reports",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligation",
-        http_method="GET",
-        path_template="/margin/active_obligation",
-    ),
-    MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.active_obligations",
         http_method="GET",
         path_template="/margin/active_obligations",
@@ -1583,9 +1578,39 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/obligation_history",
     ),
     MethodEndpointEntry(
-        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate",
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_details",
         http_method="GET",
-        path_template="/margin/settlement_estimate",
+        path_template="/margin/obligations/{obligation_id}/settlement_details",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_details_all",
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/settlement_details",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource.maintenance_margin_details"
+        ),
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/maintenance_margin_details",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource"
+            ".maintenance_margin_details_all"
+        ),
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/maintenance_margin_details",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.funding_payments",
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/funding_payments",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.funding_payments_all",
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/funding_payments",
     ),
     MethodEndpointEntry(
         sdk_method=(
@@ -1721,6 +1746,48 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     (
         "kalshi.perps.klear.resources.margin.MarginResource.obligation_history_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_details_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.settlement_details_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.maintenance_margin_details_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.maintenance_margin_details_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.funding_payments_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.funding_payments_all",
         "max_pages",
     ): Exclusion(
         reason="client-side page cap, no wire counterpart",

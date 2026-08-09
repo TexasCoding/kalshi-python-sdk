@@ -355,6 +355,7 @@ class TestTradeModel:
         assert msg.msg.trade_id == "trade-001"
         assert msg.msg.yes_price == Decimal("0.55")
         assert msg.msg.count == Decimal("10")
+        assert msg.msg.is_block_trade is False
 
     def test_trade_no_seq(self) -> None:
         raw = {
@@ -1403,6 +1404,7 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
             "ts": 1_700_000_000,
             "taker_outcome_side": "yes",
             "taker_book_side": "bid",
+            "is_block_trade": False,
             "ts_ms": 1_700_000_000_000,
         },
     ),

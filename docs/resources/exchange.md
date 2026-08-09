@@ -17,9 +17,13 @@ Top-level exchange status, schedule, announcements, and your account's
 ```python
 status = client.exchange.status()
 print(status.exchange_active, status.trading_active)
+for shard in status.exchange_index_statuses:
+    print(shard.exchange_index, shard.description, shard.trading_active)
 ```
 
 Use this as a liveness check before placing orders.
+`ExchangeIndexStatus.description` is a required human-readable shard label
+(SDK v11.0.0).
 
 ## Exchange schedule
 

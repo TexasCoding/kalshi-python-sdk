@@ -440,6 +440,7 @@ def trade_payload_dict(**overrides: Any) -> dict[str, Any]:
         "taker_side": "yes",
         "taker_book_side": "bid",
         "taker_outcome_side": "yes",
+        "is_block_trade": False,
         "ts": 1735689600,
         "ts_ms": 1735689600000,
     }

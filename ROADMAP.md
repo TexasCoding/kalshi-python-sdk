@@ -2,6 +2,13 @@
 
 ## Shipped
 
+- **v11.0.0 (2026-08-09)** — Spec-drift reconcile (#499). **Breaking:** removed
+  Klear `active_obligation()` / `settlement_estimate()` after upstream deleted
+  the singular endpoints. Additive: Klear paged obligation detail endpoints
+  (`settlement_details` / `maintenance_margin_details` / `funding_payments`),
+  `ExchangeIndexStatus.description`, perps `MarginMarket.exchange_index`, WS
+  `TradePayload.is_block_trade`. Required fields on `SettlementDetail` /
+  `ObligationEntry` for position quantity + funding payments.
 - **v10.0.0 (2026-08-06)** — Spec-drift reconcile (#496 / #497). **Breaking:**
   removed `multivariate_collections.lookup_tickers()` and WS
   `subscribe_multivariate()` after upstream deleted the REST lookup endpoint

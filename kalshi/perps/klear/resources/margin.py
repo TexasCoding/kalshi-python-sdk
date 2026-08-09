@@ -1,15 +1,21 @@
 """Klear (SCM) margin resource — settlement obligations, estimates, balances (#400).
 
-Nine Self-Clearing-Member margin endpoints on the Klear client (``klear-api/v1``),
-all requiring an active **session cookie** (not RSA-PSS):
+Self-Clearing-Member margin endpoints on the Klear client (``klear-api/v1``),
+authenticated with a **Bearer** token (not RSA-PSS):
 
 - ``margin_reports`` — ``GET /margin/reports``: flat array, required ``start_date``
   / ``end_date`` (``YYYY-MM-DD``).
-- ``active_obligation`` — ``GET /margin/active_obligation``: current-cycle
-  obligation (nullable).
+- ``active_obligations`` — ``GET /margin/active_obligations``: all currently-active
+  obligations.
 - ``obligation_history`` / ``obligation_history_all`` — ``GET
   /margin/obligation_history``: cursor-paginated (limit max 100).
-- ``settlement_estimate`` — ``GET /margin/settlement_estimate``.
+- ``settlement_details`` / ``settlement_details_all``,
+  ``maintenance_margin_details`` / ``maintenance_margin_details_all``,
+  ``funding_payments`` / ``funding_payments_all`` — paged detail rows for one
+  obligation (limit max 1000) when the inline arrays on
+  :class:`~kalshi.perps.klear.models.margin.ObligationEntry` are truncated.
+- ``settlement_estimate_by_asset_class`` —
+  ``GET /margin/settlement_estimate_by_asset_class``.
 - ``settlement_balance`` — ``GET /margin/settlement_balance``.
 - ``guaranty_fund_balance`` — ``GET /margin/guaranty_fund_balance``.
 - ``settlement_balance_history`` / ``settlement_balance_history_all`` — ``GET
@@ -18,6 +24,7 @@ all requiring an active **session cookie** (not RSA-PSS):
   ``WithdrawSettlementBalanceRequest`` body; NOT retried (POST).
 - ``settlement_balance_withdrawal`` — ``GET /margin/settlement_balance_withdrawal``:
   withdrawal status by required ``id``.
+- Subtrader groups under ``/fcm/margin/subtrader_groups``.
 
 The Klear resource base injects the ``Authorization: Bearer`` header on every
 request (NOT the RSA-PSS ``KALSHI-ACCESS-*`` signing used by the trade-api
@@ -34,7 +41,7 @@ from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
     CreateMarginSubtraderGroupRequest,
     CreateMarginSubtraderGroupResponse,
-    GetActiveMarginObligationResponse,
+    FundingPaymentDetail,
     GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
@@ -42,9 +49,10 @@ from kalshi.perps.klear.models.margin import (
     GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
     GetSettlementEstimateByAssetClassResponse,
-    GetSettlementEstimateResponse,
+    MaintenanceMarginDetail,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
+    SettlementDetail,
     UpdateMarginSubtraderGroupRequest,
     WithdrawSettlementBalanceRequest,
     WithdrawSettlementBalanceResponse,
@@ -95,7 +103,7 @@ def _validate_date_range(start_date: str, end_date: str) -> None:
 
 
 class MarginResource(KlearSyncResource):
-    """Sync Klear (SCM) margin API — all nine endpoints + two paginators."""
+    """Sync Klear (SCM) margin API — obligations, estimates, balances, groups."""
 
     def margin_reports(
         self,
@@ -113,17 +121,10 @@ class MarginResource(KlearSyncResource):
         data = self._get("/margin/reports", params=params, extra_headers=extra_headers)
         return GetMarginReportsResponse.model_validate(data)
 
-    def active_obligation(
-        self, *, extra_headers: dict[str, str] | None = None
-    ) -> GetActiveMarginObligationResponse:
-        """``GET /margin/active_obligation`` — current-cycle obligation (nullable)."""
-        data = self._get("/margin/active_obligation", extra_headers=extra_headers)
-        return GetActiveMarginObligationResponse.model_validate(data)
-
     def active_obligations(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetActiveMarginObligationsResponse:
-        """``GET /margin/active_obligations`` — all currently-active obligations (spec v3.24.0)."""
+        """``GET /margin/active_obligations`` — all currently-active obligations."""
         data = self._get("/margin/active_obligations", extra_headers=extra_headers)
         return GetActiveMarginObligationsResponse.model_validate(data)
 
@@ -165,17 +166,139 @@ class MarginResource(KlearSyncResource):
             extra_headers=extra_headers,
         )
 
-    def settlement_estimate(
-        self, *, extra_headers: dict[str, str] | None = None
-    ) -> GetSettlementEstimateResponse:
-        """``GET /margin/settlement_estimate`` — next-settlement estimate + breakdowns."""
-        data = self._get("/margin/settlement_estimate", extra_headers=extra_headers)
-        return GetSettlementEstimateResponse.model_validate(data)
+    def settlement_details(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[SettlementDetail]:
+        """``GET /margin/obligations/{obligation_id}/settlement_details`` (limit max 1000)."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return self._list(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/settlement_details",
+            SettlementDetail,
+            "settlement_details",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def settlement_details_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[SettlementDetail]:
+        """Auto-paginate settlement details for one obligation."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/settlement_details",
+            SettlementDetail,
+            "settlement_details",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def maintenance_margin_details(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[MaintenanceMarginDetail]:
+        """``GET /margin/obligations/{obligation_id}/maintenance_margin_details``.
+
+        Limit max 1000.
+        """
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return self._list(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                f"/maintenance_margin_details"
+            ),
+            MaintenanceMarginDetail,
+            "maintenance_margin_details",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def maintenance_margin_details_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[MaintenanceMarginDetail]:
+        """Auto-paginate maintenance-margin details for one obligation."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                f"/maintenance_margin_details"
+            ),
+            MaintenanceMarginDetail,
+            "maintenance_margin_details",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def funding_payments(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[FundingPaymentDetail]:
+        """``GET /margin/obligations/{obligation_id}/funding_payments`` (limit max 1000)."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return self._list(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
+            FundingPaymentDetail,
+            "funding_payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def funding_payments_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[FundingPaymentDetail]:
+        """Auto-paginate funding payments for one obligation."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
+            FundingPaymentDetail,
+            "funding_payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
 
     def settlement_estimate_by_asset_class(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementEstimateByAssetClassResponse:
-        """``GET /margin/settlement_estimate_by_asset_class`` (spec v3.24.0).
+        """``GET /margin/settlement_estimate_by_asset_class``.
 
         Next-settlement estimates keyed by asset class.
         """
@@ -332,7 +455,7 @@ class MarginResource(KlearSyncResource):
 
 
 class AsyncMarginResource(KlearAsyncResource):
-    """Async Klear (SCM) margin API — all nine endpoints + two paginators."""
+    """Async Klear (SCM) margin API — obligations, estimates, balances, groups."""
 
     async def margin_reports(
         self,
@@ -347,17 +470,10 @@ class AsyncMarginResource(KlearAsyncResource):
         data = await self._get("/margin/reports", params=params, extra_headers=extra_headers)
         return GetMarginReportsResponse.model_validate(data)
 
-    async def active_obligation(
-        self, *, extra_headers: dict[str, str] | None = None
-    ) -> GetActiveMarginObligationResponse:
-        """Async :meth:`MarginResource.active_obligation`."""
-        data = await self._get("/margin/active_obligation", extra_headers=extra_headers)
-        return GetActiveMarginObligationResponse.model_validate(data)
-
     async def active_obligations(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetActiveMarginObligationsResponse:
-        """Async :meth:`MarginResource.active_obligations` (spec v3.24.0)."""
+        """Async :meth:`MarginResource.active_obligations`."""
         data = await self._get("/margin/active_obligations", extra_headers=extra_headers)
         return GetActiveMarginObligationsResponse.model_validate(data)
 
@@ -399,17 +515,136 @@ class AsyncMarginResource(KlearAsyncResource):
             extra_headers=extra_headers,
         )
 
-    async def settlement_estimate(
-        self, *, extra_headers: dict[str, str] | None = None
-    ) -> GetSettlementEstimateResponse:
-        """Async :meth:`MarginResource.settlement_estimate`."""
-        data = await self._get("/margin/settlement_estimate", extra_headers=extra_headers)
-        return GetSettlementEstimateResponse.model_validate(data)
+    async def settlement_details(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[SettlementDetail]:
+        """Async :meth:`MarginResource.settlement_details`."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return await self._list(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/settlement_details",
+            SettlementDetail,
+            "settlement_details",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def settlement_details_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[SettlementDetail]:
+        """Async iterator over settlement details — use ``async for``."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/settlement_details",
+            SettlementDetail,
+            "settlement_details",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    async def maintenance_margin_details(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[MaintenanceMarginDetail]:
+        """Async :meth:`MarginResource.maintenance_margin_details`."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return await self._list(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                f"/maintenance_margin_details"
+            ),
+            MaintenanceMarginDetail,
+            "maintenance_margin_details",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def maintenance_margin_details_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[MaintenanceMarginDetail]:
+        """Async iterator over maintenance-margin details — use ``async for``."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                f"/maintenance_margin_details"
+            ),
+            MaintenanceMarginDetail,
+            "maintenance_margin_details",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    async def funding_payments(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[FundingPaymentDetail]:
+        """Async :meth:`MarginResource.funding_payments`."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return await self._list(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
+            FundingPaymentDetail,
+            "funding_payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def funding_payments_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[FundingPaymentDetail]:
+        """Async iterator over funding payments — use ``async for``."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
+            FundingPaymentDetail,
+            "funding_payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
 
     async def settlement_estimate_by_asset_class(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetSettlementEstimateByAssetClassResponse:
-        """Async :meth:`MarginResource.settlement_estimate_by_asset_class` (spec v3.24.0)."""
+        """Async :meth:`MarginResource.settlement_estimate_by_asset_class`."""
         data = await self._get(
             "/margin/settlement_estimate_by_asset_class", extra_headers=extra_headers
         )

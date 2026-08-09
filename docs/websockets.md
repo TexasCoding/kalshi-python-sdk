@@ -1,7 +1,8 @@
 # WebSocket
 
 The SDK ships an async-only WebSocket client, `KalshiWebSocket`, that covers
-all 12 Kalshi channels. It handles RSA-PSS auth on the upgrade handshake,
+the Kalshi market-data WebSocket surface (11 typed channels plus the generic
+escape hatch). It handles RSA-PSS auth on the upgrade handshake,
 per-subscription sequence-gap detection, automatic reconnection with
 re-subscription, and a configurable backpressure strategy on each per-channel
 queue.
@@ -267,7 +268,7 @@ when the queue fills depends on `OverflowStrategy`:
 
 | Strategy | Behavior | Default for |
 |---|---|---|
-| `DROP_OLDEST` | Ring-buffer: evict oldest, keep newest. | `ticker`, `trade`, `fill`, `user_orders`, `market_positions`, `market_lifecycle`, `multivariate`, `multivariate_lifecycle`, `communications` |
+| `DROP_OLDEST` | Ring-buffer: evict oldest, keep newest. | `ticker`, `trade`, `fill`, `user_orders`, `market_positions`, `market_lifecycle`, `multivariate_lifecycle`, `communications` |
 | `ERROR` | Raise `KalshiBackpressureError` from the producer side. | `orderbook_delta`, `order_group_updates` |
 
 The choice tracks state semantics: latest-wins channels (`ticker`) survive a
@@ -415,8 +416,8 @@ REST. There's no token in the URL, no signed message after open. The signature
 is re-computed on every reconnect attempt.
 
 Public channels (ticker, trade, orderbook_delta, market_lifecycle,
-multivariate, multivariate_lifecycle) work without auth — pass
-`auth=None` if you don't need private channels.
+multivariate_lifecycle) work without auth — pass `auth=None` if you don't
+need private channels.
 
 ## Performance
 
@@ -460,7 +461,7 @@ silently corrupting book state.
 
 | Strategy | Use for | Why |
 |---|---|---|
-| `DROP_OLDEST` | Read-only / coalesced feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate*`, `user_orders` | Newest sample is the one that matters; an evicted old frame is recoverable from the next one. |
+| `DROP_OLDEST` | Read-only / coalesced feeds: `ticker`, `trade`, `market_lifecycle`, `multivariate_lifecycle`, `user_orders` | Newest sample is the one that matters; an evicted old frame is recoverable from the next one. |
 | `ERROR` | Stateful, sequenced feeds: `orderbook_delta`, `order_group_updates` | A dropped delta corrupts derived state (the reconstructed book / order-group tracking). Surface the backpressure to the consumer rather than continuing on corrupted state. |
 
 `ERROR` is fatal — the recv loop broadcasts sentinels and exits when it fires
