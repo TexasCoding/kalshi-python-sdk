@@ -32,6 +32,8 @@ class TradePayload(BaseModel):
     # canonical direction encoding; ts_ms supersedes ts. taker_side stays.
     taker_outcome_side: SideLiteral
     taker_book_side: BookSideLiteral
+    # True when the trade was matched off-book as a block trade (AsyncAPI).
+    is_block_trade: bool
     ts_ms: int
     model_config = {"extra": "allow", "populate_by_name": True}
 

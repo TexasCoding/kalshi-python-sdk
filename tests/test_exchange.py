@@ -112,6 +112,7 @@ class TestExchangeStatus:
                     "exchange_index_statuses": [
                         {
                             "exchange_index": 0,
+                            "description": "Primary",
                             "exchange_active": True,
                             "trading_active": True,
                             "intra_exchange_transfers_active": False,
@@ -125,6 +126,7 @@ class TestExchangeStatus:
         assert len(status.exchange_index_statuses) == 1
         index_status = status.exchange_index_statuses[0]
         assert index_status.exchange_index == 0
+        assert index_status.description == "Primary"
         assert index_status.exchange_active is True
         assert index_status.trading_active is True
         assert index_status.intra_exchange_transfers_active is False
@@ -304,6 +306,7 @@ class TestAsyncExchangeStatus:
                     "exchange_index_statuses": [
                         {
                             "exchange_index": 0,
+                            "description": "Primary",
                             "exchange_active": True,
                             "trading_active": True,
                             "intra_exchange_transfers_active": True,
@@ -316,6 +319,7 @@ class TestAsyncExchangeStatus:
         assert status.intra_exchange_transfers_active is True
         assert len(status.exchange_index_statuses) == 1
         assert status.exchange_index_statuses[0].exchange_index == 0
+        assert status.exchange_index_statuses[0].description == "Primary"
 
 
 class TestAsyncExchangeSchedule:

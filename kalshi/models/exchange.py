@@ -11,6 +11,7 @@ class ExchangeIndexStatus(BaseModel):
     """Operational status of a single exchange index (shard)."""
 
     exchange_index: int
+    description: str
     exchange_active: bool
     trading_active: bool
     intra_exchange_transfers_active: bool

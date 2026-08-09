@@ -1417,7 +1417,7 @@ paths:
     post:
       operationId: CreateOrderGroup
       summary: Create Order Group
-      description: ' Creates a new order group with a contracts limit measured over a rolling 15-second window. When the limit is hit, all orders in the group are cancelled and no new orders can be placed until reset.'
+      description: ' Creates a new order group with a contracts limit measured over a rolling 15-second window. Users can have up to 100,000 order groups at a time. When the limit is hit, all orders in the group are cancelled and no new orders can be placed until reset.'
       tags:
         - order-groups
       security:
@@ -5072,12 +5072,16 @@ components:
       type: object
       required:
         - exchange_index
+        - description
         - exchange_active
         - trading_active
         - intra_exchange_transfers_active
       properties:
         exchange_index:
           $ref: '#/components/schemas/ExchangeIndex'
+        description:
+          type: string
+          description: Description of this exchange shard.
         exchange_active:
           type: boolean
           description: >-

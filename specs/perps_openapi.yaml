@@ -1423,6 +1423,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
+          description: >-
+            The market group this order group is bound to (default 0). All
+            orders placed into this order group must be for markets whose
+            exchange_index matches this value.
           x-go-type-skip-optional-pointer: true
     CreateOrderGroupResponse:
       type: object
@@ -1469,9 +1473,7 @@ components:
           description: Additional details about the error, if available
     ExchangeIndex:
       type: integer
-      description: >-
-        Identifier for an exchange shard. Defaults to 0 if unspecified. Note:
-        currently only 0 supported.
+      description: Identifier for an exchange shard. Defaults to 0 if unspecified.
       example: 0
     ExchangeInstance:
       type: string
@@ -2096,11 +2098,18 @@ components:
         - tick_size
         - fractional_trading_enabled
         - schedule
+        - exchange_index
       properties:
         ticker:
           type: string
         title:
           type: string
+        exchange_index:
+          type: integer
+          description: >-
+            The group of markets this market belongs to for order groups. Order
+            groups may only reference markets whose exchange_index matches
+            theirs.
         contract_size:
           type: string
           description: Fixed-point number with 6 decimal places

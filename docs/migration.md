@@ -1,5 +1,54 @@
 # Migration
 
+## v10.0 → v11.0.0
+
+Reconciles upstream OpenAPI **3.27.0** content, AsyncAPI trade payload fields,
+perps `MarginMarket.exchange_index`, and a Klear (SCM) obligation reshape
+(Closes #499). **Breaking** for callers of the removed Klear singular endpoints
+and for code that constructs a few response models without their new required
+fields.
+
+### Removed
+
+- **`klear.margin.active_obligation()`** (sync + async) and
+  `GetActiveMarginObligationResponse`. Upstream deleted
+  `GET /margin/active_obligation`.
+- **`klear.margin.settlement_estimate()`** (sync + async) and
+  `GetSettlementEstimateResponse`. Upstream deleted
+  `GET /margin/settlement_estimate`.
+
+```python
+# Before (gone):
+# resp = klear.margin.active_obligation()
+# if resp.obligation is not None: ...
+# est = klear.margin.settlement_estimate()
+
+# After:
+resp = klear.margin.active_obligations()
+for ob in resp.obligations:
+    ...
+est = klear.margin.settlement_estimate_by_asset_class()
+```
+
+### Added (non-breaking for most callers)
+
+- **Klear** paged obligation detail rows when inline arrays on
+  `ObligationEntry` are truncated (`*_truncated` flags):
+  `settlement_details` / `maintenance_margin_details` /
+  `funding_payments` (+ `*_all` paginators). Limit max 1000.
+- **`ExchangeIndexStatus.description`** (required string).
+- **Perps** `MarginMarket.exchange_index` (required int).
+- **WS** `TradePayload.is_block_trade` (required bool).
+
+### Response model field changes
+
+- **`SettlementDetail.position_quantity_fp`** — required fixed-point count.
+- **`ObligationEntry.funding_payments`** — required list (may be empty);
+  optional `*_truncated` flags.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v9.0 → v10.0.0
 
 Reconciles upstream OpenAPI **3.27.0** content (paths still 92; +2 GET

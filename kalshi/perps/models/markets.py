@@ -85,6 +85,9 @@ class MarginMarket(BaseModel):
     # (``MarginMarketSchedule`` is ``nullable: true``). No default — missing
     # key hard-fails so required-drift stays aligned.
     schedule: MarginMarketSchedule | None
+    # Required exchange shard for order-group membership (markets and order
+    # groups must share the same exchange_index).
+    exchange_index: int
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars

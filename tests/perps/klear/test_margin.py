@@ -1,10 +1,11 @@
 """Tests for the Klear (SCM) margin endpoints (#400).
 
-Covers the nine SCM margin endpoints (plus the two ``*_all`` paginators) on both
-``KlearClient`` and ``AsyncKlearClient``. The clients carry Bearer credentials
-(see the conftest fixtures), so the Klear resource base injects the
-``Authorization: Bearer`` header on every request — there is no client-side
-un-logged-in guard; an invalid token surfaces as a server 401.
+Covers the SCM margin surface (including ``*_all`` paginators and paged
+obligation-detail routes) on both ``KlearClient`` and ``AsyncKlearClient``.
+The clients carry Bearer credentials (see the conftest fixtures), so the Klear
+resource base injects the ``Authorization: Bearer`` header on every request —
+there is no client-side un-logged-in guard; an invalid token surfaces as a
+server 401.
 
 Money-typing invariants under test: ``_centicents`` fields stay plain ``int``
 (never ``Decimal``), only the withdraw/withdrawal ``amount`` fields are
@@ -34,7 +35,6 @@ from kalshi.perps.klear.models.margin import (
     MarginReport,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
-    SettlementEstimate,
     WithdrawSettlementBalanceRequest,
 )
 
@@ -76,6 +76,34 @@ def _report(report_type: str = "trade_audit") -> dict[str, object]:
     }
 
 
+def _settlement_detail(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "sd1",
+        "market_ticker": "BTC-PERP",
+        "subtrader_id": "st1",
+        "position_quantity_fp": "1.25",
+        "pnl_centicents": -200,
+        "total_fees_centicents": 100,
+        "total_amount_centicents": -300,
+    }
+    base.update(overrides)
+    return base
+
+
+def _funding_payment(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "fp1",
+        "market_ticker": "BTC-PERP",
+        "subtrader_id": "st1",
+        "funding_time": "2026-06-01T00:00:00Z",
+        "position_quantity_fp": "2.00",
+        "notional_value_centicents": 100000,
+        "funding_amount_centicents": -50,
+    }
+    base.update(overrides)
+    return base
+
+
 def _obligation(amount: int = -12345) -> dict[str, object]:
     return {
         "id": "ob1",
@@ -96,16 +124,7 @@ def _obligation(amount: int = -12345) -> dict[str, object]:
                 "created_ts": "2026-06-01T00:30:00Z",
             }
         ],
-        "settlement_details": [
-            {
-                "id": "sd1",
-                "market_ticker": "BTC-PERP",
-                "subtrader_id": "st1",
-                "pnl_centicents": -200,
-                "total_fees_centicents": 100,
-                "total_amount_centicents": -300,
-            }
-        ],
+        "settlement_details": [_settlement_detail()],
         "maintenance_margin_details": [
             {
                 "id": "mm1",
@@ -114,6 +133,7 @@ def _obligation(amount: int = -12345) -> dict[str, object]:
                 "maintenance_margin_delta_centicents": 10,
             }
         ],
+        "funding_payments": [_funding_payment()],
     }
 
 
@@ -221,59 +241,7 @@ class TestMarginReports:
 
 
 # --------------------------------------------------------------------------- #
-# active_obligation
-# --------------------------------------------------------------------------- #
-
-
-class TestActiveObligation:
-    @respx.mock
-    def test_happy_full_obligation(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/active_obligation").mock(
-            return_value=httpx.Response(200, json={"obligation": _obligation(amount=-99999)})
-        )
-        resp = auth_klear_client.margin.active_obligation()
-        ob = resp.obligation
-        assert isinstance(ob, ObligationEntry)
-        # Negative net amount stays a plain int (not Decimal).
-        assert ob.amount_centicents == -99999
-        assert isinstance(ob.amount_centicents, int) and not isinstance(ob.amount_centicents, bool)
-        assert not isinstance(ob.amount_centicents, Decimal)
-        assert ob.receives[0].amount_centicents == 5000
-        assert ob.settlement_details[0].market_ticker == "BTC-PERP"
-        assert ob.maintenance_margin_details[0].subtrader_id == ""
-        assert ob.execution_time.tzinfo is not None
-        auth_klear_client.close()
-
-    @respx.mock
-    def test_obligation_null(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/active_obligation").mock(
-            return_value=httpx.Response(200, json={"obligation": None})
-        )
-        resp = auth_klear_client.margin.active_obligation()
-        assert resp.obligation is None
-        auth_klear_client.close()
-
-    @respx.mock
-    def test_401_maps_to_auth_error(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/active_obligation").mock(
-            return_value=httpx.Response(401, json={"code": "unauthorized", "message": "no"})
-        )
-        with pytest.raises(KalshiAuthError):
-            auth_klear_client.margin.active_obligation()
-        auth_klear_client.close()
-
-    @respx.mock
-    async def test_async_null(self, auth_async_klear_client: AsyncKlearClient) -> None:
-        respx.get(f"{BASE}/margin/active_obligation").mock(
-            return_value=httpx.Response(200, json={"obligation": None})
-        )
-        resp = await auth_async_klear_client.margin.active_obligation()
-        assert resp.obligation is None
-        await auth_async_klear_client.close()
-
-
-# --------------------------------------------------------------------------- #
-# active_obligations (plural; spec v3.24.0)
+# active_obligations
 # --------------------------------------------------------------------------- #
 
 
@@ -290,7 +258,24 @@ class TestActiveObligations:
         assert len(resp.obligations) == 2
         assert all(isinstance(o, ObligationEntry) for o in resp.obligations)
         assert resp.obligations[0].amount_centicents == -99999
+        assert isinstance(resp.obligations[0].amount_centicents, int)
+        assert not isinstance(resp.obligations[0].amount_centicents, bool)
+        assert not isinstance(resp.obligations[0].amount_centicents, Decimal)
         assert resp.obligations[0].asset_class == "Crypto"
+        assert resp.obligations[0].settlement_details[0].position_quantity_fp == Decimal(
+            "1.25"
+        )
+        assert resp.obligations[0].funding_payments[0].funding_amount_centicents == -50
+        assert resp.obligations[0].execution_time.tzinfo is not None
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_401_maps_to_auth_error(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/active_obligations").mock(
+            return_value=httpx.Response(401, json={"code": "unauthorized", "message": "no"})
+        )
+        with pytest.raises(KalshiAuthError):
+            auth_klear_client.margin.active_obligations()
         auth_klear_client.close()
 
     @respx.mock
@@ -450,64 +435,107 @@ class TestObligationHistory:
 
 
 # --------------------------------------------------------------------------- #
-# settlement_estimate
+# obligation detail pages (settlement / MM / funding)
 # --------------------------------------------------------------------------- #
 
 
-class TestSettlementEstimate:
+class TestObligationDetailPages:
     @respx.mock
-    def test_happy_with_subtrader_breakdowns(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/settlement_estimate").mock(
+    def test_settlement_details_page(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/settlement_details").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "user_breakdown": _estimate(),
-                    "subtrader_breakdowns": {"st1": _estimate(), "st2": _estimate()},
-                    "settlement_balance_centicents": 50000,
-                    "omitted_subtrader_count": 3,
+                    "settlement_details": [_settlement_detail()],
+                    "cursor": "c1",
                 },
             )
         )
-        resp = auth_klear_client.margin.settlement_estimate()
-        assert isinstance(resp.user_breakdown, SettlementEstimate)
-        assert resp.settlement_balance_centicents == 50000
-        assert isinstance(resp.settlement_balance_centicents, int)
-        assert set(resp.subtrader_breakdowns or {}) == {"st1", "st2"}
-        assert isinstance(resp.subtrader_breakdowns["st1"], SettlementEstimate)  # type: ignore[index]
-        assert resp.omitted_subtrader_count == 3
+        page = auth_klear_client.margin.settlement_details("ob1", limit=10)
+        assert len(page.items) == 1
+        assert page.items[0].position_quantity_fp == Decimal("1.25")
+        assert page.cursor == "c1"
         auth_klear_client.close()
 
     @respx.mock
-    def test_subtrader_breakdowns_absent(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/settlement_estimate").mock(
+    def test_settlement_details_all_paginates(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/settlement_details").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "settlement_details": [_settlement_detail(id="sd1")],
+                        "cursor": "c1",
+                    },
+                ),
+                httpx.Response(
+                    200,
+                    json={
+                        "settlement_details": [_settlement_detail(id="sd2")],
+                    },
+                ),
+            ]
+        )
+        items = list(auth_klear_client.margin.settlement_details_all("ob1"))
+        assert [i.id for i in items] == ["sd1", "sd2"]
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_maintenance_margin_details_page(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/maintenance_margin_details").mock(
             return_value=httpx.Response(
                 200,
-                json={"user_breakdown": _estimate(), "settlement_balance_centicents": 1},
+                json={
+                    "maintenance_margin_details": [
+                        {
+                            "id": "mm1",
+                            "subtrader_id": "st1",
+                            "maintenance_margin_centicents": 50,
+                            "maintenance_margin_delta_centicents": 10,
+                        }
+                    ]
+                },
             )
         )
-        resp = auth_klear_client.margin.settlement_estimate()
-        assert resp.subtrader_breakdowns is None
+        page = auth_klear_client.margin.maintenance_margin_details("ob1")
+        assert len(page.items) == 1
+        assert page.items[0].maintenance_margin_centicents == 50
         auth_klear_client.close()
 
     @respx.mock
-    def test_500_propagates(self, auth_klear_client: KlearClient) -> None:
-        respx.get(f"{BASE}/margin/settlement_estimate").mock(
-            return_value=httpx.Response(500, json={"code": "x", "message": "boom"})
-        )
-        with pytest.raises(KalshiServerError):
-            auth_klear_client.margin.settlement_estimate()
-        auth_klear_client.close()
-
-    @respx.mock
-    async def test_async_happy(self, auth_async_klear_client: AsyncKlearClient) -> None:
-        respx.get(f"{BASE}/margin/settlement_estimate").mock(
+    def test_funding_payments_page(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/funding_payments").mock(
             return_value=httpx.Response(
                 200,
-                json={"user_breakdown": _estimate(), "settlement_balance_centicents": 7},
+                json={"funding_payments": [_funding_payment()]},
             )
         )
-        resp = await auth_async_klear_client.margin.settlement_estimate()
-        assert resp.settlement_balance_centicents == 7
+        page = auth_klear_client.margin.funding_payments("ob1")
+        assert len(page.items) == 1
+        assert page.items[0].funding_amount_centicents == -50
+        assert page.items[0].position_quantity_fp == Decimal("2.00")
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_detail_limit_over_max_raises_before_http(
+        self, auth_klear_client: KlearClient
+    ) -> None:
+        with pytest.raises(ValueError):
+            auth_klear_client.margin.settlement_details("ob1", limit=1001)
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_funding_payments(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/funding_payments").mock(
+            return_value=httpx.Response(
+                200,
+                json={"funding_payments": [_funding_payment(id="fp-async")]},
+            )
+        )
+        page = await auth_async_klear_client.margin.funding_payments("ob1")
+        assert page.items[0].id == "fp-async"
         await auth_async_klear_client.close()
 
 

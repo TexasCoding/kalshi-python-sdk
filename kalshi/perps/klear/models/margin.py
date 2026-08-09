@@ -1,10 +1,10 @@
 """Klear (SCM) margin models — settlement obligations, estimates, balances (#400).
 
-Response and request models for the nine Self-Clearing-Member margin endpoints
-on the Klear API (``klear-api/v1``): margin reports, the active settlement
-obligation, obligation history, the settlement estimate, the settlement-buffer
-balance + its history, the guaranty-fund balance, and settlement-balance
-withdrawal (initiate + status-by-id).
+Response and request models for the Self-Clearing-Member margin endpoints on
+the Klear API (``klear-api/v1``): margin reports, active obligations,
+obligation history + paged detail rows, settlement estimates by asset class,
+settlement-buffer balance + history, guaranty-fund balance, settlement-balance
+withdrawal (initiate + status-by-id), and FCM subtrader groups.
 
 **Money typing — read carefully.** Unlike the perps prediction/REST framing
 (``FixedPointDollars`` / ``FixedPointCount`` strings), almost every monetary
@@ -13,8 +13,10 @@ field on the Klear margin schemas is an **integer ``int64`` in _centicents_**
 with a ``_centicents`` field-name suffix. Those are **plain ``int``** — they are
 NOT :data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the
 integer-cents precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
-``Deposit.amount_cents``). The ONLY two fixed-point **dollar-string** fields in
-this whole surface are :attr:`WithdrawSettlementBalanceRequest.amount` and
+``Deposit.amount_cents``). Fixed-point **count** strings appear on
+:attr:`SettlementDetail.position_quantity_fp` and
+:attr:`FundingPaymentDetail.position_quantity_fp`. The ONLY fixed-point
+**dollar-string** fields are :attr:`WithdrawSettlementBalanceRequest.amount` and
 :attr:`GetSettlementBalanceWithdrawalResponse.amount` (e.g. ``"500.00"``); those
 use :data:`DollarDecimal`.
 
@@ -36,7 +38,7 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal, NullableList
+from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
 
 def _require_positive_withdrawal(value: Decimal) -> Decimal:
@@ -133,6 +135,7 @@ class SettlementDetail(BaseModel):
     id: str
     market_ticker: str
     subtrader_id: str
+    position_quantity_fp: FixedPointCount
     pnl_centicents: int
     total_fees_centicents: int
     total_amount_centicents: int
@@ -156,6 +159,24 @@ class MaintenanceMarginDetail(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class FundingPaymentDetail(BaseModel):
+    """Spec ``FundingPaymentDetail`` — per-market funding payment within an obligation.
+
+    ``position_quantity_fp`` is a fixed-point contract count string (e.g. ``"1.25"``).
+    Centicents fields are plain ``int``.
+    """
+
+    id: str
+    market_ticker: str
+    subtrader_id: str
+    funding_time: AwareDatetime
+    position_quantity_fp: FixedPointCount
+    notional_value_centicents: int
+    funding_amount_centicents: int
+
+    model_config = {"extra": "allow"}
+
+
 class ObligationEntry(BaseModel):
     """Spec ``ObligationEntry`` — a settlement obligation (flattened ``allOf``).
 
@@ -165,6 +186,10 @@ class ObligationEntry(BaseModel):
     ``ObligationInfo``). ``amount_centicents`` is the net settlement amount:
     negative means the SCM pays Kalshi Klear, positive means Kalshi Klear pays
     the SCM. All ``_centicents`` fields are plain ``int``.
+
+    Inline detail arrays are capped at 1000 rows; when truncated the matching
+    ``*_truncated`` flag is set and the full set is available via the paged
+    ``/margin/obligations/{obligation_id}/...`` endpoints.
     """
 
     # From ObligationInfo.
@@ -182,18 +207,10 @@ class ObligationEntry(BaseModel):
     receives: NullableList[ObligationReceiveInfo]
     settlement_details: NullableList[SettlementDetail]
     maintenance_margin_details: NullableList[MaintenanceMarginDetail]
-
-    model_config = {"extra": "allow"}
-
-
-class GetActiveMarginObligationResponse(BaseModel):
-    """Spec ``GetActiveMarginObligationResponse`` — current-cycle obligation, if any.
-
-    ``obligation`` is optional and nullable (the spec has no ``required`` block);
-    null/absent both mean no obligation is pending.
-    """
-
-    obligation: ObligationEntry | None = None
+    funding_payments: NullableList[FundingPaymentDetail]
+    settlement_details_truncated: bool | None = None
+    maintenance_margin_details_truncated: bool | None = None
+    funding_payments_truncated: bool | None = None
 
     model_config = {"extra": "allow"}
 
@@ -206,6 +223,45 @@ class GetObligationHistoryResponse(BaseModel):
     """
 
     obligations: NullableList[ObligationEntry]
+    cursor: str | None = None
+
+    @property
+    def has_next(self) -> bool:
+        return bool(self.cursor)
+
+    model_config = {"extra": "allow"}
+
+
+class GetObligationSettlementDetailsResponse(BaseModel):
+    """Spec ``GetObligationSettlementDetailsResponse`` — paged settlement details."""
+
+    settlement_details: NullableList[SettlementDetail]
+    cursor: str | None = None
+
+    @property
+    def has_next(self) -> bool:
+        return bool(self.cursor)
+
+    model_config = {"extra": "allow"}
+
+
+class GetObligationMaintenanceMarginDetailsResponse(BaseModel):
+    """Spec ``GetObligationMaintenanceMarginDetailsResponse`` — paged MM details."""
+
+    maintenance_margin_details: NullableList[MaintenanceMarginDetail]
+    cursor: str | None = None
+
+    @property
+    def has_next(self) -> bool:
+        return bool(self.cursor)
+
+    model_config = {"extra": "allow"}
+
+
+class GetObligationFundingPaymentsResponse(BaseModel):
+    """Spec ``GetObligationFundingPaymentsResponse`` — paged funding payments."""
+
+    funding_payments: NullableList[FundingPaymentDetail]
     cursor: str | None = None
 
     @property
@@ -239,43 +295,14 @@ class SettlementEstimate(BaseModel):
     model_config = {"extra": "allow"}
 
 
-class GetSettlementEstimateResponse(BaseModel):
-    """Spec ``GetSettlementEstimateResponse`` — estimate + per-subtrader breakdowns.
-
-    ``subtrader_breakdowns`` is the spec ``additionalProperties`` map
-    (subtrader-id → :class:`SettlementEstimate`); optional.
-
-    ``prev_settlement_prices`` (spec v3.22.0) maps market ticker → most
-    recent settlement (mark) price in centicents; optional.
-
-    ``omitted_subtrader_count`` is the number of subtraders omitted from
-    ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
-
-    ``group_breakdowns`` maps margin group ID → netted portfolio estimate;
-    ``omitted_group_count`` is how many groups were omitted from that map
-    (amounts still roll into ``user_breakdown``).
-    """
-
-    user_breakdown: SettlementEstimate
-    subtrader_breakdowns: dict[str, SettlementEstimate] | None = None
-    prev_settlement_prices: dict[str, int] | None = None
-    settlement_balance_centicents: int
-    omitted_subtrader_count: int | None = None
-    group_breakdowns: dict[str, SettlementEstimate] | None = None
-    omitted_group_count: int | None = None
-
-    model_config = {"extra": "allow"}
-
-
 # ── Spec sync 3.24.0 additions (perps SCM) ──────────────────────────────────
 
 
 class GetActiveMarginObligationsResponse(BaseModel):
     """Spec ``GetActiveMarginObligationsResponse`` — all currently-active obligations.
 
-    Plural sibling of ``GetActiveMarginObligationResponse`` (the single-obligation
-    ``/margin/active_obligation`` endpoint): wraps the full list rather than one
-    nullable entry. Backs ``GET /margin/active_obligations``.
+    Backs ``GET /margin/active_obligations`` (the singular
+    ``/margin/active_obligation`` endpoint was removed upstream).
     """
 
     obligations: NullableList[ObligationEntry]
@@ -286,16 +313,14 @@ class GetActiveMarginObligationsResponse(BaseModel):
 class AssetClassSettlementEstimate(BaseModel):
     """Spec ``AssetClassSettlementEstimate`` — settlement estimate for one asset class.
 
-    Mirrors :class:`GetSettlementEstimateResponse` (user + per-subtrader breakdowns
-    + previous settlement prices) and adds ``next_runtime``, the next
-    settlement-cycle time. Only ``next_runtime`` is spec-required; the breakdowns
-    are optional.
+    User + per-subtrader breakdowns + previous settlement prices, plus
+    ``next_runtime`` (the next settlement-cycle time). Only ``next_runtime`` is
+    spec-required; the breakdowns are optional.
 
     ``omitted_subtrader_count`` is the number of subtraders omitted from
     ``subtrader_breakdowns`` (their amounts remain in ``user_breakdown``).
 
-    ``group_breakdowns`` / ``omitted_group_count`` mirror
-    :class:`GetSettlementEstimateResponse` for subtrader groups.
+    ``group_breakdowns`` / ``omitted_group_count`` cover netted subtrader groups.
     """
 
     next_runtime: AwareDatetime

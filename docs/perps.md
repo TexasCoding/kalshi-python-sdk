@@ -104,6 +104,9 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
   (`DollarDecimal`, a `FixedPointDollars` USD string) and `ts_ms` (the source
   timestamp in epoch **milliseconds**, `int`). All three are absent from the spec
   `required` list, so they are `None` when the upstream price is unavailable.
+- **Exchange shard** (SDK v11.0.0) — `MarginMarket.exchange_index` (`int`) is
+  required; order groups may only reference markets that share their
+  `exchange_index`.
 - **Trading schedule** (since the v3.25.0 spec sync / SDK v7.1.0) — `MarginMarket`
   carries a **required** `schedule` key typed `MarginMarketSchedule | None`.
   `None` means the market trades 24/7. When present, `MarginMarketSchedule` has
@@ -193,20 +196,29 @@ with KlearClient(admin_user_id="...", access_token="...", demo=True) as klear:
 Credentials can also come from the environment via `KlearClient.from_env()` (reads
 `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN`).
 
-New in spec v3.24.0: `klear.margin.active_obligations()` returns all
-currently-active settlement obligations (the plural sibling of the single-obligation
-`active_obligation()`), and `klear.margin.settlement_estimate_by_asset_class()`
-returns next-settlement estimates keyed by asset class.
+`klear.margin.active_obligations()` returns all currently-active settlement
+obligations. `klear.margin.settlement_estimate_by_asset_class()` returns
+next-settlement estimates keyed by asset class. (The singular
+`active_obligation()` / `settlement_estimate()` endpoints were removed upstream
+in the v11.0.0 reconcile.)
 
-Settlement-estimate responses also expose optional
-`omitted_subtrader_count` (`int | None`, SDK v7.3.0) on
-`GetSettlementEstimateResponse` and each `AssetClassSettlementEstimate` — the
-number of subtraders left out of `subtrader_breakdowns` (their amounts remain
-in `user_breakdown`). SDK v9.0.0 adds optional `group_breakdowns` /
-`omitted_group_count` for netted subtrader groups, and optional
-`margin_group_id` on `MaintenanceMarginDetail`.
+When an `ObligationEntry` inline detail array is capped at 1000 rows, the
+matching `*_truncated` flag is set; page the full set via:
 
-Subtrader groups (SDK v9.0.0) — margined as one netted portfolio:
+```python
+for row in klear.margin.settlement_details_all(ob.id):
+    ...
+for row in klear.margin.maintenance_margin_details_all(ob.id):
+    ...
+for row in klear.margin.funding_payments_all(ob.id):
+    ...
+```
+
+Each `AssetClassSettlementEstimate` exposes optional
+`omitted_subtrader_count` / `group_breakdowns` / `omitted_group_count`.
+`MaintenanceMarginDetail` may include `margin_group_id`.
+
+Subtrader groups — margined as one netted portfolio:
 
 ```python
 groups = klear.margin.list_subtrader_groups()

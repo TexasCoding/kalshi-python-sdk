@@ -2,6 +2,67 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 11.0.0 — 2026-08-09
+
+Reconciles upstream OpenAPI **3.27.0** content drift, AsyncAPI trade payload
+fields, perps OpenAPI, and a Klear (SCM) obligation reshape after nightly
+contract failures (Closes #499). **Breaking** for Klear singular-obligation /
+flat settlement-estimate callers and for constructors of a few response models
+that gained required fields.
+
+### Removed (breaking)
+
+- **`klear.margin.active_obligation()`** (sync + async) and model
+  `GetActiveMarginObligationResponse`. Upstream deleted
+  `GET /margin/active_obligation`. Use
+  **`klear.margin.active_obligations()`** (`GET /margin/active_obligations`).
+- **`klear.margin.settlement_estimate()`** (sync + async) and model
+  `GetSettlementEstimateResponse`. Upstream deleted
+  `GET /margin/settlement_estimate`. Use
+  **`klear.margin.settlement_estimate_by_asset_class()`**.
+
+### Added
+
+- **Klear** paged obligation detail endpoints (limit max 1000; also `*_all`
+  paginators):
+  - `settlement_details(obligation_id)` /
+    `settlement_details_all(obligation_id)`
+  - `maintenance_margin_details(obligation_id)` /
+    `maintenance_margin_details_all(obligation_id)`
+  - `funding_payments(obligation_id)` /
+    `funding_payments_all(obligation_id)`
+  Models: `FundingPaymentDetail`,
+  `GetObligationSettlementDetailsResponse`,
+  `GetObligationMaintenanceMarginDetailsResponse`,
+  `GetObligationFundingPaymentsResponse`.
+- **`ExchangeIndexStatus.description`** (`str`, required) — human-readable
+  shard label on `exchange.status()`.
+- **Perps** `MarginMarket.exchange_index` (`int`, required) — order-group
+  shard membership.
+- **WS** `TradePayload.is_block_trade` (`bool`, required) — off-book block
+  trade flag on the public trade channel.
+
+### Changed
+
+- **`SettlementDetail.position_quantity_fp`** (`FixedPointCount`, required) —
+  signed fixed-point position at settlement.
+- **`ObligationEntry`**: required `funding_payments`; optional
+  `settlement_details_truncated` / `maintenance_margin_details_truncated` /
+  `funding_payments_truncated` when inline arrays hit the 1000-row cap (page
+  via the new detail endpoints).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.27.0** (paths 93; 104 operations;
+  103 mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()`).
+- AsyncAPI: channels still 14; `tradePayload.msg.is_block_trade` required.
+- Perps OpenAPI: `MarginMarket.exchange_index` required.
+- Perps SCM OpenAPI: paths 14→15 (removed singular active obligation + flat
+  settlement estimate; added three paged obligation-detail routes). Still
+  unimplemented: `GET /margin/large_trader_positions` (surveillance).
+
 ## 10.0.0 — 2026-08-06
 
 Reconciles upstream OpenAPI **3.27.0** content drift plus AsyncAPI / perps

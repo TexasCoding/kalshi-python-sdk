@@ -43,6 +43,7 @@ def _market_dict(**overrides: object) -> dict[str, object]:
             "next_close_ts": 1_700_000_000,
             "next_open_ts": None,
         },
+        "exchange_index": 0,
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "long_leverage_estimates": {"1000": 2.4, "10000": 1.9},
@@ -127,6 +128,7 @@ class TestList:
         assert m.schedule.is_open is True
         assert m.schedule.next_close_ts == 1_700_000_000
         assert m.schedule.next_open_ts is None
+        assert m.exchange_index == 0
 
     @respx.mock
     def test_status_filter(self, perps_client: PerpsClient) -> None:
@@ -152,6 +154,7 @@ class TestList:
                             "fractional_trading_enabled": False,
                             # required key present, null value = 24/7 market
                             "schedule": None,
+                            "exchange_index": 0,
                             "leverage_estimate": None,
                         }
                     ]

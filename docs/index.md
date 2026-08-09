@@ -3,22 +3,22 @@
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API.
 
-- **Full REST coverage** — 103 operations across 19 resources (OpenAPI v3.27.0),
-  every kwarg drift-tested against the spec.
+- **Full REST coverage** — 103 mapped of 104 operations across 19 resources
+  (OpenAPI v3.27.0), every kwarg drift-tested against the spec.
 - **V2 event-market orders** — new `create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` family on `/portfolio/events/orders/*`. Legacy `/portfolio/orders`
   keeps working; deprecation no earlier than May 6, 2026.
 - **Funding + cost introspection** — `portfolio.deposits()`,
   `portfolio.withdrawals()`, `portfolio.intra_exchange_transfers()`,
   `account.endpoint_costs()`.
-- **Full WebSocket coverage** — 11 channels with sequence-gap detection, automatic
-  reconnection (with resubscribe-window frame stashing for high-volume channels),
-  backpressure strategies, and an in-memory orderbook builder. Async-only —
-  access via `AsyncKalshiClient.ws`.
+- **Full WebSocket coverage** — 11 typed channels with sequence-gap detection,
+  automatic reconnection (with resubscribe-window frame stashing for high-volume
+  channels), backpressure strategies, and an in-memory orderbook builder.
+  Async-only — access via `AsyncKalshiClient.ws`.
 - **Perps (margin) API** — standalone `PerpsClient` / `AsyncPerpsClient` +
-  `PerpsWebSocket` for the perpetual-futures exchange (34 REST operations, 6 WS
+  `PerpsWebSocket` for the perpetual-futures exchange (35 REST operations, 6 WS
   channels), and a `KlearClient` for the Self-Clearing-Member settlement API
-  (11 operations, Bearer token auth). See [Perps](perps.md).
+  (16 operations, Bearer token auth). See [Perps](perps.md).
 - **FIX protocol** — a hand-rolled, async-first FIX engine (FIXT.1.1 / FIX50SP2)
   for both products: order-entry, drop-copy, market-data, post-trade (prediction),
   and RFQ (prediction) sessions — plus order-group management over the order-entry

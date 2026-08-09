@@ -817,17 +817,29 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MaintenanceMarginDetail",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.FundingPaymentDetail",
+        spec_schema="FundingPaymentDetail",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.ObligationEntry",
         spec_schema="ObligationEntry",
         notes="Folds spec allOf[ObligationInfo, inline] into one model",
     ),
     ContractEntry(
-        sdk_model="kalshi.perps.klear.models.margin.GetActiveMarginObligationResponse",
-        spec_schema="GetActiveMarginObligationResponse",
-    ),
-    ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetActiveMarginObligationsResponse",
         spec_schema="GetActiveMarginObligationsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetObligationSettlementDetailsResponse",
+        spec_schema="GetObligationSettlementDetailsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetObligationMaintenanceMarginDetailsResponse",
+        spec_schema="GetObligationMaintenanceMarginDetailsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetObligationFundingPaymentsResponse",
+        spec_schema="GetObligationFundingPaymentsResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.MarketSettlementEstimate",
@@ -836,10 +848,6 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.SettlementEstimate",
         spec_schema="SettlementEstimate",
-    ),
-    ContractEntry(
-        sdk_model="kalshi.perps.klear.models.margin.GetSettlementEstimateResponse",
-        spec_schema="GetSettlementEstimateResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.AssetClassSettlementEstimate",
