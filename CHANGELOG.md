@@ -2,6 +2,15 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 11.0.1 — 2026-08-09
+
+### Fixed
+
+- **`cryptography` dependency ceiling widened `<50` → `<51`** — clears
+  `PYSEC-2026-3552` (PKCS#7 decrypt oracle) by allowing cryptography 50.x.
+  The SDK RSA-PSS signing path is unaffected by that API; this unblocks
+  pip-audit on main and lets installers pull the fixed wheel.
+
 ## 11.0.0 — 2026-08-09
 
 Reconciles upstream OpenAPI **3.27.0** content drift, AsyncAPI trade payload
