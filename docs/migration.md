@@ -1,5 +1,45 @@
 # Migration
 
+## v11.0 → v12.0.0
+
+Reconciles upstream OpenAPI **3.27.0 → 3.28.0**, plus additive perps FCM
+risk-control endpoints and a Klear settlement-estimate field (Closes #503).
+**Breaking** only for code that constructs `TotalRestingOrderValue` without
+the new required breakdown.
+
+### Response model field changes
+
+- **`TotalRestingOrderValue.resting_order_value_breakdown`** — required
+  `list[IndexedBalance]`. Live `portfolio.total_resting_order_value()`
+  callers are unaffected.
+
+```python
+# Before (constructors / test fixtures):
+# TotalRestingOrderValue(total_resting_order_value=12345)
+
+# After:
+TotalRestingOrderValue(
+    total_resting_order_value=12345,
+    resting_order_value_breakdown=[],  # or parsed IndexedBalance rows
+)
+```
+
+Each breakdown row's `.balance` is a `DollarDecimal`, not integer cents —
+same type collision as `Balance.balance_breakdown`.
+
+### Added (non-breaking)
+
+- Optional **`exchange_index`** query on `orders.list` / `list_all`,
+  `portfolio.positions` / `positions_all`, and `portfolio.fills` /
+  `fills_all` (and the deprecated `orders.fills` aliases). Omit for every
+  shard.
+- **Perps** `fcm.risk_controls()` / `update_risk_controls()` /
+  `delete_risk_controls()`.
+- **Klear** `MarketSettlementEstimate.session_avg_price_fp` (optional).
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v10.0 → v11.0.0
 
 Reconciles upstream OpenAPI **3.27.0** content, AsyncAPI trade payload fields,

@@ -38,6 +38,7 @@ def _positions_params(
     ticker: str | None,
     event_ticker: str | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000)
     return _params(
@@ -47,6 +48,7 @@ def _positions_params(
         ticker=ticker,
         event_ticker=event_ticker,
         subaccount=subaccount,
+        exchange_index=exchange_index,
     )
 
 
@@ -97,6 +99,7 @@ class PortfolioResource(SyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
@@ -107,6 +110,7 @@ class PortfolioResource(SyncResource):
             ticker=ticker,
             event_ticker=event_ticker,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
@@ -119,6 +123,7 @@ class PortfolioResource(SyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarketPosition]:
@@ -140,6 +145,7 @@ class PortfolioResource(SyncResource):
             ticker=ticker,
             event_ticker=event_ticker,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/positions",
@@ -222,6 +228,7 @@ class PortfolioResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         """List trade fills (``GET /portfolio/fills``).
@@ -239,6 +246,7 @@ class PortfolioResource(SyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -253,6 +261,7 @@ class PortfolioResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
@@ -267,6 +276,7 @@ class PortfolioResource(SyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/fills",
@@ -450,6 +460,7 @@ class AsyncPortfolioResource(AsyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
@@ -460,6 +471,7 @@ class AsyncPortfolioResource(AsyncResource):
             ticker=ticker,
             event_ticker=event_ticker,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         data = await self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
@@ -472,6 +484,7 @@ class AsyncPortfolioResource(AsyncResource):
         ticker: str | None = None,
         event_ticker: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarketPosition]:
@@ -493,6 +506,7 @@ class AsyncPortfolioResource(AsyncResource):
             ticker=ticker,
             event_ticker=event_ticker,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/positions",
@@ -576,6 +590,7 @@ class AsyncPortfolioResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         """List trade fills (``GET /portfolio/fills``, async).
@@ -591,6 +606,7 @@ class AsyncPortfolioResource(AsyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return await self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -605,6 +621,7 @@ class AsyncPortfolioResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
@@ -622,6 +639,7 @@ class AsyncPortfolioResource(AsyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/fills",

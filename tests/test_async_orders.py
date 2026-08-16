@@ -121,6 +121,7 @@ class TestAsyncOrdersList:
             limit=50,
             cursor="abc",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
@@ -131,6 +132,7 @@ class TestAsyncOrdersList:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
     @respx.mock
     @pytest.mark.asyncio

@@ -122,7 +122,7 @@ tests/
 
 ## API Reference
 
-- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.27.0, 104 operations; 103 mapped in the core SDK — `POST /portfolio/intra_exchange_instance_transfer` is implemented on `PerpsClient.transfers.transfer_instance` and left unimplemented on the core client)
+- OpenAPI spec: https://docs.kalshi.com/openapi.yaml (v3.28.0, 104 operations; 103 mapped in the core SDK — `POST /portfolio/intra_exchange_instance_transfer` is implemented on `PerpsClient.transfers.transfer_instance` and left unimplemented on the core client)
 - AsyncAPI spec: https://docs.kalshi.com/asyncapi.yaml (14 WebSocket channels; 11 typed `subscribe_*` + escape-hatch)
 - Base URL: https://api.elections.kalshi.com/trade-api/v2
 - Demo URL: https://demo-api.kalshi.co/trade-api/v2

@@ -1486,6 +1486,9 @@ PERPS_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/CreateMarginFCMSubtraderRequest": (
         "kalshi.perps.models.fcm.CreateMarginFCMSubtraderRequest"
     ),
+    "#/components/schemas/UpdateFCMSubtraderRiskControlsRequest": (
+        "kalshi.perps.models.fcm.UpdateFCMSubtraderRiskControlsRequest"
+    ),
 }
 
 PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {

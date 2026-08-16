@@ -19,7 +19,7 @@ Reads stay on `/portfolio/orders/*`.
 | `amend_v2(order_id, *, request, subaccount)` | `POST /portfolio/events/orders/{order_id}/amend` | never |
 | `decrease_v2(order_id, *, request, subaccount)` | `POST /portfolio/events/orders/{order_id}/decrease` | never |
 | `get(order_id)` | `GET /portfolio/orders/{order_id}` | yes (GET) |
-| `list(...)` / `list_all(...)` | `GET /portfolio/orders` | yes |
+| `list(...)` / `list_all(..., exchange_index=None)` | `GET /portfolio/orders` | yes |
 | ~~`fills(...)` / `fills_all(...)`~~ | moved to `PortfolioResource` in v3.0.0 — see [Portfolio › Fills](portfolio.md#fills); the old methods remain as deprecated aliases until removal in a future release. |
 | `queue_positions(*, market_tickers, event_ticker)` | `GET /portfolio/orders/queue_positions` | yes |
 | `queue_position(order_id)` | `GET /portfolio/orders/{order_id}/queue_position` | yes |
@@ -212,6 +212,8 @@ for order in client.orders.list_all(status="resting"):
 
 `status` accepts an `OrderStatusLiteral`: `"resting"`, `"canceled"`,
 `"executed"`. `min_ts` / `max_ts` (Unix seconds) bound by created time.
+Optional `exchange_index` (OpenAPI 3.28.0) filters to one shard; omit it
+to return orders from every shard.
 
 Fills (`fills` / `fills_all`) moved to `PortfolioResource` in v3.0.0 — see
 [Portfolio › Fills](portfolio.md#fills). `client.orders.fills(...)` /

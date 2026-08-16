@@ -368,6 +368,27 @@ class TestSettlementEstimateByAssetClass:
         assert resp.settlement_balance_centicents == 7
         await auth_async_klear_client.close()
 
+    def test_session_avg_price_fp_optional(self) -> None:
+        from decimal import Decimal
+
+        from kalshi.perps.klear.models.margin import MarketSettlementEstimate
+
+        bare = MarketSettlementEstimate(
+            quantity_centicount=1,
+            variation_margin_centicents=2,
+            notional_value_centicents=3,
+        )
+        assert bare.session_avg_price_fp is None
+        parsed = MarketSettlementEstimate.model_validate(
+            {
+                "quantity_centicount": 1,
+                "variation_margin_centicents": 2,
+                "notional_value_centicents": 3,
+                "session_avg_price_fp": "123.4500",
+            }
+        )
+        assert parsed.session_avg_price_fp == Decimal("123.4500")
+
 
 # --------------------------------------------------------------------------- #
 # obligation_history / obligation_history_all

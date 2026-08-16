@@ -2,6 +2,12 @@
 
 ## Shipped
 
+- **v12.0.0 (2026-08-16)** — Spec-drift reconcile (#503). OpenAPI
+  3.27.0 → 3.28.0. **Breaking:** `TotalRestingOrderValue` requires
+  `resting_order_value_breakdown`. Additive: `exchange_index` query on
+  orders/positions/fills list endpoints; perps FCM
+  `risk_controls` / `update_risk_controls` / `delete_risk_controls`;
+  Klear `MarketSettlementEstimate.session_avg_price_fp`.
 - **v11.0.0 (2026-08-09)** — Spec-drift reconcile (#499). **Breaking:** removed
   Klear `active_obligation()` / `settlement_estimate()` after upstream deleted
   the singular endpoints. Additive: Klear paged obligation detail endpoints

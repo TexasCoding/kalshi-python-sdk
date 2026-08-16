@@ -1550,6 +1550,22 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/fcm/subtraders",
         request_body_schema="#/components/schemas/CreateMarginFCMSubtraderRequest",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.risk_controls",
+        http_method="GET",
+        path_template="/margin/fcm/subtraders/risk_controls",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.update_risk_controls",
+        http_method="PUT",
+        path_template="/margin/fcm/subtraders/risk_controls",
+        request_body_schema="#/components/schemas/UpdateFCMSubtraderRiskControlsRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.delete_risk_controls",
+        http_method="DELETE",
+        path_template="/margin/fcm/subtraders/risk_controls",
+    ),
 ]
 
 # SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
