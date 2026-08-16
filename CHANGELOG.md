@@ -2,6 +2,53 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 12.0.0 — 2026-08-16
+
+Reconciles upstream OpenAPI **3.27.0 → 3.28.0**, plus additive perps FCM
+risk-control endpoints and a Klear settlement-estimate field, after nightly
+contract failures (Closes #503). **Breaking** for constructors of
+`TotalRestingOrderValue` that omit the new required breakdown.
+
+### Changed (breaking)
+
+- **`TotalRestingOrderValue.resting_order_value_breakdown`** (`list[IndexedBalance]`,
+  required) — per-shard resting-order value. Each `IndexedBalance.balance` is a
+  `DollarDecimal`, not integer cents (same type collision as
+  `Balance.balance_breakdown`). `client.portfolio.total_resting_order_value()`
+  callers are unaffected; tests/mocks that construct the model must pass the
+  list (empty is valid).
+
+### Added
+
+- Optional **`exchange_index`** query filter on:
+  - `orders.list()` / `orders.list_all()` (`GET /portfolio/orders`)
+  - `orders.fills()` / `orders.fills_all()` (deprecated aliases)
+  - `portfolio.positions()` / `portfolio.positions_all()`
+  - `portfolio.fills()` / `portfolio.fills_all()`
+  Omit to return results from every shard (unlike `portfolio.balance()`,
+  which defaults to shard 0 server-side).
+- **Perps FCM** initial-margin caps (sync + async):
+  - `fcm.risk_controls(subtrader_id, market_ticker=)`
+  - `fcm.update_risk_controls(subtrader_id, im_cap, market_ticker=)`
+    (or `request=UpdateFCMSubtraderRiskControlsRequest`)
+  - `fcm.delete_risk_controls(subtrader_id, market_ticker=)`
+  Models: `FCMSubtraderRiskControls`, `GetFCMSubtraderRiskControlsResponse`,
+  `UpdateFCMSubtraderRiskControlsRequest`.
+- **Klear** `MarketSettlementEstimate.session_avg_price_fp` (`DollarDecimal`,
+  optional) — session average entry price; omitted when position quantity is
+  zero.
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.28.0** (paths 93; 104 operations; 103
+  mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()`).
+- AsyncAPI unchanged (14 channels).
+- Perps OpenAPI: paths 35→38 (FCM subtrader risk-control GET/PUT/DELETE).
+- Perps SCM OpenAPI: `MarketSettlementEstimate.session_avg_price_fp` optional.
+  Still unimplemented: `GET /margin/large_trader_positions` (surveillance).
+
 ## 11.0.1 — 2026-08-09
 
 ### Fixed

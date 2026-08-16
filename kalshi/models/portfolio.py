@@ -55,9 +55,14 @@ class TotalRestingOrderValue(BaseModel):
 
     Spec: "intended for use by FCM members (rare)". Non-FCM accounts see
     403 on this endpoint (demo audit 2026-04-18).
+
+    ``resting_order_value_breakdown`` (required as of OpenAPI 3.28.0) splits
+    the total across exchange shards. Each :class:`IndexedBalance.balance`
+    is a :class:`~kalshi.types.DollarDecimal`, not integer cents.
     """
 
     total_resting_order_value: int
+    resting_order_value_breakdown: list[IndexedBalance]
 
     model_config = {"extra": "allow"}
 

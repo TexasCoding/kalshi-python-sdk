@@ -15,10 +15,11 @@ NOT :data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the
 integer-cents precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
 ``Deposit.amount_cents``). Fixed-point **count** strings appear on
 :attr:`SettlementDetail.position_quantity_fp` and
-:attr:`FundingPaymentDetail.position_quantity_fp`. The ONLY fixed-point
-**dollar-string** fields are :attr:`WithdrawSettlementBalanceRequest.amount` and
-:attr:`GetSettlementBalanceWithdrawalResponse.amount` (e.g. ``"500.00"``); those
-use :data:`DollarDecimal`.
+:attr:`FundingPaymentDetail.position_quantity_fp`. The fixed-point
+**dollar-string** fields are :attr:`WithdrawSettlementBalanceRequest.amount`,
+:attr:`GetSettlementBalanceWithdrawalResponse.amount`, and
+:attr:`MarketSettlementEstimate.session_avg_price_fp` (e.g. ``"500.00"``);
+those use :data:`DollarDecimal`.
 
 **Timestamps.** Every REST timestamp is RFC3339 (``format: date-time``) and uses
 :class:`pydantic.AwareDatetime`; the single ``format: date`` field
@@ -277,6 +278,8 @@ class MarketSettlementEstimate(BaseModel):
     quantity_centicount: int
     variation_margin_centicents: int
     notional_value_centicents: int
+    # Optional fixed-point dollar string; omitted when position quantity is zero.
+    session_avg_price_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow"}
 

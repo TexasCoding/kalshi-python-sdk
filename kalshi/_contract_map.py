@@ -288,7 +288,7 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.portfolio.TotalRestingOrderValue",
         spec_schema="GetPortfolioRestingOrderTotalValueResponse",
-        notes="Single int total_resting_order_value in cents",
+        notes="total_resting_order_value in cents + IndexedBalance breakdown",
     ),
     ContractEntry(
         sdk_model="kalshi.models.order_groups.OrderGroup",
@@ -791,6 +791,18 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.models.fcm.CreateMarginFCMSubtraderResponse",
         spec_schema="CreateMarginFCMSubtraderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.FCMSubtraderRiskControls",
+        spec_schema="FCMSubtraderRiskControls",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.GetFCMSubtraderRiskControlsResponse",
+        spec_schema="GetFCMSubtraderRiskControlsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.UpdateFCMSubtraderRiskControlsRequest",
+        spec_schema="UpdateFCMSubtraderRiskControlsRequest",
     ),
 ]
 

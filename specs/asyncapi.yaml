@@ -2799,7 +2799,7 @@ components:
             price_level_structure:
               type: string
               description: Optional - This key will exist when the market is created or when the price level structure is updated. The price level structure of the market
-              enum: ["linear_cent", "deci_cent", "tapered_deci_cent", "center_whole_edge_half_cent", "center_whole_edge_quint_cent", "center_half_edge_half_cent", "center_half_edge_quint_cent", "center_half_edge_deci_cent", "center_quint_edge_quint_cent", "center_quint_edge_deci_cent", "center_centi_edge_centi_cent"]
+              enum: ["linear_cent", "deci_cent", "tapered_deci_cent", "center_whole_edge_half_cent", "center_whole_edge_quint_cent", "center_half_edge_half_cent", "center_half_edge_quint_cent", "center_half_edge_deci_cent", "center_quint_edge_quint_cent", "center_quint_edge_deci_cent", "center_centi_edge_centi_cent", "center_deci_edge_centi_cent"]
             price_ranges:
               type: array
               description: Optional - Emitted alongside price_level_structure (on market creation and price_level_structure_updated events). The valid price bands for the market, in fixed-point dollars. Use this to determine valid order prices rather than hardcoding a tick size.

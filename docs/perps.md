@@ -66,7 +66,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
-| `fcm` | `create_subtrader(subtrader_suffix=...)` — `POST /margin/fcm/subtraders` |
+| `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls` |
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -77,6 +77,22 @@ Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
     404 against the live API. They will be removed in a future major release
     once the removal is confirmed permanent. Prediction-API FCM
     (`client.fcm.*` on `/fcm/*`) is unchanged.
+
+FCM members can set per-subtrader initial-margin caps. A cap with no
+`market_ticker` applies across all markets; a ticker scopes it to one
+market. `im_cap` is a non-negative `OrderPrice` (fixed-point dollars):
+
+```python
+from decimal import Decimal
+
+caps = perps.fcm.risk_controls(subtrader_id="user_desk1")
+perps.fcm.update_risk_controls(
+    subtrader_id="user_desk1",
+    im_cap=Decimal("100.0000"),
+    market_ticker="BTC-PERP",
+)
+perps.fcm.delete_risk_controls(subtrader_id="user_desk1", market_ticker="BTC-PERP")
+```
 
 ## Value types & timestamps
 
@@ -228,7 +244,9 @@ klear.margin.delete_subtrader_group(created.group_id)
 ```
 
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
-10,000 centicents`); only the withdrawal `amount` is a fixed-point dollar string.
+10,000 centicents`); the withdrawal `amount` and
+`MarketSettlementEstimate.session_avg_price_fp` are fixed-point dollar
+strings.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as
 positive at construction (the single real-money write) before any request is sent.
 The Bearer `access_token` is never logged and is redacted in `repr()` (only the

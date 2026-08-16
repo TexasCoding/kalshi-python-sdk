@@ -77,6 +77,11 @@ from kalshi.perps.models.exchange import (
     GetMarginRiskParametersResponse,
     MarginEnabledResponse,
 )
+from kalshi.perps.models.fcm import (
+    FCMSubtraderRiskControls,
+    GetFCMSubtraderRiskControlsResponse,
+    UpdateFCMSubtraderRiskControlsRequest,
+)
 from kalshi.perps.models.funding import (
     MarginFundingHistoryEntry,
     MarginFundingRate,
@@ -241,10 +246,12 @@ __all__ = [
     "ExchangeInstance",
     "ExchangeInstanceLiteral",
     "ExchangeStatus",
+    "FCMSubtraderRiskControls",
     "FundingPaymentDetail",
     "FundingRate",
     "FundingResource",
     "GetActiveMarginObligationsResponse",
+    "GetFCMSubtraderRiskControlsResponse",
     "GetGuarantyFundBalanceResponse",
     "GetMarginBalanceResponse",
     "GetMarginFeeTiersResponse",
@@ -341,6 +348,7 @@ __all__ = [
     "TickerPrice",
     "TimeInForceLiteral",
     "TransfersResource",
+    "UpdateFCMSubtraderRiskControlsRequest",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubscriptionAction",
     "WithdrawSettlementBalanceRequest",

@@ -116,6 +116,7 @@ class TestOrdersList:
             limit=50,
             cursor="abc",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
@@ -126,6 +127,7 @@ class TestOrdersList:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
     @respx.mock
     def test_list_accepts_event_ticker_list(self, orders: OrdersResource) -> None:
@@ -188,6 +190,7 @@ class TestOrdersListAll:
                 max_ts=1700099999,
                 limit=50,
                 subaccount=7,
+                exchange_index=1,
             )
         )
         params = dict(route.calls[0].request.url.params)
@@ -198,6 +201,7 @@ class TestOrdersListAll:
         assert params["max_ts"] == "1700099999"
         assert params["limit"] == "50"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "1"
 
 
 class TestOrdersFills:
@@ -234,6 +238,7 @@ class TestOrdersFills:
             limit=50,
             cursor="abc",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
@@ -243,6 +248,7 @@ class TestOrdersFills:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
 
 class TestOrdersFillsAll:
@@ -286,6 +292,7 @@ class TestOrdersFillsAll:
                 max_ts=1700099999,
                 limit=50,
                 subaccount=7,
+                exchange_index=2,
             )
         )
         params = dict(route.calls[0].request.url.params)
@@ -295,6 +302,7 @@ class TestOrdersFillsAll:
         assert params["max_ts"] == "1700099999"
         assert params["limit"] == "50"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "2"
 
 
 class TestOrdersQueuePositions:

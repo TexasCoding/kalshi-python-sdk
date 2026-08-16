@@ -263,6 +263,7 @@ class TestPortfolioPositions:
             ticker="MKT-A",
             event_ticker="EVT-X",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["limit"] == "50"
@@ -271,6 +272,7 @@ class TestPortfolioPositions:
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
 
 class TestPortfolioPositionsAll:
@@ -318,6 +320,7 @@ class TestPortfolioPositionsAll:
                 ticker="MKT-A",
                 event_ticker="EVT-X",
                 subaccount=3,
+                exchange_index=1,
             )
         )
         params = dict(route.calls[0].request.url.params)
@@ -326,6 +329,7 @@ class TestPortfolioPositionsAll:
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "3"
+        assert params["exchange_index"] == "1"
         assert "cursor" not in params
 
     def test_positions_all_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
@@ -506,11 +510,19 @@ class TestPortfolioTotalRestingOrderValue:
         ).mock(
             return_value=httpx.Response(
                 200,
-                json={"total_resting_order_value": 12345},
+                json={
+                    "total_resting_order_value": 12345,
+                    "resting_order_value_breakdown": [
+                        {"exchange_index": 0, "balance": "123.4500"},
+                    ],
+                },
             )
         )
         result = portfolio.total_resting_order_value()
         assert result.total_resting_order_value == 12345
+        assert len(result.resting_order_value_breakdown) == 1
+        assert result.resting_order_value_breakdown[0].exchange_index == 0
+        assert result.resting_order_value_breakdown[0].balance == Decimal("123.4500")
 
     @respx.mock
     def test_unauthorized(self, portfolio: PortfolioResource) -> None:
@@ -798,6 +810,7 @@ class TestAsyncPortfolioPositions:
             ticker="MKT-A",
             event_ticker="EVT-X",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["limit"] == "50"
@@ -806,6 +819,7 @@ class TestAsyncPortfolioPositions:
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
 
 class TestAsyncPortfolioSettlements:
@@ -947,7 +961,10 @@ class TestAsyncPortfolioTotalRestingOrderValue:
         ).mock(
             return_value=httpx.Response(
                 200,
-                json={"total_resting_order_value": 99999},
+                json={
+                    "total_resting_order_value": 99999,
+                    "resting_order_value_breakdown": [],
+                },
             )
         )
         result = await async_portfolio.total_resting_order_value()
@@ -1174,6 +1191,7 @@ class TestPortfolioFills:
             limit=50,
             cursor="abc",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
@@ -1183,6 +1201,7 @@ class TestPortfolioFills:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
     def test_fills_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
         with pytest.raises(AuthRequiredError):
@@ -1260,6 +1279,7 @@ class TestAsyncPortfolioFills:
             limit=50,
             cursor="abc",
             subaccount=7,
+            exchange_index=0,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
@@ -1269,6 +1289,7 @@ class TestAsyncPortfolioFills:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["subaccount"] == "7"
+        assert params["exchange_index"] == "0"
 
     @pytest.mark.asyncio
     async def test_fills_requires_auth(

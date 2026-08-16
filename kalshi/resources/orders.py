@@ -58,6 +58,7 @@ def _list_orders_params(
     limit: int | None,
     cursor: str | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000)
     return _params(
@@ -70,6 +71,7 @@ def _list_orders_params(
         limit=limit,
         cursor=cursor,
         subaccount=subaccount,
+        exchange_index=exchange_index,
     )
 
 
@@ -120,6 +122,7 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
@@ -132,6 +135,7 @@ class OrdersResource(SyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list(
             "/portfolio/orders", Order, "orders", params=params, extra_headers=extra_headers
@@ -147,6 +151,7 @@ class OrdersResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Order]:
@@ -161,6 +166,7 @@ class OrdersResource(SyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/orders",
@@ -184,6 +190,7 @@ class OrdersResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         """List trade fills."""
@@ -196,6 +203,7 @@ class OrdersResource(SyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -213,6 +221,7 @@ class OrdersResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
@@ -227,6 +236,7 @@ class OrdersResource(SyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/fills",
@@ -405,6 +415,7 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
@@ -417,6 +428,7 @@ class AsyncOrdersResource(AsyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return await self._list(
             "/portfolio/orders", Order, "orders", params=params, extra_headers=extra_headers
@@ -432,6 +444,7 @@ class AsyncOrdersResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Order]:
@@ -447,6 +460,7 @@ class AsyncOrdersResource(AsyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/orders",
@@ -470,6 +484,7 @@ class AsyncOrdersResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         """List trade fills (async)."""
@@ -482,6 +497,7 @@ class AsyncOrdersResource(AsyncResource):
             limit=limit,
             cursor=cursor,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return await self._list(
             "/portfolio/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -499,6 +515,7 @@ class AsyncOrdersResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         subaccount: int | None = None,
+        exchange_index: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
@@ -513,6 +530,7 @@ class AsyncOrdersResource(AsyncResource):
             limit=limit,
             cursor=None,
             subaccount=subaccount,
+            exchange_index=exchange_index,
         )
         return self._list_all(
             "/portfolio/fills",

@@ -96,6 +96,7 @@ def _fills_params(
     limit: int | None,
     cursor: str | None,
     subaccount: int | None,
+    exchange_index: int | None,
 ) -> dict[str, Any]:
     """Build query params for ``/portfolio/fills`` (shared by sync/async)."""
     limit = _validate_limit(limit, hi=1000)
@@ -107,6 +108,7 @@ def _fills_params(
         limit=limit,
         cursor=cursor,
         subaccount=subaccount,
+        exchange_index=exchange_index,
     )
 
 

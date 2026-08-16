@@ -8,9 +8,9 @@ Auth required throughout.
 | Method | Endpoint |
 |---|---|
 | `balance(*, subaccount=None, exchange_index=None)` | `GET /portfolio/balance` |
-| `positions(*, ...)` | `GET /portfolio/positions` |
+| `positions(*, ..., exchange_index=None)` | `GET /portfolio/positions` |
 | `settlements(...)` / `settlements_all(...)` | `GET /portfolio/settlements` |
-| `fills(...)` / `fills_all(...)` | `GET /portfolio/fills` |
+| `fills(...)` / `fills_all(..., exchange_index=None)` | `GET /portfolio/fills` |
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
 | `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
@@ -22,6 +22,9 @@ Auth required throughout.
 `subaccount: int` to scope the read to a specific subaccount (omit for the
 primary account). `balance()` also takes an optional `exchange_index: int`
 (spec v3.24.0) to target a specific exchange shard (defaults to 0 server-side).
+`positions()` / `positions_all()` and `fills()` / `fills_all()` take an
+optional `exchange_index` filter as of OpenAPI 3.28.0 — omit it to return
+rows from every shard.
 
 ## Balance
 
@@ -153,8 +156,14 @@ Standard `Page[Fill]` pagination — see [Pagination](../pagination.md).
 
 ```python
 total = client.portfolio.total_resting_order_value()
-print(total.total_value)
+print(total.total_resting_order_value)  # integer cents
+for shard in total.resting_order_value_breakdown:
+    # IndexedBalance.balance is DollarDecimal, not cents
+    print(shard.exchange_index, shard.balance)
 ```
+
+`resting_order_value_breakdown` is required as of OpenAPI 3.28.0. Direct
+constructors (tests/mocks) must pass it; an empty list is valid.
 
 !!! warning "FCM members only"
     Non-FCM accounts get a `403` (mapped to `KalshiAuthError`). Demo mirrors

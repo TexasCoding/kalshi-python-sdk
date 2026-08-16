@@ -687,6 +687,7 @@ components:
         quantity_centicount: { type: integer, format: int64, description: Position quantity in centicounts. }
         variation_margin_centicents: { type: integer, format: int64, description: Variation margin for this market. }
         notional_value_centicents: { type: integer, format: int64, description: Notional value for this market. }
+        session_avg_price_fp: { type: string, description: Average entry price for the current settlement session, as a fixed-point dollar string. Omitted when the position quantity is zero. }
 
     SettlementEstimate:
       type: object
