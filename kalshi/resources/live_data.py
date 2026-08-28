@@ -15,6 +15,7 @@ from kalshi.models.live_data import (
     GetGameStatsResponse,
     GetLiveDataResponse,
     GetLiveDatasResponse,
+    GetWeatherIndexResponse,
     LiveData,
 )
 from kalshi.resources._base import AsyncResource, SyncResource, _bool_param, _params, _seg
@@ -136,6 +137,36 @@ class LiveDataResource(SyncResource):
         )
         return GetGameStatsResponse.model_validate(data)
 
+    def weather(
+        self,
+        city: str,
+        *,
+        from_ts: int | None = None,
+        to: int | None = None,
+        last_sec: int | None = None,
+        detailed: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetWeatherIndexResponse:
+        """``GET /live_data/weather/{city}`` — published weather index timeseries.
+
+        ``from_ts`` is the spec ``from`` query (unix milliseconds). Named
+        ``from_ts`` to avoid the Python keyword; the wire key is still
+        ``from``. Mutually exclusive with ``last_sec`` per spec.
+        """
+        params = _params(
+            to=to,
+            last_sec=last_sec,
+            detailed=_bool_param(detailed),
+        )
+        if from_ts is not None:
+            params["from"] = from_ts
+        data = self._get(
+            f"/live_data/weather/{_seg(city, name='city')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetWeatherIndexResponse.model_validate(data)
+
 
 class AsyncLiveDataResource(AsyncResource):
     """Async live-data API."""
@@ -248,3 +279,28 @@ class AsyncLiveDataResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return GetGameStatsResponse.model_validate(data)
+
+    async def weather(
+        self,
+        city: str,
+        *,
+        from_ts: int | None = None,
+        to: int | None = None,
+        last_sec: int | None = None,
+        detailed: bool | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetWeatherIndexResponse:
+        """Async :meth:`LiveDataResource.weather`."""
+        params = _params(
+            to=to,
+            last_sec=last_sec,
+            detailed=_bool_param(detailed),
+        )
+        if from_ts is not None:
+            params["from"] = from_ts
+        data = await self._get(
+            f"/live_data/weather/{_seg(city, name='city')}",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetWeatherIndexResponse.model_validate(data)

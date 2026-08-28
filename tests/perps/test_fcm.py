@@ -141,6 +141,17 @@ class TestFcmRiskControls:
         }
 
     @respx.mock
+    def test_get_risk_controls_filters_asset_class(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
+            return_value=httpx.Response(200, json={"risk_controls": []})
+        )
+        perps_client.fcm.risk_controls(subtrader_id="user_desk1", asset_class="Crypto")
+        assert dict(route.calls[0].request.url.params) == {
+            "subtrader_id": "user_desk1",
+            "asset_class": "Crypto",
+        }
+
+    @respx.mock
     def test_update_risk_controls_kwargs(self, perps_client: PerpsClient) -> None:
         route = respx.put(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
             return_value=httpx.Response(200, json={})
@@ -154,6 +165,22 @@ class TestFcmRiskControls:
             "subtrader_id": "user_desk1",
             "im_cap": "50.0000",
             "market_ticker": "BTC-PERP",
+        }
+
+    @respx.mock
+    def test_update_risk_controls_asset_class(self, perps_client: PerpsClient) -> None:
+        route = respx.put(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        perps_client.fcm.update_risk_controls(
+            subtrader_id="user_desk1",
+            im_cap=Decimal("50.0000"),
+            asset_class="Equities",
+        )
+        assert json.loads(route.calls[0].request.content) == {
+            "subtrader_id": "user_desk1",
+            "im_cap": "50.0000",
+            "asset_class": "Equities",
         }
 
     @respx.mock
@@ -188,6 +215,20 @@ class TestFcmRiskControls:
         assert dict(route.calls[0].request.url.params) == {
             "subtrader_id": "user_desk1",
             "market_ticker": "BTC-PERP",
+        }
+
+    @respx.mock
+    def test_delete_risk_controls_asset_class(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        perps_client.fcm.delete_risk_controls(
+            subtrader_id="user_desk1",
+            asset_class="Crypto",
+        )
+        assert dict(route.calls[0].request.url.params) == {
+            "subtrader_id": "user_desk1",
+            "asset_class": "Crypto",
         }
 
     def test_unauthenticated_raises(self) -> None:

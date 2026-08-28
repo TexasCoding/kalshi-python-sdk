@@ -38,6 +38,7 @@ class IncentiveProgram(BaseModel):
 
     # v3.18.0 backfill (#160).
     incentive_description: str
+    max_reward_per_account: int | None = None
 
     model_config = {"extra": "allow"}
 

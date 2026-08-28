@@ -1,10 +1,10 @@
 openapi: 3.0.0
 info:
-  title: Kalshi Self-Clearing Member API
+  title: Kalshi Clearing Member API
   version: 0.0.1
   description: |
-    Klear API endpoints available to Self-Clearing Members (SCMs) —
-    institutional users who clear their own margin activity directly with
+    Klear API endpoints available to clearing members —
+    institutional users who clear margin activity directly with
     Kalshi.
 
     ## Authentication
@@ -16,7 +16,7 @@ info:
     To generate an access token and obtain your admin user id, sign in at
     https://klearing.kalshi.com, and navigate to the "Security" page.
 
-    If you are in the process of onboarding to be a self-clearing member,
+    If you are in the process of onboarding to be a clearing member,
     please contact your contact at Kalshi for credentials. Otherwise,
     please contact institutional@kalshi.com.
 
@@ -196,6 +196,33 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /margin/estimate_maintenance_margin:
+    post:
+      operationId: EstimatePortfolioMaintenanceMargin
+      summary: Estimate Portfolio Maintenance Margin
+      description: >-
+        Maintenance margin requirement in dollars for a hypothetical portfolio,
+        margined under the rules that apply to the authenticated clearing
+        member. Positions and prices are supplied by the caller and need not
+        reflect positions held. Every market in `positions` must belong to
+        `asset_class`.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EstimatePortfolioMaintenanceMarginRequest' }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstimatePortfolioMaintenanceMarginResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_estimate_by_asset_class:
     get:
       operationId: GetSettlementEstimateByAssetClass
@@ -217,6 +244,29 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetSettlementEstimateByAssetClassResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/settlement_prices:
+    get:
+      operationId: GetSettlementPrices
+      summary: Get Settlement Prices
+      description: >-
+        Settlement (mark) prices for the markets in an asset class at a given
+        settlement time. Empty when no settlement has run for that asset
+        class and settlement time.
+
+      parameters:
+        - { name: asset_class, in: query, required: true, schema: { $ref: '#/components/schemas/AssetClass' } }
+        - { name: settlement_time, in: query, required: true, schema: { type: string, format: date-time }, description: Settlement cycle time, RFC3339. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetSettlementPricesResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -461,9 +511,20 @@ components:
             - maintenance_margin
             - maintenance_margin_aggregate
         url: { type: string, description: Presigned download URL (omitted from logs). }
-        date: { type: string, format: date }
+        date:
+          type: string
+          format: date
+          description: >-
+            The ET report date the file belongs to. Intraday snapshots after
+            4pm ET belong to the next report date.
         created_ts: { type: string, format: date-time }
         is_end_of_day: { type: boolean }
+        snapshot_ts:
+          type: string
+          format: date-time
+          description: >-
+            Snapshot instant for intraday files (noon and hourly cycles);
+            omitted for end-of-day files.
 
     GetMarginReportsResponse:
       type: object
@@ -633,6 +694,31 @@ components:
               market_ticker: { type: string }
               position: { type: integer, description: Signed contract count; positive long, negative short. Can be below the reportable threshold when exit_day is true. }
               exit_day: { type: boolean, description: True when this row is included because the same market was reportable on the prior settlement day but is now below the reportable threshold. }
+    EstimatePortfolioMaintenanceMarginPosition:
+      type: object
+      required: [market_ticker, quantity, price]
+      properties:
+        market_ticker: { type: string, description: Market to include in the hypothetical portfolio. Must belong to the request's asset class. }
+        quantity: { type: integer, format: int64, description: Signed whole contract count; positive long, negative short. Must be non-zero. }
+        price: { type: string, description: 'Price of one contract in USD, to at most four decimal places (e.g. "6.8000"). Must be positive.' }
+
+    EstimatePortfolioMaintenanceMarginRequest:
+      type: object
+      required: [asset_class, positions]
+      properties:
+        asset_class: { $ref: '#/components/schemas/AssetClass' }
+        positions:
+          type: array
+          minItems: 1
+          maxItems: 500
+          description: Hypothetical portfolio to margin. Market tickers must be unique and must name markets that exist in the requested asset class.
+          items: { $ref: '#/components/schemas/EstimatePortfolioMaintenanceMarginPosition' }
+
+    EstimatePortfolioMaintenanceMarginResponse:
+      type: object
+      properties:
+        maintenance_margin_fp: { type: string, description: 'Maintenance margin requirement for the submitted portfolio, in USD (e.g. "1234.5600").' }
+
     GetObligationHistoryResponse:
       type: object
       required: [obligations]
@@ -740,6 +826,15 @@ components:
           description: Map of asset class to the estimated next settlement for that asset class.
           additionalProperties: { $ref: '#/components/schemas/AssetClassSettlementEstimate' }
         settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
+
+    GetSettlementPricesResponse:
+      type: object
+      required: [settlement_prices]
+      properties:
+        settlement_prices:
+          type: object
+          description: Map of market ticker to that market's settlement (mark) price at the requested settlement time, in centicents. Empty when no settlement ran for that asset class and settlement time.
+          additionalProperties: { type: integer, format: int64 }
 
     GetSettlementBalanceResponse:
       type: object

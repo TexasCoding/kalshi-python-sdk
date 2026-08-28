@@ -46,6 +46,8 @@ ALL_REPORT_TYPES = [
     "market_price_snapshot",
     "funding_periods",
     "settlement_periods",
+    "maintenance_margin",
+    "maintenance_margin_aggregate",
 ]
 
 
@@ -955,3 +957,138 @@ class TestSubtraderGroups:
 
         with pytest.raises(ValidationError):
             CreateMarginSubtraderGroupRequest(subtrader_ids=[])
+
+
+class TestSettlementPrices:
+    @respx.mock
+    def test_happy(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_prices").mock(
+            return_value=httpx.Response(
+                200, json={"settlement_prices": {"BTC-PERP": 650000000}}
+            )
+        )
+        resp = auth_klear_client.margin.settlement_prices(
+            asset_class="Crypto",
+            settlement_time="2026-08-28T16:00:00Z",
+        )
+        assert resp.settlement_prices["BTC-PERP"] == 650000000
+        q = dict(route.calls[0].request.url.params)
+        assert q["asset_class"] == "Crypto"
+        assert q["settlement_time"] == "2026-08-28T16:00:00Z"
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_empty_map(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_prices").mock(
+            return_value=httpx.Response(200, json={"settlement_prices": {}})
+        )
+        resp = auth_klear_client.margin.settlement_prices(
+            asset_class="Crypto", settlement_time="2026-08-28T16:00:00Z"
+        )
+        assert resp.settlement_prices == {}
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_400_maps(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_prices").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_time"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            auth_klear_client.margin.settlement_prices(
+                asset_class="Crypto", settlement_time="nope"
+            )
+        auth_klear_client.close()
+
+
+class TestEstimateMaintenanceMargin:
+    @respx.mock
+    def test_kwargs(self, auth_klear_client: KlearClient) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        route = respx.post(f"{BASE}/margin/estimate_maintenance_margin").mock(
+            return_value=httpx.Response(
+                200, json={"maintenance_margin_fp": "1234.5600"}
+            )
+        )
+        pos = EstimatePortfolioMaintenanceMarginPosition(
+            market_ticker="BTC-PERP",
+            quantity=2,
+            price=Decimal("6.8000"),
+        )
+        resp = auth_klear_client.margin.estimate_maintenance_margin(
+            asset_class="Crypto", positions=[pos]
+        )
+        assert resp.maintenance_margin_fp == Decimal("1234.5600")
+        body = json.loads(route.calls[0].request.content)
+        assert body["asset_class"] == "Crypto"
+        assert body["positions"][0]["quantity"] == 2
+        assert body["positions"][0]["price"] == "6.8000"
+        auth_klear_client.close()
+
+    def test_rejects_zero_quantity(self) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        with pytest.raises(ValidationError):
+            EstimatePortfolioMaintenanceMarginPosition(
+                market_ticker="BTC-PERP", quantity=0, price=Decimal("1.00")
+            )
+
+    def test_rejects_nonpositive_price(self) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        with pytest.raises(ValidationError):
+            EstimatePortfolioMaintenanceMarginPosition(
+                market_ticker="BTC-PERP", quantity=1, price=Decimal("0")
+            )
+
+    def test_requires_args(self, auth_klear_client: KlearClient) -> None:
+        with pytest.raises(TypeError, match="estimate_maintenance_margin"):
+            auth_klear_client.margin.estimate_maintenance_margin()
+        auth_klear_client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        respx.post(f"{BASE}/margin/estimate_maintenance_margin").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        resp = await auth_async_klear_client.margin.estimate_maintenance_margin(
+            asset_class="Crypto",
+            positions=[
+                EstimatePortfolioMaintenanceMarginPosition(
+                    market_ticker="BTC-PERP",
+                    quantity=-1,
+                    price=Decimal("6.8000"),
+                )
+            ],
+        )
+        assert resp.maintenance_margin_fp is None
+        await auth_async_klear_client.close()
+
+
+class TestMarginReportSnapshotTs:
+    def test_parses_optional_snapshot_ts(self) -> None:
+        report = MarginReport.model_validate(
+            {
+                **_report(),
+                "snapshot_ts": "2026-06-01T12:00:00Z",
+            }
+        )
+        assert report.snapshot_ts is not None
+        assert report.is_end_of_day is True
+
+    def test_omitted_snapshot_ts(self) -> None:
+        report = MarginReport.model_validate(_report())
+        assert report.snapshot_ts is None

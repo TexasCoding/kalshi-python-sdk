@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.28.0
+  version: 3.29.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -1055,6 +1055,33 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    delete:
+      operationId: CancelAllOrders
+      summary: Cancel Up to 10,000 Orders
+      description: Cancels up to 10,000 resting event-market orders for the authenticated Direct member across every exchange shard. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. When more than 10,000 orders match, the orders selected for cancellation are arbitrary and no ordering guarantees should be relied upon.
+      x-mint:
+        content: |
+          <Note>
+          **Rate limit:** A request consumes the same number of write tokens as a batch cancel containing the maximum number of orders allowed for the caller's API tier.
+          </Note>
+      tags:
+        - orders
+      parameters:
+        - $ref: '#/components/parameters/SubaccountQuery'
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '204':
+          description: Up to 10,000 matching resting orders were cancelled
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /portfolio/events/orders/batched:
     post:
       operationId: BatchCreateOrdersV2
@@ -1149,10 +1176,14 @@ paths:
       parameters:
         - $ref: '#/components/parameters/OrderIdPath'
         - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
-        - $ref: '#/components/parameters/ExchangeIndexQuery'
+        - name: exchange_index
+          in: query
+          description: Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by market ticker.
+          schema:
+            $ref: '#/components/schemas/ExchangeIndex'
         - name: market_ticker
           in: query
-          description: Market ticker. Required when exchange_index is -1 (auto).
+          description: Market ticker used for auto-routing when exchange_index is omitted or -1.
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
@@ -1472,7 +1503,7 @@ paths:
     get:
       operationId: GetBalance
       summary: Get Balance
-      description: "Endpoint for getting the balance and portfolio value of a member. `portfolio_value` is always scoped to the requested `exchange_index` (defaulting to 0). When `subaccount` is omitted, `balance` is the primary account's aggregate available balance; pass `subaccount` explicitly (0 for primary, 1-63 for subaccounts) to read that subaccount's balance on the requested exchange index instead. This endpoint also accepts API keys with the 'read::portfolio_balance' scope."
+      description: "Returns the balance and portfolio value for a member. Both values include all exchange indexes unless `exchange_index` is provided. Pass `subaccount` to use a subaccount instead of the primary account. This endpoint also accepts API keys with the 'read::portfolio_balance' scope."
       tags:
         - portfolio
       security:
@@ -1485,8 +1516,7 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/ExchangeIndex'
-          x-go-type-skip-optional-pointer: true
-          description: 'Exchange index to scope the returned portfolio value to, and the balance when `subaccount` is provided. Defaults to 0.'
+          description: 'Exchange index used to scope the balance and portfolio value. If omitted, both include all exchange indexes.'
       responses:
         '200':
           description: Balance retrieved successfully
@@ -1503,7 +1533,12 @@ paths:
     post:
       operationId: IntraExchangeInstanceTransfer
       summary: Intra Account Transfer
-      description: 'Endpoint for transferring funds within the same account.'
+      description: |
+        Transfers funds within the same account.
+
+        When `source_exchange_shard` and `destination_exchange_shard` are the same, Kalshi treats the request as a subaccount transfer. The returned transfer ID appears in the subaccount transfer history.
+
+        Cross-exchange-index subaccount transfers run in up to three non-atomic steps. If a later step fails, completed steps are not undone, so funds may remain in the primary account on the source or destination exchange index.
       tags:
         - portfolio
       security:
@@ -3035,6 +3070,73 @@ paths:
           description: Internal server error
 
 
+  /live_data/weather/{city}:
+    get:
+      operationId: GetWeatherIndex
+      summary: Get Weather Index
+      description: >-
+        Get the Kalshi-computed city temperature index: the canonical
+        minute-resolution series behind hourly temperature markets. City-keyed
+        and independent of any event — the series exists whenever the city's
+        index is configured. Values are Fahrenheit rounded to 0.01. Minutes
+        where the index quorum failed carry no value and are never returned as
+        points, so gaps in the series are real gaps. With `detailed=true` each
+        point additionally carries every member station's reported reading and
+        quality-control disposition — the pre-incorporation breakdown.
+      tags:
+        - live-data
+      parameters:
+        - name: city
+          in: path
+          required: true
+          description: Index city ID (e.g. `miami`)
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          description: >-
+            Window start, unix milliseconds (inclusive). Defaults to `to`
+            minus 24 hours. Must be paired with `to` unless `last_sec` is
+            used.
+          schema:
+            type: integer
+            format: int64
+        - name: to
+          in: query
+          required: false
+          description: Window end, unix milliseconds (inclusive). Defaults to now.
+          schema:
+            type: integer
+            format: int64
+        - name: last_sec
+          in: query
+          required: false
+          description: >-
+            Trailing window in seconds; equivalent to `from=now-last_sec`,
+            `to=now`. Mutually exclusive with `from`/`to`.
+          schema:
+            type: integer
+            format: int64
+        - name: detailed
+          in: query
+          required: false
+          description: Include per-station audit readings on every point.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Weather index retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetWeatherIndexResponse'
+        '400':
+          description: Unknown city or invalid window parameters
+        '500':
+          description: Internal server error
+
+
   /structured_targets:
     get:
       operationId: GetStructuredTargets
@@ -3063,7 +3165,7 @@ paths:
             example: basketball_player
         - name: competition
           in: query
-          description: 'Filter by competition. Matches against the league, conference, division, or tour in the structured target details.'
+          description: 'Filter by competition. Matches against the league, conference, division, or tour in the structured target details, or any entry in the details leagues array.'
           required: false
           schema:
             type: string
@@ -3371,10 +3473,10 @@ paths:
         - name: type
           in: query
           required: false
-          description: 'Type filter. Can be "all", "liquidity", or "volume". Default is "all".'
+          description: 'Type filter. Can be "all", "liquidity", "volume", or "margin_maker_volume". Default is "all".'
           schema:
             type: string
-            enum: [all, liquidity, volume]
+            enum: [all, liquidity, volume, margin_maker_volume]
         - name: incentive_description
           in: query
           required: false
@@ -3478,6 +3580,65 @@ paths:
           description: Not found
         '500':
           description: Internal server error
+
+  /portfolio/target_balance_allocation:
+    get:
+      operationId: GetTargetBalanceAllocation
+      summary: Get Target Balance Allocation
+      description: |
+        Retrieves the caller's target balance allocation across exchange indexes.
+      tags:
+        - portfolio
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '200':
+          description: Target balance allocation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTargetBalanceAllocationResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: SetTargetBalanceAllocation
+      summary: Set Target Balance Allocation
+      description: |
+        Replaces the caller's target balance allocation across exchange indexes.
+        Percentages must total 100. Passing an empty allocations array disables automatic rebalancing.
+      tags:
+        - portfolio
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTargetBalanceAllocationRequest'
+      responses:
+        '200':
+          description: Target balance allocation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /fcm/positions:
     get:
@@ -4054,6 +4215,7 @@ components:
     ExchangeIndexQuery:
       name: exchange_index
       in: query
+      description: Identifier for an exchange shard. Defaults to 0.
       schema:
         $ref: '#/components/schemas/ExchangeIndex'
       x-go-type-skip-optional-pointer: true
@@ -4203,15 +4365,16 @@ components:
 
     ExchangeIndex:
       type: integer
-      description: "Identifier for an exchange shard. Defaults to 0 if unspecified."
+      description: "Identifier for an exchange shard."
       example: 0
 
     FeeType:
       type: string
-      enum: [quadratic, quadratic_with_maker_fees, flat]
+      enum: [quadratic, quadratic_with_maker_fees, quadratic_with_combo_maker_fees, flat]
       x-enum-varnames:
         - FeeTypeQuadratic
         - FeeTypeQuadraticWithMakerFees
+        - FeeTypeQuadraticWithComboMakerFees
         - FeeTypeFlat
       description: Fee type for a series or scheduled fee override.
 
@@ -4403,6 +4566,11 @@ components:
           description: List of all API keys associated with the user
           items:
             $ref: '#/components/schemas/ApiKey'
+        api_key_region_expiration_ts:
+          type: integer
+          format: int64
+          nullable: true
+          description: Unix timestamp (seconds) when the account's location attestation for API key requests expires; a past value means the attestation has lapsed. Absent when the account has never attested.
 
     CreateApiKeyRequest:
       type: object
@@ -5095,6 +5263,116 @@ components:
         live_data:
           $ref: '#/components/schemas/EventLiveData'
 
+    GetWeatherIndexResponse:
+      type: object
+      required:
+        - city
+        - units
+        - timeseries
+      properties:
+        city:
+          type: string
+          description: Index city ID.
+        config_version:
+          type: string
+          description: >-
+            Index configuration version of the newest returned point (e.g.
+            `miami-temperature-v1.0`). Empty when no points matched the
+            window.
+        units:
+          type: string
+          description: Always `fahrenheit`.
+        timeseries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeatherIndexPoint'
+
+    WeatherIndexPoint:
+      type: object
+      required:
+        - t
+        - status
+      properties:
+        t:
+          type: integer
+          format: int64
+          description: Event minute, unix milliseconds UTC.
+        v:
+          type: number
+          format: double
+          description: >-
+            Published index value, Fahrenheit rounded to 0.01. Absent on
+            `incomplete` points, which have no canonical value yet.
+        status:
+          type: string
+          description: >-
+            `normal` (every member contributed its exact-minute primary
+            observation) or `degraded` (a member was absent, fallback-fed, or
+            substituted by quality control; the value is equally
+            settlement-eligible). With `detailed=true`, trailing minutes still
+            inside their receipt deadline are additionally served as
+            `incomplete`: no value, and stations carrying the raw readings
+            recorded so far (code `pending`, not yet quality-controlled — more
+            readings may still arrive, and the canonical value may differ).
+        contributors:
+          type: integer
+          description: >-
+            Number of accepted member stations backing the point. Absent on
+            `incomplete` points.
+        stations:
+          type: array
+          description: >-
+            Per-station audit readings (only with `detailed=true`), sorted by
+            station ID — every configured member's reported value and QC
+            disposition before incorporation into the index.
+          items:
+            $ref: '#/components/schemas/WeatherIndexStationReading'
+
+    WeatherIndexStationReading:
+      type: object
+      required:
+        - station_id
+        - code
+      properties:
+        station_id:
+          type: string
+          description: Member station (e.g. `KMIA1M`) or its official fallback ID.
+        code:
+          type: string
+          description: >-
+            Disposition: `ok` (accepted), `missing` (no eligible
+            observation), `late` (received after the deadline; diagnostic
+            only), a QC rejection (`range`, `rate_spatial`, `extreme`), or
+            `pending` (raw reading on an `incomplete` minute, not yet
+            quality-controlled).
+        source:
+          type: string
+          description: >-
+            `hf_asos` (exact-minute primary) or `metar` (carried-forward
+            official observation). Absent when no reading was available.
+        temp_f:
+          type: number
+          format: double
+          description: >-
+            Raw reported temperature in Fahrenheit (unrounded — only the
+            published index value carries output rounding). Absent for
+            `missing` members.
+        obs_time_ms:
+          type: integer
+          format: int64
+          description: >-
+            Observation time for carried-forward fallbacks (differs from the
+            event minute). Absent for exact-minute primaries.
+        received_at_ms:
+          type: integer
+          format: int64
+          description: Local wire-receipt time backing the eligibility deadline.
+        primary_code:
+          type: string
+          description: >-
+            Why the primary observation was passed over when a fallback was
+            selected instead.
+
     GetGameStatsResponse:
       type: object
       properties:
@@ -5138,14 +5416,14 @@ components:
         balance:
           type: integer
           format: int64
-          description: Member's available balance in cents. This represents the amount available for trading.
+          description: Member's available balance in cents for the requested account and exchange index. It includes all exchange indexes when `exchange_index` is omitted.
         balance_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Member's available balance as a fixed-point dollar string. This represents the amount available for trading.
+          description: Member's available balance as a fixed-point dollar string for the requested account and exchange index. It includes all exchange indexes when `exchange_index` is omitted.
         portfolio_value:
           type: integer
           format: int64
-          description: Member's portfolio value in cents. This is the current value of the positions held by the requested subaccount on the requested exchange index.
+          description: Member's portfolio value in cents for the requested account and exchange index. It includes all exchange indexes when `exchange_index` is omitted.
         updated_ts:
           type: integer
           format: int64
@@ -5345,6 +5623,7 @@ components:
       type: object
       required:
         - ticker
+        - exchange_index
         - event_ticker
         - market_result
         - yes_count_fp
@@ -5358,6 +5637,8 @@ components:
         ticker:
           type: string
           description: The ticker symbol of the market that was settled.
+        exchange_index:
+          $ref: '#/components/schemas/ExchangeIndex'
         event_ticker:
           type: string
           description: The event ticker symbol of the market that was settled.
@@ -5812,6 +6093,7 @@ components:
       type: object
       required:
         - ticker
+        - exchange_index
         - total_traded_dollars
         - position_fp
         - market_exposure_dollars
@@ -5823,6 +6105,8 @@ components:
           type: string
           description: Unique identifier for the market
           x-go-type-skip-optional-pointer: true
+        exchange_index:
+          $ref: '#/components/schemas/ExchangeIndex'
         total_traded_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Total spent on this market in dollars
@@ -5989,7 +6273,7 @@ components:
           description: The ticker symbol of the market associated with this incentive program
         incentive_type:
           type: string
-          enum: ['liquidity', 'volume']
+          enum: ['liquidity', 'volume', 'margin_maker_volume']
           description: Type of incentive program
         incentive_description:
           type: string
@@ -6018,6 +6302,11 @@ components:
           $ref: '#/components/schemas/FixedPointCount'
           nullable: true
           description: String representation of the target size for the incentive program (optional)
+        max_reward_per_account:
+          type: integer
+          format: int64
+          nullable: true
+          description: Maximum reward per account in centi-cents (optional)
 
     GetTradesResponse:
       type: object
@@ -6036,6 +6325,7 @@ components:
       type: object
       required:
         - fill_id
+        - exchange_index
         - trade_id
         - order_id
         - ticker
@@ -6051,6 +6341,8 @@ components:
         fill_id:
           type: string
           description: Unique identifier for this fill
+        exchange_index:
+          $ref: '#/components/schemas/ExchangeIndex'
         trade_id:
           type: string
           description: Unique identifier for this fill (legacy field name, same as fill_id)
@@ -6185,6 +6477,67 @@ components:
       type: object
       description: An empty response body
 
+    TargetBalanceAllocation:
+      type: object
+      required:
+        - exchange_index
+        - percent
+      properties:
+        exchange_index:
+          type: integer
+          minimum: 0
+          description: Exchange index that receives this percentage of sweepable balance
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Target percentage of sweepable balance for the exchange index
+
+    TargetBalanceAllocationInput:
+      type: object
+      required:
+        - exchange_index
+        - percent
+      properties:
+        exchange_index:
+          type: integer
+          minimum: 0
+          description: Exchange index that receives this percentage of sweepable balance
+          x-go-type: '*int'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=0
+        percent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Target percentage of sweepable balance for the exchange index
+          x-go-type: '*int'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=0,lte=100
+
+    GetTargetBalanceAllocationResponse:
+      type: object
+      required:
+        - allocations
+      properties:
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/TargetBalanceAllocation'
+
+    SetTargetBalanceAllocationRequest:
+      type: object
+      required:
+        - allocations
+      properties:
+        allocations:
+          type: array
+          maxItems: 101
+          x-oapi-codegen-extra-tags:
+            validate: max=101,dive
+          items:
+            $ref: '#/components/schemas/TargetBalanceAllocationInput'
+
     IntraExchangeInstanceTransferRequest:
       type: object
       required:
@@ -6220,6 +6573,20 @@ components:
           description: Destination exchange shard index (default 0)
           x-oapi-codegen-extra-tags:
             validate: "gte=0,lte=100"
+        source_subaccount:
+          type: integer
+          default: 0
+          x-go-type-skip-optional-pointer: true
+          description: Source subaccount number (default 0 for the primary account). Only supported for event contract to event contract transfers.
+          x-oapi-codegen-extra-tags:
+            validate: "gte=0"
+        destination_subaccount:
+          type: integer
+          default: 0
+          x-go-type-skip-optional-pointer: true
+          description: Destination subaccount number (default 0 for the primary account). Only supported for event contract to event contract transfers.
+          x-oapi-codegen-extra-tags:
+            validate: "gte=0"
 
     IntraExchangeInstanceTransferResponse:
       type: object
@@ -6375,6 +6742,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
+          description: Identifier for an exchange shard. Defaults to 0.
           x-go-type-skip-optional-pointer: true
 
     UpdateOrderGroupLimitRequest:
@@ -6758,7 +7126,6 @@ components:
         subaccount:
           type: integer
           description: The subaccount number to create the RFQ for (direct members only; 0 for primary, 1-63 for subaccounts)
-          x-go-type-skip-optional-pointer: true
 
     CreateRFQResponse:
       type: object
@@ -7350,9 +7717,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
-          default: 0
-          description: "Exchange shard index. Defaults to 0. Use -1 to auto-route by market ticker."
-          x-go-type-skip-optional-pointer: true
+          description: "Exchange shard index. If omitted, auto-routes when ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by ticker."
 
     CreateOrderV2Response:
       type: object
@@ -7430,11 +7795,10 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
-          default: 0
-          x-go-type-skip-optional-pointer: true
+          description: "Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by market ticker."
         market_ticker:
           type: string
-          description: Market ticker. Required when exchange_index is -1 (auto).
+          description: Market ticker used for auto-routing when exchange_index is omitted or -1.
           x-go-type-skip-optional-pointer: true
 
     DecreaseOrderV2Response:
@@ -7506,9 +7870,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
-          default: 0
-          description: "Exchange shard index. Defaults to 0. Use -1 to auto-route by market ticker."
-          x-go-type-skip-optional-pointer: true
+          description: "Exchange shard index. If omitted, auto-routes when ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by ticker."
 
     AmendOrderV2Response:
       type: object
@@ -7674,12 +8036,10 @@ components:
               exchange_index:
                 allOf:
                   - $ref: '#/components/schemas/ExchangeIndex'
-                default: 0
-                description: "Exchange shard index. Defaults to 0. Use -1 to auto-route by market ticker."
-                x-go-type-skip-optional-pointer: true
+                description: "Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by market ticker."
               market_ticker:
                 type: string
-                description: Market ticker. Required when exchange_index is -1 (auto).
+                description: Market ticker used for auto-routing when exchange_index is omitted or -1.
                 x-go-type-skip-optional-pointer: true
 
     BatchCancelOrdersV2Response:
@@ -8226,7 +8586,8 @@ components:
           x-go-type-skip-optional-pointer: true
         available_on_brokers:
           type: boolean
-          description: Whether this event is available to trade on brokers.
+          description: Deprecated. No longer populated and always returns false; it will be removed in a future release.
+          deprecated: true
         product_metadata:
           type: object
           nullable: true
@@ -8313,7 +8674,7 @@ components:
         fee_type:
           allOf:
             - $ref: '#/components/schemas/FeeType'
-          description: "FeeType is a string representing the series' fee structure. Fee structures can be found at https://kalshi.com/docs/kalshi-fee-schedule.pdf. 'quadratic' is described by the General Trading Fees Table, 'quadratic_with_maker_fees' is described by the General Trading Fees Table with maker fees described in the Maker Fees section, 'flat' is described by the Specific Trading Fees Table."
+          description: "FeeType is a string representing the series' fee structure. Fee structures can be found at https://kalshi.com/docs/kalshi-fee-schedule.pdf. 'quadratic' is described by the General Trading Fees Table, 'quadratic_with_maker_fees' is described by the General Trading Fees Table with maker fees described in the Maker Fees section, 'quadratic_with_combo_maker_fees' is the same maker-fee structure with a 0.5 maker multiplier instead of 0.25, 'flat' is described by the Specific Trading Fees Table."
         fee_multiplier:
           type: number
           format: double

@@ -10,16 +10,20 @@ from kalshi.models.orders import Fill
 from kalshi.models.portfolio import (
     Balance,
     Deposit,
+    GetTargetBalanceAllocationResponse,
     IntraExchangeInstanceTransfer,
     MarketPosition,
     PositionsResponse,
+    SetTargetBalanceAllocationRequest,
     Settlement,
+    TargetBalanceAllocationInput,
     TotalRestingOrderValue,
     Withdrawal,
 )
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
+    _check_request_exclusive,
     _fills_params,
     _params,
     _seg,
@@ -433,6 +437,42 @@ class PortfolioResource(SyncResource):
         )
         return IntraExchangeInstanceTransfer.model_validate(data.get("transfer", data))
 
+    def target_balance_allocation(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetTargetBalanceAllocationResponse:
+        """``GET /portfolio/target_balance_allocation`` — per-shard sweep targets."""
+        self._require_auth()
+        data = self._get(
+            "/portfolio/target_balance_allocation", extra_headers=extra_headers
+        )
+        return GetTargetBalanceAllocationResponse.model_validate(data)
+
+    def set_target_balance_allocation(
+        self,
+        *,
+        request: SetTargetBalanceAllocationRequest | None = None,
+        allocations: list[TargetBalanceAllocationInput] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``POST /portfolio/target_balance_allocation`` — replace sweep targets.
+
+        Not retried (POST).
+        """
+        self._require_auth()
+        _check_request_exclusive(request, allocations=allocations)
+        if request is None:
+            if allocations is None:
+                raise TypeError(
+                    "set_target_balance_allocation() requires `allocations` "
+                    "(or pass `request=...`)"
+                )
+            request = SetTargetBalanceAllocationRequest(allocations=allocations)
+        self._post_void(
+            "/portfolio/target_balance_allocation",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
@@ -792,3 +832,36 @@ class AsyncPortfolioResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return IntraExchangeInstanceTransfer.model_validate(data.get("transfer", data))
+
+    async def target_balance_allocation(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetTargetBalanceAllocationResponse:
+        """Async :meth:`PortfolioResource.target_balance_allocation`."""
+        self._require_auth()
+        data = await self._get(
+            "/portfolio/target_balance_allocation", extra_headers=extra_headers
+        )
+        return GetTargetBalanceAllocationResponse.model_validate(data)
+
+    async def set_target_balance_allocation(
+        self,
+        *,
+        request: SetTargetBalanceAllocationRequest | None = None,
+        allocations: list[TargetBalanceAllocationInput] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`PortfolioResource.set_target_balance_allocation`."""
+        self._require_auth()
+        _check_request_exclusive(request, allocations=allocations)
+        if request is None:
+            if allocations is None:
+                raise TypeError(
+                    "set_target_balance_allocation() requires `allocations` "
+                    "(or pass `request=...`)"
+                )
+            request = SetTargetBalanceAllocationRequest(allocations=allocations)
+        await self._post_void(
+            "/portfolio/target_balance_allocation",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )

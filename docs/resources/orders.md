@@ -15,6 +15,7 @@ Reads stay on `/portfolio/orders/*`.
 | `create_v2(*, request)` | `POST /portfolio/events/orders` | **never** — see [Retries & idempotency](../retries.md) |
 | `batch_create_v2(*, request)` | `POST /portfolio/events/orders/batched` | never |
 | `cancel_v2(order_id, *, subaccount, exchange_index, market_ticker)` | `DELETE /portfolio/events/orders/{order_id}` | never |
+| `cancel_all_v2(*, subaccount)` | `DELETE /portfolio/events/orders` | never |
 | `batch_cancel_v2(*, request)` | `DELETE /portfolio/events/orders/batched` | never |
 | `amend_v2(order_id, *, request, subaccount)` | `POST /portfolio/events/orders/{order_id}/amend` | never |
 | `decrease_v2(order_id, *, request, subaccount)` | `POST /portfolio/events/orders/{order_id}/decrease` | never |

@@ -2,6 +2,12 @@
 
 ## Shipped
 
+- **v13.0.0 (2026-08-28)** — Spec-drift reconcile (#507 / #508). OpenAPI
+  3.28.0 → 3.29.0. **Breaking:** `Fill` / `MarketPosition` / `Settlement`
+  require `exchange_index`. Additive: weather index, target-balance
+  allocation, cancel-all (event + margin), perps exit triggers, FCM
+  `asset_class` IM caps, Klear settlement prices + maintenance-margin
+  estimate.
 - **v12.0.0 (2026-08-16)** — Spec-drift reconcile (#503). OpenAPI
   3.27.0 → 3.28.0. **Breaking:** `TotalRestingOrderValue` requires
   `resting_order_value_breakdown`. Additive: `exchange_index` query on

@@ -73,6 +73,22 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="Settlement",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.portfolio.TargetBalanceAllocation",
+        spec_schema="TargetBalanceAllocation",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.TargetBalanceAllocationInput",
+        spec_schema="TargetBalanceAllocationInput",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.GetTargetBalanceAllocationResponse",
+        spec_schema="GetTargetBalanceAllocationResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.SetTargetBalanceAllocationRequest",
+        spec_schema="SetTargetBalanceAllocationRequest",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.historical.Trade",
         spec_schema="Trade",
     ),
@@ -216,6 +232,18 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.live_data.EventLiveData",
         spec_schema="EventLiveData",
         notes="event-keyed live data; details is dict[str, Any]",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.WeatherIndexStationReading",
+        spec_schema="WeatherIndexStationReading",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.WeatherIndexPoint",
+        spec_schema="WeatherIndexPoint",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.GetWeatherIndexResponse",
+        spec_schema="GetWeatherIndexResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.models.markets.MarketCandlesticks",
@@ -804,6 +832,26 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.perps.models.fcm.UpdateFCMSubtraderRiskControlsRequest",
         spec_schema="UpdateFCMSubtraderRiskControlsRequest",
     ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.ExitTrigger",
+        spec_schema="ExitTrigger",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.GetExitTriggersResponse",
+        spec_schema="GetExitTriggersResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.SetCrossExitTriggerRequest",
+        spec_schema="SetCrossExitTriggerRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.SetIsolatedExitTriggerRequest",
+        spec_schema="SetIsolatedExitTriggerRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.portfolio.UpdateExitTriggerRequest",
+        spec_schema="UpdateExitTriggerRequest",
+    ),
 ]
 
 PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
@@ -909,5 +957,21 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.UpdateMarginSubtraderGroupRequest",
         spec_schema="UpdateMarginSubtraderGroupRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetSettlementPricesResponse",
+        spec_schema="GetSettlementPricesResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginPosition",
+        spec_schema="EstimatePortfolioMaintenanceMarginPosition",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginRequest",
+        spec_schema="EstimatePortfolioMaintenanceMarginRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginResponse",
+        spec_schema="EstimatePortfolioMaintenanceMarginResponse",
     ),
 ]

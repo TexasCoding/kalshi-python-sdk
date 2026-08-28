@@ -1,5 +1,43 @@
 # Migration
 
+## v12.0 → v13.0.0
+
+Reconciles upstream OpenAPI **3.28.0 → 3.29.0**, plus matching perps, Klear,
+and AsyncAPI updates (Closes #507, Closes #508). **Breaking** only for code
+that constructs `Fill`, `MarketPosition`, or `Settlement` without
+`exchange_index`.
+
+### Response model field changes
+
+- **`Fill.exchange_index`**, **`MarketPosition.exchange_index`**,
+  **`Settlement.exchange_index`** — required `int`. Live
+  `orders.fills()` / `portfolio.positions()` / `portfolio.settlements()`
+  callers are unaffected.
+- **WS** `FillPayload.exchange_index` and `UserOrdersPayload.exchange_index`
+  — required `int` (same constructor impact on fixtures).
+
+```python
+# Before (constructors / test fixtures):
+# Fill(..., outcome_side="yes", book_side="bid")
+
+# After:
+Fill(..., outcome_side="yes", book_side="bid", exchange_index=0)
+```
+
+### Added (non-breaking)
+
+- `live_data.weather(city, *, from_ts, to, last_sec, detailed)`
+- `portfolio.target_balance_allocation()` /
+  `set_target_balance_allocation(...)`
+- `orders.cancel_all_v2(*, subaccount)`
+- Perps exit triggers on `perps.portfolio.*`
+- Perps `orders.cancel_all(*, subaccount)`
+- Perps FCM `asset_class=` on IM-cap methods
+- Klear `settlement_prices()` / `estimate_maintenance_margin()`
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v11.0 → v12.0.0
 
 Reconciles upstream OpenAPI **3.27.0 → 3.28.0**, plus additive perps FCM

@@ -393,6 +393,20 @@ class MarginOrdersResource(SyncResource):
             raise KalshiError("Expected CancelMarginOrderResponse body, got 204 No Content.")
         return CancelMarginOrderResponse.model_validate(data)
 
+    def cancel_all(
+        self,
+        *,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``DELETE /margin/orders`` — cancel up to 10,000 resting margin orders.
+
+        Not retried (DELETE). Returns 204.
+        """
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        self._delete("/margin/orders", params=params, extra_headers=extra_headers)
+
     @overload
     def decrease(
         self,
@@ -726,6 +740,17 @@ class AsyncMarginOrdersResource(AsyncResource):
         if data is None:
             raise KalshiError("Expected CancelMarginOrderResponse body, got 204 No Content.")
         return CancelMarginOrderResponse.model_validate(data)
+
+    async def cancel_all(
+        self,
+        *,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`MarginOrdersResource.cancel_all`."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        await self._delete("/margin/orders", params=params, extra_headers=extra_headers)
 
     @overload
     async def decrease(

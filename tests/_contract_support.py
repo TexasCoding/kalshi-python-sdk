@@ -239,6 +239,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/live_data/milestone/{milestone_id}/game_stats",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.weather",
+        http_method="GET",
+        path_template="/live_data/weather/{city}",
+    ),
     # ── events ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.events.EventsResource.list",
@@ -416,6 +421,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.orders.OrdersResource.cancel_v2",
         http_method="DELETE",
         path_template="/portfolio/events/orders/{order_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.cancel_all_v2",
+        http_method="DELETE",
+        path_template="/portfolio/events/orders",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.amend_v2",
@@ -776,6 +786,17 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/portfolio/intra_exchange_instance_transfers/{transfer_id}",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.target_balance_allocation",
+        http_method="GET",
+        path_template="/portfolio/target_balance_allocation",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.set_target_balance_allocation",
+        http_method="POST",
+        path_template="/portfolio/target_balance_allocation",
+        request_body_schema="#/components/schemas/SetTargetBalanceAllocationRequest",
+    ),
     # ── series ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.series.SeriesResource.list",
@@ -1088,6 +1109,17 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "SDK renamed from spec's `{type}` path segment to avoid shadowing "
             "the Python built-in; not query/path parity with spec (same value, "
             "different kwarg name)"
+        ),
+        kind="kwarg_rename",
+    ),
+    ("kalshi.resources.live_data.LiveDataResource.weather", "from"): Exclusion(
+        reason="SDK kwarg named from_ts (not from) to avoid the Python keyword",
+        kind="kwarg_rename",
+    ),
+    ("kalshi.resources.live_data.LiveDataResource.weather", "from_ts"): Exclusion(
+        reason=(
+            "SDK renamed from spec's `from` query param to avoid the Python "
+            "keyword; wire still sends `from`"
         ),
         kind="kwarg_rename",
     ),
@@ -1404,6 +1436,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/orders/{order_id}",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.cancel_all",
+        http_method="DELETE",
+        path_template="/margin/orders",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.orders.MarginOrdersResource.decrease",
         http_method="POST",
         path_template="/margin/orders/{order_id}/decrease",
@@ -1566,6 +1603,62 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="DELETE",
         path_template="/margin/fcm/subtraders/risk_controls",
     ),
+    # ── perps exit triggers ──
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.cross_exit_triggers",
+        http_method="GET",
+        path_template="/margin/cross/positions/{ticker}/exit_trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.set_cross_exit_trigger",
+        http_method="PUT",
+        path_template="/margin/cross/positions/{ticker}/exit_trigger",
+        request_body_schema="#/components/schemas/SetCrossExitTriggerRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.cancel_cross_exit_triggers"
+        ),
+        http_method="DELETE",
+        path_template="/margin/cross/positions/{ticker}/exit_trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.update_cross_exit_trigger"
+        ),
+        http_method="PUT",
+        path_template="/margin/cross/positions/{ticker}/exit_trigger/{trigger_id}",
+        request_body_schema="#/components/schemas/UpdateExitTriggerRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.cancel_cross_exit_trigger"
+        ),
+        http_method="DELETE",
+        path_template="/margin/cross/positions/{ticker}/exit_trigger/{trigger_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.isolated_exit_triggers"
+        ),
+        http_method="GET",
+        path_template="/margin/isolated/positions/{ticker}/exit_trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.set_isolated_exit_trigger"
+        ),
+        http_method="PUT",
+        path_template="/margin/isolated/positions/{ticker}/exit_trigger",
+        request_body_schema="#/components/schemas/SetIsolatedExitTriggerRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.resources.portfolio.PerpsPortfolioResource.cancel_isolated_exit_triggers"
+        ),
+        http_method="DELETE",
+        path_template="/margin/isolated/positions/{ticker}/exit_trigger",
+    ),
 ]
 
 # SCM/Klear endpoints — validated against ``specs/perps_scm_openapi.yaml``.
@@ -1689,6 +1782,17 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.delete_subtrader_group",
         http_method="DELETE",
         path_template="/fcm/margin/subtrader_groups/{group_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.settlement_prices",
+        http_method="GET",
+        path_template="/margin/settlement_prices",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.estimate_maintenance_margin",
+        http_method="POST",
+        path_template="/margin/estimate_maintenance_margin",
+        request_body_schema="#/components/schemas/EstimatePortfolioMaintenanceMarginRequest",
     ),
 ]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from decimal import Decimal
 
@@ -477,4 +478,129 @@ class TestTrades:
         respx.get(f"{BASE}/margin/trades").mock(side_effect=responses)
         items = [t async for t in async_perps_client.portfolio.trades_all(ticker="BTC-PERP")]
         assert len(items) == 2
+        await async_perps_client.close()
+
+
+def _exit_trigger(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "trg-1",
+        "ticker": "BTC-PERP",
+        "kind": "bracket",
+        "status": "active",
+        "count": "10.00",
+        "filled_count": "0.00",
+        "created_time": "2026-01-01T00:00:00Z",
+        "updated_time": "2026-01-01T00:00:00Z",
+        "stop_loss_price": "50000.0000",
+        "take_profit_price": "70000.0000",
+    }
+    base.update(overrides)
+    return base
+
+
+class TestExitTriggers:
+    @respx.mock
+    def test_cross_list(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger").mock(
+            return_value=httpx.Response(200, json={"exit_triggers": [_exit_trigger()]})
+        )
+        resp = perps_client.portfolio.cross_exit_triggers("BTC-PERP", kind="bracket")
+        assert len(resp.exit_triggers) == 1
+        assert resp.exit_triggers[0].id == "trg-1"
+        assert dict(route.calls[0].request.url.params)["kind"] == "bracket"
+
+    @respx.mock
+    def test_set_cross(self, perps_client: PerpsClient) -> None:
+        from kalshi.perps.models.portfolio import SetCrossExitTriggerRequest
+
+        route = respx.put(f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger").mock(
+            return_value=httpx.Response(200, json=_exit_trigger())
+        )
+        req = SetCrossExitTriggerRequest(
+            kind="bracket",
+            stop_loss_price=Decimal("50000.0000"),
+        )
+        trig = perps_client.portfolio.set_cross_exit_trigger(
+            "BTC-PERP", request=req, subaccount=1
+        )
+        assert trig.status == "active"
+        assert json.loads(route.calls[0].request.content)["kind"] == "bracket"
+        assert dict(route.calls[0].request.url.params)["subaccount"] == "1"
+
+    @respx.mock
+    def test_cancel_cross_collection(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger").mock(
+            return_value=httpx.Response(204)
+        )
+        perps_client.portfolio.cancel_cross_exit_triggers("BTC-PERP")
+        assert route.called
+
+    @respx.mock
+    def test_update_cross_by_id(self, perps_client: PerpsClient) -> None:
+        from kalshi.perps.models.portfolio import UpdateExitTriggerRequest
+
+        route = respx.put(
+            f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger/trg-1"
+        ).mock(return_value=httpx.Response(200, json=_exit_trigger()))
+        req = UpdateExitTriggerRequest(stop_loss_price=Decimal("49000.0000"))
+        trig = perps_client.portfolio.update_cross_exit_trigger(
+            "BTC-PERP", "trg-1", request=req
+        )
+        assert trig.id == "trg-1"
+        assert json.loads(route.calls[0].request.content)["stop_loss_price"] == "49000.0000"
+
+    @respx.mock
+    def test_cancel_cross_by_id(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(
+            f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger/trg-1"
+        ).mock(return_value=httpx.Response(204))
+        perps_client.portfolio.cancel_cross_exit_trigger("BTC-PERP", "trg-1")
+        assert route.called
+
+    @respx.mock
+    def test_isolated_roundtrip(self, perps_client: PerpsClient) -> None:
+        from kalshi.perps.models.portfolio import SetIsolatedExitTriggerRequest
+
+        respx.get(f"{BASE}/margin/isolated/positions/ETH-PERP/exit_trigger").mock(
+            return_value=httpx.Response(200, json={"exit_triggers": []})
+        )
+        route = respx.put(f"{BASE}/margin/isolated/positions/ETH-PERP/exit_trigger").mock(
+            return_value=httpx.Response(200, json=_exit_trigger(ticker="ETH-PERP"))
+        )
+        respx.delete(f"{BASE}/margin/isolated/positions/ETH-PERP/exit_trigger").mock(
+            return_value=httpx.Response(204)
+        )
+        listed = perps_client.portfolio.isolated_exit_triggers("ETH-PERP")
+        assert listed.exit_triggers == []
+        req = SetIsolatedExitTriggerRequest(kind="trailing", trail_bps=100)
+        trig = perps_client.portfolio.set_isolated_exit_trigger("ETH-PERP", request=req)
+        assert trig.ticker == "ETH-PERP"
+        assert json.loads(route.calls[0].request.content)["trail_bps"] == 100
+        perps_client.portfolio.cancel_isolated_exit_triggers("ETH-PERP", kind="trailing")
+
+    @respx.mock
+    def test_set_cross_404(self, perps_client: PerpsClient) -> None:
+        from kalshi.errors import KalshiNotFoundError
+        from kalshi.perps.models.portfolio import SetCrossExitTriggerRequest
+
+        respx.put(f"{BASE}/margin/cross/positions/NOPE/exit_trigger").mock(
+            return_value=httpx.Response(404, json={"error": {"code": "not_found"}})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            perps_client.portfolio.set_cross_exit_trigger(
+                "NOPE", request=SetCrossExitTriggerRequest(kind="bracket")
+            )
+
+    def test_unauthenticated_raises(self) -> None:
+        client = PerpsClient(config=PerpsConfig.demo(max_retries=0))
+        with pytest.raises(AuthRequiredError):
+            client.portfolio.cross_exit_triggers("BTC-PERP")
+
+    @respx.mock
+    async def test_async_cross_list(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/cross/positions/BTC-PERP/exit_trigger").mock(
+            return_value=httpx.Response(200, json={"exit_triggers": [_exit_trigger()]})
+        )
+        resp = await async_perps_client.portfolio.cross_exit_triggers("BTC-PERP")
+        assert resp.exit_triggers[0].kind == "bracket"
         await async_perps_client.close()

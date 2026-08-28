@@ -52,8 +52,9 @@ paths:
       summary: Get FCM Subtrader Risk Controls
       description: |
         Returns the initial margin caps configured for an FCM member's subtrader on the margined
-        exchange. A cap with no market_ticker applies across all markets; the remaining caps are
-        scoped to a single market each. Markets without a cap are omitted.
+        exchange. A cap with neither market_ticker nor asset_class applies across all markets; the
+        remaining caps are scoped to a single market or a single asset class each. Every cap in
+        scope for an order is enforced independently. Markets without a cap are omitted.
       tags:
         - fcm
       security:
@@ -74,6 +75,14 @@ paths:
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
+        - name: asset_class
+          in: query
+          required: false
+          description: Restricts the response to the cap scoped to this asset class when supplied. Mutually exclusive with market_ticker.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
+            enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
       responses:
         '200':
           description: Risk controls retrieved successfully
@@ -148,6 +157,14 @@ paths:
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
+        - name: asset_class
+          in: query
+          required: false
+          description: Scopes the initial margin cap removal to this asset class when supplied. Mutually exclusive with market_ticker.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
+            enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
       responses:
         '200':
           description: Risk controls deleted successfully
@@ -298,6 +315,33 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '409':
           $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      operationId: CancelAllMarginOrders
+      summary: Cancel Up to 10,000 Orders
+      description: Cancels up to 10,000 resting margin orders for the authenticated Direct member. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. When more than 10,000 orders match, the orders selected for cancellation are arbitrary and no ordering guarantees should be relied upon.
+      x-mint:
+        content: |
+          <Note>
+          **Rate limit:** A request consumes the same number of write tokens as a batch cancel containing the maximum number of orders allowed for the caller's margin API tier.
+          </Note>
+      tags:
+        - orders
+      parameters:
+        - $ref: '#/components/parameters/SubaccountQuery'
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '204':
+          description: Up to 10,000 matching resting margin orders were cancelled
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '429':
           $ref: '#/components/responses/RateLimitError'
         '500':
@@ -1292,6 +1336,293 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /margin/isolated/positions/{ticker}/exit_trigger:
+    put:
+      operationId: SetIsolatedMarginExitTrigger
+      summary: Set Isolated Exit Trigger
+      description: >-
+        Endpoint for setting a stop-loss / take-profit bracket or a trailing stop on the isolated
+        margin position for a market. Requires an open position, closes it in full, and fires
+        reduce-only orders.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetIsolatedExitTriggerRequest'
+      responses:
+        '200':
+          description: Exit trigger set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitTrigger'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: GetIsolatedMarginExitTriggers
+      summary: Get Isolated Exit Triggers
+      description: >-
+        Endpoint for retrieving the live exit triggers on the isolated margin position for a
+        market.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/ExitTriggerKindQuery'
+      responses:
+        '200':
+          description: Exit triggers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetExitTriggersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: DeleteIsolatedMarginExitTrigger
+      summary: Cancel Isolated Exit Trigger
+      description: >-
+        Endpoint for cancelling exit triggers on the isolated margin position for a market.
+        Succeeds even when nothing is live. The position itself is unaffected.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/ExitTriggerKindQuery'
+      responses:
+        '204':
+          description: Exit trigger canceled
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /margin/cross/positions/{ticker}/exit_trigger:
+    put:
+      operationId: SetCrossMarginExitTrigger
+      summary: Set Cross Exit Trigger
+      description: >-
+        Endpoint for setting a stop-loss / take-profit bracket or a trailing stop on a
+        non-isolated margin position. A position holds one trailing stop and up to 20 brackets,
+        so long as their counts fit the position. Requires an open position unless
+        `anchor_order_id` is supplied, and fires reduce-only orders.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetCrossExitTriggerRequest'
+      responses:
+        '200':
+          description: Exit trigger set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitTrigger'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      operationId: GetCrossMarginExitTriggers
+      summary: Get Cross Exit Triggers
+      description: >-
+        Endpoint for retrieving the live exit triggers on a non-isolated margin position.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
+        - $ref: '#/components/parameters/ExitTriggerKindQuery'
+      responses:
+        '200':
+          description: Exit triggers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetExitTriggersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: DeleteCrossMarginExitTrigger
+      summary: Cancel Cross Exit Triggers
+      description: >-
+        Endpoint for cancelling exit triggers on a non-isolated margin position, including
+        partial and order-anchored brackets. Succeeds even when nothing is live; use the
+        `{trigger_id}` route to cancel a single bracket.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
+        - $ref: '#/components/parameters/ExitTriggerKindQuery'
+      responses:
+        '204':
+          description: Exit triggers canceled
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /margin/cross/positions/{ticker}/exit_trigger/{trigger_id}:
+    put:
+      operationId: UpdateCrossMarginExitTrigger
+      summary: Update Cross Exit Trigger
+      description: >-
+        Endpoint for updating one bracket's leg prices, leaving any others on the position
+        untouched. At least one leg is required; cancel with `DELETE`. Trailing stops are not
+        addressed by id — use the collection route with `kind=trailing`.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/ExitTriggerIdPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExitTriggerRequest'
+      responses:
+        '200':
+          description: Exit trigger set successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitTrigger'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: DeleteCrossMarginExitTriggerById
+      summary: Cancel Cross Exit Trigger by ID
+      description: >-
+        Endpoint for cancelling one bracket, leaving any others on the position live. Trailing
+        stops are not addressed by id — use the collection route with `kind=trailing`.
+      tags:
+        - exit-triggers
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/ExitTriggerTickerPath'
+        - $ref: '#/components/parameters/ExitTriggerIdPath'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
+      responses:
+        '204':
+          description: Exit trigger canceled
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /margin/order_groups/{order_group_id}/limit:
     put:
       operationId: UpdateMarginOrderGroupLimit
@@ -1499,6 +1830,11 @@ components:
           type: string
           description: Scopes the initial margin cap to this market when supplied.
           x-go-type-skip-optional-pointer: true
+        asset_class:
+          type: string
+          description: Scopes the initial margin cap to this asset class when supplied. Mutually exclusive with market_ticker.
+          x-go-type-skip-optional-pointer: true
+          enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
         im_cap:
           allOf:
             - $ref: '#/components/schemas/FixedPointDollars'
@@ -1527,8 +1863,13 @@ components:
           description: The subtrader the initial margin cap applies to.
         market_ticker:
           type: string
-          description: The market the cap is scoped to. Absent when the cap applies across all markets.
+          description: Present only on a market-scoped cap.
           x-go-type-skip-optional-pointer: true
+        asset_class:
+          type: string
+          description: Present only on an asset-class-scoped cap. A cap with neither market_ticker nor asset_class applies across all markets.
+          x-go-type-skip-optional-pointer: true
+          enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
         im_cap:
           allOf:
             - $ref: '#/components/schemas/FixedPointDollars'
@@ -1625,6 +1966,223 @@ components:
       type: string
       description: Fixed-point contract count string (2 decimals, e.g., "10.00"; referred to as "fp" in field names). Requests accept 0-2 decimal places (e.g., "10", "10.0", "10.00"); responses always emit 2 decimals. Fractional contract values (e.g., "2.50") are supported; the minimum granularity is 0.01 contracts.
       example: "10.00"
+    ExitTriggerKind:
+      type: string
+      description: >-
+        Trigger family. `bracket` is a stop-loss / take-profit pair; `trailing` is a trailing stop
+        whose stop level ratchets with the liquidation mark.
+      enum:
+        - bracket
+        - trailing
+    ExitTriggerStatus:
+      type: string
+      description: >-
+        `pending_on_entry` awaits an initial or further fill from the anchor order before
+        arming — an order-anchored trigger returns here after closing its current quantity, so
+        this status can follow `active` and carries a non-zero `filled_count` when it does.
+        `active` is live and evaluated against the mark each tick. `filled`, `failed`, and
+        `canceled` are terminal.
+      enum:
+        - pending_on_entry
+        - active
+        - filled
+        - failed
+        - canceled
+        - unknown
+    ExitTriggerLeg:
+      type: string
+      description: Which leg of a bracket fired. Present only once a leg has fired.
+      enum:
+        - stop_loss
+        - take_profit
+    ExitTriggerReason:
+      type: string
+      description: Why the trigger reached its terminal status.
+      enum:
+        - user_canceled
+        - position_closed
+        - entry_not_filled
+        - order_rejected
+        - position_flipped
+    UpdateExitTriggerRequest:
+      type: object
+      description: >-
+        At least one leg is required and a leg you omit is cleared; cancel with `DELETE`.
+      properties:
+        stop_loss_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the stop-loss leg fires.
+        take_profit_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the take-profit leg fires.
+    SetCrossExitTriggerRequest:
+      type: object
+      description: >-
+        For `bracket`, supply `stop_loss_price` and/or `take_profit_price`. For `trailing`,
+        supply exactly one of `trail_amount` or `trail_bps`. Fields belonging to the other kind
+        are rejected, as is a body that sets neither — cancel with `DELETE`. A leg you omit is cleared.
+      properties:
+        count:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: >-
+            Contracts this trigger closes when it fires. Omit it to cover the whole position,
+            which then requires that no partial or anchored trigger already covers part of it.
+            If supplied, it must be a whole number of contracts.
+        anchor_order_id:
+          type: string
+          description: >-
+            Ties the trigger to an order: its size follows that order's cumulative fill, and it
+            stays pending until the order first fills. Bracket only; mutually exclusive with
+            `count`. If the order cannot currently be validated, the request returns `409` with
+            error code `anchor_order_unavailable` before writing anything, so retrying is safe.
+        client_trigger_id:
+          type: string
+          maxLength: 64
+          x-oapi-codegen-extra-tags:
+            validate: "omitempty,max=64"
+          description: >-
+            Your own identifier, required on a `count` or `anchor_order_id` create because those
+            append a trigger rather than replace one; rejected on every other write. Replaying a
+            key returns the trigger the first request made, in whatever state it has since
+            reached. Keys are single-use per account and belong to the position they created on:
+            reusing one returns the original even once it is `canceled`, and presenting it for
+            another subaccount or ticker returns `409` with error code
+            `idempotency_key_already_used`.
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/ExitTriggerKind'
+          default: bracket
+          description: Which trigger family this write targets. Defaults to `bracket`.
+        stop_loss_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the stop-loss leg fires. Bracket only.
+        take_profit_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the take-profit leg fires. Bracket only.
+        trail_amount:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Absolute trailing distance in dollars. Trailing only; mutually exclusive with `trail_bps`.
+        trail_bps:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          description: >-
+            Trailing distance in basis points of the tracked watermark (not the entry price).
+            Trailing only; mutually exclusive with `trail_amount`.
+    SetIsolatedExitTriggerRequest:
+      type: object
+      description: >-
+        For `bracket`, supply `stop_loss_price` and/or `take_profit_price`. For `trailing`,
+        supply exactly one of `trail_amount` or `trail_bps`. Fields belonging to the other kind
+        are rejected, as is a body that sets neither — cancel with `DELETE`. A leg you omit is cleared.
+      properties:
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/ExitTriggerKind'
+          default: bracket
+          description: Which trigger family this write targets. Defaults to `bracket`.
+        stop_loss_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the stop-loss leg fires. Bracket only.
+        take_profit_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Mark price at which the take-profit leg fires. Bracket only.
+        trail_amount:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Absolute trailing distance in dollars. Trailing only; mutually exclusive with `trail_bps`.
+        trail_bps:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          description: >-
+            Trailing distance in basis points of the tracked watermark (not the entry price).
+            Trailing only; mutually exclusive with `trail_amount`.
+    ExitTrigger:
+      type: object
+      required:
+        - id
+        - ticker
+        - kind
+        - status
+        - count
+        - filled_count
+        - created_time
+        - updated_time
+      properties:
+        id:
+          type: string
+          description: Unique identifier for this trigger.
+        ticker:
+          type: string
+          description: Market the protected position is on.
+        kind:
+          $ref: '#/components/schemas/ExitTriggerKind'
+        status:
+          $ref: '#/components/schemas/ExitTriggerStatus'
+        status_reason:
+          $ref: '#/components/schemas/ExitTriggerReason'
+        triggered_leg:
+          $ref: '#/components/schemas/ExitTriggerLeg'
+          description: Leg that fired the last time the trigger fired.
+        triggered_order_id:
+          type: string
+          description: >-
+            Order placed the last time the trigger fired. An order-anchored trigger keeps it
+            after returning to `pending_on_entry`, so its presence does not mean the trigger is
+            done.
+        anchor_order_id:
+          type: string
+          description: >-
+            Order this trigger follows, for order-anchored triggers. Cleared once that order
+            reaches a terminal state, so use `client_trigger_id` to correlate a trigger with the
+            request that made it.
+        client_trigger_id:
+          type: string
+          description: The idempotency key the create supplied, for appending creates.
+        stop_loss_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Stop-loss leg price. Bracket triggers only.
+        take_profit_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Take-profit leg price. Bracket triggers only.
+        trail_amount:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Absolute trailing distance. Trailing triggers only.
+        trail_bps:
+          type: integer
+          description: Trailing distance in basis points of the watermark. Trailing triggers only.
+        watermark_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            Most favorable liquidation mark seen since creation — the peak for long positions, the
+            trough for short. Trailing triggers only.
+        effective_stop_price:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            Level whose breach fires the stop: watermark minus the trail for longs, plus for
+            shorts. Trailing triggers only.
+        count:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: Contracts this trigger closes when it fires. `0` means the whole position.
+        filled_count:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: Contracts closed so far across fire attempts.
+        created_time:
+          type: string
+          format: date-time
+        updated_time:
+          type: string
+          format: date-time
+    GetExitTriggersResponse:
+      type: object
+      required:
+        - exit_triggers
+      properties:
+        exit_triggers:
+          type: array
+          description: Live triggers on this position slot. Empty when none are set.
+          items:
+            $ref: '#/components/schemas/ExitTrigger'
     # Common schemas
     FixedPointDollars:
       type: string
@@ -2902,6 +3460,27 @@ components:
         type: integer
         minimum: 0
         default: 0
+    ExitTriggerTickerPath:
+      name: ticker
+      in: path
+      required: true
+      description: Ticker of the market whose position the trigger protects.
+      schema:
+        type: string
+    ExitTriggerIdPath:
+      name: trigger_id
+      in: path
+      required: true
+      description: Identifier of a specific exit trigger, as returned by the list endpoint.
+      schema:
+        type: string
+    ExitTriggerKindQuery:
+      name: kind
+      in: query
+      required: false
+      description: Restricts the request to one trigger family. Omitted covers every kind.
+      schema:
+        $ref: '#/components/schemas/ExitTriggerKind'
 tags:
   - name: account
     description: Account information endpoints
@@ -2923,3 +3502,5 @@ tags:
     description: Funding rates and payment history
   - name: fees
     description: Margin fee schedule
+  - name: exit-triggers
+    description: Stop-loss, take-profit, and trailing-stop triggers on margin positions

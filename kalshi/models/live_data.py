@@ -90,6 +90,43 @@ class PlayByPlay(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class WeatherIndexStationReading(BaseModel):
+    """Per-station audit reading on a weather-index point (``detailed=true``)."""
+
+    station_id: str
+    code: str
+    source: str | None = None
+    temp_f: float | None = None
+    obs_time_ms: int | None = None
+    received_at_ms: int | None = None
+    primary_code: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class WeatherIndexPoint(BaseModel):
+    """One minute of a published weather index."""
+
+    t: int
+    status: str
+    v: float | None = None
+    contributors: int | None = None
+    stations: list[WeatherIndexStationReading] | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetWeatherIndexResponse(BaseModel):
+    """Response from GET /live_data/weather/{city}."""
+
+    city: str
+    units: str
+    timeseries: list[WeatherIndexPoint]
+    config_version: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class GetGameStatsResponse(BaseModel):
     """Response from GET /live_data/milestone/{milestone_id}/game_stats.
 

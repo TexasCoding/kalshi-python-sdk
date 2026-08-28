@@ -43,6 +43,7 @@ class GetApiKeysResponse(BaseModel):
     """
 
     api_keys: NullableList[ApiKey] = []
+    api_key_region_expiration_ts: int | None = None
 
     model_config = {"extra": "allow"}
 

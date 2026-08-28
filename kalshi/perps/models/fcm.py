@@ -2,9 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from kalshi.types import DollarDecimal, OrderPrice
+
+FCMAssetClassLiteral = Literal[
+    "Crypto",
+    "Equities",
+    "Metals",
+    "FX",
+    "Energy",
+    "Indices",
+    "Rates",
+    "Compute",
+    "GPU",
+]
+"""Asset-class scope for an FCM initial-margin cap."""
 
 
 class CreateMarginFCMSubtraderRequest(BaseModel):
@@ -37,6 +52,7 @@ class FCMSubtraderRiskControls(BaseModel):
     subtrader_id: str
     im_cap: DollarDecimal
     market_ticker: str | None = None
+    asset_class: FCMAssetClassLiteral | None = None
 
     model_config = {"extra": "allow"}
 
@@ -58,5 +74,6 @@ class UpdateFCMSubtraderRiskControlsRequest(BaseModel):
     subtrader_id: str
     im_cap: OrderPrice
     market_ticker: str | None = None
+    asset_class: FCMAssetClassLiteral | None = None
 
     model_config = {"extra": "forbid"}

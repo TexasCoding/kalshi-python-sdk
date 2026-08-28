@@ -14,6 +14,7 @@ Public — no auth required.
 | `get_event(event_ticker, *, range=None)` | `GET /live_data/events/{event_ticker}` |
 | `batch(milestone_ids, *, include_player_stats=None)` | `GET /live_data/batch` |
 | `game_stats(milestone_id)` | `GET /live_data/milestone/{milestone_id}/game_stats` |
+| `weather(city, *, from_ts, to, last_sec, detailed)` | `GET /live_data/weather/{city}` |
 | `get_typed(milestone_type, milestone_id)` | `GET /live_data/{type}/milestone/{milestone_id}` (legacy) |
 
 ## Get one milestone's live data
@@ -66,6 +67,20 @@ else:
 `game_stats` works only for sports milestones with play-by-play coverage.
 Other milestone types return `pbp=None`. Each period's `events` is a list of
 loose dicts (no fixed play schema upstream).
+
+## Weather index
+
+```python
+idx = client.live_data.weather("miami", last_sec=3600, detailed=True)
+print(idx.city, idx.units, idx.config_version)
+for point in idx.timeseries:
+    print(point.t, point.status, point.v)
+```
+
+`from_ts` is the spec `from` query (unix milliseconds, inclusive). Named
+`from_ts` to avoid the Python keyword; the wire key is still `from`.
+`last_sec` is mutually exclusive with `from_ts`/`to` per spec. `detailed=True`
+attaches per-station audit readings on every point.
 
 ## Legacy `get_typed`
 

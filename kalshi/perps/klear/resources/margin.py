@@ -39,8 +39,12 @@ from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
+    AssetClassLiteral,
     CreateMarginSubtraderGroupRequest,
     CreateMarginSubtraderGroupResponse,
+    EstimatePortfolioMaintenanceMarginPosition,
+    EstimatePortfolioMaintenanceMarginRequest,
+    EstimatePortfolioMaintenanceMarginResponse,
     FundingPaymentDetail,
     GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
@@ -49,6 +53,7 @@ from kalshi.perps.klear.models.margin import (
     GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
     GetSettlementEstimateByAssetClassResponse,
+    GetSettlementPricesResponse,
     MaintenanceMarginDetail,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
@@ -391,6 +396,47 @@ class MarginResource(KlearSyncResource):
         )
         return GetSettlementBalanceWithdrawalResponse.model_validate(data)
 
+    def settlement_prices(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        settlement_time: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetSettlementPricesResponse:
+        """``GET /margin/settlement_prices`` — mark prices at a settlement cycle.
+
+        ``settlement_time`` is RFC3339. Values are centicents.
+        """
+        params = _params(asset_class=asset_class, settlement_time=settlement_time)
+        data = self._get("/margin/settlement_prices", params=params, extra_headers=extra_headers)
+        return GetSettlementPricesResponse.model_validate(data)
+
+    def estimate_maintenance_margin(
+        self,
+        *,
+        request: EstimatePortfolioMaintenanceMarginRequest | None = None,
+        asset_class: AssetClassLiteral | None = None,
+        positions: list[EstimatePortfolioMaintenanceMarginPosition] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EstimatePortfolioMaintenanceMarginResponse:
+        """``POST /margin/estimate_maintenance_margin``. Not retried."""
+        _check_request_exclusive(request, asset_class=asset_class, positions=positions)
+        if request is None:
+            if asset_class is None or positions is None:
+                raise TypeError(
+                    "estimate_maintenance_margin() requires `asset_class` and "
+                    "`positions` (or pass `request=...`)"
+                )
+            request = EstimatePortfolioMaintenanceMarginRequest(
+                asset_class=asset_class, positions=positions
+            )
+        data = self._post(
+            "/margin/estimate_maintenance_margin",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return EstimatePortfolioMaintenanceMarginResponse.model_validate(data)
+
     def list_subtrader_groups(
         self, *, extra_headers: dict[str, str] | None = None
     ) -> GetMarginSubtraderGroupsResponse:
@@ -728,6 +774,46 @@ class AsyncMarginResource(KlearAsyncResource):
             extra_headers=extra_headers,
         )
         return GetSettlementBalanceWithdrawalResponse.model_validate(data)
+
+    async def settlement_prices(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        settlement_time: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetSettlementPricesResponse:
+        """Async :meth:`MarginResource.settlement_prices`."""
+        params = _params(asset_class=asset_class, settlement_time=settlement_time)
+        data = await self._get(
+            "/margin/settlement_prices", params=params, extra_headers=extra_headers
+        )
+        return GetSettlementPricesResponse.model_validate(data)
+
+    async def estimate_maintenance_margin(
+        self,
+        *,
+        request: EstimatePortfolioMaintenanceMarginRequest | None = None,
+        asset_class: AssetClassLiteral | None = None,
+        positions: list[EstimatePortfolioMaintenanceMarginPosition] | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EstimatePortfolioMaintenanceMarginResponse:
+        """Async :meth:`MarginResource.estimate_maintenance_margin`."""
+        _check_request_exclusive(request, asset_class=asset_class, positions=positions)
+        if request is None:
+            if asset_class is None or positions is None:
+                raise TypeError(
+                    "estimate_maintenance_margin() requires `asset_class` and "
+                    "`positions` (or pass `request=...`)"
+                )
+            request = EstimatePortfolioMaintenanceMarginRequest(
+                asset_class=asset_class, positions=positions
+            )
+        data = await self._post(
+            "/margin/estimate_maintenance_margin",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return EstimatePortfolioMaintenanceMarginResponse.model_validate(data)
 
     async def list_subtrader_groups(
         self, *, extra_headers: dict[str, str] | None = None

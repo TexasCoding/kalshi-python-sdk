@@ -71,6 +71,8 @@ MarginReportTypeLiteral = Literal[
     "market_price_snapshot",
     "funding_periods",
     "settlement_periods",
+    "maintenance_margin",
+    "maintenance_margin_aggregate",
 ]
 """Spec ``MarginReport.report_type`` — the kind of margin report."""
 
@@ -96,6 +98,7 @@ class MarginReport(BaseModel):
     date: datetime.date
     created_ts: AwareDatetime
     is_end_of_day: bool
+    snapshot_ts: AwareDatetime | None = None
 
     model_config = {"extra": "allow"}
 
@@ -494,3 +497,55 @@ class UpdateMarginSubtraderGroupRequest(BaseModel):
     subtrader_ids: list[str] = Field(min_length=1)
 
     model_config = {"extra": "forbid"}
+
+
+class GetSettlementPricesResponse(BaseModel):
+    """Response from GET /margin/settlement_prices.
+
+    Values are settlement (mark) prices in **centicents** (1 USD = 10,000).
+    """
+
+    settlement_prices: dict[str, int]
+
+    model_config = {"extra": "allow"}
+
+
+def _require_nonzero_quantity(value: int) -> int:
+    if value == 0:
+        raise ValueError("quantity must be non-zero")
+    return value
+
+
+def _require_positive_price(value: Decimal) -> Decimal:
+    if value <= 0:
+        raise ValueError(f"price must be positive (got {value})")
+    return value
+
+
+class EstimatePortfolioMaintenanceMarginPosition(BaseModel):
+    """One hypothetical position in an estimate-maintenance-margin request."""
+
+    market_ticker: str
+    quantity: Annotated[int, AfterValidator(_require_nonzero_quantity)]
+    price: Annotated[DollarDecimal, AfterValidator(_require_positive_price)]
+
+    model_config = {"extra": "forbid"}
+
+
+class EstimatePortfolioMaintenanceMarginRequest(BaseModel):
+    """Body for POST /margin/estimate_maintenance_margin."""
+
+    asset_class: AssetClassLiteral
+    positions: list[EstimatePortfolioMaintenanceMarginPosition] = Field(
+        min_length=1, max_length=500
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+class EstimatePortfolioMaintenanceMarginResponse(BaseModel):
+    """Response from POST /margin/estimate_maintenance_margin."""
+
+    maintenance_margin_fp: DollarDecimal | None = None
+
+    model_config = {"extra": "allow"}

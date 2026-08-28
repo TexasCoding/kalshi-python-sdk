@@ -12,6 +12,7 @@ from typing import overload
 from kalshi.perps.models.fcm import (
     CreateMarginFCMSubtraderRequest,
     CreateMarginFCMSubtraderResponse,
+    FCMAssetClassLiteral,
     GetFCMSubtraderRiskControlsResponse,
     UpdateFCMSubtraderRiskControlsRequest,
 )
@@ -46,9 +47,14 @@ def _build_update_risk_controls_body(
     subtrader_id: str | None,
     im_cap: Decimal | None,
     market_ticker: str | None,
+    asset_class: FCMAssetClassLiteral | None,
 ) -> dict[str, object]:
     _check_request_exclusive(
-        request, subtrader_id=subtrader_id, im_cap=im_cap, market_ticker=market_ticker
+        request,
+        subtrader_id=subtrader_id,
+        im_cap=im_cap,
+        market_ticker=market_ticker,
+        asset_class=asset_class,
     )
     if request is None:
         if subtrader_id is None or im_cap is None:
@@ -60,6 +66,7 @@ def _build_update_risk_controls_body(
             subtrader_id=subtrader_id,
             im_cap=im_cap,
             market_ticker=market_ticker,
+            asset_class=asset_class,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -103,11 +110,16 @@ class FcmResource(SyncResource):
         *,
         subtrader_id: str,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GetFCMSubtraderRiskControlsResponse:
         """``GET /margin/fcm/subtraders/risk_controls`` — list IM caps."""
         self._require_auth()
-        params = _params(subtrader_id=subtrader_id, market_ticker=market_ticker)
+        params = _params(
+            subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            asset_class=asset_class,
+        )
         data = self._get(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)
         return GetFCMSubtraderRiskControlsResponse.model_validate(data)
 
@@ -125,6 +137,7 @@ class FcmResource(SyncResource):
         subtrader_id: str,
         im_cap: Decimal,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     def update_risk_controls(
@@ -134,6 +147,7 @@ class FcmResource(SyncResource):
         subtrader_id: str | None = None,
         im_cap: Decimal | None = None,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """``PUT /margin/fcm/subtraders/risk_controls`` — set an IM cap."""
@@ -143,6 +157,7 @@ class FcmResource(SyncResource):
             subtrader_id=subtrader_id,
             im_cap=im_cap,
             market_ticker=market_ticker,
+            asset_class=asset_class,
         )
         self._put(_RISK_CONTROLS_PATH, json=body, extra_headers=extra_headers)
 
@@ -151,11 +166,16 @@ class FcmResource(SyncResource):
         *,
         subtrader_id: str,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """``DELETE /margin/fcm/subtraders/risk_controls`` — remove an IM cap."""
         self._require_auth()
-        params = _params(subtrader_id=subtrader_id, market_ticker=market_ticker)
+        params = _params(
+            subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            asset_class=asset_class,
+        )
         self._delete(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)
 
 
@@ -194,11 +214,16 @@ class AsyncFcmResource(AsyncResource):
         *,
         subtrader_id: str,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GetFCMSubtraderRiskControlsResponse:
         """Async :meth:`FcmResource.risk_controls`."""
         self._require_auth()
-        params = _params(subtrader_id=subtrader_id, market_ticker=market_ticker)
+        params = _params(
+            subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            asset_class=asset_class,
+        )
         data = await self._get(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)
         return GetFCMSubtraderRiskControlsResponse.model_validate(data)
 
@@ -216,6 +241,7 @@ class AsyncFcmResource(AsyncResource):
         subtrader_id: str,
         im_cap: Decimal,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     async def update_risk_controls(
@@ -225,6 +251,7 @@ class AsyncFcmResource(AsyncResource):
         subtrader_id: str | None = None,
         im_cap: Decimal | None = None,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """Async :meth:`FcmResource.update_risk_controls`."""
@@ -234,6 +261,7 @@ class AsyncFcmResource(AsyncResource):
             subtrader_id=subtrader_id,
             im_cap=im_cap,
             market_ticker=market_ticker,
+            asset_class=asset_class,
         )
         await self._put(_RISK_CONTROLS_PATH, json=body, extra_headers=extra_headers)
 
@@ -242,9 +270,14 @@ class AsyncFcmResource(AsyncResource):
         *,
         subtrader_id: str,
         market_ticker: str | None = None,
+        asset_class: FCMAssetClassLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """Async :meth:`FcmResource.delete_risk_controls`."""
         self._require_auth()
-        params = _params(subtrader_id=subtrader_id, market_ticker=market_ticker)
+        params = _params(
+            subtrader_id=subtrader_id,
+            market_ticker=market_ticker,
+            asset_class=asset_class,
+        )
         await self._delete(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)

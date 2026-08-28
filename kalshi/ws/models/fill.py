@@ -43,6 +43,7 @@ class FillPayload(BaseModel):
     outcome_side: SideLiteral
     book_side: BookSideLiteral
     ts_ms: int
+    exchange_index: int
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

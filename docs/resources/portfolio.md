@@ -16,6 +16,8 @@ Auth required throughout.
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
 | `intra_exchange_transfers(...)` / `intra_exchange_transfers_all(...)` | `GET /portfolio/intra_exchange_instance_transfers` |
 | `get_intra_exchange_transfer(transfer_id)` | `GET /portfolio/intra_exchange_instance_transfers/{transfer_id}` |
+| `target_balance_allocation()` | `GET /portfolio/target_balance_allocation` |
+| `set_target_balance_allocation(*, allocations)` | `POST /portfolio/target_balance_allocation` |
 
 `balance()`, `positions()` / `positions_all()`, `settlements()` /
 `settlements_all()`, and `fills()` / `fills_all()` all take an optional
@@ -219,6 +221,25 @@ print(t.status, t.created_ts)
 
 `IntraExchangeInstanceTransfer.amount` is a fixed-point dollar
 `DollarDecimal` (not the integer centicents used on the POST create body).
+
+## Target balance allocation
+
+Per-shard sweepable-balance targets. POST is never retried.
+
+```python
+from kalshi import TargetBalanceAllocationInput
+
+current = client.portfolio.target_balance_allocation()
+client.portfolio.set_target_balance_allocation(
+    allocations=[TargetBalanceAllocationInput(exchange_index=0, percent=100)]
+)
+```
+
+Percents are integers 0–100. At most 101 allocation rows.
+
+`Fill`, `MarketPosition`, and `Settlement` each carry a required
+`exchange_index` as of OpenAPI 3.29.0 (SDK v13.0.0). Live list callers
+are unaffected; constructors/fixtures must pass it.
 
 ## Position fields
 
