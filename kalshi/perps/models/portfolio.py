@@ -138,3 +138,99 @@ class GetMarginTradesResponse(BaseModel):
         return bool(self.cursor)
 
     model_config = {"extra": "allow"}
+
+
+ExitTriggerKindLiteral = Literal["bracket", "trailing"]
+"""Trigger family: stop-loss/take-profit pair, or a trailing stop."""
+
+ExitTriggerStatusLiteral = Literal[
+    "pending_on_entry",
+    "active",
+    "filled",
+    "failed",
+    "canceled",
+    "unknown",
+]
+"""Lifecycle of a live exit trigger."""
+
+ExitTriggerReasonLiteral = Literal[
+    "user_canceled",
+    "position_closed",
+    "entry_not_filled",
+    "order_rejected",
+    "position_flipped",
+]
+"""Why a trigger reached a terminal status."""
+
+ExitTriggerLegLiteral = Literal["stop_loss", "take_profit"]
+"""Which bracket leg fired."""
+
+
+class ExitTrigger(BaseModel):
+    """A live stop-loss / take-profit / trailing-stop on a margin position."""
+
+    id: str
+    ticker: str
+    kind: ExitTriggerKindLiteral
+    status: ExitTriggerStatusLiteral
+    count: FixedPointCount
+    filled_count: FixedPointCount
+    created_time: AwareDatetime
+    updated_time: AwareDatetime
+    status_reason: ExitTriggerReasonLiteral | None = None
+    triggered_leg: ExitTriggerLegLiteral | None = None
+    triggered_order_id: str | None = None
+    anchor_order_id: str | None = None
+    client_trigger_id: str | None = None
+    stop_loss_price: DollarDecimal | None = None
+    take_profit_price: DollarDecimal | None = None
+    trail_amount: DollarDecimal | None = None
+    trail_bps: int | None = None
+    watermark_price: DollarDecimal | None = None
+    effective_stop_price: DollarDecimal | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetExitTriggersResponse(BaseModel):
+    """Response from GET .../positions/{ticker}/exit_trigger."""
+
+    exit_triggers: list[ExitTrigger]
+
+    model_config = {"extra": "allow"}
+
+
+class SetCrossExitTriggerRequest(BaseModel):
+    """Body for PUT /margin/cross/positions/{ticker}/exit_trigger."""
+
+    count: FixedPointCount | None = None
+    anchor_order_id: str | None = None
+    client_trigger_id: str | None = None
+    kind: ExitTriggerKindLiteral | None = None
+    stop_loss_price: DollarDecimal | None = None
+    take_profit_price: DollarDecimal | None = None
+    trail_amount: DollarDecimal | None = None
+    trail_bps: int | None = Field(default=None, ge=1, le=9999)
+
+    model_config = {"extra": "forbid"}
+
+
+class SetIsolatedExitTriggerRequest(BaseModel):
+    """Body for PUT /margin/isolated/positions/{ticker}/exit_trigger."""
+
+    kind: ExitTriggerKindLiteral | None = None
+    stop_loss_price: DollarDecimal | None = None
+    take_profit_price: DollarDecimal | None = None
+    trail_amount: DollarDecimal | None = None
+    trail_bps: int | None = Field(default=None, ge=1, le=9999)
+
+    model_config = {"extra": "forbid"}
+
+
+class UpdateExitTriggerRequest(BaseModel):
+    """Body for PUT /margin/cross/positions/{ticker}/exit_trigger/{trigger_id}."""
+
+    stop_loss_price: DollarDecimal | None = None
+    take_profit_price: DollarDecimal | None = None
+
+    model_config = {"extra": "forbid"}

@@ -398,6 +398,39 @@ class TestCancel:
         await async_perps_client.close()
 
 
+class TestCancelAll:
+    @respx.mock
+    def test_happy(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/orders").mock(
+            return_value=httpx.Response(204)
+        )
+        assert perps_client.orders.cancel_all() is None
+        assert route.called
+        assert "subaccount" not in dict(route.calls[0].request.url.params)
+
+    @respx.mock
+    def test_subaccount_param(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/orders").mock(
+            return_value=httpx.Response(204)
+        )
+        perps_client.orders.cancel_all(subaccount=4)
+        assert dict(route.calls[0].request.url.params)["subaccount"] == "4"
+
+    @respx.mock
+    def test_not_retried_on_503(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/orders").mock(
+            return_value=httpx.Response(503, json={"error": {"code": "unavailable"}})
+        )
+        with pytest.raises(KalshiServerError):
+            perps_client.orders.cancel_all()
+        assert route.call_count == 1
+
+    def test_unauthenticated_raises(self) -> None:
+        client = PerpsClient(config=PerpsConfig.demo(max_retries=0))
+        with pytest.raises(AuthRequiredError):
+            client.orders.cancel_all()
+
+
 # ── decrease ─────────────────────────────────────────────────────────────────
 
 

@@ -13,6 +13,7 @@ from kalshi.errors import KalshiNotFoundError
 from kalshi.models.live_data import (
     EventLiveData,
     GetGameStatsResponse,
+    GetWeatherIndexResponse,
     LiveData,
 )
 from kalshi.resources.live_data import AsyncLiveDataResource, LiveDataResource
@@ -290,3 +291,88 @@ class TestAsyncLiveData:
         ).mock(return_value=httpx.Response(200, json={"pbp": None}))
         resp = await async_live_data.game_stats("ms-1")
         assert resp.pbp is None
+
+
+_WEATHER_JSON = {
+    "city": "miami",
+    "units": "fahrenheit",
+    "config_version": "miami-temperature-v1.0",
+    "timeseries": [
+        {
+            "t": 1700000000000,
+            "v": 78.12,
+            "status": "normal",
+            "contributors": 3,
+        },
+        {
+            "t": 1700000060000,
+            "status": "incomplete",
+            "stations": [
+                {
+                    "station_id": "KMIA1M",
+                    "code": "pending",
+                    "source": "hf_asos",
+                    "temp_f": 78.05,
+                }
+            ],
+        },
+    ],
+}
+
+
+class TestLiveDataWeather:
+    @respx.mock
+    def test_weather_happy(self, live_data: LiveDataResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/weather/miami",
+        ).mock(return_value=httpx.Response(200, json=_WEATHER_JSON))
+        resp = live_data.weather("miami")
+        assert isinstance(resp, GetWeatherIndexResponse)
+        assert resp.city == "miami"
+        assert resp.units == "fahrenheit"
+        assert resp.timeseries[0].v == 78.12
+        assert resp.timeseries[1].v is None
+        assert resp.timeseries[1].stations is not None
+        assert resp.timeseries[1].stations[0].station_id == "KMIA1M"
+
+    @respx.mock
+    def test_weather_sends_from_as_from(
+        self, live_data: LiveDataResource,
+    ) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/weather/miami",
+        ).mock(return_value=httpx.Response(200, json=_WEATHER_JSON))
+        live_data.weather(
+            "miami", from_ts=1, to=2, last_sec=None, detailed=True,
+        )
+        q = dict(route.calls[0].request.url.params)
+        assert q["from"] == "1"
+        assert q["to"] == "2"
+        assert q["detailed"] == "true"
+        assert "last_sec" not in q
+        assert "from_ts" not in q
+
+    @respx.mock
+    def test_weather_400_maps(self, live_data: LiveDataResource) -> None:
+        from kalshi.errors import KalshiValidationError
+
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/weather/nope",
+        ).mock(return_value=httpx.Response(400, json={"message": "unknown city"}))
+        with pytest.raises(KalshiValidationError):
+            live_data.weather("nope")
+
+    def test_weather_rejects_empty_city(self, live_data: LiveDataResource) -> None:
+        with pytest.raises(ValueError, match="city"):
+            live_data.weather("")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_weather(
+        self, async_live_data: AsyncLiveDataResource,
+    ) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/live_data/weather/miami",
+        ).mock(return_value=httpx.Response(200, json=_WEATHER_JSON))
+        resp = await async_live_data.weather("miami", last_sec=3600)
+        assert resp.city == "miami"

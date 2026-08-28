@@ -2,6 +2,62 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 13.0.0 — 2026-08-28
+
+Reconciles upstream OpenAPI **3.28.0 → 3.29.0**, plus matching perps, Klear,
+and AsyncAPI updates, after nightly contract failures (Closes #507, Closes #508).
+**Breaking** for constructors of `Fill`, `MarketPosition`, `Settlement`,
+and the WS `FillPayload` / `UserOrdersPayload` that omit the new required
+`exchange_index`.
+
+### Changed (breaking)
+
+- **`Fill.exchange_index`**, **`MarketPosition.exchange_index`**, and
+  **`Settlement.exchange_index`** (`int`, required) — which exchange shard
+  produced the row. Live list callers are unaffected; tests/mocks that
+  construct these models must pass the shard (typically `0`).
+
+### Added
+
+- **`live_data.weather(city, *, from_ts, to, last_sec, detailed)`** —
+  `GET /live_data/weather/{city}`. `from_ts` is the spec `from` query
+  (unix milliseconds); named to avoid the Python keyword.
+- **`portfolio.target_balance_allocation()`** /
+  **`portfolio.set_target_balance_allocation(...)`** —
+  get/replace per-shard sweepable-balance targets.
+- **`orders.cancel_all_v2(*, subaccount)`** —
+  `DELETE /portfolio/events/orders` (up to 10,000 resting orders; 204).
+- Optional **`GetApiKeysResponse.api_key_region_expiration_ts`**.
+- Optional **`IncentiveProgram.max_reward_per_account`**.
+- **Perps** exit triggers on a position (sync + async):
+  - `portfolio.cross_exit_triggers` / `set_cross_exit_trigger` /
+    `cancel_cross_exit_triggers`
+  - `portfolio.update_cross_exit_trigger` / `cancel_cross_exit_trigger`
+  - `portfolio.isolated_exit_triggers` / `set_isolated_exit_trigger` /
+    `cancel_isolated_exit_triggers`
+- **Perps** `orders.cancel_all(*, subaccount)` —
+  `DELETE /margin/orders` (up to 10,000 resting margin orders; 204).
+- **Perps FCM** optional `asset_class` on `risk_controls` /
+  `update_risk_controls` / `delete_risk_controls` (mutually exclusive
+  with `market_ticker`).
+- **Klear** `margin.settlement_prices(asset_class, settlement_time)` and
+  `margin.estimate_maintenance_margin(...)`.
+- **Klear** `MarginReport.snapshot_ts` (optional) and report types
+  `maintenance_margin` / `maintenance_margin_aggregate`.
+- **WS** required `exchange_index` on `FillPayload` and `UserOrdersPayload`.
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.29.0** (paths 95; 108 operations; 107
+  mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer` (use
+  `PerpsClient.transfers.transfer_instance()`).
+- AsyncAPI still 14 channels; fill/user-order payloads gained required
+  `exchange_index`.
+- Perps OpenAPI: 38 → 47 operations (exit triggers + cancel-all).
+- Perps SCM OpenAPI: 17 → 19 operations. Still unimplemented:
+  `GET /margin/large_trader_positions` (surveillance).
+
 ## 12.0.0 — 2026-08-16
 
 Reconciles upstream OpenAPI **3.27.0 → 3.28.0**, plus additive perps FCM

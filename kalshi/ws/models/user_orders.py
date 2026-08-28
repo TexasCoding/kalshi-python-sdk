@@ -69,6 +69,7 @@ class UserOrdersPayload(BaseModel):
     created_ts_ms: int
     last_updated_ts_ms: int | None = None
     expiration_ts_ms: int | None = None
+    exchange_index: int
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

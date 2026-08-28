@@ -133,6 +133,7 @@ class Fill(BaseModel):
     book_side: BookSideLiteral
     subaccount_number: int | None = None
     ts: int | None = None
+    exchange_index: int
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

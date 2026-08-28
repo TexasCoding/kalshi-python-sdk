@@ -1448,6 +1448,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     ),
     "#/components/schemas/CreateApiKeyRequest": ("kalshi.models.api_keys.CreateApiKeyRequest"),
     "#/components/schemas/GenerateApiKeyRequest": ("kalshi.models.api_keys.GenerateApiKeyRequest"),
+    "#/components/schemas/SetTargetBalanceAllocationRequest": (
+        "kalshi.models.portfolio.SetTargetBalanceAllocationRequest"
+    ),
 }
 
 
@@ -1489,6 +1492,15 @@ PERPS_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/UpdateFCMSubtraderRiskControlsRequest": (
         "kalshi.perps.models.fcm.UpdateFCMSubtraderRiskControlsRequest"
     ),
+    "#/components/schemas/SetCrossExitTriggerRequest": (
+        "kalshi.perps.models.portfolio.SetCrossExitTriggerRequest"
+    ),
+    "#/components/schemas/SetIsolatedExitTriggerRequest": (
+        "kalshi.perps.models.portfolio.SetIsolatedExitTriggerRequest"
+    ),
+    "#/components/schemas/UpdateExitTriggerRequest": (
+        "kalshi.perps.models.portfolio.UpdateExitTriggerRequest"
+    ),
 }
 
 PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
@@ -1503,6 +1515,9 @@ PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
     ),
     "#/components/schemas/UpdateMarginSubtraderGroupRequest": (
         "kalshi.perps.klear.models.margin.UpdateMarginSubtraderGroupRequest"
+    ),
+    "#/components/schemas/EstimatePortfolioMaintenanceMarginRequest": (
+        "kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginRequest"
     ),
 }
 

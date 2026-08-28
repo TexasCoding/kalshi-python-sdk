@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, StrictInt
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList, UnixSecondsTimestamp
 
@@ -80,6 +80,7 @@ class MarketPosition(BaseModel):
     """
 
     ticker: str
+    exchange_index: int
     total_traded: DollarDecimal | None = Field(
         validation_alias=AliasChoices("total_traded_dollars", "total_traded"),
     )
@@ -183,6 +184,7 @@ class Settlement(BaseModel):
     """A settled market position."""
 
     ticker: str
+    exchange_index: int
     event_ticker: str
     market_result: str
     yes_count: FixedPointCount | None = Field(
@@ -236,4 +238,38 @@ class IntraExchangeInstanceTransfer(BaseModel):
     created_ts: int
 
     model_config = {"extra": "allow"}
+
+
+class TargetBalanceAllocation(BaseModel):
+    """One shard's target share of sweepable balance."""
+
+    exchange_index: StrictInt = Field(ge=0)
+    percent: StrictInt = Field(ge=0, le=100)
+
+    model_config = {"extra": "allow"}
+
+
+class TargetBalanceAllocationInput(BaseModel):
+    """Write-side counterpart of :class:`TargetBalanceAllocation`."""
+
+    exchange_index: StrictInt = Field(ge=0)
+    percent: StrictInt = Field(ge=0, le=100)
+
+    model_config = {"extra": "forbid"}
+
+
+class GetTargetBalanceAllocationResponse(BaseModel):
+    """Response from GET /portfolio/target_balance_allocation."""
+
+    allocations: list[TargetBalanceAllocation]
+
+    model_config = {"extra": "allow"}
+
+
+class SetTargetBalanceAllocationRequest(BaseModel):
+    """Body for POST /portfolio/target_balance_allocation."""
+
+    allocations: list[TargetBalanceAllocationInput] = Field(max_length=101)
+
+    model_config = {"extra": "forbid"}
 

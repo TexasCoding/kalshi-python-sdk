@@ -113,6 +113,7 @@ def fill_dict(**overrides: Any) -> dict[str, Any]:
         "fee_cost_dollars": "0.0050",
         "outcome_side": "yes",
         "book_side": "bid",
+        "exchange_index": 0,
     }
     base.update(overrides)
     return base
@@ -210,6 +211,7 @@ def settlement_dict(**overrides: Any) -> dict[str, Any]:
         "settled_time": "2026-01-01T00:00:00Z",
         "fee_cost_dollars": "0.0000",
         "market_result": "no",
+        "exchange_index": 0,
     }
     base.update(overrides)
     return base
@@ -219,6 +221,7 @@ def market_position_dict(**overrides: Any) -> dict[str, Any]:
     """Spec-shaped MarketPosition response dict."""
     base: dict[str, Any] = {
         "ticker": "MKT-A",
+        "exchange_index": 0,
         "total_traded_dollars": "0.0000",
         "position_fp": "0.00",
         "market_exposure_dollars": "0.0000",
@@ -379,6 +382,7 @@ def user_orders_payload_dict(**overrides: Any) -> dict[str, Any]:
         "outcome_side": "yes",
         "book_side": "bid",
         "created_ts_ms": 1735689600000,
+        "exchange_index": 0,
     }
     base.update(overrides)
     return base
@@ -402,6 +406,7 @@ def fill_payload_dict(**overrides: Any) -> dict[str, Any]:
         "outcome_side": "yes",
         "book_side": "bid",
         "purchased_side": "yes",
+        "exchange_index": 0,
     }
     base.update(overrides)
     return base

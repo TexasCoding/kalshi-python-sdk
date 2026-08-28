@@ -317,6 +317,24 @@ class OrdersResource(SyncResource):
             raise KalshiError("Expected CancelOrderV2Response body, got 204 No Content.")
         return CancelOrderV2Response.model_validate(data)
 
+    def cancel_all_v2(
+        self,
+        *,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``DELETE /portfolio/events/orders`` — cancel up to 10,000 resting orders.
+
+        Not retried (DELETE). Returns 204.
+        """
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        self._delete(
+            "/portfolio/events/orders",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
     def amend_v2(
         self,
         order_id: str,
@@ -607,6 +625,21 @@ class AsyncOrdersResource(AsyncResource):
         if data is None:
             raise KalshiError("Expected CancelOrderV2Response body, got 204 No Content.")
         return CancelOrderV2Response.model_validate(data)
+
+    async def cancel_all_v2(
+        self,
+        *,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`OrdersResource.cancel_all_v2`."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        await self._delete(
+            "/portfolio/events/orders",
+            params=params,
+            extra_headers=extra_headers,
+        )
 
     async def amend_v2(
         self,

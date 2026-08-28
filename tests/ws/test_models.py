@@ -1390,6 +1390,7 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
             "outcome_side": "yes",
             "book_side": "bid",
             "ts_ms": 1_700_000_000_000,
+            "exchange_index": 0,
         },
     ),
     (
@@ -1430,6 +1431,7 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
             "outcome_side": "yes",
             "book_side": "bid",
             "created_ts_ms": 1_700_000_000_000,
+            "exchange_index": 0,
         },
     ),
     (

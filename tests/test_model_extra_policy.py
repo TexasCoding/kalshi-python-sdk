@@ -17,7 +17,8 @@ from tests._request_model_fixtures import minimal_kwargs
 # the CLAUDE.md "Adding a new resource" convention. Both `Request` and the
 # longer `RequestOrder` are needed: `BatchCancelOrdersV2RequestOrder` is a
 # request-body sub-model whose name doesn't end in plain `Request`.
-_REQUEST_BODY_SUFFIXES = ("Request", "RequestOrder")
+# `Input` covers nested write models such as `TargetBalanceAllocationInput`.
+_REQUEST_BODY_SUFFIXES = ("Request", "RequestOrder", "Input")
 
 
 def _exported_model_classes() -> list[tuple[str, type[BaseModel]]]:

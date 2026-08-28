@@ -26,6 +26,7 @@ from kalshi.perps.models.exchange import (
     MarginEnabledResponse,
 )
 from kalshi.perps.models.fcm import (
+    FCMAssetClassLiteral,
     FCMSubtraderRiskControls,
     GetFCMSubtraderRiskControlsResponse,
     UpdateFCMSubtraderRiskControlsRequest,
@@ -78,12 +79,21 @@ from kalshi.perps.models.orders import (
     TimeInForceLiteral,
 )
 from kalshi.perps.models.portfolio import (
+    ExitTrigger,
+    ExitTriggerKindLiteral,
+    ExitTriggerLegLiteral,
+    ExitTriggerReasonLiteral,
+    ExitTriggerStatusLiteral,
+    GetExitTriggersResponse,
     GetMarginFillsResponse,
     GetMarginPositionsResponse,
     GetMarginTradesResponse,
     MarginFill,
     MarginPosition,
     MarginTrade,
+    SetCrossExitTriggerRequest,
+    SetIsolatedExitTriggerRequest,
+    UpdateExitTriggerRequest,
 )
 from kalshi.perps.models.transfers import (
     ApplySubaccountTransferRequest,
@@ -114,7 +124,14 @@ __all__ = [
     "ExchangeInstance",
     "ExchangeInstanceLiteral",
     "ExchangeStatus",
+    "ExitTrigger",
+    "ExitTriggerKindLiteral",
+    "ExitTriggerLegLiteral",
+    "ExitTriggerReasonLiteral",
+    "ExitTriggerStatusLiteral",
+    "FCMAssetClassLiteral",
     "FCMSubtraderRiskControls",
+    "GetExitTriggersResponse",
     "GetFCMSubtraderRiskControlsResponse",
     "GetMarginBalanceResponse",
     "GetMarginFeeTiersResponse",
@@ -155,7 +172,10 @@ __all__ = [
     "PriceLevelDollarsCountFp",
     "SelfTradePreventionType",
     "SelfTradePreventionTypeLiteral",
+    "SetCrossExitTriggerRequest",
+    "SetIsolatedExitTriggerRequest",
     "TimeInForceLiteral",
+    "UpdateExitTriggerRequest",
     "UpdateFCMSubtraderRiskControlsRequest",
     "UpdateOrderGroupLimitRequest",
 ]

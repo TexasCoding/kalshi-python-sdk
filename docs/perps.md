@@ -60,9 +60,9 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 |---|---|
 | `exchange` | `status()`, `enabled()` (per-member access gate), `risk_parameters()` |
 | `markets` | `list()`, `get()`, `orderbook()`, `candlesticks()` |
-| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `decrease()`, `amend()` |
+| `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
-| `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()` |
+| `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
@@ -92,6 +92,26 @@ perps.fcm.update_risk_controls(
     market_ticker="BTC-PERP",
 )
 perps.fcm.delete_risk_controls(subtrader_id="user_desk1", market_ticker="BTC-PERP")
+# asset_class is mutually exclusive with market_ticker
+perps.fcm.risk_controls(subtrader_id="user_desk1", asset_class="Crypto")
+```
+
+Exit triggers (stop-loss / take-profit / trailing) sit on a position slot:
+
+```python
+from decimal import Decimal
+from kalshi.perps.models.portfolio import SetCrossExitTriggerRequest
+
+listed = perps.portfolio.cross_exit_triggers("BTC-PERP")
+trig = perps.portfolio.set_cross_exit_trigger(
+    "BTC-PERP",
+    request=SetCrossExitTriggerRequest(
+        kind="bracket",
+        stop_loss_price=Decimal("50000.0000"),
+        take_profit_price=Decimal("70000.0000"),
+    ),
+)
+perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
 ```
 
 ## Value types & timestamps
@@ -217,6 +237,11 @@ obligations. `klear.margin.settlement_estimate_by_asset_class()` returns
 next-settlement estimates keyed by asset class. (The singular
 `active_obligation()` / `settlement_estimate()` endpoints were removed upstream
 in the v11.0.0 reconcile.)
+
+`klear.margin.settlement_prices(asset_class="Crypto", settlement_time=...)`
+returns a ticker → centicents map at a settlement cycle.
+`klear.margin.estimate_maintenance_margin(asset_class="Crypto", positions=[...])`
+margins a hypothetical portfolio.
 
 When an `ObligationEntry` inline detail array is capped at 1000 rows, the
 matching `*_truncated` flag is set; page the full set via:

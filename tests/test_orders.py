@@ -542,6 +542,39 @@ class TestCancelOrderV2:
         assert params["exchange_index"] == "0"
 
 
+class TestCancelAllOrdersV2:
+    @respx.mock
+    def test_204_ok(self, orders: OrdersResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(return_value=httpx.Response(204))
+        assert orders.cancel_all_v2() is None
+        assert route.called
+        assert "subaccount" not in dict(route.calls[0].request.url.params)
+
+    @respx.mock
+    def test_subaccount_query(self, orders: OrdersResource) -> None:
+        route = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(return_value=httpx.Response(204))
+        orders.cancel_all_v2(subaccount=2)
+        assert dict(route.calls[0].request.url.params)["subaccount"] == "2"
+
+    @respx.mock
+    def test_429_maps(self, orders: OrdersResource) -> None:
+        from kalshi.errors import KalshiRateLimitError
+
+        respx.delete(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders",
+        ).mock(return_value=httpx.Response(429, json={"message": "rate limited"}))
+        with pytest.raises(KalshiRateLimitError):
+            orders.cancel_all_v2()
+
+    def test_unauthenticated_raises(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.cancel_all_v2()
+
+
 class TestAmendOrderV2:
     @respx.mock
     def test_returns_response(self, orders: OrdersResource) -> None:

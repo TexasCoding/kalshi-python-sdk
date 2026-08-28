@@ -373,6 +373,7 @@ channels:
       - If you subscribe without any `index_ids`, no value events flow until you add indices or switch to `["all"]`
       - `sid` identifies the subscription stream; use it for `update_subscription` and `unsubscribe`
       - Missing `index_ids` for `subscribe_indices`/`unsubscribe_indices` returns an `error` with `code: 24` ("Index IDs required"); unsupported actions return a standard websocket `error`
+      - This channel is real-time only. Historical index values — including intra-second granularity on some indices — are available over REST via the [CF Benchmarks REST Passthrough](/cfbenchmarks/rest-passthrough)
     messages:
       cfbenchmarksValue:
         $ref: '#/components/messages/cfbenchmarksValue'
@@ -1524,6 +1525,7 @@ components:
               trade_id: "d91bc706-ee49-470d-82d8-11418bda6fed"
               order_id: "ee587a1c-8b87-4dcf-b721-9f6f790619fa"
               market_ticker: "HIGHNY-22DEC23-B53.5"
+              exchange_index: 2
               is_taker: true
               side: "yes"
               yes_price_dollars: "0.750"
@@ -1739,6 +1741,7 @@ components:
               order_id: "ee587a1c-8b87-4dcf-b721-9f6f790619fa"
               user_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
               ticker: "FED-23DEC-T3.00"
+              exchange_index: 2
               status: "resting"
               side: "yes"
               is_yes: true
@@ -2666,7 +2669,7 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         msg:
           type: object
-          required: ["trade_id", "order_id", "market_ticker", "is_taker", "side", "yes_price_dollars", "count_fp", "fee_cost", "action", "outcome_side", "book_side", "ts", "ts_ms", "post_position_fp", "purchased_side"]
+          required: ["trade_id", "order_id", "market_ticker", "exchange_index", "is_taker", "side", "yes_price_dollars", "count_fp", "fee_cost", "action", "outcome_side", "book_side", "ts", "ts_ms", "post_position_fp", "purchased_side"]
           properties:
             trade_id:
               type: string
@@ -2679,6 +2682,9 @@ components:
             market_ticker:
               $ref: '#/components/schemas/marketTicker'
               description: Unique identifier for markets. This is what you use to differentiate fills for different markets
+            exchange_index:
+              type: integer
+              description: Identifier for the exchange shard where the fill occurred
             is_taker:
               type: boolean
               description: If you were a taker on this fill
@@ -2934,7 +2940,7 @@ components:
             fee_type_override:
               type: string
               nullable: true
-              enum: [quadratic, quadratic_with_maker_fees, flat, null]
+              enum: [quadratic, quadratic_with_maker_fees, quadratic_with_combo_maker_fees, flat, null]
               description: Event fee type override. `null` when the override has been cleared.
             fee_multiplier_override:
               type: number
@@ -3023,7 +3029,7 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         msg:
           type: object
-          required: ["order_id", "user_id", "ticker", "status", "side", "is_yes", "outcome_side", "book_side", "yes_price_dollars", "fill_count_fp", "remaining_count_fp", "initial_count_fp", "taker_fill_cost_dollars", "maker_fill_cost_dollars", "taker_fees_dollars", "maker_fees_dollars", "client_order_id", "created_time", "created_ts_ms"]
+          required: ["order_id", "user_id", "ticker", "exchange_index", "status", "side", "is_yes", "outcome_side", "book_side", "yes_price_dollars", "fill_count_fp", "remaining_count_fp", "initial_count_fp", "taker_fill_cost_dollars", "maker_fill_cost_dollars", "taker_fees_dollars", "maker_fees_dollars", "client_order_id", "created_time", "created_ts_ms"]
           properties:
             order_id:
               type: string
@@ -3036,6 +3042,9 @@ components:
             ticker:
               $ref: '#/components/schemas/marketTicker'
               description: Market ticker for the order
+            exchange_index:
+              type: integer
+              description: Identifier for the exchange shard where the order resides
             status:
               type: string
               description: Current order status

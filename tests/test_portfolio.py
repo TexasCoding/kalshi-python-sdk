@@ -351,6 +351,7 @@ class TestPortfolioSettlements:
                     "settlements": [
                         {
                             "ticker": "MKT-A",
+                            "exchange_index": 0,
                             "event_ticker": "EVT-1",
                             "market_result": "yes",
                             "yes_count_fp": "10.00",
@@ -1435,3 +1436,89 @@ class TestAsyncPortfolioIntraExchangeTransfers:
     ) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_portfolio.intra_exchange_transfers()
+
+
+class TestTargetBalanceAllocation:
+    @respx.mock
+    def test_get(self, portfolio: PortfolioResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={"allocations": [{"exchange_index": 0, "percent": 100}]},
+            )
+        )
+        resp = portfolio.target_balance_allocation()
+        assert len(resp.allocations) == 1
+        assert resp.allocations[0].exchange_index == 0
+        assert resp.allocations[0].percent == 100
+
+    @respx.mock
+    def test_set_kwargs(self, portfolio: PortfolioResource) -> None:
+        import json
+
+        from kalshi.models.portfolio import TargetBalanceAllocationInput
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
+        ).mock(return_value=httpx.Response(200, json={}))
+        portfolio.set_target_balance_allocation(
+            allocations=[TargetBalanceAllocationInput(exchange_index=0, percent=100)]
+        )
+        assert json.loads(route.calls[0].request.content) == {
+            "allocations": [{"exchange_index": 0, "percent": 100}]
+        }
+
+    @respx.mock
+    def test_set_request_model(self, portfolio: PortfolioResource) -> None:
+        import json
+
+        from kalshi.models.portfolio import (
+            SetTargetBalanceAllocationRequest,
+            TargetBalanceAllocationInput,
+        )
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
+        ).mock(return_value=httpx.Response(200, json={}))
+        req = SetTargetBalanceAllocationRequest(
+            allocations=[TargetBalanceAllocationInput(exchange_index=1, percent=40)]
+        )
+        portfolio.set_target_balance_allocation(request=req)
+        assert json.loads(route.calls[0].request.content)["allocations"][0]["percent"] == 40
+
+    def test_set_requires_args(self, portfolio: PortfolioResource) -> None:
+        with pytest.raises(TypeError, match="set_target_balance_allocation"):
+            portfolio.set_target_balance_allocation()
+
+    def test_percent_bounds(self) -> None:
+        from pydantic import ValidationError
+
+        from kalshi.models.portfolio import TargetBalanceAllocationInput
+
+        with pytest.raises(ValidationError):
+            TargetBalanceAllocationInput(exchange_index=0, percent=101)
+
+    def test_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.target_balance_allocation()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_roundtrip(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        from kalshi.models.portfolio import TargetBalanceAllocationInput
+
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
+        ).mock(return_value=httpx.Response(200, json={"allocations": []}))
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
+        ).mock(return_value=httpx.Response(200, json={}))
+        resp = await async_portfolio.target_balance_allocation()
+        assert resp.allocations == []
+        await async_portfolio.set_target_balance_allocation(
+            allocations=[TargetBalanceAllocationInput(exchange_index=0, percent=100)]
+        )
