@@ -16,6 +16,7 @@ from __future__ import annotations
 from kalshi.models.account import AccountApiLimits
 from kalshi.perps.models.margin_account import (
     GetMarginBalanceResponse,
+    GetMarginFeeTierRatesResponse,
     GetMarginFeeTiersResponse,
     GetMarginRiskResponse,
     NotionalRiskLimitResponse,
@@ -55,6 +56,14 @@ class MarginAccountResource(SyncResource):
         self._require_auth()
         data = self._get("/margin/fee_tiers", extra_headers=extra_headers)
         return GetMarginFeeTiersResponse.model_validate(data)
+
+    def fee_tier_rates(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetMarginFeeTierRatesResponse:
+        """``GET /margin/fee_tier_rates`` — maker/taker rates by fee-schedule tier."""
+        self._require_auth()
+        data = self._get("/margin/fee_tier_rates", extra_headers=extra_headers)
+        return GetMarginFeeTierRatesResponse.model_validate(data)
 
     def api_limits(self, *, extra_headers: dict[str, str] | None = None) -> AccountApiLimits:
         """Perps (margin) API tier limits for the authenticated user.
@@ -99,6 +108,14 @@ class AsyncMarginAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/margin/fee_tiers", extra_headers=extra_headers)
         return GetMarginFeeTiersResponse.model_validate(data)
+
+    async def fee_tier_rates(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetMarginFeeTierRatesResponse:
+        """Async :meth:`MarginAccountResource.fee_tier_rates`."""
+        self._require_auth()
+        data = await self._get("/margin/fee_tier_rates", extra_headers=extra_headers)
+        return GetMarginFeeTierRatesResponse.model_validate(data)
 
     async def api_limits(
         self, *, extra_headers: dict[str, str] | None = None

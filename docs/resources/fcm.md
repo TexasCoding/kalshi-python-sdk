@@ -3,15 +3,15 @@
 Futures Commission Merchant routes. **FCM-member accounts only** — non-FCM
 calls come back 401/403. Auth required throughout.
 
-`subtrader_id` is the required discriminator on every call — every FCM
-request scopes to one subtrader under your member account.
+`subtrader_id` is required on positions. On orders it is required **unless**
+`client_order_ids` is supplied (the two filters are alternatives).
 
 ## Quick reference
 
 | Method | Endpoint |
 |---|---|
-| `orders(*, subtrader_id, ...)` | `GET /fcm/orders` |
-| `orders_all(*, subtrader_id, ...)` | walks `orders` |
+| `orders(*, subtrader_id=None, client_order_ids=None, ...)` | `GET /fcm/orders` |
+| `orders_all(*, subtrader_id=None, client_order_ids=None, ...)` | walks `orders` |
 | `positions(*, subtrader_id, ...)` | `GET /fcm/positions` |
 
 ## List orders

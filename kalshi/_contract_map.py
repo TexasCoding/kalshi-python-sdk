@@ -45,7 +45,11 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.events.Event",
         spec_schema="EventData",
-        notes="Spec uses 'EventData', not 'Event'",
+        ignored_fields=frozenset({"available_on_brokers"}),
+        notes=(
+            "Spec uses 'EventData', not 'Event'. available_on_brokers was "
+            "dropped from the spec; kept optional for constructor compat."
+        ),
     ),
     ContractEntry(
         sdk_model="kalshi.models.events.EventFeeChange",
@@ -244,6 +248,18 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.live_data.GetWeatherIndexResponse",
         spec_schema="GetWeatherIndexResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.WeatherIndexCalibrationStation",
+        spec_schema="WeatherIndexCalibrationStation",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.WeatherIndexCalibration",
+        spec_schema="WeatherIndexCalibration",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.live_data.GetWeatherIndexCalibrationsResponse",
+        spec_schema="GetWeatherIndexCalibrationsResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.models.markets.MarketCandlesticks",
@@ -547,6 +563,15 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         notes="indexlist response: msg.index_ids only.",
     ),
     ContractEntry(
+        sdk_model="kalshi.ws.models.cfbenchmarks.CFBenchmarksValue5HzPayload",
+        spec_schema="cfbenchmarksValue5HzPayload",
+        notes="5Hz tick feed; lean ticks without trailing averages.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.cfbenchmarks.CFBenchmarks5HzIndexListPayload",
+        spec_schema="cfbenchmarks5HzIndexListPayload",
+    ),
+    ContractEntry(
         sdk_model="kalshi.ws.models.fill.FillPayload",
         spec_schema="fillPayload",
     ),
@@ -775,6 +800,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetMarginFeeTiersResponse",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginFeeTierRate",
+        spec_schema="MarginFeeTierRate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginFeeTierRatesResponse",
+        spec_schema="GetMarginFeeTierRatesResponse",
+    ),
+    ContractEntry(
         # /account/limits/perps returns the same shape as the prediction API's
         # /account/limits, so the perps resource reuses kalshi.models.account.AccountApiLimits.
         sdk_model="kalshi.models.account.AccountApiLimits",
@@ -973,5 +1006,37 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginResponse",
         spec_schema="EstimatePortfolioMaintenanceMarginResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MarginFcmApiKey",
+        spec_schema="MarginFcmApiKey",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.ListMarginFcmApiKeysResponse",
+        spec_schema="ListMarginFcmApiKeysResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.CreateMarginFcmApiKeyRequest",
+        spec_schema="CreateMarginFcmApiKeyRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.CreateMarginFcmApiKeyResponse",
+        spec_schema="CreateMarginFcmApiKeyResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GenerateMarginFcmApiKeyRequest",
+        spec_schema="GenerateMarginFcmApiKeyRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GenerateMarginFcmApiKeyResponse",
+        spec_schema="GenerateMarginFcmApiKeyResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MemberFundingPayment",
+        spec_schema="MemberFundingPayment",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetMemberFundingPaymentsResponse",
+        spec_schema="GetMemberFundingPaymentsResponse",
     ),
 ]

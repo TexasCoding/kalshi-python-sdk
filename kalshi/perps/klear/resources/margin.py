@@ -40,12 +40,17 @@ from collections.abc import AsyncIterator, Iterator
 from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
     AssetClassLiteral,
+    ClearingTypeLiteral,
+    CreateMarginFcmApiKeyRequest,
+    CreateMarginFcmApiKeyResponse,
     CreateMarginSubtraderGroupRequest,
     CreateMarginSubtraderGroupResponse,
     EstimatePortfolioMaintenanceMarginPosition,
     EstimatePortfolioMaintenanceMarginRequest,
     EstimatePortfolioMaintenanceMarginResponse,
     FundingPaymentDetail,
+    GenerateMarginFcmApiKeyRequest,
+    GenerateMarginFcmApiKeyResponse,
     GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
@@ -54,7 +59,9 @@ from kalshi.perps.klear.models.margin import (
     GetSettlementBalanceWithdrawalResponse,
     GetSettlementEstimateByAssetClassResponse,
     GetSettlementPricesResponse,
+    ListMarginFcmApiKeysResponse,
     MaintenanceMarginDetail,
+    MemberFundingPayment,
     ObligationEntry,
     SettlementBalanceHistoryEntry,
     SettlementDetail,
@@ -417,10 +424,18 @@ class MarginResource(KlearSyncResource):
         request: EstimatePortfolioMaintenanceMarginRequest | None = None,
         asset_class: AssetClassLiteral | None = None,
         positions: list[EstimatePortfolioMaintenanceMarginPosition] | None = None,
+        date: datetime.date | None = None,
+        clearing_type: ClearingTypeLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> EstimatePortfolioMaintenanceMarginResponse:
         """``POST /margin/estimate_maintenance_margin``. Not retried."""
-        _check_request_exclusive(request, asset_class=asset_class, positions=positions)
+        _check_request_exclusive(
+            request,
+            asset_class=asset_class,
+            positions=positions,
+            date=date,
+            clearing_type=clearing_type,
+        )
         if request is None:
             if asset_class is None or positions is None:
                 raise TypeError(
@@ -428,7 +443,10 @@ class MarginResource(KlearSyncResource):
                     "`positions` (or pass `request=...`)"
                 )
             request = EstimatePortfolioMaintenanceMarginRequest(
-                asset_class=asset_class, positions=positions
+                asset_class=asset_class,
+                positions=positions,
+                date=date,
+                clearing_type=clearing_type,
             )
         data = self._post(
             "/margin/estimate_maintenance_margin",
@@ -436,6 +454,138 @@ class MarginResource(KlearSyncResource):
             extra_headers=extra_headers,
         )
         return EstimatePortfolioMaintenanceMarginResponse.model_validate(data)
+
+    def member_funding_payments(
+        self,
+        *,
+        funding_time: str,
+        market_ticker: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[MemberFundingPayment]:
+        """``GET /margin/funding_payments`` — member payments for one funding time.
+
+        ``funding_time`` is RFC3339. Limit max 10000.
+        """
+        params = _params(
+            funding_time=funding_time,
+            market_ticker=market_ticker,
+            limit=_validate_limit(limit, hi=10000),
+            cursor=cursor,
+        )
+        return self._list(
+            "/margin/funding_payments",
+            MemberFundingPayment,
+            "payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def member_funding_payments_all(
+        self,
+        *,
+        funding_time: str,
+        market_ticker: str | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[MemberFundingPayment]:
+        """Auto-paginate :meth:`member_funding_payments`."""
+        _validate_max_pages(max_pages)
+        params = _params(
+            funding_time=funding_time,
+            market_ticker=market_ticker,
+            limit=_validate_limit(limit, hi=10000),
+            cursor=None,
+        )
+        return self._list_all(
+            "/margin/funding_payments",
+            MemberFundingPayment,
+            "payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def list_fcm_api_keys(
+        self,
+        *,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ListMarginFcmApiKeysResponse:
+        """``GET /fcm/margin/api_keys`` — FCM-bound margin API keys."""
+        params = _params(fcm_subtrader_id=fcm_subtrader_id)
+        data = self._get(
+            "/fcm/margin/api_keys", params=params, extra_headers=extra_headers
+        )
+        return ListMarginFcmApiKeysResponse.model_validate(data)
+
+    def create_fcm_api_key(
+        self,
+        *,
+        request: CreateMarginFcmApiKeyRequest | None = None,
+        name: str | None = None,
+        public_key: str | None = None,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFcmApiKeyResponse:
+        """``POST /fcm/margin/api_keys`` — register a caller-supplied public key."""
+        _check_request_exclusive(
+            request, name=name, public_key=public_key, fcm_subtrader_id=fcm_subtrader_id
+        )
+        if request is None:
+            if name is None or public_key is None or fcm_subtrader_id is None:
+                raise TypeError(
+                    "create_fcm_api_key() requires `name`, `public_key`, and "
+                    "`fcm_subtrader_id` (or pass `request=...`)"
+                )
+            request = CreateMarginFcmApiKeyRequest(
+                name=name, public_key=public_key, fcm_subtrader_id=fcm_subtrader_id
+            )
+        data = self._post(
+            "/fcm/margin/api_keys",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return CreateMarginFcmApiKeyResponse.model_validate(data)
+
+    def generate_fcm_api_key(
+        self,
+        *,
+        request: GenerateMarginFcmApiKeyRequest | None = None,
+        name: str | None = None,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GenerateMarginFcmApiKeyResponse:
+        """``POST /fcm/margin/api_keys/generate`` — mint a key pair (private key once)."""
+        _check_request_exclusive(request, name=name, fcm_subtrader_id=fcm_subtrader_id)
+        if request is None:
+            if name is None or fcm_subtrader_id is None:
+                raise TypeError(
+                    "generate_fcm_api_key() requires `name` and `fcm_subtrader_id` "
+                    "(or pass `request=...`)"
+                )
+            request = GenerateMarginFcmApiKeyRequest(
+                name=name, fcm_subtrader_id=fcm_subtrader_id
+            )
+        data = self._post(
+            "/fcm/margin/api_keys/generate",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return GenerateMarginFcmApiKeyResponse.model_validate(data)
+
+    def delete_fcm_api_key(
+        self, api_key_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """``DELETE /fcm/margin/api_keys/{api_key_id}``."""
+        self._delete(
+            f"/fcm/margin/api_keys/{_seg(api_key_id, name='api_key_id')}",
+            extra_headers=extra_headers,
+        )
 
     def list_subtrader_groups(
         self, *, extra_headers: dict[str, str] | None = None
@@ -795,10 +945,18 @@ class AsyncMarginResource(KlearAsyncResource):
         request: EstimatePortfolioMaintenanceMarginRequest | None = None,
         asset_class: AssetClassLiteral | None = None,
         positions: list[EstimatePortfolioMaintenanceMarginPosition] | None = None,
+        date: datetime.date | None = None,
+        clearing_type: ClearingTypeLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> EstimatePortfolioMaintenanceMarginResponse:
         """Async :meth:`MarginResource.estimate_maintenance_margin`."""
-        _check_request_exclusive(request, asset_class=asset_class, positions=positions)
+        _check_request_exclusive(
+            request,
+            asset_class=asset_class,
+            positions=positions,
+            date=date,
+            clearing_type=clearing_type,
+        )
         if request is None:
             if asset_class is None or positions is None:
                 raise TypeError(
@@ -806,7 +964,10 @@ class AsyncMarginResource(KlearAsyncResource):
                     "`positions` (or pass `request=...`)"
                 )
             request = EstimatePortfolioMaintenanceMarginRequest(
-                asset_class=asset_class, positions=positions
+                asset_class=asset_class,
+                positions=positions,
+                date=date,
+                clearing_type=clearing_type,
             )
         data = await self._post(
             "/margin/estimate_maintenance_margin",
@@ -814,6 +975,135 @@ class AsyncMarginResource(KlearAsyncResource):
             extra_headers=extra_headers,
         )
         return EstimatePortfolioMaintenanceMarginResponse.model_validate(data)
+
+    async def member_funding_payments(
+        self,
+        *,
+        funding_time: str,
+        market_ticker: str | None = None,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[MemberFundingPayment]:
+        """Async :meth:`MarginResource.member_funding_payments`."""
+        params = _params(
+            funding_time=funding_time,
+            market_ticker=market_ticker,
+            limit=_validate_limit(limit, hi=10000),
+            cursor=cursor,
+        )
+        return await self._list(
+            "/margin/funding_payments",
+            MemberFundingPayment,
+            "payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def member_funding_payments_all(
+        self,
+        *,
+        funding_time: str,
+        market_ticker: str | None = None,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[MemberFundingPayment]:
+        """Async counterpart of :meth:`MarginResource.member_funding_payments_all`."""
+        _validate_max_pages(max_pages)
+        params = _params(
+            funding_time=funding_time,
+            market_ticker=market_ticker,
+            limit=_validate_limit(limit, hi=10000),
+            cursor=None,
+        )
+        return self._list_all(
+            "/margin/funding_payments",
+            MemberFundingPayment,
+            "payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    async def list_fcm_api_keys(
+        self,
+        *,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> ListMarginFcmApiKeysResponse:
+        """Async :meth:`MarginResource.list_fcm_api_keys`."""
+        params = _params(fcm_subtrader_id=fcm_subtrader_id)
+        data = await self._get(
+            "/fcm/margin/api_keys", params=params, extra_headers=extra_headers
+        )
+        return ListMarginFcmApiKeysResponse.model_validate(data)
+
+    async def create_fcm_api_key(
+        self,
+        *,
+        request: CreateMarginFcmApiKeyRequest | None = None,
+        name: str | None = None,
+        public_key: str | None = None,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFcmApiKeyResponse:
+        """Async :meth:`MarginResource.create_fcm_api_key`."""
+        _check_request_exclusive(
+            request, name=name, public_key=public_key, fcm_subtrader_id=fcm_subtrader_id
+        )
+        if request is None:
+            if name is None or public_key is None or fcm_subtrader_id is None:
+                raise TypeError(
+                    "create_fcm_api_key() requires `name`, `public_key`, and "
+                    "`fcm_subtrader_id` (or pass `request=...`)"
+                )
+            request = CreateMarginFcmApiKeyRequest(
+                name=name, public_key=public_key, fcm_subtrader_id=fcm_subtrader_id
+            )
+        data = await self._post(
+            "/fcm/margin/api_keys",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return CreateMarginFcmApiKeyResponse.model_validate(data)
+
+    async def generate_fcm_api_key(
+        self,
+        *,
+        request: GenerateMarginFcmApiKeyRequest | None = None,
+        name: str | None = None,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GenerateMarginFcmApiKeyResponse:
+        """Async :meth:`MarginResource.generate_fcm_api_key`."""
+        _check_request_exclusive(request, name=name, fcm_subtrader_id=fcm_subtrader_id)
+        if request is None:
+            if name is None or fcm_subtrader_id is None:
+                raise TypeError(
+                    "generate_fcm_api_key() requires `name` and `fcm_subtrader_id` "
+                    "(or pass `request=...`)"
+                )
+            request = GenerateMarginFcmApiKeyRequest(
+                name=name, fcm_subtrader_id=fcm_subtrader_id
+            )
+        data = await self._post(
+            "/fcm/margin/api_keys/generate",
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        return GenerateMarginFcmApiKeyResponse.model_validate(data)
+
+    async def delete_fcm_api_key(
+        self, api_key_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Async :meth:`MarginResource.delete_fcm_api_key`."""
+        await self._delete(
+            f"/fcm/margin/api_keys/{_seg(api_key_id, name='api_key_id')}",
+            extra_headers=extra_headers,
+        )
 
     async def list_subtrader_groups(
         self, *, extra_headers: dict[str, str] | None = None

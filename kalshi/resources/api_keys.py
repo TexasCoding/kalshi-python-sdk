@@ -16,6 +16,7 @@ from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _check_request_exclusive,
+    _params,
     _seg,
 )
 
@@ -29,6 +30,7 @@ def _build_create_api_key_body(
     public_key: str | None,
     scopes: builtins.list[str] | None,
     subaccount: int | None,
+    fcm_subtrader_id: str | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -36,6 +38,7 @@ def _build_create_api_key_body(
         public_key=public_key,
         scopes=scopes,
         subaccount=subaccount,
+        fcm_subtrader_id=fcm_subtrader_id,
     )
     if request is None:
         if name is None or public_key is None:
@@ -45,6 +48,7 @@ def _build_create_api_key_body(
             public_key=public_key,
             scopes=scopes,
             subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -55,12 +59,24 @@ def _build_generate_api_key_body(
     name: str | None,
     scopes: builtins.list[str] | None,
     subaccount: int | None,
+    fcm_subtrader_id: str | None,
 ) -> dict[str, Any]:
-    _check_request_exclusive(request, name=name, scopes=scopes, subaccount=subaccount)
+    _check_request_exclusive(
+        request,
+        name=name,
+        scopes=scopes,
+        subaccount=subaccount,
+        fcm_subtrader_id=fcm_subtrader_id,
+    )
     if request is None:
         if name is None:
             raise TypeError("generate() requires `name` (or pass `request=...`)")
-        request = GenerateApiKeyRequest(name=name, scopes=scopes, subaccount=subaccount)
+        request = GenerateApiKeyRequest(
+            name=name,
+            scopes=scopes,
+            subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
+        )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
@@ -72,9 +88,18 @@ class ApiKeysResource(SyncResource):
     private key once (see :class:`GenerateApiKeyResponse`).
     """
 
-    def list(self, *, extra_headers: dict[str, str] | None = None) -> GetApiKeysResponse:
+    def list(
+        self,
+        *,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetApiKeysResponse:
         self._require_auth()
-        data = self._get("/api_keys", extra_headers=extra_headers)
+        data = self._get(
+            "/api_keys",
+            params=_params(fcm_subtrader_id=fcm_subtrader_id),
+            extra_headers=extra_headers,
+        )
         return GetApiKeysResponse.model_validate(data)
 
     @overload
@@ -89,6 +114,7 @@ class ApiKeysResource(SyncResource):
         public_key: str,
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
+        fcm_subtrader_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     def create(
@@ -99,6 +125,7 @@ class ApiKeysResource(SyncResource):
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
+        fcm_subtrader_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
@@ -108,6 +135,7 @@ class ApiKeysResource(SyncResource):
             public_key=public_key,
             scopes=scopes,
             subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
         )
         data = self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
@@ -123,6 +151,7 @@ class ApiKeysResource(SyncResource):
         name: str,
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
+        fcm_subtrader_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     def generate(
@@ -132,11 +161,16 @@ class ApiKeysResource(SyncResource):
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
+        fcm_subtrader_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
         body = _build_generate_api_key_body(
-            request, name=name, scopes=scopes, subaccount=subaccount
+            request,
+            name=name,
+            scopes=scopes,
+            subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
         )
         data = self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
@@ -149,9 +183,18 @@ class ApiKeysResource(SyncResource):
 class AsyncApiKeysResource(AsyncResource):
     """Async API keys resource."""
 
-    async def list(self, *, extra_headers: dict[str, str] | None = None) -> GetApiKeysResponse:
+    async def list(
+        self,
+        *,
+        fcm_subtrader_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetApiKeysResponse:
         self._require_auth()
-        data = await self._get("/api_keys", extra_headers=extra_headers)
+        data = await self._get(
+            "/api_keys",
+            params=_params(fcm_subtrader_id=fcm_subtrader_id),
+            extra_headers=extra_headers,
+        )
         return GetApiKeysResponse.model_validate(data)
 
     @overload
@@ -166,6 +209,7 @@ class AsyncApiKeysResource(AsyncResource):
         public_key: str,
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
+        fcm_subtrader_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse: ...
     async def create(
@@ -176,6 +220,7 @@ class AsyncApiKeysResource(AsyncResource):
         public_key: str | None = None,
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
+        fcm_subtrader_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateApiKeyResponse:
         self._require_auth()
@@ -185,6 +230,7 @@ class AsyncApiKeysResource(AsyncResource):
             public_key=public_key,
             scopes=scopes,
             subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
         )
         data = await self._post("/api_keys", json=body, extra_headers=extra_headers)
         return CreateApiKeyResponse.model_validate(data)
@@ -200,6 +246,7 @@ class AsyncApiKeysResource(AsyncResource):
         name: str,
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
+        fcm_subtrader_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     async def generate(
@@ -209,11 +256,16 @@ class AsyncApiKeysResource(AsyncResource):
         name: str | None = None,
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
+        fcm_subtrader_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
         self._require_auth()
         body = _build_generate_api_key_body(
-            request, name=name, scopes=scopes, subaccount=subaccount
+            request,
+            name=name,
+            scopes=scopes,
+            subaccount=subaccount,
+            fcm_subtrader_id=fcm_subtrader_id,
         )
         data = await self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)

@@ -15,7 +15,7 @@ analytics; live trading needs the real-time surfaces.
 | `trades(...)` / `trades_all(...)` | `GET /historical/trades` | no |
 | `fills(...)` / `fills_all(...)` | `GET /historical/fills` | **yes** |
 | `orders(...)` / `orders_all(...)` | `GET /historical/orders` | **yes** |
-| `positions(...)` / `positions_all(...)` | `GET /historical/positions` | **yes** |
+| `positions(*, subaccount=None, ...)` / `positions_all(*, subaccount=None, ...)` | `GET /historical/positions` | **yes** |
 
 ## Cutoff
 

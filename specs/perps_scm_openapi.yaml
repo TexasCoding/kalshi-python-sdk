@@ -166,6 +166,30 @@ paths:
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /margin/funding_payments:
+    get:
+      operationId: GetMemberFundingPayments
+      summary: Get Member Funding Payments
+      description: >-
+        Returns the member's funding payments for a given funding time, if
+        available. Payments are written shortly after each funding execution,
+        before the settlement that carries them.
+      parameters:
+        - { name: funding_time, in: query, required: true, schema: { type: string, format: date-time }, description: "The funding execution to read, as an RFC3339 timestamp. Funding is scheduled in ET." }
+        - { name: market_ticker, in: query, required: false, schema: { type: string }, description: Restrict rows to one market. }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 1000, maximum: 10000 }, description: Number of rows per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetMemberFundingPaymentsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/large_trader_positions:
     get:
       operationId: GetLargeTraderPositions
@@ -205,7 +229,8 @@ paths:
         margined under the rules that apply to the authenticated clearing
         member. Positions and prices are supplied by the caller and need not
         reflect positions held. Every market in `positions` must belong to
-        `asset_class`.
+        `asset_class`. The response includes the component breakdown of the
+        estimate; see the response schema for the semantics of each component.
 
       requestBody:
         required: true
@@ -221,6 +246,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /margin/settlement_estimate_by_asset_class:
@@ -437,6 +463,120 @@ paths:
         '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /fcm/margin/api_keys:
+    post:
+      operationId: CreateMarginFcmApiKey
+      summary: Create Subtrader-Bound API Key
+      description: >-
+        FCM clearing members only. Mint an API key bound to one of your margin
+        subtraders using an RSA public key you supply. The binding is set at
+        mint and immutable; the resulting key is the institution's trading
+        credential for that subtrader and cannot reach any REST endpoint,
+        including key management.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMarginFcmApiKeyRequest' }
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateMarginFcmApiKeyResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '409':
+          description: >-
+            The bound subtrader is not yet visible in the credential registry,
+            which updates asynchronously. Retry shortly after creating the
+            subtrader.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    get:
+      operationId: ListMarginFcmApiKeys
+      summary: List Subtrader-Bound API Keys
+      description: >-
+        FCM clearing members only. List your API keys that carry a subtrader
+        binding, optionally filtered to one subtrader.
+
+      parameters:
+        - name: fcm_subtrader_id
+          in: query
+          required: false
+          schema: { type: string }
+          description: Return only keys bound to this subtrader.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ListMarginFcmApiKeysResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /fcm/margin/api_keys/generate:
+    post:
+      operationId: GenerateMarginFcmApiKey
+      summary: Generate Subtrader-Bound API Key
+      description: >-
+        FCM clearing members only. Mint a subtrader-bound API key with a
+        platform-generated RSA key pair. The private key appears exactly once
+        in this response and cannot be retrieved again; store it securely
+        before leaving the page or discarding the response.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GenerateMarginFcmApiKeyRequest' }
+      responses:
+        '201':
+          description: API key generated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerateMarginFcmApiKeyResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '409':
+          description: >-
+            The bound subtrader is not yet visible in the credential registry,
+            which updates asynchronously. Retry shortly after creating the
+            subtrader.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /fcm/margin/api_keys/{api_key_id}:
+    delete:
+      operationId: DeleteMarginFcmApiKey
+      summary: Delete Subtrader-Bound API Key
+      description: >-
+        FCM clearing members only. Permanently revoke a subtrader-bound API
+        key. Revocation cannot be undone; the institution's live sessions on
+        this key are terminated.
+
+      parameters:
+        - name: api_key_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: API key revoked }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
 components:
@@ -707,6 +847,14 @@ components:
       required: [asset_class, positions]
       properties:
         asset_class: { $ref: '#/components/schemas/AssetClass' }
+        date:
+          type: string
+          format: date
+          description: Margin the portfolio against the matrices calibrated on this Eastern-time day (YYYY-MM-DD). Omit to use the current matrices. Returns 404 if no matrices were calibrated that day, or 400 if a requested market is absent from them.
+        clearing_type:
+          type: string
+          enum: [FCM, SelfClearing]
+          description: Clearing arrangement whose margin rules to apply. Omit to use the arrangement on record for the authenticated clearing member.
         positions:
           type: array
           minItems: 1
@@ -717,7 +865,12 @@ components:
     EstimatePortfolioMaintenanceMarginResponse:
       type: object
       properties:
-        maintenance_margin_fp: { type: string, description: 'Maintenance margin requirement for the submitted portfolio, in USD (e.g. "1234.5600").' }
+        maintenance_margin_fp: { type: string, description: 'Maintenance margin requirement for the submitted portfolio, in USD (e.g. "1234.5600"). Equals base_margin_fp + funding_addon_fp + liquidation_addon_fp, subject to per-market minimums on gross-margined markets and to each component being rounded individually, so the components need not sum exactly to this total.' }
+        base_margin_fp: { type: string, description: 'Base scenario margin charged, in USD: the larger of the historical-VaR and APC candidates, taken per market for gross-margined markets and across the whole portfolio for portfolio-margined ones, then summed. Equals max(hvar_fp, apc_fp) only when the entire portfolio is portfolio-margined; with gross-margined markets it can exceed both.' }
+        hvar_fp: { type: string, description: 'Portfolio total of the historical-VaR candidate for the base scenario margin, in USD.' }
+        apc_fp: { type: string, description: 'Portfolio total of the APC candidate for the base scenario margin, in USD, computed over the pooled APC and augmented stress scenario set.' }
+        funding_addon_fp: { type: string, description: 'Funding margin add-on, in USD.' }
+        liquidation_addon_fp: { type: string, description: 'Liquidation margin add-on, in USD.' }
 
     GetObligationHistoryResponse:
       type: object
@@ -748,6 +901,25 @@ components:
         funding_payments:
           type: array
           items: { $ref: '#/components/schemas/FundingPaymentDetail' }
+        cursor:
+          type: string
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
+
+    MemberFundingPayment:
+      allOf:
+        - $ref: '#/components/schemas/FundingPaymentDetail'
+        - type: object
+          required: [settlement_execution_time]
+          properties:
+            settlement_execution_time: { type: string, format: date-time, description: Execution time of the FCM-to-clearinghouse omnibus settlement that will carry (or carried) this payment. }
+
+    GetMemberFundingPaymentsResponse:
+      type: object
+      required: [payments]
+      properties:
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/MemberFundingPayment' }
         cursor:
           type: string
           description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
@@ -940,3 +1112,67 @@ components:
         groups:
           type: array
           items: { $ref: '#/components/schemas/MarginSubtraderGroup' }
+
+    CreateMarginFcmApiKeyRequest:
+      type: object
+      required: [name, public_key, fcm_subtrader_id]
+      properties:
+        name:
+          type: string
+          description: Name identifying the key's purpose, e.g. the institution it is issued to.
+        public_key:
+          type: string
+          description: RSA public key in PEM format. Signatures on the institution's requests verify against it.
+        fcm_subtrader_id:
+          type: string
+          description: The subtrader to bind, spelled {your_account_id}_{suffix} with a suffix of 1-16 characters of [a-z0-9]. Must already exist and belong to you.
+
+    CreateMarginFcmApiKeyResponse:
+      type: object
+      required: [api_key_id]
+      properties:
+        api_key_id: { type: string }
+        warning:
+          type: string
+          nullable: true
+          description: Present only when the bound subtrader has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders are rejected until a cap is set.
+
+    GenerateMarginFcmApiKeyRequest:
+      type: object
+      required: [name, fcm_subtrader_id]
+      properties:
+        name:
+          type: string
+          description: Name identifying the key's purpose, e.g. the institution it is issued to.
+        fcm_subtrader_id:
+          type: string
+          description: The subtrader to bind, spelled {your_account_id}_{suffix} with a suffix of 1-16 characters of [a-z0-9]. Must already exist and belong to you.
+
+    GenerateMarginFcmApiKeyResponse:
+      type: object
+      required: [api_key_id, private_key]
+      properties:
+        api_key_id: { type: string }
+        private_key:
+          type: string
+          description: RSA private key in PEM format. Returned exactly once and never stored; it cannot be retrieved again.
+        warning:
+          type: string
+          nullable: true
+          description: Present only when the bound subtrader has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders are rejected until a cap is set.
+
+    MarginFcmApiKey:
+      type: object
+      required: [api_key_id, name, fcm_subtrader_id]
+      properties:
+        api_key_id: { type: string }
+        name: { type: string }
+        fcm_subtrader_id: { type: string }
+
+    ListMarginFcmApiKeysResponse:
+      type: object
+      required: [api_keys]
+      properties:
+        api_keys:
+          type: array
+          items: { $ref: '#/components/schemas/MarginFcmApiKey' }

@@ -322,12 +322,12 @@ paths:
 
     delete:
       operationId: CancelAllMarginOrders
-      summary: Cancel Up to 10,000 Orders
-      description: Cancels up to 10,000 resting margin orders for the authenticated Direct member. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. When more than 10,000 orders match, the orders selected for cancellation are arbitrary and no ordering guarantees should be relied upon.
+      summary: Cancel All Orders
+      description: Cancels all resting margin orders for the authenticated Direct member. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. Newly placed orders may also be cancelled during the minute after the request.
       x-mint:
         content: |
           <Note>
-          **Rate limit:** A request consumes the same number of write tokens as a batch cancel containing the maximum number of orders allowed for the caller's margin API tier.
+          **Rate limit:** 10 tokens per request, the same cost as cancelling one margin order. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
           </Note>
       tags:
         - orders
@@ -339,7 +339,7 @@ paths:
           kalshiAccessTimestamp: []
       responses:
         '204':
-          description: Up to 10,000 matching resting margin orders were cancelled
+          description: All matching resting margin orders were cancelled
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '429':
@@ -919,7 +919,7 @@ paths:
     get:
       operationId: GetMarginFeeTiers
       summary: Get Fee Tiers
-      description: 'Endpoint for retrieving the margin fee tiers for the authenticated direct margin user. Returns a map of margin market tickers to their fee tier strings.'
+      description: 'Endpoint for retrieving the effective margin fee rates for the authenticated direct margin user. Returns maps of margin market tickers to maker and taker fee rates as decimal fractions; no tier numbers are returned. Use Get Fee Tier Rates for the fee schedule itself.'
       tags:
         - fees
       security:
@@ -935,6 +935,31 @@ paths:
                 $ref: '#/components/schemas/GetMarginFeeTiersResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /margin/fee_tier_rates:
+    get:
+      operationId: GetMarginFeeTierRates
+      summary: Get Fee Tier Rates
+      description: 'Returns the fee schedule that applies to the authenticated margin-enabled account, as tier numbers with maker and taker fee rates ordered from the entry tier upward.'
+      tags:
+        - fees
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '200':
+          description: Fee tier rates retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMarginFeeTierRatesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: The account is not margin-enabled or no fee schedule applies to it
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2750,6 +2775,11 @@ components:
         reference_price:
           $ref: '#/components/schemas/TickerPrice'
           description: Underlying reference price, scaled per contract.
+        asset_class:
+          type: string
+          description: >
+            Asset class grouping for this market. New asset classes may be added
+            over time. Omitted when the market has no assigned class.
         schedule:
           $ref: '#/components/schemas/MarginMarketSchedule'
 
@@ -3148,6 +3178,45 @@ components:
             type: number
             format: double
           description: A map of margin market ticker to the taker-side fee rate as a decimal fraction of notional (e.g. 0.0012 = 0.12% = 12 bps). Multiply notional by this value to compute the fee.
+
+    GetMarginFeeTierRatesResponse:
+      type: object
+      required:
+        - fee_tier_rates
+      properties:
+        fee_tier_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarginFeeTierRate'
+
+    MarginFeeTierRate:
+      type: object
+      required:
+        - fee_schedule
+        - tier
+        - maker_fee_rate
+        - taker_fee_rate
+      properties:
+        fee_schedule:
+          type: string
+          enum:
+            - self_clearing_members
+            - kalshi_prime
+            - fcm
+          description: Fee schedule containing this tier.
+        tier:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Stable fee tier number within the indicated fee schedule. Existing numbers never change when the schedule is reshaped.
+        maker_fee_rate:
+          type: number
+          format: double
+          description: Maker fee rate as a decimal fraction of notional (e.g. 0.0005 = 0.05% = 5 bps).
+        taker_fee_rate:
+          type: number
+          format: double
+          description: Taker fee rate as a decimal fraction of notional (e.g. 0.0012 = 0.12% = 12 bps).
 
     MarginFundingHistoryEntry:
       type: object

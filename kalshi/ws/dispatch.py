@@ -10,7 +10,9 @@ from pydantic import BaseModel
 from kalshi.ws.channels import SubscriptionManager
 from kalshi.ws.models.base import ErrorMessage, ErrorPayload
 from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarks5HzIndexListMessage,
     CFBenchmarksIndexListMessage,
+    CFBenchmarksValue5HzMessage,
     CFBenchmarksValueMessage,
 )
 from kalshi.ws.models.communications import CommunicationsMessage
@@ -45,6 +47,8 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "communications": CommunicationsMessage,
     "cfbenchmarks_value": CFBenchmarksValueMessage,
     "cfbenchmarks_value_indexlist": CFBenchmarksIndexListMessage,
+    "cfbenchmarks_value_5hz": CFBenchmarksValue5HzMessage,
+    "cfbenchmarks_value_5hz_indexlist": CFBenchmarks5HzIndexListMessage,
 }
 
 # Control message types (not routed to subscription queues)

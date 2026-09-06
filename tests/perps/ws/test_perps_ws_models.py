@@ -133,11 +133,11 @@ class TestPayloadDriftGuard:
             "marginOrderbookSnapshotPayload",
             "marginOrderbookDeltaPayload",
             "orderGroupUpdatesPayload",
+            "marginTradePayload",
         ):
             assert "seq" in spec["components"]["schemas"][schema_name]["required"]
         for schema_name in (
             "marginTickerPayload",
-            "marginTradePayload",
             "marginFillPayload",
             "marginUserOrderPayload",
         ):
@@ -147,17 +147,9 @@ class TestPayloadDriftGuard:
 
 
 class TestOrderGroupExampleParity:
-    """The spec ships an inline orderGroupLimitUpdated example — parse it.
+    """The spec ships an inline orderGroupLimitUpdated example — parse it."""
 
-    SPEC DISCREPANCY: the inline ``orderGroupLimitUpdated`` example omits
-    ``ts_ms`` from its ``msg`` even though ``orderGroupUpdatesPayload.msg``
-    marks ``ts_ms`` as ``required``. The model (correctly) follows the schema's
-    required list, so this test back-fills the schema-required ``ts_ms`` the
-    example left out and asserts that detail explicitly, rather than relaxing
-    the model to match an incomplete example.
-    """
-
-    def test_inline_example_omits_required_ts_ms(self) -> None:
+    def test_inline_example_includes_required_ts_ms(self) -> None:
         spec = _load_spec()
         example = spec["components"]["messages"]["orderGroupUpdates"]["examples"][0][
             "payload"
@@ -165,17 +157,15 @@ class TestOrderGroupExampleParity:
         required = spec["components"]["schemas"]["orderGroupUpdatesPayload"][
             "properties"
         ]["msg"]["required"]
-        # Documents the discrepancy: schema requires ts_ms, example omits it.
         assert "ts_ms" in required
-        assert "ts_ms" not in example["msg"]
+        assert "ts_ms" in example["msg"]
 
-    def test_inline_example_validates_with_ts_ms_backfilled(self) -> None:
+    def test_inline_example_validates(self) -> None:
         spec = _load_spec()
         example = spec["components"]["messages"]["orderGroupUpdates"]["examples"][0][
             "payload"
         ]
-        frame = {**example, "msg": {**example["msg"], "ts_ms": 1700000000000}}
-        msg = OrderGroupUpdatesMessage.model_validate(frame)
+        msg = OrderGroupUpdatesMessage.model_validate(example)
         assert msg.type == "order_group_updates"
         assert msg.sid == 21
         assert msg.seq == 7
@@ -459,6 +449,7 @@ class TestFill:
                 "count": "5.00",
                 "fee_cost": "0.0500",
                 "post_position": "15.00",
+                "order_source": "user",
             },
         }
 
@@ -471,6 +462,13 @@ class TestFill:
         assert isinstance(msg.msg.fee_cost, Decimal)
         assert msg.msg.client_order_id is None
         assert msg.msg.subaccount is None
+        assert msg.msg.order_source == "user"
+
+    def test_missing_order_source_raises(self) -> None:
+        frame = self._frame()
+        frame["msg"].pop("order_source")
+        with pytest.raises(ValidationError):
+            MarginFillMessage.model_validate(frame)
 
     def test_optional_fields_present(self) -> None:
         frame = self._frame()
@@ -502,6 +500,7 @@ class TestUserOrders:
                 "fill_count": "2.00",
                 "remaining_count": "8.00",
                 "created_ts_ms": 1700000000000,
+                "order_source": "user",
             },
         }
 

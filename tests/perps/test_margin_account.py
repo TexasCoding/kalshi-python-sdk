@@ -443,6 +443,72 @@ class TestFeeTiers:
         await async_perps_client.close()
 
 
+class TestFeeTierRates:
+    @respx.mock
+    def test_happy(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/fee_tier_rates").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fee_tier_rates": [
+                        {
+                            "fee_schedule": "fcm",
+                            "tier": 0,
+                            "maker_fee_rate": 0.0005,
+                            "taker_fee_rate": 0.0012,
+                        }
+                    ]
+                },
+            )
+        )
+        resp = perps_client.margin.fee_tier_rates()
+        assert len(resp.fee_tier_rates) == 1
+        row = resp.fee_tier_rates[0]
+        assert row.fee_schedule == "fcm"
+        assert row.tier == 0
+        assert row.maker_fee_rate == Decimal("0.0005")
+        assert isinstance(row.taker_fee_rate, Decimal)
+
+    @respx.mock
+    def test_empty(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/fee_tier_rates").mock(
+            return_value=httpx.Response(200, json={"fee_tier_rates": []})
+        )
+        assert perps_client.margin.fee_tier_rates().fee_tier_rates == []
+
+    @respx.mock
+    def test_unauthenticated_raises_before_http(self) -> None:
+        route = respx.get(f"{BASE}/margin/fee_tier_rates").mock(
+            return_value=httpx.Response(200, json={"fee_tier_rates": []})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        with pytest.raises(AuthRequiredError):
+            client.margin.fee_tier_rates()
+        assert not route.called
+        client.close()
+
+    @respx.mock
+    async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/fee_tier_rates").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fee_tier_rates": [
+                        {
+                            "fee_schedule": "kalshi_prime",
+                            "tier": 1,
+                            "maker_fee_rate": 0.0001,
+                            "taker_fee_rate": 0.0002,
+                        }
+                    ]
+                },
+            )
+        )
+        resp = await async_perps_client.margin.fee_tier_rates()
+        assert resp.fee_tier_rates[0].fee_schedule == "kalshi_prime"
+        await async_perps_client.close()
+
+
 class TestApiLimits:
     """GET /account/limits/perps — reuses kalshi.models.account.AccountApiLimits."""
 

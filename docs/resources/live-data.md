@@ -15,6 +15,7 @@ Public — no auth required.
 | `batch(milestone_ids, *, include_player_stats=None)` | `GET /live_data/batch` |
 | `game_stats(milestone_id)` | `GET /live_data/milestone/{milestone_id}/game_stats` |
 | `weather(city, *, from_ts, to, last_sec, detailed)` | `GET /live_data/weather/{city}` |
+| `weather_calibrations(city)` | `GET /live_data/weather/{city}/calibrations` |
 | `get_typed(milestone_type, milestone_id)` | `GET /live_data/{type}/milestone/{milestone_id}` (legacy) |
 
 ## Get one milestone's live data
@@ -81,6 +82,16 @@ for point in idx.timeseries:
 `from_ts` to avoid the Python keyword; the wire key is still `from`.
 `last_sec` is mutually exclusive with `from_ts`/`to` per spec. `detailed=True`
 attaches per-station audit readings on every point.
+
+```python
+cals = client.live_data.weather_calibrations("miami")
+for rec in cals.calibrations:
+    print(rec.config_version, rec.effective_at_ms, rec.city_reference_c)
+```
+
+`weather_calibrations` returns the launch configuration plus every weekly
+offset calibration, ascending by effective time. Units are always Celsius
+on this endpoint (the published index value itself remains Fahrenheit).
 
 ## Legacy `get_typed`
 

@@ -244,6 +244,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/live_data/weather/{city}",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.live_data.LiveDataResource.weather_calibrations",
+        http_method="GET",
+        path_template="/live_data/weather/{city}/calibrations",
+    ),
     # ── events ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.events.EventsResource.list",
@@ -1542,6 +1547,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/fee_tiers",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.fee_tier_rates",
+        http_method="GET",
+        path_template="/margin/fee_tier_rates",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.api_limits",
         http_method="GET",
         path_template="/account/limits/perps",
@@ -1794,6 +1804,38 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/estimate_maintenance_margin",
         request_body_schema="#/components/schemas/EstimatePortfolioMaintenanceMarginRequest",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.member_funding_payments",
+        http_method="GET",
+        path_template="/margin/funding_payments",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.member_funding_payments_all",
+        http_method="GET",
+        path_template="/margin/funding_payments",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.list_fcm_api_keys",
+        http_method="GET",
+        path_template="/fcm/margin/api_keys",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.create_fcm_api_key",
+        http_method="POST",
+        path_template="/fcm/margin/api_keys",
+        request_body_schema="#/components/schemas/CreateMarginFcmApiKeyRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.generate_fcm_api_key",
+        http_method="POST",
+        path_template="/fcm/margin/api_keys/generate",
+        request_body_schema="#/components/schemas/GenerateMarginFcmApiKeyRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.delete_fcm_api_key",
+        http_method="DELETE",
+        path_template="/fcm/margin/api_keys/{api_key_id}",
+    ),
 ]
 
 # Shared perps exclusion allowlist (same ``(sdk_fqn, field) → Exclusion`` shape
@@ -1922,6 +1964,20 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     (
         "kalshi.perps.klear.resources.margin.MarginResource.settlement_balance_history_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.member_funding_payments_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.member_funding_payments_all",
         "max_pages",
     ): Exclusion(
         reason="client-side page cap, no wire counterpart",

@@ -12,6 +12,7 @@ arbitrary subtrader_id.
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
@@ -29,9 +30,24 @@ from kalshi.resources._base import (
 # Shared param builders (issue #46).
 
 
+def _join_client_order_ids(
+    ids: str | builtins.list[str] | None,
+) -> str | None:
+    """Serialize ``client_order_ids`` as a comma-separated string (spec max 100)."""
+    if ids is None:
+        return None
+    parts = [p for p in ids.split(",") if p] if isinstance(ids, str) else list(ids)
+    if len(parts) > 100:
+        raise ValueError(
+            f"client_order_ids accepts at most 100 entries per spec (got {len(parts)})"
+        )
+    return ",".join(parts) if parts else None
+
+
 def _fcm_orders_params(
     *,
-    subtrader_id: str,
+    subtrader_id: str | None,
+    client_order_ids: str | builtins.list[str] | None,
     ticker: str | None,
     event_ticker: str | None,
     status: OrderStatusLiteral | None,
@@ -40,9 +56,13 @@ def _fcm_orders_params(
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
+    joined = _join_client_order_ids(client_order_ids)
+    if not subtrader_id and not joined:
+        raise ValueError("fcm.orders requires subtrader_id or client_order_ids")
     limit = _validate_limit(limit, hi=1000)
     return _params(
         subtrader_id=subtrader_id,
+        client_order_ids=joined,
         ticker=ticker,
         event_ticker=event_ticker,
         status=status,
@@ -81,7 +101,8 @@ class FcmResource(SyncResource):
     def orders(
         self,
         *,
-        subtrader_id: str,
+        subtrader_id: str | None = None,
+        client_order_ids: str | builtins.list[str] | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
         status: OrderStatusLiteral | None = None,
@@ -94,6 +115,7 @@ class FcmResource(SyncResource):
         self._require_auth()
         params = _fcm_orders_params(
             subtrader_id=subtrader_id,
+            client_order_ids=client_order_ids,
             ticker=ticker,
             event_ticker=event_ticker,
             status=status,
@@ -109,7 +131,8 @@ class FcmResource(SyncResource):
     def orders_all(
         self,
         *,
-        subtrader_id: str,
+        subtrader_id: str | None = None,
+        client_order_ids: str | builtins.list[str] | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
         status: OrderStatusLiteral | None = None,
@@ -123,6 +146,7 @@ class FcmResource(SyncResource):
         _validate_max_pages(max_pages)
         params = _fcm_orders_params(
             subtrader_id=subtrader_id,
+            client_order_ids=client_order_ids,
             ticker=ticker,
             event_ticker=event_ticker,
             status=status,
@@ -210,7 +234,8 @@ class AsyncFcmResource(AsyncResource):
     async def orders(
         self,
         *,
-        subtrader_id: str,
+        subtrader_id: str | None = None,
+        client_order_ids: str | builtins.list[str] | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
         status: OrderStatusLiteral | None = None,
@@ -223,6 +248,7 @@ class AsyncFcmResource(AsyncResource):
         self._require_auth()
         params = _fcm_orders_params(
             subtrader_id=subtrader_id,
+            client_order_ids=client_order_ids,
             ticker=ticker,
             event_ticker=event_ticker,
             status=status,
@@ -238,7 +264,8 @@ class AsyncFcmResource(AsyncResource):
     def orders_all(
         self,
         *,
-        subtrader_id: str,
+        subtrader_id: str | None = None,
+        client_order_ids: str | builtins.list[str] | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
         status: OrderStatusLiteral | None = None,
@@ -253,6 +280,7 @@ class AsyncFcmResource(AsyncResource):
         _validate_max_pages(max_pages)
         params = _fcm_orders_params(
             subtrader_id=subtrader_id,
+            client_order_ids=client_order_ids,
             ticker=ticker,
             event_ticker=event_ticker,
             status=status,

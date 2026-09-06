@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from kalshi.perps.ws.models._common import PerpsBookSide
+from kalshi.perps.ws.models._common import PerpsBookSide, PerpsOrderSource
 from kalshi.types import DollarDecimal, FixedPointCount
 
 
@@ -19,9 +19,9 @@ class MarginFillPayload(BaseModel):
 
     Required per spec: ``trade_id``/``order_id`` (UUID strings), ``market_ticker``,
     ``is_taker``, ``side`` (``bid``/``ask``), ``ts_ms`` (epoch ms), ``price``
-    (dollar-decimal), ``count``/``post_position`` (fixed-point counts), and
-    ``fee_cost`` (dollar-decimal). ``client_order_id`` and ``subaccount`` are
-    optional.
+    (dollar-decimal), ``count``/``post_position`` (fixed-point counts),
+    ``fee_cost`` (dollar-decimal), and ``order_source`` (``user``/``system``).
+    ``client_order_id`` and ``subaccount`` are optional.
     """
 
     trade_id: str
@@ -34,6 +34,7 @@ class MarginFillPayload(BaseModel):
     count: FixedPointCount
     fee_cost: DollarDecimal
     post_position: FixedPointCount
+    order_source: PerpsOrderSource
     client_order_id: str | None = None
     subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}

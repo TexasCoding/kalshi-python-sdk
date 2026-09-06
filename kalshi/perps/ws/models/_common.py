@@ -22,6 +22,9 @@ PerpsBookSide = Literal["bid", "ask"]
 # Spec schema ``selfTradePreventionType``.
 PerpsSelfTradePreventionType = Literal["taker_at_cross", "maker"]
 
+# Spec schema ``orderSource`` — ``system`` for liquidations / exit triggers.
+PerpsOrderSource = Literal["user", "system"]
+
 # Spec schema ``lastUpdateReason`` — margin order update reason on a delta
 # corresponding to the authenticated user's order. The empty string is a valid
 # enum member per spec.
@@ -49,5 +52,6 @@ __all__ = [
     "OrderGroupEventType",
     "PerpsBookSide",
     "PerpsLastUpdateReason",
+    "PerpsOrderSource",
     "PerpsSelfTradePreventionType",
 ]

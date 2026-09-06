@@ -270,3 +270,5 @@ class PerpsErrorResponse(BaseModel):
     id: int | None = None
     type: Literal["error"] = "error"
     msg: PerpsErrorMsg
+    sid: int | None = None
+    seq: int | None = None

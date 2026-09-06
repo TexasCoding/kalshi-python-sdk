@@ -2,6 +2,13 @@
 
 ## Shipped
 
+- **v14.0.0 (2026-09-06)** — Spec-drift reconcile (#510 / #511). OpenAPI
+  3.29.0 content + perps/Klear/AsyncAPI. **Breaking:** perps WS
+  `MarginFillPayload` / `MarginUserOrderPayload` require `order_source`.
+  Additive: weather calibrations, FCM-bound API keys, target-balance
+  `resting_margin_reservation`, FCM `client_order_ids`, historical
+  `subaccount`, perps `fee_tier_rates`, Klear FCM API keys + member
+  funding payments, WS `cfbenchmarks_value_5hz`.
 - **v13.0.0 (2026-08-28)** — Spec-drift reconcile (#507 / #508). OpenAPI
   3.28.0 → 3.29.0. **Breaking:** `Fill` / `MarketPosition` / `Settlement`
   require `exchange_index`. Additive: weather index, target-balance

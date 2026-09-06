@@ -202,6 +202,16 @@ class TestSubscribeCFBenchmarks:
             cmd = fake_ws.received_commands[0]
             assert cmd["params"]["index_ids"] == ["all"]
 
+    async def test_subscribe_5hz_seeds_index_ids(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_cfbenchmarks_value_5hz(index_ids=["BRTI"])
+            cmd = fake_ws.received_commands[0]
+            assert "cfbenchmarks_value_5hz" in cmd["params"]["channels"]
+            assert cmd["params"]["index_ids"] == ["BRTI"]
+            assert "market_tickers" not in cmd["params"]
+
     async def test_receives_value_message(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
         config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
         ws = KalshiWebSocket(auth=test_auth, config=config)

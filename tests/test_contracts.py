@@ -1519,6 +1519,12 @@ PERPS_SCM_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/EstimatePortfolioMaintenanceMarginRequest": (
         "kalshi.perps.klear.models.margin.EstimatePortfolioMaintenanceMarginRequest"
     ),
+    "#/components/schemas/CreateMarginFcmApiKeyRequest": (
+        "kalshi.perps.klear.models.margin.CreateMarginFcmApiKeyRequest"
+    ),
+    "#/components/schemas/GenerateMarginFcmApiKeyRequest": (
+        "kalshi.perps.klear.models.margin.GenerateMarginFcmApiKeyRequest"
+    ),
 }
 
 

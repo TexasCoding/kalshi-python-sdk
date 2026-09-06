@@ -266,10 +266,19 @@ class GetTargetBalanceAllocationResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
+RestingMarginReservationLiteral = Literal["max", "sum"]
+"""Collateral an automatic rebalance leaves behind for resting orders.
+
+``max`` reserves the largest single market-side commitment. ``sum`` reserves
+the summed margin of every resting order. Spec defaults to ``sum`` when omitted.
+"""
+
+
 class SetTargetBalanceAllocationRequest(BaseModel):
     """Body for POST /portfolio/target_balance_allocation."""
 
     allocations: list[TargetBalanceAllocationInput] = Field(max_length=101)
+    resting_margin_reservation: RestingMarginReservationLiteral | None = None
 
     model_config = {"extra": "forbid"}
 

@@ -28,7 +28,9 @@ from kalshi.ws.connection import ConnectionManager, ConnectionState
 from kalshi.ws.dispatch import MessageDispatcher
 from kalshi.ws.models.base import ErrorMessage
 from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarks5HzIndexListMessage,
     CFBenchmarksIndexListMessage,
+    CFBenchmarksValue5HzMessage,
     CFBenchmarksValueMessage,
 )
 from kalshi.ws.models.communications import CommunicationsMessage
@@ -897,6 +899,24 @@ class KalshiWebSocket:
             params["index_ids"] = index_ids
         return await self._do_subscribe(
             "cfbenchmarks_value", params=params,
+            overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
+        )
+
+    async def subscribe_cfbenchmarks_value_5hz(
+        self, *, index_ids: list[str] | None = None, maxsize: int = 1000,
+    ) -> AsyncIterator[CFBenchmarksValue5HzMessage | CFBenchmarks5HzIndexListMessage]:
+        """Subscribe to the auth-required ``cfbenchmarks_value_5hz`` tick feed.
+
+        High-frequency sibling of :meth:`subscribe_cfbenchmarks_value` (up to
+        5 ticks/sec, currently BRTI/ETHUSD_RTI/SOLUSD_RTI/XRPUSD_RTI/DOGEUSD_RTI).
+        Ticks are lean — no 60-second or quarter-hour averages. Seed
+        ``index_ids`` (or ``["all"]``) to receive values immediately.
+        """
+        params: dict[str, Any] = {}
+        if index_ids:
+            params["index_ids"] = index_ids
+        return await self._do_subscribe(
+            "cfbenchmarks_value_5hz", params=params,
             overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
 

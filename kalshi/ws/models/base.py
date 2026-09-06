@@ -62,4 +62,6 @@ class ErrorMessage(BaseModel):
     id: int = 0
     type: str = "error"
     msg: ErrorPayload
+    sid: int | None = None
+    seq: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
