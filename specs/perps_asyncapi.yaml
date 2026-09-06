@@ -602,6 +602,7 @@ components:
               event_type: "limit_updated"
               order_group_id: "og_123"
               contracts_limit_fp: "150.00"
+              ts_ms: 1700000000123
 
   schemas:
     commandId:
@@ -852,6 +853,12 @@ components:
       properties:
         id:
           $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+          description: Present when the error is scoped to a subscription.
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+          description: Present on subscription-scoped errors on sequenced channels.
         type:
           type: string
           const: "error"
@@ -861,11 +868,15 @@ components:
           properties:
             code:
               type: integer
-              minimum: 1
-              maximum: 18
+              description: |
+                Error codes the Margin WebSocket endpoint can emit.
+                Numbering is shared with the Predictions WebSocket API, so the list is
+                not contiguous. Codes 23, 24, and 28 are used only on channels
+                outside the public Margin surface. Codes 6, 16, and 17 are
+                retired; the service no longer emits them and their numbers
+                stay reserved.
+              enum: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 23, 24, 25, 26, 27, 28]
             msg:
-              type: string
-            market_ticker:
               type: string
 
     marginOrderbookSnapshotPayload:
@@ -993,13 +1004,15 @@ components:
 
     marginTradePayload:
       type: object
-      required: ["type", "sid", "msg"]
+      required: ["type", "sid", "seq", "msg"]
       properties:
         type:
           type: string
           const: "trade"
         sid:
           $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
         msg:
           type: object
           required: ["trade_id", "market_ticker", "price", "count", "taker_side", "ts_ms"]
@@ -1031,7 +1044,7 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         msg:
           type: object
-          required: ["trade_id", "order_id", "market_ticker", "is_taker", "side", "ts_ms", "price", "count", "fee_cost", "post_position"]
+          required: ["trade_id", "order_id", "market_ticker", "is_taker", "side", "ts_ms", "price", "count", "fee_cost", "post_position", "order_source"]
           properties:
             trade_id:
               type: string
@@ -1061,6 +1074,12 @@ components:
               type: string
             subaccount:
               type: integer
+            order_source:
+              type: string
+              enum: ["user", "system"]
+              description: |
+                `system` for liquidations and margin exit or trailing-stop
+                triggers. `user` for every other order.
 
     marginUserOrderPayload:
       type: object
@@ -1073,7 +1092,7 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         msg:
           type: object
-          required: ["order_id", "user_id", "client_order_id", "ticker", "side", "price", "fill_count", "remaining_count", "created_ts_ms"]
+          required: ["order_id", "user_id", "client_order_id", "ticker", "side", "price", "fill_count", "remaining_count", "created_ts_ms", "order_source"]
           properties:
             order_id:
               type: string
@@ -1112,6 +1131,12 @@ components:
               description: Unix timestamp in milliseconds.
             subaccount_number:
               type: integer
+            order_source:
+              type: string
+              enum: ["user", "system"]
+              description: |
+                `system` for liquidations and margin exit or trailing-stop
+                triggers. `user` for every other order.
 
     orderGroupUpdatesPayload:
       type: object

@@ -15,6 +15,7 @@ from kalshi.models.live_data import (
     GetGameStatsResponse,
     GetLiveDataResponse,
     GetLiveDatasResponse,
+    GetWeatherIndexCalibrationsResponse,
     GetWeatherIndexResponse,
     LiveData,
 )
@@ -167,6 +168,23 @@ class LiveDataResource(SyncResource):
         )
         return GetWeatherIndexResponse.model_validate(data)
 
+    def weather_calibrations(
+        self,
+        city: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetWeatherIndexCalibrationsResponse:
+        """``GET /live_data/weather/{city}/calibrations`` — config timeline.
+
+        Returns the launch configuration plus every weekly offset calibration
+        and methodology update, ascending by effective time.
+        """
+        data = self._get(
+            f"/live_data/weather/{_seg(city, name='city')}/calibrations",
+            extra_headers=extra_headers,
+        )
+        return GetWeatherIndexCalibrationsResponse.model_validate(data)
+
 
 class AsyncLiveDataResource(AsyncResource):
     """Async live-data API."""
@@ -304,3 +322,16 @@ class AsyncLiveDataResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return GetWeatherIndexResponse.model_validate(data)
+
+    async def weather_calibrations(
+        self,
+        city: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetWeatherIndexCalibrationsResponse:
+        """Async :meth:`LiveDataResource.weather_calibrations`."""
+        data = await self._get(
+            f"/live_data/weather/{_seg(city, name='city')}/calibrations",
+            extra_headers=extra_headers,
+        )
+        return GetWeatherIndexCalibrationsResponse.model_validate(data)

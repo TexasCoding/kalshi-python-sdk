@@ -1,7 +1,7 @@
 # WebSocket
 
 The SDK ships an async-only WebSocket client, `KalshiWebSocket`, that covers
-the Kalshi market-data WebSocket surface (11 typed channels plus the generic
+the Kalshi market-data WebSocket surface (12 typed channels plus the generic
 escape hatch). It handles RSA-PSS auth on the upgrade handshake,
 per-subscription sequence-gap detection, automatic reconnection with
 re-subscription, and a configurable backpressure strategy on each per-channel
@@ -30,7 +30,7 @@ SDK's perspective on it.
   on every delta.
 - `on_state_change=` and `on_error=` hooks on the constructor for observability.
 
-## The 11 channels
+## The 12 channels
 
 | SDK method | Wire channel | Message `type` field | Message class | Auth |
 |---|---|---|---|---|
@@ -45,6 +45,7 @@ SDK's perspective on it.
 | `subscribe_order_group` | `order_group_updates` | `order_group_updates` | `OrderGroupMessage` | private |
 | `subscribe_communications` | `communications` | `communications` | `CommunicationsMessage` | private |
 | `subscribe_cfbenchmarks_value` | `cfbenchmarks_value` | `cfbenchmarks_value` / `cfbenchmarks_value_indexlist` | `CFBenchmarksValueMessage` / `CFBenchmarksIndexListMessage` | private |
+| `subscribe_cfbenchmarks_value_5hz` | `cfbenchmarks_value_5hz` | `cfbenchmarks_value_5hz` / `cfbenchmarks_value_5hz_indexlist` | `CFBenchmarksValue5HzMessage` / `CFBenchmarks5HzIndexListMessage` | private |
 
 The `type` column matters when filtering raw logs — note the singular forms
 for `user_order` and `market_position`. The standalone `multivariate` /

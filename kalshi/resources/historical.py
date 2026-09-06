@@ -99,11 +99,12 @@ def _historical_positions_params(
     cursor: str | None,
     ticker: str | None,
     event_ticker: str | None,
+    subaccount: int | None,
 ) -> dict[str, Any]:
     """Query params for GET /historical/positions.
 
-    Spec params are a subset of /portfolio/positions (no ``count_filter``,
-    no ``subaccount``).
+    Spec params are a subset of /portfolio/positions (no ``count_filter``).
+    ``subaccount`` defaults to the primary (0) server-side when omitted.
     """
     limit = _validate_limit(limit, hi=1000)
     return _params(
@@ -111,6 +112,7 @@ def _historical_positions_params(
         cursor=cursor,
         ticker=ticker,
         event_ticker=event_ticker,
+        subaccount=subaccount,
     )
 
 
@@ -353,6 +355,7 @@ class HistoricalResource(SyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         """Settled market positions archived to the historical database.
@@ -360,6 +363,7 @@ class HistoricalResource(SyncResource):
         Positions whose markets were archived before
         ``market_positions_last_updated_ts`` on :meth:`cutoff` are available
         here. Unsettled positions remain on ``GET /portfolio/positions``.
+        ``subaccount`` defaults to the primary (0) server-side when omitted.
         """
         self._require_auth()
         params = _historical_positions_params(
@@ -367,6 +371,7 @@ class HistoricalResource(SyncResource):
             cursor=cursor,
             ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         data = self._get("/historical/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
@@ -377,6 +382,7 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarketPosition]:
@@ -393,6 +399,7 @@ class HistoricalResource(SyncResource):
             cursor=None,
             ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/positions",
@@ -643,6 +650,7 @@ class AsyncHistoricalResource(AsyncResource):
         cursor: str | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         """Settled market positions archived to the historical database.
@@ -650,6 +658,7 @@ class AsyncHistoricalResource(AsyncResource):
         Positions whose markets were archived before
         ``market_positions_last_updated_ts`` on :meth:`cutoff` are available
         here. Unsettled positions remain on ``GET /portfolio/positions``.
+        ``subaccount`` defaults to the primary (0) server-side when omitted.
         """
         self._require_auth()
         params = _historical_positions_params(
@@ -657,6 +666,7 @@ class AsyncHistoricalResource(AsyncResource):
             cursor=cursor,
             ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         data = await self._get(
             "/historical/positions", params=params, extra_headers=extra_headers
@@ -669,6 +679,7 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         ticker: str | None = None,
         event_ticker: str | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarketPosition]:
@@ -685,6 +696,7 @@ class AsyncHistoricalResource(AsyncResource):
             cursor=None,
             ticker=ticker,
             event_ticker=event_ticker,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/positions",

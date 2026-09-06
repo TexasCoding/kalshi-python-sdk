@@ -37,7 +37,7 @@ import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel, Field
+from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, SecretStr
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
@@ -532,6 +532,10 @@ class EstimatePortfolioMaintenanceMarginPosition(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+ClearingTypeLiteral = Literal["FCM", "SelfClearing"]
+"""Clearing arrangement whose margin rules to apply on an estimate request."""
+
+
 class EstimatePortfolioMaintenanceMarginRequest(BaseModel):
     """Body for POST /margin/estimate_maintenance_margin."""
 
@@ -539,6 +543,8 @@ class EstimatePortfolioMaintenanceMarginRequest(BaseModel):
     positions: list[EstimatePortfolioMaintenanceMarginPosition] = Field(
         min_length=1, max_length=500
     )
+    date: datetime.date | None = None
+    clearing_type: ClearingTypeLiteral | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -547,5 +553,81 @@ class EstimatePortfolioMaintenanceMarginResponse(BaseModel):
     """Response from POST /margin/estimate_maintenance_margin."""
 
     maintenance_margin_fp: DollarDecimal | None = None
+    base_margin_fp: DollarDecimal | None = None
+    hvar_fp: DollarDecimal | None = None
+    apc_fp: DollarDecimal | None = None
+    funding_addon_fp: DollarDecimal | None = None
+    liquidation_addon_fp: DollarDecimal | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class CreateMarginFcmApiKeyRequest(BaseModel):
+    """Body for POST /fcm/margin/api_keys."""
+
+    name: str
+    public_key: str
+    fcm_subtrader_id: str
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateMarginFcmApiKeyResponse(BaseModel):
+    """Response from POST /fcm/margin/api_keys."""
+
+    api_key_id: str
+    warning: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GenerateMarginFcmApiKeyRequest(BaseModel):
+    """Body for POST /fcm/margin/api_keys/generate."""
+
+    name: str
+    fcm_subtrader_id: str
+
+    model_config = {"extra": "forbid"}
+
+
+class GenerateMarginFcmApiKeyResponse(BaseModel):
+    """Response from POST /fcm/margin/api_keys/generate."""
+
+    api_key_id: str
+    private_key: SecretStr
+    warning: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class MarginFcmApiKey(BaseModel):
+    """One FCM-bound margin API key."""
+
+    api_key_id: str
+    name: str
+    fcm_subtrader_id: str
+
+    model_config = {"extra": "allow"}
+
+
+class ListMarginFcmApiKeysResponse(BaseModel):
+    """Response from GET /fcm/margin/api_keys."""
+
+    api_keys: list[MarginFcmApiKey]
+
+    model_config = {"extra": "allow"}
+
+
+class MemberFundingPayment(FundingPaymentDetail):
+    """Spec ``MemberFundingPayment`` — obligation funding row plus settlement time."""
+
+    settlement_execution_time: AwareDatetime
+
+
+class GetMemberFundingPaymentsResponse(BaseModel):
+    """Response from GET /margin/funding_payments."""
+
+    payments: list[MemberFundingPayment]
+    cursor: str | None = None
 
     model_config = {"extra": "allow"}

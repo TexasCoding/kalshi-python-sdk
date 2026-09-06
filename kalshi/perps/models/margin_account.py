@@ -19,7 +19,9 @@ and so callers can do exact fee/leverage math without binary-float drift.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from kalshi.types import (
     DollarDecimal,
@@ -102,3 +104,26 @@ class GetMarginFeeTiersResponse(BaseModel):
 
     maker_fee_rates: dict[str, MultiplierDecimal]
     taker_fee_rates: dict[str, MultiplierDecimal]
+
+
+FeeScheduleLiteral = Literal["self_clearing_members", "kalshi_prime", "fcm"]
+"""Fee schedule containing a :class:`MarginFeeTierRate`."""
+
+
+class MarginFeeTierRate(BaseModel):
+    """One row of the authenticated account's margin fee-tier schedule."""
+
+    model_config = ConfigDict(extra="allow")
+
+    fee_schedule: FeeScheduleLiteral
+    tier: int = Field(ge=0)
+    maker_fee_rate: MultiplierDecimal
+    taker_fee_rate: MultiplierDecimal
+
+
+class GetMarginFeeTierRatesResponse(BaseModel):
+    """Response from GET /margin/fee_tier_rates."""
+
+    model_config = ConfigDict(extra="allow")
+
+    fee_tier_rates: list[MarginFeeTierRate]

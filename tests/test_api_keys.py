@@ -158,6 +158,43 @@ class TestApiKeyModels:
         with pytest.raises(ValidationError):
             GenerateApiKeyRequest(name="bot", subaccount=bad)
 
+    def test_create_request_serializes_fcm_subtrader_id(self) -> None:
+        req = CreateApiKeyRequest(
+            name="bot", public_key=_PUBKEY_PEM, fcm_subtrader_id="user_desk1"
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["fcm_subtrader_id"] == "user_desk1"
+
+    def test_create_request_rejects_subaccount_and_fcm(self) -> None:
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            CreateApiKeyRequest(
+                name="bot",
+                public_key=_PUBKEY_PEM,
+                subaccount=1,
+                fcm_subtrader_id="user_desk1",
+            )
+
+    def test_generate_request_rejects_subaccount_and_fcm(self) -> None:
+        with pytest.raises(ValidationError, match="mutually exclusive"):
+            GenerateApiKeyRequest(name="bot", subaccount=1, fcm_subtrader_id="user_desk1")
+
+    def test_api_key_parses_fcm_subtrader_id(self) -> None:
+        k = ApiKey.model_validate(
+            {
+                "api_key_id": "k-1",
+                "name": "bot",
+                "scopes": ["read"],
+                "fcm_subtrader_id": "user_desk1",
+            },
+        )
+        assert k.fcm_subtrader_id == "user_desk1"
+
+    def test_create_response_warning(self) -> None:
+        resp = CreateApiKeyResponse.model_validate(
+            {"api_key_id": "k-1", "warning": "no IM cap"}
+        )
+        assert resp.warning == "no IM cap"
+
 
 class TestApiKeysList:
     @respx.mock
@@ -204,6 +241,16 @@ class TestApiKeysList:
         )
         resp = api_keys.list()
         assert resp.api_keys[0].scopes == []
+
+    @respx.mock
+    def test_list_sends_fcm_subtrader_id(self, api_keys: ApiKeysResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/api_keys").mock(
+            return_value=httpx.Response(200, json={"api_keys": []}),
+        )
+        api_keys.list(fcm_subtrader_id="user_desk1")
+        assert dict(route.calls[0].request.url.params) == {
+            "fcm_subtrader_id": "user_desk1"
+        }
 
     def test_list_requires_auth(self, unauth_api_keys: ApiKeysResource) -> None:
         with pytest.raises(AuthRequiredError):
@@ -252,6 +299,20 @@ class TestApiKeysCreate:
         assert body["subaccount"] == 5
 
     @respx.mock
+    def test_create_with_fcm_subtrader_id(self, api_keys: ApiKeysResource) -> None:
+        route = respx.post("https://test.kalshi.com/trade-api/v2/api_keys").mock(
+            return_value=httpx.Response(
+                201, json={"api_key_id": "k-new", "warning": "no IM cap"}
+            ),
+        )
+        resp = api_keys.create(
+            name="bot", public_key=_PUBKEY_PEM, fcm_subtrader_id="user_desk1"
+        )
+        assert resp.warning == "no IM cap"
+        body = json.loads(route.calls[0].request.content)
+        assert body["fcm_subtrader_id"] == "user_desk1"
+
+    @respx.mock
     def test_create_400_maps(self, api_keys: ApiKeysResource) -> None:
         respx.post("https://test.kalshi.com/trade-api/v2/api_keys").mock(
             return_value=httpx.Response(400, json={"message": "bad key"}),
@@ -297,6 +358,25 @@ class TestApiKeysGenerate:
         api_keys.generate(name="bot", subaccount=0)
         body = json.loads(route.calls[0].request.content)
         assert body["subaccount"] == 0
+
+    @respx.mock
+    def test_generate_with_fcm_subtrader_id(self, api_keys: ApiKeysResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "api_key_id": "k-auto",
+                    "private_key": "-----BEGIN...",
+                    "warning": "no IM cap",
+                },
+            ),
+        )
+        resp = api_keys.generate(name="bot", fcm_subtrader_id="user_desk1")
+        assert resp.warning == "no IM cap"
+        body = json.loads(route.calls[0].request.content)
+        assert body["fcm_subtrader_id"] == "user_desk1"
 
     def test_generate_requires_auth(
         self, unauth_api_keys: ApiKeysResource,

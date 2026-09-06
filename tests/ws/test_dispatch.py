@@ -393,6 +393,8 @@ class TestMessageDispatcher:
             "communications",
             "cfbenchmarks_value",
             "cfbenchmarks_value_indexlist",
+            "cfbenchmarks_value_5hz",
+            "cfbenchmarks_value_5hz_indexlist",
         }
         assert expected == set(MESSAGE_MODELS.keys())
 

@@ -97,6 +97,7 @@ async def test_subscribe_fill_yields_typed_message(
                 "is_taker": True, "side": "bid", "ts_ms": 1700000000000,
                 "price": "100.0000", "count": "5.00",
                 "fee_cost": "0.0500", "post_position": "15.00",
+                "order_source": "user",
             },
         })
         frame = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
@@ -118,7 +119,7 @@ async def test_subscribe_user_orders_yields_typed_message(
                 "order_id": "o1", "user_id": "u1", "client_order_id": "c1",
                 "ticker": "BTC-PERP", "side": "ask", "price": "100.0000",
                 "fill_count": "2.00", "remaining_count": "8.00",
-                "created_ts_ms": 1700000000000,
+                "created_ts_ms": 1700000000000, "order_source": "user",
             },
         })
         frame = await asyncio.wait_for(stream.__anext__(), timeout=2.0)

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from kalshi.perps.ws.models._common import (
     PerpsBookSide,
+    PerpsOrderSource,
     PerpsSelfTradePreventionType,
 )
 from kalshi.types import DollarDecimal, FixedPointCount
@@ -26,8 +27,9 @@ class MarginUserOrderPayload(BaseModel):
     Required per spec: ``order_id``/``user_id`` (UUID strings), ``client_order_id``,
     ``ticker`` (note: ``ticker``, NOT ``market_ticker``), ``side`` (``bid``/
     ``ask``), ``price`` (dollar-decimal), ``fill_count``/``remaining_count``
-    (fixed-point counts), and ``created_ts_ms`` (epoch ms). The remaining fields
-    — STP type, order-group id, and the ``*_ts_ms`` timestamps — are optional.
+    (fixed-point counts), ``created_ts_ms`` (epoch ms), and ``order_source``
+    (``user``/``system``). The remaining fields — STP type, order-group id, and
+    the ``*_ts_ms`` timestamps — are optional.
     """
 
     order_id: str
@@ -39,6 +41,7 @@ class MarginUserOrderPayload(BaseModel):
     fill_count: FixedPointCount
     remaining_count: FixedPointCount
     created_ts_ms: int
+    order_source: PerpsOrderSource
     self_trade_prevention_type: PerpsSelfTradePreventionType | None = None
     order_group_id: str | None = None
     expiration_ts_ms: int | None = None

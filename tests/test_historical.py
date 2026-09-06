@@ -877,15 +877,16 @@ class TestHistoricalPositions:
             cursor="abc",
             ticker="MKT-A",
             event_ticker="EVT-X",
+            subaccount=3,
         )
         params = dict(route.calls[0].request.url.params)
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
-        # Historical positions do not accept portfolio-only params.
+        assert params["subaccount"] == "3"
+        # Historical positions do not accept portfolio-only count_filter.
         assert "count_filter" not in params
-        assert "subaccount" not in params
 
     def test_positions_requires_auth(self, unauth_historical: HistoricalResource) -> None:
         with pytest.raises(AuthRequiredError):

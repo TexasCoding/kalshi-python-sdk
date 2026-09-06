@@ -91,6 +91,23 @@ class TestOrders:
         assert url.params["status"] == "resting"
         assert url.params["limit"] == "50"
 
+    @respx.mock
+    def test_client_order_ids_without_subtrader(self, fcm: FcmResource) -> None:
+        route = respx.get(
+            "https://test.kalshi.com/trade-api/v2/fcm/orders",
+        ).mock(return_value=httpx.Response(200, json={"orders": []}))
+        fcm.orders(client_order_ids=["a", "b"])
+        assert route.calls.last.request.url.params["client_order_ids"] == "a,b"
+        assert "subtrader_id" not in route.calls.last.request.url.params
+
+    def test_requires_subtrader_or_client_order_ids(self, fcm: FcmResource) -> None:
+        with pytest.raises(ValueError, match="subtrader_id or client_order_ids"):
+            fcm.orders()
+
+    def test_client_order_ids_cap(self, fcm: FcmResource) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            fcm.orders(client_order_ids=[f"id-{i}" for i in range(101)])
+
     def test_requires_auth(self, unauth_fcm: FcmResource) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_fcm.orders(subtrader_id="sub-1")

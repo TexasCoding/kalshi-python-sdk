@@ -1057,12 +1057,12 @@ paths:
 
     delete:
       operationId: CancelAllOrders
-      summary: Cancel Up to 10,000 Orders
-      description: Cancels up to 10,000 resting event-market orders for the authenticated Direct member across every exchange shard. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. When more than 10,000 orders match, the orders selected for cancellation are arbitrary and no ordering guarantees should be relied upon.
+      summary: Cancel All Orders
+      description: Cancels all resting event-market orders for the authenticated Direct member across every exchange shard. If `subaccount` is omitted, matching orders may come from any subaccount. If it is provided, only orders for that subaccount are eligible. Newly placed orders may also be cancelled during the minute after the request.
       x-mint:
         content: |
           <Note>
-          **Rate limit:** A request consumes the same number of write tokens as a batch cancel containing the maximum number of orders allowed for the caller's API tier.
+          **Rate limit:** 2 tokens per request, the same cost as cancelling one event-market order. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
           </Note>
       tags:
         - orders
@@ -1074,7 +1074,7 @@ paths:
           kalshiAccessTimestamp: []
       responses:
         '204':
-          description: Up to 10,000 matching resting orders were cancelled
+          description: All matching resting orders were cancelled
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '429':
@@ -1123,9 +1123,13 @@ paths:
     delete:
       operationId: BatchCancelOrdersV2
       summary: Batch Cancel Orders (V2)
-      description: 'Endpoint for cancelling a batch of event-market orders using the V2 response shape. The maximum batch size scales with your tier''s write budget — see [Rate Limits and Tiers](/getting_started/rate_limits).'
+      description: 'Endpoint for cancelling a batch of event-market orders using the V2 response shape. To auto-route a cancellation, provide its `market_ticker` and omit `exchange_index` or set it to `-1`. The maximum batch size scales with your tier''s write budget — see [Rate Limits and Tiers](/getting_started/rate_limits).'
       x-mint:
         content: |
+          <Warning>
+          For auto-routing, each order must include `market_ticker`. An `order_id` alone cannot identify the exchange shard.
+          </Warning>
+
           <Note>
           **Rate limit:** 2 tokens per order in the batch — billed per item, so total cost for a batch of N cancels is N × 2. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
           </Note>
@@ -1161,9 +1165,13 @@ paths:
     delete:
       operationId: CancelOrderV2
       summary: Cancel Order (V2)
-      description: 'Endpoint for cancelling event-market orders using the V2 response shape. Returns `{order_id, client_order_id, reduced_by}` rather than a full order object.'
+      description: 'Endpoint for cancelling event-market orders using the V2 response shape. To auto-route the cancellation, provide `market_ticker` and omit `exchange_index` or set it to `-1`. Returns `{order_id, client_order_id, reduced_by}` rather than a full order object.'
       x-mint:
         content: |
+          <Warning>
+          Auto-routing requires `market_ticker`. An `order_id` alone cannot identify the exchange shard.
+          </Warning>
+
           <Note>
           **Rate limit:** 2 tokens per request. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
           </Note>
@@ -1178,12 +1186,12 @@ paths:
         - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
         - name: exchange_index
           in: query
-          description: Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by market ticker.
+          description: Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing. The market_ticker parameter is required for auto-routing.
           schema:
             $ref: '#/components/schemas/ExchangeIndex'
         - name: market_ticker
           in: query
-          description: Market ticker used for auto-routing when exchange_index is omitted or -1.
+          description: Market ticker. Required for auto-routing when exchange_index is omitted or -1.
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
@@ -2644,6 +2652,13 @@ paths:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+      parameters:
+        - name: fcm_subtrader_id
+          in: query
+          required: false
+          description: 'Return only API keys bound to this FCM subtrader. Spelled {your_user_id}_{suffix}; only FCM members hold bound keys. Omit to return every key.'
+          schema:
+            type: string
       responses:
         '200':
           description: List of API keys retrieved successfully
@@ -2684,7 +2699,9 @@ paths:
         '401':
           description: Unauthorized
         '403':
-          description: Forbidden - insufficient API usage level
+          description: Forbidden - insufficient API usage level, or fcm_subtrader_id from a non-FCM caller
+        '409':
+          description: Conflict - the bound FCM subtrader is not yet visible in the credential registry; retry after the subtrader create propagates
         '500':
           description: Internal server error
 
@@ -2716,6 +2733,10 @@ paths:
           description: Bad request - invalid input
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden - fcm_subtrader_id requires an FCM member caller
+        '409':
+          description: Conflict - the bound FCM subtrader is not yet visible in the credential registry; retry after the subtrader create propagates
         '500':
           description: Internal server error
 
@@ -3137,6 +3158,43 @@ paths:
           description: Internal server error
 
 
+  /live_data/weather/{city}/calibrations:
+    get:
+      operationId: GetWeatherIndexCalibrations
+      summary: Get Weather Index Calibrations
+      description: >-
+        Get a city's published weather-index configuration timeline: the
+        launch configuration plus every weekly offset calibration and
+        methodology update, ascending by effective time. Each record carries
+        the station weights, station offsets (Celsius), and the city
+        reference used to compute index values from the record's effective
+        time until the next record — everything needed to reproduce published
+        index values for minutes computed under that configuration version.
+        Offsets are re-estimated weekly after each complete UTC week; weights
+        never change through calibration. The timeline is append-only and
+        complete: it is never trimmed.
+      tags:
+        - live-data
+      parameters:
+        - name: city
+          in: path
+          required: true
+          description: Index city ID (e.g. `miami`)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Calibration timeline retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetWeatherIndexCalibrationsResponse'
+        '400':
+          description: Unknown city
+        '500':
+          description: Internal server error
+
+
   /structured_targets:
     get:
       operationId: GetStructuredTargets
@@ -3522,8 +3580,9 @@ paths:
       operationId: GetFCMOrders
       summary: Get FCM Orders
       description: |
-        Endpoint for FCM members to get orders filtered by subtrader ID.
-        This endpoint requires FCM member access level and allows filtering orders by subtrader ID.
+        Endpoint for FCM members to get orders for their subtraders.
+        This endpoint requires FCM member access level. At least one of `subtrader_id` or
+        `client_order_ids` is required; supplying both returns only the orders matching both filters.
       tags:
         - fcm
       security:
@@ -3533,10 +3592,16 @@ paths:
       parameters:
         - name: subtrader_id
           in: query
-          required: true
-          description: Restricts the response to orders for a specific subtrader (FCM members only)
+          description: Restricts the response to orders for a specific subtrader (FCM members only). Required unless client_order_ids is supplied.
           schema:
             type: string
+            x-go-type-skip-optional-pointer: true
+        - name: client_order_ids
+          in: query
+          description: Client order IDs to filter by, as a comma-separated list (maximum 100). Only orders created within the last 24 hours are searched, and a min_ts earlier than that is raised to 24 hours ago. Client order IDs are only unique within a subtrader among live and recent orders, so a single ID can match orders across subtraders or across time. Required unless subtrader_id is supplied.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
         - $ref: '#/components/parameters/CursorQuery'
         - $ref: '#/components/parameters/SingleEventTickerQuery'
         - $ref: '#/components/parameters/TickerQuery'
@@ -3862,6 +3927,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TickerQuery'
         - $ref: '#/components/parameters/SingleEventTickerQuery'
+        - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
       responses:
@@ -4555,6 +4621,10 @@ components:
           minimum: 0
           maximum: 63
           description: If set, the API key is restricted to this single sub-account and may only read and trade on it. Absent/null means the key is unrestricted.
+        fcm_subtrader_id:
+          type: string
+          nullable: true
+          description: If set, the API key is bound to this single FCM subtrader ({fcm_user_id}_{suffix}) and is usable only as that institution's trading credential - FIX sessions and subtrader-scoped margin WebSocket sessions; every REST endpoint is denied. Absent/null means the key carries no subtrader binding.
 
     GetApiKeysResponse:
       type: object
@@ -4593,7 +4663,10 @@ components:
           type: integer
           minimum: 0
           maximum: 63
-          description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted.
+          description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted. Mutually exclusive with fcm_subtrader_id.
+        fcm_subtrader_id:
+          type: string
+          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 lowercase alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
 
     CreateApiKeyResponse:
       type: object
@@ -4603,6 +4676,10 @@ components:
         api_key_id:
           type: string
           description: Unique identifier for the newly created API key
+        warning:
+          type: string
+          nullable: true
+          description: Present only when the minted key is bound to an FCM subtrader that has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders will be rejected until a cap is set.
 
     GenerateApiKeyRequest:
       type: object
@@ -4621,7 +4698,10 @@ components:
           type: integer
           minimum: 0
           maximum: 63
-          description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted.
+          description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted. Mutually exclusive with fcm_subtrader_id.
+        fcm_subtrader_id:
+          type: string
+          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 lowercase alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
 
     GenerateApiKeyResponse:
       type: object
@@ -4635,6 +4715,10 @@ components:
         private_key:
           type: string
           description: RSA private key in PEM format. This must be stored securely and cannot be retrieved again after this response
+        warning:
+          type: string
+          nullable: true
+          description: Present only when the minted key is bound to an FCM subtrader that has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders will be rejected until a cap is set.
 
     GetTagsForSeriesCategoriesResponse:
       type: object
@@ -5319,6 +5403,15 @@ components:
           description: >-
             Number of accepted member stations backing the point. Absent on
             `incomplete` points.
+        receipt_basis:
+          type: string
+          description: >-
+            Present only on points produced by the labelled historical
+            backfill that seeds a city's series for the period before it went
+            live. `synoptic_latency` means the receipt-deadline test used
+            `observation_time + Synoptic ingest latency` in place of Kalshi's
+            local receipt clock. Absent on canonical points, which are the
+            only settlement-eligible ones.
         stations:
           type: array
           description: >-
@@ -5372,6 +5465,104 @@ components:
           description: >-
             Why the primary observation was passed over when a fallback was
             selected instead.
+
+    GetWeatherIndexCalibrationsResponse:
+      type: object
+      required:
+        - city
+        - units
+        - calibrations
+      properties:
+        city:
+          type: string
+          description: Index city ID.
+        units:
+          type: string
+          description: >-
+            Always `celsius` — offsets and the city reference are Celsius
+            quantities from the index methodology (the published index value
+            itself is Fahrenheit).
+        calibrations:
+          type: array
+          description: Configuration records, ascending by effective time.
+          items:
+            $ref: '#/components/schemas/WeatherIndexCalibration'
+
+    WeatherIndexCalibration:
+      type: object
+      required:
+        - config_version
+        - effective_at_ms
+        - city_reference_c
+        - stations
+      properties:
+        config_version:
+          type: string
+          description: >-
+            Configuration version (e.g.
+            `miami-temperature-v1.0-cal-20260831`). Index points report the
+            version they were computed under in their `config_version` field.
+        published_at_ms:
+          type: integer
+          format: int64
+          description: When the record was published, unix milliseconds UTC.
+        effective_at_ms:
+          type: integer
+          format: int64
+          description: >-
+            The record governs event minutes at or after this time (unix
+            milliseconds UTC), until superseded by the next record.
+        change_reason:
+          type: string
+          description: Why the configuration changed.
+        calibration_window_start_ms:
+          type: integer
+          format: int64
+          description: >-
+            Start of the trailing observation window the offsets were
+            estimated from. Absent on records not derived from a calibration
+            window (the launch configuration).
+        calibration_window_end_ms:
+          type: integer
+          format: int64
+          description: End of the calibration window (exclusive).
+        city_reference_c:
+          type: number
+          format: double
+          description: >-
+            City reference B_c in Celsius: the weight-dot-offset sum over all
+            configured member stations.
+        stations:
+          type: array
+          description: Configured member stations, in configuration order.
+          items:
+            $ref: '#/components/schemas/WeatherIndexCalibrationStation'
+
+    WeatherIndexCalibrationStation:
+      type: object
+      required:
+        - station_id
+        - weight
+        - offset_c
+      properties:
+        station_id:
+          type: string
+          description: Member station ID (e.g. `KMIA1M`).
+        weight:
+          type: number
+          format: double
+          description: Base weight (weights sum to 1.0 across members).
+        offset_c:
+          type: number
+          format: double
+          description: Station offset in Celsius (positive = station normally runs warmer than its peers).
+        update_note:
+          type: string
+          description: >-
+            Weekly-calibration disposition, present only on weekly
+            calibration records: `updated ...` with the residual count,
+            target, and applied adjustment, or `insufficient ...` when the
+            prior offset was retained.
 
     GetGameStatsResponse:
       type: object
@@ -6515,6 +6706,14 @@ components:
           x-oapi-codegen-extra-tags:
             validate: required,gte=0,lte=100
 
+    RestingMarginReservation:
+      type: string
+      enum: [max, sum]
+      x-enum-varnames: [RestingMarginReservationMax, RestingMarginReservationSum]
+      description: |
+        Collateral an automatic rebalance leaves behind for resting orders. `max` reserves the
+        largest single market-side commitment. `sum` reserves the summed margin of every resting order.
+
     GetTargetBalanceAllocationResponse:
       type: object
       required:
@@ -6537,6 +6736,13 @@ components:
             validate: max=101,dive
           items:
             $ref: '#/components/schemas/TargetBalanceAllocationInput'
+        resting_margin_reservation:
+          allOf:
+            - $ref: '#/components/schemas/RestingMarginReservation'
+          description: Defaults to `sum` when omitted.
+          x-oapi-codegen-extra-tags:
+            validate: omitempty,oneof=max sum
+          x-go-type-skip-optional-pointer: true
 
     IntraExchangeInstanceTransferRequest:
       type: object
@@ -8036,10 +8242,10 @@ components:
               exchange_index:
                 allOf:
                   - $ref: '#/components/schemas/ExchangeIndex'
-                description: "Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing by market ticker."
+                description: "Exchange shard index. If omitted, auto-routes when market_ticker is provided; otherwise defaults to 0. Use -1 to require auto-routing. The market_ticker field is required for auto-routing."
               market_ticker:
                 type: string
-                description: Market ticker used for auto-routing when exchange_index is omitted or -1.
+                description: Market ticker. Required for auto-routing when exchange_index is omitted or -1.
                 x-go-type-skip-optional-pointer: true
 
     BatchCancelOrdersV2Response:
@@ -8540,7 +8746,6 @@ components:
         - title
         - collateral_return_type
         - mutually_exclusive
-        - available_on_brokers
         - settlement_sources
       properties:
         event_ticker:
@@ -8584,10 +8789,6 @@ components:
           items:
             $ref: '#/components/schemas/Market'
           x-go-type-skip-optional-pointer: true
-        available_on_brokers:
-          type: boolean
-          description: Deprecated. No longer populated and always returns false; it will be removed in a future release.
-          deprecated: true
         product_metadata:
           type: object
           nullable: true

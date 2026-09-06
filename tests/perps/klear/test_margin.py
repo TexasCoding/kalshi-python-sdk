@@ -1092,3 +1092,162 @@ class TestMarginReportSnapshotTs:
     def test_omitted_snapshot_ts(self) -> None:
         report = MarginReport.model_validate(_report())
         assert report.snapshot_ts is None
+
+
+class TestMemberFundingPayments:
+    @respx.mock
+    def test_happy(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/funding_payments").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "payments": [
+                        {
+                            "id": "p1",
+                            "market_ticker": "BTC-PERP",
+                            "subtrader_id": "user_desk1",
+                            "funding_time": "2026-09-01T16:00:00Z",
+                            "position_quantity_fp": "1.25",
+                            "notional_value_centicents": 10000,
+                            "funding_amount_centicents": -50,
+                            "settlement_execution_time": "2026-09-01T16:05:00Z",
+                        }
+                    ]
+                },
+            )
+        )
+        page = auth_klear_client.margin.member_funding_payments(
+            funding_time="2026-09-01T16:00:00Z"
+        )
+        assert len(page.items) == 1
+        assert page.items[0].market_ticker == "BTC-PERP"
+        assert page.items[0].settlement_execution_time is not None
+        assert dict(route.calls[0].request.url.params)["funding_time"] == (
+            "2026-09-01T16:00:00Z"
+        )
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_400_maps(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/funding_payments").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_time"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            auth_klear_client.margin.member_funding_payments(funding_time="nope")
+        auth_klear_client.close()
+
+
+class TestFcmApiKeys:
+    @respx.mock
+    def test_list(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/fcm/margin/api_keys").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "api_keys": [
+                        {
+                            "api_key_id": "k-1",
+                            "name": "desk",
+                            "fcm_subtrader_id": "user_desk1",
+                        }
+                    ]
+                },
+            )
+        )
+        resp = auth_klear_client.margin.list_fcm_api_keys(fcm_subtrader_id="user_desk1")
+        assert resp.api_keys[0].api_key_id == "k-1"
+        assert dict(route.calls[0].request.url.params) == {
+            "fcm_subtrader_id": "user_desk1"
+        }
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_create(self, auth_klear_client: KlearClient) -> None:
+        route = respx.post(f"{BASE}/fcm/margin/api_keys").mock(
+            return_value=httpx.Response(201, json={"api_key_id": "k-new"})
+        )
+        resp = auth_klear_client.margin.create_fcm_api_key(
+            name="desk", public_key="-----BEGIN PUBLIC KEY-----", fcm_subtrader_id="user_desk1"
+        )
+        assert resp.api_key_id == "k-new"
+        body = json.loads(route.calls[0].request.content)
+        assert body["fcm_subtrader_id"] == "user_desk1"
+        auth_klear_client.close()
+
+    def test_create_requires_args(self, auth_klear_client: KlearClient) -> None:
+        with pytest.raises(TypeError, match="create_fcm_api_key"):
+            auth_klear_client.margin.create_fcm_api_key()
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_generate(self, auth_klear_client: KlearClient) -> None:
+        respx.post(f"{BASE}/fcm/margin/api_keys/generate").mock(
+            return_value=httpx.Response(
+                201,
+                json={"api_key_id": "k-gen", "private_key": "-----BEGIN PRIVATE KEY-----"},
+            )
+        )
+        resp = auth_klear_client.margin.generate_fcm_api_key(
+            name="desk", fcm_subtrader_id="user_desk1"
+        )
+        assert resp.api_key_id == "k-gen"
+        assert resp.private_key.get_secret_value().startswith("-----BEGIN")
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_delete(self, auth_klear_client: KlearClient) -> None:
+        route = respx.delete(f"{BASE}/fcm/margin/api_keys/k-1").mock(
+            return_value=httpx.Response(204)
+        )
+        auth_klear_client.margin.delete_fcm_api_key("k-1")
+        assert route.called
+        auth_klear_client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_list(self, auth_async_klear_client: AsyncKlearClient) -> None:
+        respx.get(f"{BASE}/fcm/margin/api_keys").mock(
+            return_value=httpx.Response(200, json={"api_keys": []})
+        )
+        resp = await auth_async_klear_client.margin.list_fcm_api_keys()
+        assert resp.api_keys == []
+        await auth_async_klear_client.close()
+
+
+class TestEstimateOptionalFields:
+    @respx.mock
+    def test_sends_date_and_clearing_type(self, auth_klear_client: KlearClient) -> None:
+        import datetime
+
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        route = respx.post(f"{BASE}/margin/estimate_maintenance_margin").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "maintenance_margin_fp": "10.0000",
+                    "base_margin_fp": "8.0000",
+                    "hvar_fp": "7.0000",
+                    "apc_fp": "8.0000",
+                    "funding_addon_fp": "1.0000",
+                    "liquidation_addon_fp": "1.0000",
+                },
+            )
+        )
+        resp = auth_klear_client.margin.estimate_maintenance_margin(
+            asset_class="Crypto",
+            positions=[
+                EstimatePortfolioMaintenanceMarginPosition(
+                    market_ticker="BTC-PERP", quantity=1, price=Decimal("6.8000")
+                )
+            ],
+            date=datetime.date(2026, 9, 1),
+            clearing_type="FCM",
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["date"] == "2026-09-01"
+        assert body["clearing_type"] == "FCM"
+        assert resp.base_margin_fp == Decimal("8.0000")
+        auth_klear_client.close()

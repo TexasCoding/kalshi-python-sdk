@@ -86,3 +86,47 @@ class CFBenchmarksIndexListMessage(BaseModel):
     seq: int | None = None
     msg: CFBenchmarksIndexListPayload
     model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class CFBenchmarksValue5HzPayload(BaseModel):
+    """``cfbenchmarks_value_5hz.msg`` — a lean raw tick (no trailing averages).
+
+    High-frequency sibling of :class:`CFBenchmarksValuePayload`. ``value_usd``
+    is an exact 8-dp decimal string. ``source_ts_ms`` is the upstream
+    publication timestamp; ``received_at`` is when Kalshi received the frame.
+    """
+
+    index_id: str
+    value_usd: DollarDecimal
+    source_ts_ms: int
+    received_at: int
+    data: str
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class CFBenchmarksValue5HzMessage(BaseModel):
+    """``cfbenchmarks_value_5hz`` data message envelope."""
+
+    type: Literal["cfbenchmarks_value_5hz"] = "cfbenchmarks_value_5hz"
+    sid: int
+    seq: int | None = None
+    msg: CFBenchmarksValue5HzPayload
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class CFBenchmarks5HzIndexListPayload(BaseModel):
+    """``cfbenchmarks_value_5hz_indexlist.msg`` — index IDs on the 5Hz stream."""
+
+    index_ids: list[str]
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class CFBenchmarks5HzIndexListMessage(BaseModel):
+    """``cfbenchmarks_value_5hz_indexlist`` — response to the ``indexlist`` action."""
+
+    type: Literal["cfbenchmarks_value_5hz_indexlist"] = "cfbenchmarks_value_5hz_indexlist"
+    id: int | None = None
+    sid: int
+    seq: int | None = None
+    msg: CFBenchmarks5HzIndexListPayload
+    model_config = {"extra": "allow", "populate_by_name": True}

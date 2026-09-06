@@ -63,7 +63,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
-| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `api_limits()` |
+| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 | `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls` |
@@ -241,7 +241,23 @@ in the v11.0.0 reconcile.)
 `klear.margin.settlement_prices(asset_class="Crypto", settlement_time=...)`
 returns a ticker → centicents map at a settlement cycle.
 `klear.margin.estimate_maintenance_margin(asset_class="Crypto", positions=[...])`
-margins a hypothetical portfolio.
+margins a hypothetical portfolio. Optional `date=` (YYYY-MM-DD) and
+`clearing_type=` (`"FCM"` / `"SelfClearing"`) select the matrix day and
+clearing arrangement.
+
+`klear.margin.member_funding_payments(funding_time=...)` returns the
+member's funding payments for one funding execution (distinct from the
+obligation-scoped `funding_payments(obligation_id)`).
+
+FCM-bound margin API keys:
+
+```python
+keys = klear.margin.list_fcm_api_keys()
+created = klear.margin.create_fcm_api_key(
+    name="desk", public_key=pem, fcm_subtrader_id="user_desk1"
+)
+klear.margin.delete_fcm_api_key(created.api_key_id)
+```
 
 When an `ObligationEntry` inline detail array is capped at 1000 rows, the
 matching `*_truncated` flag is set; page the full set via:

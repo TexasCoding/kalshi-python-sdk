@@ -112,6 +112,8 @@ class WeatherIndexPoint(BaseModel):
     v: float | None = None
     contributors: int | None = None
     stations: list[WeatherIndexStationReading] | None = None
+    # Present only on labelled historical-backfill points (not settlement-eligible).
+    receipt_basis: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -123,6 +125,42 @@ class GetWeatherIndexResponse(BaseModel):
     units: str
     timeseries: list[WeatherIndexPoint]
     config_version: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class WeatherIndexCalibrationStation(BaseModel):
+    """One configured member station on a weather-index calibration record."""
+
+    station_id: str
+    weight: float
+    offset_c: float
+    update_note: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class WeatherIndexCalibration(BaseModel):
+    """One published weather-index configuration, effective from ``effective_at_ms``."""
+
+    config_version: str
+    effective_at_ms: int
+    city_reference_c: float
+    stations: list[WeatherIndexCalibrationStation]
+    published_at_ms: int | None = None
+    change_reason: str | None = None
+    calibration_window_start_ms: int | None = None
+    calibration_window_end_ms: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetWeatherIndexCalibrationsResponse(BaseModel):
+    """Response from GET /live_data/weather/{city}/calibrations."""
+
+    city: str
+    units: str
+    calibrations: list[WeatherIndexCalibration]
 
     model_config = {"extra": "allow"}
 

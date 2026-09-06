@@ -11,8 +11,8 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (107 mapped of 108 operations across 19 resources, OpenAPI v3.29.0) and WebSocket API (11 typed `subscribe_*` channels + 2 escape-hatch).
-- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (47 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (18 operations). See [Perps (margin) trading](#perps-margin-trading).
+- **Full coverage** of the Kalshi REST API (108 mapped of 109 operations across 19 resources, OpenAPI v3.29.0) and WebSocket API (12 typed `subscribe_*` channels + escape-hatch).
+- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (48 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (23 operations). See [Perps (margin) trading](#perps-margin-trading).
 - **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, post-trade (prediction), and RFQ (prediction) sessions (plus order-group management over the order-entry session) with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` / `cancel_all_v2` plus batched variants on `/portfolio/events/orders/*` — the only order-write surface.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
@@ -171,15 +171,16 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Available channels (11 typed + 2 escape-hatch). Eleven have dedicated
+Available channels (12 typed + escape-hatch). Twelve have dedicated
 `subscribe_*` methods — `subscribe_ticker`, `subscribe_trade`,
 `subscribe_orderbook_delta`, `subscribe_fill`, `subscribe_market_positions`,
 `subscribe_user_orders`, `subscribe_order_group`,
 `subscribe_market_lifecycle`, `subscribe_multivariate_lifecycle`,
-`subscribe_communications`, `subscribe_cfbenchmarks_value`. The
-AsyncAPI-declared `control_frames` and `root` channels are reachable
-through the generic `subscribe(channel, ...)` escape hatch. See
-[docs/websockets.md](docs/websockets.md#the-11-channels) for the full
+`subscribe_communications`, `subscribe_cfbenchmarks_value`,
+`subscribe_cfbenchmarks_value_5hz`. The AsyncAPI-declared `control_frames`,
+`root`, and `pyth_value` channels are reachable through the generic
+`subscribe(channel, ...)` escape hatch. See
+[docs/websockets.md](docs/websockets.md#the-12-channels) for the full
 channel table.
 
 ## Perps (margin) trading

@@ -17,7 +17,7 @@ Auth required throughout.
 | `intra_exchange_transfers(...)` / `intra_exchange_transfers_all(...)` | `GET /portfolio/intra_exchange_instance_transfers` |
 | `get_intra_exchange_transfer(transfer_id)` | `GET /portfolio/intra_exchange_instance_transfers/{transfer_id}` |
 | `target_balance_allocation()` | `GET /portfolio/target_balance_allocation` |
-| `set_target_balance_allocation(*, allocations)` | `POST /portfolio/target_balance_allocation` |
+| `set_target_balance_allocation(*, allocations, resting_margin_reservation=None)` | `POST /portfolio/target_balance_allocation` |
 
 `balance()`, `positions()` / `positions_all()`, `settlements()` /
 `settlements_all()`, and `fills()` / `fills_all()` all take an optional
@@ -235,7 +235,10 @@ client.portfolio.set_target_balance_allocation(
 )
 ```
 
-Percents are integers 0–100. At most 101 allocation rows.
+Percents are integers 0–100. At most 101 allocation rows. Optional
+`resting_margin_reservation` is `"max"` or `"sum"` (server defaults to
+`"sum"`) — collateral an automatic rebalance leaves behind for resting
+orders.
 
 `Fill`, `MarketPosition`, and `Settlement` each carry a required
 `exchange_index` as of OpenAPI 3.29.0 (SDK v13.0.0). Live list callers

@@ -132,6 +132,8 @@ class MarginMarket(BaseModel):
     settlement_mark_price: TickerPrice | None = None
     liquidation_mark_price: TickerPrice | None = None
     reference_price: TickerPrice | None = None
+    # Omitted when the market has no assigned class. New classes may appear over time.
+    asset_class: str | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

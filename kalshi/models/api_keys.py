@@ -9,7 +9,7 @@ has Kalshi mint a fresh key pair and returns the private key once
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from kalshi.types import NullableList
 
@@ -29,6 +29,10 @@ class ApiKey(BaseModel):
     # Spec v3.23.0: if set, the key is restricted to this single subaccount
     # (0-63). Optional — omitted for account-wide keys and by older servers.
     subaccount: int | None = None
+    # FCM members only. Bound keys are the institution's trading credential
+    # for that subtrader (FIX + margin WS) and are denied on every REST
+    # endpoint. Mutually exclusive with ``subaccount``.
+    fcm_subtrader_id: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -63,14 +67,24 @@ class CreateApiKeyRequest(BaseModel):
     # Spec v3.23.0: restrict the key to a single subaccount when set. The spec
     # declares an explicit minimum/maximum (0-63), so bound it client-side.
     subaccount: int | None = Field(default=None, ge=0, le=63)
+    # FCM members only. Mutually exclusive with ``subaccount``.
+    fcm_subtrader_id: str | None = None
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def _subaccount_xor_fcm(self) -> CreateApiKeyRequest:
+        if self.subaccount is not None and self.fcm_subtrader_id is not None:
+            raise ValueError("subaccount and fcm_subtrader_id are mutually exclusive")
+        return self
 
 
 class CreateApiKeyResponse(BaseModel):
     """Response from POST /api_keys — the new key's ID."""
 
     api_key_id: str
+    # Present only when a bound FCM subtrader has no initial-margin cap.
+    warning: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -83,8 +97,16 @@ class GenerateApiKeyRequest(BaseModel):
     # Spec v3.23.0: restrict the key to a single subaccount when set. The spec
     # declares an explicit minimum/maximum (0-63), so bound it client-side.
     subaccount: int | None = Field(default=None, ge=0, le=63)
+    # FCM members only. Mutually exclusive with ``subaccount``.
+    fcm_subtrader_id: str | None = None
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def _subaccount_xor_fcm(self) -> GenerateApiKeyRequest:
+        if self.subaccount is not None and self.fcm_subtrader_id is not None:
+            raise ValueError("subaccount and fcm_subtrader_id are mutually exclusive")
+        return self
 
 
 class GenerateApiKeyResponse(BaseModel):
@@ -100,5 +122,7 @@ class GenerateApiKeyResponse(BaseModel):
 
     api_key_id: str
     private_key: SecretStr
+    # Present only when a bound FCM subtrader has no initial-margin cap.
+    warning: str | None = None
 
     model_config = {"extra": "allow"}

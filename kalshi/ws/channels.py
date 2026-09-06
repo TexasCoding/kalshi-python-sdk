@@ -61,6 +61,7 @@ _CHANNEL_PARAMS: dict[str, frozenset[str]] = {
     # CF Benchmarks index value feed: seeded with index_ids only — market_*
     # params are not supported on this channel.
     "cfbenchmarks_value": frozenset({"index_ids"}),
+    "cfbenchmarks_value_5hz": frozenset({"index_ids"}),
 }
 
 

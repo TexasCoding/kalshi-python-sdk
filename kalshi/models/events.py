@@ -34,7 +34,9 @@ class Event(BaseModel):
     category: str | None = None
     strike_date: AwareDatetime | None = None
     strike_period: str | None = None
-    available_on_brokers: bool
+    # Spec dropped this field after OpenAPI 3.29.0 content drift; kept optional
+    # so existing constructors and older responses still parse.
+    available_on_brokers: bool | None = None
     # The live demo server omits `product_metadata` on most events (observed
     # run #26141405845, 2026-05-20). OpenAPI v3.20.0 relaxed it to optional
     # too (#385), so this is no longer a spec deviation — kept nullable to

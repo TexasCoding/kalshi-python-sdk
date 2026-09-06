@@ -1,5 +1,43 @@
 # Migration
 
+## v13.0 → v14.0.0
+
+Reconciles upstream OpenAPI **3.29.0** content drift plus matching perps,
+Klear, and AsyncAPI updates (Closes #510, Closes #511). **Breaking** only
+for code that constructs perps WS fill / user-order payloads without
+`order_source`.
+
+### Response model field changes
+
+- **Perps WS** `MarginFillPayload.order_source` and
+  `MarginUserOrderPayload.order_source` — required `Literal["user", "system"]`.
+  Live `subscribe_fill()` / `subscribe_user_orders()` callers are
+  unaffected.
+
+```python
+# Before (constructors / test fixtures):
+# MarginFillPayload(..., post_position="15.00")
+
+# After:
+MarginFillPayload(..., post_position="15.00", order_source="user")
+```
+
+### Added (non-breaking)
+
+- `live_data.weather_calibrations(city)`
+- `api_keys.list(*, fcm_subtrader_id)` and `create`/`generate(fcm_subtrader_id=)`
+- `portfolio.set_target_balance_allocation(..., resting_margin_reservation=)`
+- `fcm.orders(*, client_order_ids=)` (`subtrader_id` now optional if IDs given)
+- `historical.positions(*, subaccount=)`
+- Perps `margin.fee_tier_rates()`
+- Klear FCM API keys + `member_funding_payments`
+- WS `subscribe_cfbenchmarks_value_5hz()`
+
+`Event.available_on_brokers` is now optional (the spec dropped the field).
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v12.0 → v13.0.0
 
 Reconciles upstream OpenAPI **3.28.0 → 3.29.0**, plus matching perps, Klear,

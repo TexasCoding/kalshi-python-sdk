@@ -17,7 +17,9 @@ from kalshi.ws.models.base import (
     UnsubscribedMessage,
 )
 from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarks5HzIndexListMessage,
     CFBenchmarksIndexListMessage,
+    CFBenchmarksValue5HzMessage,
     CFBenchmarksValueMessage,
 )
 from kalshi.ws.models.communications import (
@@ -328,6 +330,52 @@ class TestCFBenchmarksModels:
         msg = CFBenchmarksIndexListMessage.model_validate(raw)
         assert msg.type == "cfbenchmarks_value_indexlist"
         assert msg.id == 2
+        assert msg.msg.index_ids == ["BRTI", "ETHUSD_RTI"]
+
+    def test_parse_5hz_value(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value_5hz",
+            "sid": 1,
+            "seq": 9,
+            "msg": {
+                "index_id": "BRTI",
+                "value_usd": "65000.12345678",
+                "source_ts_ms": 1715793600000,
+                "received_at": 1715793600123,
+                "data": "{}",
+            },
+        }
+        msg = CFBenchmarksValue5HzMessage.model_validate(raw)
+        assert msg.type == "cfbenchmarks_value_5hz"
+        assert msg.msg.value_usd == Decimal("65000.12345678")
+        assert isinstance(msg.msg.value_usd, Decimal)
+        assert msg.msg.source_ts_ms == 1715793600000
+
+    def test_5hz_missing_value_usd_raises(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value_5hz",
+            "sid": 1,
+            "seq": 1,
+            "msg": {
+                "index_id": "BRTI",
+                "source_ts_ms": 1,
+                "received_at": 1,
+                "data": "{}",
+            },
+        }
+        with pytest.raises(ValidationError):
+            CFBenchmarksValue5HzMessage.model_validate(raw)
+
+    def test_parse_5hz_index_list(self) -> None:
+        raw = {
+            "type": "cfbenchmarks_value_5hz_indexlist",
+            "id": 2,
+            "sid": 1,
+            "seq": 1,
+            "msg": {"index_ids": ["BRTI", "ETHUSD_RTI"]},
+        }
+        msg = CFBenchmarks5HzIndexListMessage.model_validate(raw)
+        assert msg.type == "cfbenchmarks_value_5hz_indexlist"
         assert msg.msg.index_ids == ["BRTI", "ETHUSD_RTI"]
 
 

@@ -14,6 +14,7 @@ from kalshi.models.portfolio import (
     IntraExchangeInstanceTransfer,
     MarketPosition,
     PositionsResponse,
+    RestingMarginReservationLiteral,
     SetTargetBalanceAllocationRequest,
     Settlement,
     TargetBalanceAllocationInput,
@@ -452,21 +453,30 @@ class PortfolioResource(SyncResource):
         *,
         request: SetTargetBalanceAllocationRequest | None = None,
         allocations: list[TargetBalanceAllocationInput] | None = None,
+        resting_margin_reservation: RestingMarginReservationLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """``POST /portfolio/target_balance_allocation`` — replace sweep targets.
 
-        Not retried (POST).
+        Not retried (POST). ``resting_margin_reservation`` defaults to ``sum``
+        server-side when omitted.
         """
         self._require_auth()
-        _check_request_exclusive(request, allocations=allocations)
+        _check_request_exclusive(
+            request,
+            allocations=allocations,
+            resting_margin_reservation=resting_margin_reservation,
+        )
         if request is None:
             if allocations is None:
                 raise TypeError(
                     "set_target_balance_allocation() requires `allocations` "
                     "(or pass `request=...`)"
                 )
-            request = SetTargetBalanceAllocationRequest(allocations=allocations)
+            request = SetTargetBalanceAllocationRequest(
+                allocations=allocations,
+                resting_margin_reservation=resting_margin_reservation,
+            )
         self._post_void(
             "/portfolio/target_balance_allocation",
             json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
@@ -848,18 +858,26 @@ class AsyncPortfolioResource(AsyncResource):
         *,
         request: SetTargetBalanceAllocationRequest | None = None,
         allocations: list[TargetBalanceAllocationInput] | None = None,
+        resting_margin_reservation: RestingMarginReservationLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
         """Async :meth:`PortfolioResource.set_target_balance_allocation`."""
         self._require_auth()
-        _check_request_exclusive(request, allocations=allocations)
+        _check_request_exclusive(
+            request,
+            allocations=allocations,
+            resting_margin_reservation=resting_margin_reservation,
+        )
         if request is None:
             if allocations is None:
                 raise TypeError(
                     "set_target_balance_allocation() requires `allocations` "
                     "(or pass `request=...`)"
                 )
-            request = SetTargetBalanceAllocationRequest(allocations=allocations)
+            request = SetTargetBalanceAllocationRequest(
+                allocations=allocations,
+                resting_margin_reservation=resting_margin_reservation,
+            )
         await self._post_void(
             "/portfolio/target_balance_allocation",
             json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),

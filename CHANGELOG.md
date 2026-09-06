@@ -2,6 +2,69 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 14.0.0 — 2026-09-06
+
+Reconciles upstream OpenAPI **3.29.0** content drift plus matching perps,
+Klear, and AsyncAPI updates after nightly contract failures (Closes #510,
+Closes #511). **Breaking** for constructors of perps WS `MarginFillPayload`
+and `MarginUserOrderPayload` that omit the new required `order_source`.
+
+### Changed (breaking)
+
+- **Perps WS** `MarginFillPayload.order_source` and
+  `MarginUserOrderPayload.order_source` (`Literal["user", "system"]`,
+  required). `system` marks liquidations and margin exit / trailing-stop
+  triggers; `user` is every other order. Live stream callers are
+  unaffected; tests/mocks that construct these payloads must pass the
+  source.
+
+### Added
+
+- **`live_data.weather_calibrations(city)`** —
+  `GET /live_data/weather/{city}/calibrations`. Published weather-index
+  configuration timeline (launch config + weekly offset calibrations).
+- Optional **`WeatherIndexPoint.receipt_basis`** (historical-backfill
+  points only).
+- **`api_keys.list(*, fcm_subtrader_id)`** and optional
+  **`fcm_subtrader_id`** on `create()` / `generate()` / `ApiKey`
+  (mutually exclusive with `subaccount`). Optional **`warning`** on
+  create/generate responses when a bound FCM subtrader has no IM cap.
+- **`portfolio.set_target_balance_allocation(..., resting_margin_reservation=)`**
+  (`max` / `sum`; server defaults to `sum`).
+- **`fcm.orders` / `orders_all`**: `subtrader_id` is now optional when
+  `client_order_ids` is supplied (comma-separated, max 100).
+- Optional **`subaccount`** query on `historical.positions()` /
+  `positions_all()`.
+- **Perps** `margin.fee_tier_rates()` — `GET /margin/fee_tier_rates`.
+- Optional **`MarginMarket.asset_class`**.
+- **Klear** FCM margin API keys: `list_fcm_api_keys` /
+  `create_fcm_api_key` / `generate_fcm_api_key` / `delete_fcm_api_key`.
+- **Klear** `member_funding_payments()` / `member_funding_payments_all()`
+  — `GET /margin/funding_payments`.
+- **Klear** `estimate_maintenance_margin(..., date=, clearing_type=)`
+  plus optional breakdown fields on the response (`base_margin_fp`,
+  `hvar_fp`, `apc_fp`, `funding_addon_fp`, `liquidation_addon_fp`).
+- **WS** `subscribe_cfbenchmarks_value_5hz()` — high-frequency CF
+  Benchmarks tick feed (up to 5 Hz). Optional `sid` / `seq` on
+  `ErrorMessage`.
+
+### Changed (non-breaking)
+
+- **`Event.available_on_brokers`** is optional (`bool | None = None`).
+  The spec dropped the field; existing constructors that pass it still
+  work.
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.29.0** (paths 96; 109 operations;
+  108 mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer`.
+- AsyncAPI 14 → 15 channels (`cfbenchmarks_value_5hz`). 12 typed
+  `subscribe_*` helpers.
+- Perps OpenAPI: 47 → 48 operations.
+- Perps SCM OpenAPI: 19 → 24 operations. Still unimplemented:
+  `GET /margin/large_trader_positions` (surveillance).
+
 ## 13.0.0 — 2026-08-28
 
 Reconciles upstream OpenAPI **3.28.0 → 3.29.0**, plus matching perps, Klear,

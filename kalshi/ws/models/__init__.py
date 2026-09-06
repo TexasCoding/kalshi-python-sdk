@@ -9,9 +9,13 @@ from kalshi.ws.models.base import (
     UnsubscribedMessage,
 )
 from kalshi.ws.models.cfbenchmarks import (
+    CFBenchmarks5HzIndexListMessage,
+    CFBenchmarks5HzIndexListPayload,
     CFBenchmarksAvgData,
     CFBenchmarksIndexListMessage,
     CFBenchmarksIndexListPayload,
+    CFBenchmarksValue5HzMessage,
+    CFBenchmarksValue5HzPayload,
     CFBenchmarksValueMessage,
     CFBenchmarksValuePayload,
 )
@@ -57,9 +61,13 @@ __all__ = [
     # Base envelope
     "BaseMessage",
     # CF Benchmarks value feed
+    "CFBenchmarks5HzIndexListMessage",
+    "CFBenchmarks5HzIndexListPayload",
     "CFBenchmarksAvgData",
     "CFBenchmarksIndexListMessage",
     "CFBenchmarksIndexListPayload",
+    "CFBenchmarksValue5HzMessage",
+    "CFBenchmarksValue5HzPayload",
     "CFBenchmarksValueMessage",
     "CFBenchmarksValuePayload",
     # Communications

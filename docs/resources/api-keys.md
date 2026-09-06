@@ -9,9 +9,9 @@ Auth required throughout (you need an existing key to manage keys).
 
 | Method | Endpoint |
 |---|---|
-| `list()` | `GET /api_keys` |
-| `create(*, name, public_key, scopes=None, subaccount=None)` | `POST /api_keys` |
-| `generate(*, name, scopes=None, subaccount=None)` | `POST /api_keys/generate` |
+| `list(*, fcm_subtrader_id=None)` | `GET /api_keys` |
+| `create(*, name, public_key, scopes=None, subaccount=None, fcm_subtrader_id=None)` | `POST /api_keys` |
+| `generate(*, name, scopes=None, subaccount=None, fcm_subtrader_id=None)` | `POST /api_keys/generate` |
 | `delete(api_key)` | `DELETE /api_keys/{api_key}` |
 
 !!! note "Subaccount-scoped keys (spec v3.23.0)"
@@ -19,6 +19,15 @@ Auth required throughout (you need an existing key to manage keys).
     single subaccount. Omit it (the default) for an account-wide key. The value is
     bounded to `0-63` client-side; `ApiKey.subaccount` echoes it back on `list()`
     (`None` for account-wide keys).
+
+!!! note "FCM-bound keys"
+    FCM members can pass `fcm_subtrader_id="{user_id}_{suffix}"` instead of
+    `subaccount` to bind a key to a single FCM subtrader. The two are
+    mutually exclusive. A bound key is the institution's trading credential
+    for that subtrader (FIX + margin WebSocket) and is denied on every REST
+    endpoint. `list(fcm_subtrader_id=...)` filters to keys bound to that
+    subtrader. Create/generate may return `warning` when the subtrader has
+    no initial-margin cap.
 
 ## List
 
