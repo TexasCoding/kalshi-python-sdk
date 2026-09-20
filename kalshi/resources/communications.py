@@ -145,6 +145,7 @@ def _build_create_rfq_body(
     replace_existing: bool | None,
     subtrader_id: str | None,
     subaccount: int | None,
+    target_cost_excludes_fees: bool | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -155,6 +156,7 @@ def _build_create_rfq_body(
         replace_existing=replace_existing,
         subtrader_id=subtrader_id,
         subaccount=subaccount,
+        target_cost_excludes_fees=target_cost_excludes_fees,
     )
     if request is None:
         if market_ticker is None or rest_remainder is None:
@@ -169,6 +171,7 @@ def _build_create_rfq_body(
             replace_existing=replace_existing,
             subtrader_id=subtrader_id,
             subaccount=subaccount,
+            target_cost_excludes_fees=target_cost_excludes_fees,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -400,9 +403,7 @@ class RFQsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
-    def get(
-        self, rfq_id: str, *, extra_headers: dict[str, str] | None = None
-    ) -> GetRFQResponse:
+    def get(self, rfq_id: str, *, extra_headers: dict[str, str] | None = None) -> GetRFQResponse:
         self._require_auth()
         data = self._get(
             f"/communications/rfqs/{_seg(rfq_id, name='rfq_id')}", extra_headers=extra_headers
@@ -424,6 +425,7 @@ class RFQsResource(SyncResource):
         replace_existing: bool | None = ...,
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
+        target_cost_excludes_fees: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     def create(
@@ -437,6 +439,7 @@ class RFQsResource(SyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        target_cost_excludes_fees: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
@@ -449,6 +452,7 @@ class RFQsResource(SyncResource):
             replace_existing=replace_existing,
             subtrader_id=subtrader_id,
             subaccount=subaccount,
+            target_cost_excludes_fees=target_cost_excludes_fees,
         )
         data = self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
@@ -1006,6 +1010,7 @@ class CommunicationsResource(SyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        target_cost_excludes_fees: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
@@ -1018,6 +1023,7 @@ class CommunicationsResource(SyncResource):
             replace_existing=replace_existing,
             subtrader_id=subtrader_id,
             subaccount=subaccount,
+            target_cost_excludes_fees=target_cost_excludes_fees,
             extra_headers=extra_headers,
         )
 
@@ -1243,6 +1249,7 @@ class AsyncRFQsResource(AsyncResource):
         replace_existing: bool | None = ...,
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
+        target_cost_excludes_fees: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     async def create(
@@ -1256,6 +1263,7 @@ class AsyncRFQsResource(AsyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        target_cost_excludes_fees: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
@@ -1268,6 +1276,7 @@ class AsyncRFQsResource(AsyncResource):
             replace_existing=replace_existing,
             subtrader_id=subtrader_id,
             subaccount=subaccount,
+            target_cost_excludes_fees=target_cost_excludes_fees,
         )
         data = await self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
@@ -1419,9 +1428,7 @@ class AsyncQuotesResource(AsyncResource):
         data = await self._post("/communications/quotes", json=body, extra_headers=extra_headers)
         return CreateQuoteResponse.model_validate(data)
 
-    async def delete(
-        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
-    ) -> None:
+    async def delete(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         await self._delete(
             f"/communications/quotes/{_seg(quote_id, name='quote_id')}", extra_headers=extra_headers
@@ -1459,9 +1466,7 @@ class AsyncQuotesResource(AsyncResource):
             extra_headers=extra_headers,
         )
 
-    async def confirm(
-        self, quote_id: str, *, extra_headers: dict[str, str] | None = None
-    ) -> None:
+    async def confirm(self, quote_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
         self._require_auth()
         # json={} forces Content-Type: application/json — demo rejects empty PUTs.
         await self._put(
@@ -1821,6 +1826,7 @@ class AsyncCommunicationsResource(AsyncResource):
         replace_existing: bool | None = None,
         subtrader_id: str | None = None,
         subaccount: int | None = None,
+        target_cost_excludes_fees: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
@@ -1833,6 +1839,7 @@ class AsyncCommunicationsResource(AsyncResource):
             replace_existing=replace_existing,
             subtrader_id=subtrader_id,
             subaccount=subaccount,
+            target_cost_excludes_fees=target_cost_excludes_fees,
             extra_headers=extra_headers,
         )
 

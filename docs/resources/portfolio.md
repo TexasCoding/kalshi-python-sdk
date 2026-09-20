@@ -230,6 +230,7 @@ Per-shard sweepable-balance targets. POST is never retried.
 from kalshi import TargetBalanceAllocationInput
 
 current = client.portfolio.target_balance_allocation()
+print(current.resting_margin_reservation)  # "max" or "sum"
 client.portfolio.set_target_balance_allocation(
     allocations=[TargetBalanceAllocationInput(exchange_index=0, percent=100)]
 )

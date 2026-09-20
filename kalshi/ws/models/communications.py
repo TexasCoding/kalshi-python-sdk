@@ -1,4 +1,5 @@
 """Communications channel message models (RFQ and quote notifications)."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -93,8 +94,8 @@ class QuoteCreatedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
-    # AsyncAPI content (2026-07-27): RFQ creator + own subaccount when applicable.
-    rfq_creator_id: str | None = None
+    # AsyncAPI 3.30.0 content: RFQ creator is required on created/accepted.
+    rfq_creator_id: str
     subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -133,8 +134,8 @@ class QuoteAcceptedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("rfq_target_cost_dollars", "rfq_target_cost"),
     )
-    # AsyncAPI content (2026-07-27): RFQ creator + own subaccount when applicable.
-    rfq_creator_id: str | None = None
+    # AsyncAPI 3.30.0 content: RFQ creator is required on created/accepted.
+    rfq_creator_id: str
     subaccount: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 

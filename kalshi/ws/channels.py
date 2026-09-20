@@ -45,17 +45,27 @@ _SUBSCRIBE_FORWARD_KEYS = (
 _CHANNEL_PARAMS: dict[str, frozenset[str]] = {
     "ticker": frozenset({"market_ticker", "market_tickers", "market_id", "market_ids"}),
     "trade": frozenset({"market_ticker", "market_tickers", "market_id", "market_ids"}),
-    "orderbook_delta": frozenset({
-        "market_ticker", "market_tickers", "market_id", "market_ids",
-        "send_initial_snapshot",
-    }),
+    "orderbook_delta": frozenset(
+        {
+            "market_ticker",
+            "market_tickers",
+            "market_id",
+            "market_ids",
+            "send_initial_snapshot",
+        }
+    ),
     "fill": frozenset(),
     "market_positions": frozenset(),
     "user_orders": frozenset(),
     "order_group_updates": frozenset(),
-    "market_lifecycle_v2": frozenset({
-        "market_ticker", "market_tickers", "market_id", "market_ids",
-    }),
+    "market_lifecycle_v2": frozenset(
+        {
+            "market_ticker",
+            "market_tickers",
+            "market_id",
+            "market_ids",
+        }
+    ),
     "multivariate_market_lifecycle": frozenset(),
     "communications": frozenset({"shard_factor", "shard_key"}),
     # CF Benchmarks index value feed: seeded with index_ids only — market_*
@@ -200,9 +210,7 @@ class SubscriptionManager:
                     op=op,  # type: ignore[arg-type]
                 )
             try:
-                raw = await asyncio.wait_for(
-                    self._connection.recv(), timeout=remaining
-                )
+                raw = await asyncio.wait_for(self._connection.recv(), timeout=remaining)
             except ConnectionClosed as e:
                 # F-P-05: surface as KalshiConnectionError instead of raw
                 # websockets exception. The recv loop's reconnect path will
@@ -250,9 +258,9 @@ class SubscriptionManager:
         # protocol bug, not a stash bug.
         if not isinstance(sid, int):
             logger.debug(
-                "Stash mode: dropping non-matching frame with non-int sid: "
-                "type=%s sid=%r",
-                data.get("type"), sid,
+                "Stash mode: dropping non-matching frame with non-int sid: type=%s sid=%r",
+                data.get("type"),
+                sid,
             )
             return
         bucket = self._stash.get(sid)
@@ -269,7 +277,8 @@ class SubscriptionManager:
                 "Stash for sid %d is full (%d frames); oldest frame will be "
                 "evicted. Resubscribe may be stalled or the channel is too "
                 "high-volume for the configured stash_maxlen.",
-                sid, self._stash_maxlen,
+                sid,
+                self._stash_maxlen,
             )
         bucket.append(raw)
 
@@ -295,9 +304,7 @@ class SubscriptionManager:
             )
 
         sub_params = params or {}
-        sub = Subscription(
-            client_id=client_id, channel=channel, params=sub_params, queue=queue
-        )
+        sub = Subscription(client_id=client_id, channel=channel, params=sub_params, queue=queue)
 
         # Send subscribe command
         msg_id = self._get_msg_id()
@@ -306,7 +313,10 @@ class SubscriptionManager:
 
         # Read frames until we get our subscribe ack (by matching id)
         data = await self._wait_for_response(
-            msg_id, channel=channel, client_id=client_id, op="subscribe",
+            msg_id,
+            channel=channel,
+            client_id=client_id,
+            op="subscribe",
         )
         if data.get("type") == "error":
             error_msg = data.get("msg", {})
@@ -343,7 +353,10 @@ class SubscriptionManager:
         await self._connection.send(cmd)
 
         await self._wait_for_response(
-            msg_id, channel=sub.channel, client_id=client_id, op="unsubscribe",
+            msg_id,
+            channel=sub.channel,
+            client_id=client_id,
+            op="unsubscribe",
         )
         # F-P-08: push sentinel before deleting so any held iterator exits
         # cleanly via StopAsyncIteration instead of hanging on queue.get().
@@ -351,9 +364,7 @@ class SubscriptionManager:
         # Clean up mappings
         self._sid_to_client.pop(sub.server_sid, None)
         del self._subscriptions[client_id]
-        logger.debug(
-            "Unsubscribed client_id=%d (server_sid=%d)", client_id, sub.server_sid
-        )
+        logger.debug("Unsubscribed client_id=%d (server_sid=%d)", client_id, sub.server_sid)
 
     async def update_subscription(
         self,
@@ -368,8 +379,9 @@ class SubscriptionManager:
     ) -> None:
         """Mutate an existing subscription.
 
-        Markets channels take ``add_markets``/``delete_markets`` with
-        ``market_tickers``/``market_ids``. The ``cfbenchmarks_value`` channel
+        Markets channels take ``add_markets``/``delete_markets``/
+        ``get_snapshot`` with ``market_tickers``/``market_ids``. The
+        ``cfbenchmarks_value`` channel
         takes ``subscribe_indices``/``unsubscribe_indices`` with ``index_ids``,
         or ``indexlist`` (no ids) to request the available index list.
         """
@@ -399,7 +411,10 @@ class SubscriptionManager:
         cmd = {"id": msg_id, "cmd": "update_subscription", "params": params}
         await self._connection.send(cmd)
         await self._wait_for_response(
-            msg_id, channel=sub.channel, client_id=client_id, op="update_subscription",
+            msg_id,
+            channel=sub.channel,
+            client_id=client_id,
+            op="update_subscription",
         )
         logger.debug("Updated subscription client_id=%d action=%s", client_id, action)
 
@@ -447,8 +462,10 @@ class SubscriptionManager:
                     await self._connection.send(cmd)
 
                     data = await self._wait_for_response(
-                        msg_id, channel=sub.channel,
-                        client_id=client_id, op="subscribe",
+                        msg_id,
+                        channel=sub.channel,
+                        client_id=client_id,
+                        op="subscribe",
                     )
                     if data.get("type") == "error":
                         error_msg = data.get("msg", {})
@@ -527,19 +544,24 @@ class SubscriptionManager:
                 try:
                     msg_id = self._get_msg_id()
                     cmd = {
-                        "id": msg_id, "cmd": "unsubscribe",
+                        "id": msg_id,
+                        "cmd": "unsubscribe",
                         "params": {"sids": [old_sid]},
                     }
                     await self._connection.send(cmd)
                     await self._wait_for_response(
-                        msg_id, channel=sub.channel,
-                        client_id=client_id, op="unsubscribe",
+                        msg_id,
+                        channel=sub.channel,
+                        client_id=client_id,
+                        op="unsubscribe",
                     )
                 except KalshiSubscriptionError:
                     logger.debug(
                         "Unsubscribe during resubscribe_one failed for "
                         "client_id=%d sid=%d; continuing with fresh subscribe",
-                        client_id, old_sid, exc_info=True,
+                        client_id,
+                        old_sid,
+                        exc_info=True,
                     )
                 self._sid_to_client.pop(old_sid, None)
                 sub.server_sid = None
@@ -551,8 +573,10 @@ class SubscriptionManager:
             cmd = {"id": msg_id, "cmd": "subscribe", "params": params}
             await self._connection.send(cmd)
             data = await self._wait_for_response(
-                msg_id, channel=sub.channel,
-                client_id=client_id, op="subscribe",
+                msg_id,
+                channel=sub.channel,
+                client_id=client_id,
+                op="subscribe",
             )
             if data.get("type") == "error":
                 error_msg = data.get("msg", {})
@@ -571,9 +595,7 @@ class SubscriptionManager:
         finally:
             self._stashing = prev_stashing
 
-    async def broadcast_error(
-        self, client_id: int, exc: BaseException
-    ) -> None:
+    async def broadcast_error(self, client_id: int, exc: BaseException) -> None:
         """Surface ``exc`` to the subscription's iterator (#207, #189).
 
         Puts an error sentinel on the queue so any active ``async for``

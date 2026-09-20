@@ -48,6 +48,7 @@ rfq = client.communications.rfqs.create(
     market_ticker="KXPRES-24-DJT",
     contracts=500,
     rest_remainder=True,
+    target_cost_excludes_fees=True,  # optional; principal-only target cost
 )
 print(rfq.rfq.rfq_id)
 

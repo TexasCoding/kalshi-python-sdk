@@ -186,6 +186,7 @@ def series_dict(**overrides: Any) -> dict[str, Any]:
         "frequency": "weekly",
         "title": "Series title",
         "category": "Politics",
+        "categories": ["Politics"],
         "tags": [],
         "contract_url": "",
         "contract_terms_url": "",
@@ -499,6 +500,7 @@ def quote_created_payload_dict(**overrides: Any) -> dict[str, Any]:
         "quote_id": "q-1",
         "rfq_id": "rfq-1",
         "quote_creator_id": "user-1",
+        "rfq_creator_id": "user-2",
         "market_ticker": "MKT-A",
         "yes_bid_dollars": "0.5000",
         "no_bid_dollars": "0.5000",
@@ -514,6 +516,7 @@ def quote_accepted_payload_dict(**overrides: Any) -> dict[str, Any]:
         "quote_id": "q-1",
         "rfq_id": "rfq-1",
         "quote_creator_id": "user-1",
+        "rfq_creator_id": "user-2",
         "market_ticker": "MKT-A",
         "yes_bid_dollars": "0.5000",
         "no_bid_dollars": "0.5000",
@@ -536,7 +539,6 @@ def quote_executed_payload_dict(**overrides: Any) -> dict[str, Any]:
     }
     base.update(overrides)
     return base
-
 
 
 def market_lifecycle_payload_dict(**overrides: Any) -> dict[str, Any]:

@@ -40,6 +40,7 @@ SERIES_PAYLOAD = {
     "frequency": "quarterly",
     "title": "GDP Report",
     "category": "Economics",
+    "categories": ["Economics"],
     "tags": ["gdp"],
     "settlement_sources": [],
     "contract_url": "",
@@ -63,9 +64,7 @@ class TestSeriesList:
 
     @respx.mock
     def test_list_empty(self, series_resource: SeriesResource) -> None:
-        respx.get(f"{BASE}/series").mock(
-            return_value=httpx.Response(200, json={"series": []})
-        )
+        respx.get(f"{BASE}/series").mock(return_value=httpx.Response(200, json={"series": []}))
         result = series_resource.list()
         assert result == []
 
@@ -104,15 +103,20 @@ class TestSeriesFeeChanges:
     @respx.mock
     def test_fee_changes(self, series_resource: SeriesResource) -> None:
         respx.get(f"{BASE}/series/fee_changes").mock(
-            return_value=httpx.Response(200, json={
-                "series_fee_change_arr": [{
-                    "id": "fc-1",
-                    "series_ticker": "ECON-GDP",
-                    "fee_type": "flat",
-                    "fee_multiplier": 0.5,
-                    "scheduled_ts": "2026-05-01T00:00:00Z",
-                }]
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "series_fee_change_arr": [
+                        {
+                            "id": "fc-1",
+                            "series_ticker": "ECON-GDP",
+                            "fee_type": "flat",
+                            "fee_multiplier": 0.5,
+                            "scheduled_ts": "2026-05-01T00:00:00Z",
+                        }
+                    ]
+                },
+            )
         )
         result = series_resource.fee_changes()
         assert len(result) == 1
@@ -133,14 +137,23 @@ class TestSeriesEventCandlesticks:
     @respx.mock
     def test_event_candlesticks(self, series_resource: SeriesResource) -> None:
         respx.get(f"{BASE}/series/SER/events/EVT/candlesticks").mock(
-            return_value=httpx.Response(200, json={
-                "market_tickers": ["MKT-A"],
-                "market_candlesticks": [[candlestick_dict(end_period_ts=1000, volume_fp="10.00")]],
-                "adjusted_end_ts": 2000,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "market_tickers": ["MKT-A"],
+                    "market_candlesticks": [
+                        [candlestick_dict(end_period_ts=1000, volume_fp="10.00")]
+                    ],
+                    "adjusted_end_ts": 2000,
+                },
+            )
         )
         ec = series_resource.event_candlesticks(
-            "SER", "EVT", start_ts=100, end_ts=200, period_interval=60,
+            "SER",
+            "EVT",
+            start_ts=100,
+            end_ts=200,
+            period_interval=60,
         )
         assert ec.market_tickers == ["MKT-A"]
         assert len(ec.market_candlesticks) == 1
@@ -159,7 +172,11 @@ class TestSeriesEventCandlesticks:
         )
         # New name works:
         series_resource.event_candlesticks(
-            "SER", ticker="EVT", start_ts=100, end_ts=200, period_interval=60,
+            "SER",
+            ticker="EVT",
+            start_ts=100,
+            end_ts=200,
+            period_interval=60,
         )
 
     def test_event_candlesticks_event_ticker_kwarg_removed(
@@ -184,22 +201,34 @@ class TestSeriesForecastPercentileHistory:
     @respx.mock
     def test_happy_path(self, series_resource: SeriesResource) -> None:
         respx.get(f"{BASE}/series/SER/events/EVT/forecast_percentile_history").mock(
-            return_value=httpx.Response(200, json={
-                "forecast_history": [{
-                    "event_ticker": "EVT",
-                    "end_period_ts": 12345,
-                    "period_interval": 60,
-                    "percentile_points": [{
-                        "percentile": 5000,
-                        "raw_numerical_forecast": 3.0,
-                        "numerical_forecast": 3.0,
-                        "formatted_forecast": "3.0%",
-                    }],
-                }]
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "forecast_history": [
+                        {
+                            "event_ticker": "EVT",
+                            "end_period_ts": 12345,
+                            "period_interval": 60,
+                            "percentile_points": [
+                                {
+                                    "percentile": 5000,
+                                    "raw_numerical_forecast": 3.0,
+                                    "numerical_forecast": 3.0,
+                                    "formatted_forecast": "3.0%",
+                                }
+                            ],
+                        }
+                    ]
+                },
+            )
         )
         result = series_resource.forecast_percentile_history(
-            "SER", "EVT", percentiles=[5000], start_ts=100, end_ts=200, period_interval=60,
+            "SER",
+            "EVT",
+            percentiles=[5000],
+            start_ts=100,
+            end_ts=200,
+            period_interval=60,
         )
         assert len(result) == 1
         assert result[0].percentile_points[0].percentile == 5000
@@ -207,7 +236,12 @@ class TestSeriesForecastPercentileHistory:
     def test_auth_guard(self, unauth_series: SeriesResource) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_series.forecast_percentile_history(
-                "SER", "EVT", percentiles=[5000], start_ts=100, end_ts=200, period_interval=60,
+                "SER",
+                "EVT",
+                percentiles=[5000],
+                start_ts=100,
+                end_ts=200,
+                period_interval=60,
             )
 
     def test_event_ticker_kwarg_removed(self, series_resource: SeriesResource) -> None:
@@ -223,17 +257,13 @@ class TestSeriesForecastPercentileHistory:
             )
 
     @respx.mock
-    def test_percentiles_serialized_as_explode_true(
-        self, series_resource: SeriesResource
-    ) -> None:
+    def test_percentiles_serialized_as_explode_true(self, series_resource: SeriesResource) -> None:
         """Spec at openapi.yaml:1832 says style:form, explode:true.
 
         Wire must be ?percentiles=25&percentiles=50 (NOT comma-joined).
         Prevents future regression if someone "simplifies" to a comma-join.
         """
-        route = respx.get(
-            f"{BASE}/series/SER/events/EVT/forecast_percentile_history"
-        ).mock(
+        route = respx.get(f"{BASE}/series/SER/events/EVT/forecast_percentile_history").mock(
             return_value=httpx.Response(200, json={"forecast_history": []})
         )
         series_resource.forecast_percentile_history(
@@ -249,9 +279,7 @@ class TestSeriesForecastPercentileHistory:
         assert url.count("percentiles=") == 3
         # extract the values
         values = sorted(
-            v
-            for k, v in route.calls[0].request.url.params.multi_items()
-            if k == "percentiles"
+            v for k, v in route.calls[0].request.url.params.multi_items() if k == "percentiles"
         )
         assert values == ["25", "50", "75"]
 
@@ -296,14 +324,21 @@ class TestAsyncSeriesResource:
     @pytest.mark.asyncio
     async def test_event_candlesticks(self, async_series: AsyncSeriesResource) -> None:
         respx.get(f"{BASE}/series/SER/events/EVT/candlesticks").mock(
-            return_value=httpx.Response(200, json={
-                "market_tickers": [],
-                "market_candlesticks": [],
-                "adjusted_end_ts": 0,
-            })
+            return_value=httpx.Response(
+                200,
+                json={
+                    "market_tickers": [],
+                    "market_candlesticks": [],
+                    "adjusted_end_ts": 0,
+                },
+            )
         )
         ec = await async_series.event_candlesticks(
-            "SER", "EVT", start_ts=0, end_ts=1, period_interval=1,
+            "SER",
+            "EVT",
+            start_ts=0,
+            end_ts=1,
+            period_interval=1,
         )
         assert ec.market_tickers == []
 
@@ -314,7 +349,12 @@ class TestAsyncSeriesResource:
             return_value=httpx.Response(200, json={"forecast_history": []})
         )
         result = await async_series.forecast_percentile_history(
-            "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
+            "SER",
+            "EVT",
+            percentiles=[5000],
+            start_ts=0,
+            end_ts=1,
+            period_interval=60,
         )
         assert result == []
 
@@ -353,9 +393,9 @@ class TestAsyncSeriesResource:
         self, async_series: AsyncSeriesResource
     ) -> None:
         """Spec at openapi.yaml:1832 says style:form, explode:true."""
-        route = respx.get(
-            f"{BASE}/series/SER/events/EVT/forecast_percentile_history"
-        ).mock(return_value=httpx.Response(200, json={"forecast_history": []}))
+        route = respx.get(f"{BASE}/series/SER/events/EVT/forecast_percentile_history").mock(
+            return_value=httpx.Response(200, json={"forecast_history": []})
+        )
         await async_series.forecast_percentile_history(
             "SER",
             "EVT",
@@ -367,9 +407,7 @@ class TestAsyncSeriesResource:
         url = str(route.calls[0].request.url)
         assert url.count("percentiles=") == 3
         values = sorted(
-            v
-            for k, v in route.calls[0].request.url.params.multi_items()
-            if k == "percentiles"
+            v for k, v in route.calls[0].request.url.params.multi_items() if k == "percentiles"
         )
         assert values == ["25", "50", "75"]
 
@@ -377,7 +415,12 @@ class TestAsyncSeriesResource:
     async def test_forecast_auth_guard(self, unauth_async_series: AsyncSeriesResource) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_series.forecast_percentile_history(
-                "SER", "EVT", percentiles=[5000], start_ts=0, end_ts=1, period_interval=60,
+                "SER",
+                "EVT",
+                percentiles=[5000],
+                start_ts=0,
+                end_ts=1,
+                period_interval=60,
             )
 
 
@@ -386,9 +429,7 @@ class TestSeriesBoolParamSerialization:
     must serialize to ``"false"`` (was silently dropped by inline ternary)."""
 
     @respx.mock
-    def test_list_include_volume_false_is_sent(
-        self, series_resource: SeriesResource
-    ) -> None:
+    def test_list_include_volume_false_is_sent(self, series_resource: SeriesResource) -> None:
         route = respx.get(f"{BASE}/series").mock(
             return_value=httpx.Response(200, json={"series": []})
         )
@@ -398,9 +439,7 @@ class TestSeriesBoolParamSerialization:
         assert params["include_product_metadata"] == "false"
 
     @respx.mock
-    def test_get_include_volume_false_is_sent(
-        self, series_resource: SeriesResource
-    ) -> None:
+    def test_get_include_volume_false_is_sent(self, series_resource: SeriesResource) -> None:
         route = respx.get(f"{BASE}/series/ECON-GDP").mock(
             return_value=httpx.Response(200, json={"series": SERIES_PAYLOAD})
         )

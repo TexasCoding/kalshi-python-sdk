@@ -27,7 +27,8 @@ class MveSelectedLeg(BaseModel):
     yes_settlement_value: DollarDecimal | None = Field(
         default=None,
         validation_alias=AliasChoices(
-            "yes_settlement_value_dollars", "yes_settlement_value",
+            "yes_settlement_value_dollars",
+            "yes_settlement_value",
         ),
     )
 
@@ -59,6 +60,8 @@ class RFQ(BaseModel):
 
     # v3.18.0 backfill (#161).
     creator_subaccount: int | None = None
+    # Spec 3.30.0: True when target_cost is principal-only (taker fees on top).
+    target_cost_excludes_fees: bool | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -112,6 +115,8 @@ class Quote(BaseModel):
     creator_subaccount: int | None = None
     rfq_creator_subaccount: int | None = None
     post_only: bool | None = None
+    # Spec 3.30.0: True when the parent RFQ's target cost is principal-only.
+    target_cost_excludes_fees: bool | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -164,6 +169,7 @@ class CreateRFQRequest(BaseModel):
     replace_existing: bool | None = None
     subtrader_id: str | None = None
     subaccount: StrictInt | None = Field(default=None, ge=0)
+    target_cost_excludes_fees: bool | None = None
 
     model_config = {"extra": "forbid"}
 

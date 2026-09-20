@@ -119,6 +119,8 @@ class OrderbookSnapshotMessage(BaseModel):
     type: Literal["orderbook_snapshot"] = "orderbook_snapshot"
     sid: int
     seq: int
+    # Present when the snapshot is a reply to a get_snapshot command with an ID.
+    id: int | None = None
     msg: OrderbookSnapshotPayload
     model_config = {"extra": "allow", "populate_by_name": True}
 

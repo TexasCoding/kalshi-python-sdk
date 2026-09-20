@@ -692,9 +692,12 @@ def _sdk_type_kind(ann: Any) -> str:
     # before any frame parses, so resolve the forward-ref class-name here
     # so a date-time field is classified ``datetime``, not ``unknown``.
     if isinstance(base, typing.ForwardRef) and base.__forward_arg__ in (
-        "datetime", "datetime | None",
-        "AwareDatetime", "AwareDatetime | None",
-        "NaiveDatetime", "NaiveDatetime | None",
+        "datetime",
+        "datetime | None",
+        "AwareDatetime",
+        "AwareDatetime | None",
+        "NaiveDatetime",
+        "NaiveDatetime | None",
     ):
         return "datetime"
     origin = typing.get_origin(base)
@@ -766,11 +769,7 @@ def _ws_field_type_violations(
     # Rule 2: spec string with format=date-time (ISO timestamp) must be str
     # on the SDK. An int-typed SDK field rejects the wire string
     # "2026-04-19T18:43:37.662364Z".
-    if (
-        spec_type == "string"
-        and spec_format == "date-time"
-        and sdk_kind not in ("str", "datetime")
-    ):
+    if spec_type == "string" and spec_format == "date-time" and sdk_kind not in ("str", "datetime"):
         problems.append(
             f"{sdk_name!r}: spec '{spec_name}' is string (date-time), "
             f"SDK typed as {sdk_kind}. Use str or datetime."
@@ -1451,6 +1450,15 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/SetTargetBalanceAllocationRequest": (
         "kalshi.models.portfolio.SetTargetBalanceAllocationRequest"
     ),
+    "#/components/schemas/CreateFCMSubtraderRequest": (
+        "kalshi.models.fcm.CreateFCMSubtraderRequest"
+    ),
+    "#/components/schemas/UpdateFCMSubtraderBlockedCategoriesRequest": (
+        "kalshi.models.fcm.UpdateFCMSubtraderBlockedCategoriesRequest"
+    ),
+    "#/components/schemas/UpdateFCMEventContractDailyCapRequest": (
+        "kalshi.models.fcm.UpdateFCMEventContractDailyCapRequest"
+    ),
 }
 
 
@@ -1897,9 +1905,7 @@ def test_exclusion_map_is_current() -> None:
             # a rename silently masks an upstream param removal/rename — the entry
             # keeps suppressing drift for a param the spec no longer has.
             if excl.kind == "kwarg_rename" and name not in sdk_params:
-                map_entry = next(
-                    (e for e in METHOD_ENDPOINT_MAP if e.sdk_method == fqn), None
-                )
+                map_entry = next((e for e in METHOD_ENDPOINT_MAP if e.sdk_method == fqn), None)
                 if map_entry is None:
                     stale.append(
                         f"EXCLUSIONS[{(fqn, name)}] is a kwarg_rename but {fqn} has "
@@ -2118,8 +2124,7 @@ def _assert_perps_response_drift(entry: ContractEntry, spec: dict[str, Any]) -> 
     problems = additive_required + required_issues
     if problems:
         pytest.fail(
-            f"Perps spec drift in {entry.sdk_model}:\n"
-            + "\n".join(f"  - {p}" for p in problems)
+            f"Perps spec drift in {entry.sdk_model}:\n" + "\n".join(f"  - {p}" for p in problems)
         )
 
 

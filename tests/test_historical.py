@@ -79,9 +79,7 @@ class TestHistoricalCutoff:
         assert cutoff.market_positions_last_updated_ts is None
 
     @respx.mock
-    def test_returns_cutoff_with_market_positions_ts(
-        self, historical: HistoricalResource
-    ) -> None:
+    def test_returns_cutoff_with_market_positions_ts(self, historical: HistoricalResource) -> None:
         """Spec v3.26.0: optional market_positions_last_updated_ts archival boundary."""
         respx.get(f"{BASE}/historical/cutoff").mock(
             return_value=httpx.Response(
@@ -333,6 +331,15 @@ class TestHistoricalFills:
         assert params["ticker"] == "MKT-A"
         assert params["max_ts"] == "1700099999"
 
+    @respx.mock
+    def test_fills_with_min_ts(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": []})
+        )
+        historical.fills(ticker="MKT-A", min_ts=1700000000)
+        params = dict(route.calls[0].request.url.params)
+        assert params["min_ts"] == "1700000000"
+
 
 class TestHistoricalOrders:
     @respx.mock
@@ -373,6 +380,15 @@ class TestHistoricalOrders:
         params = dict(route.calls[0].request.url.params)
         assert params["ticker"] == "MKT-A"
         assert params["max_ts"] == "1700099999"
+
+    @respx.mock
+    def test_orders_with_min_ts(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": []})
+        )
+        historical.orders(ticker="MKT-A", min_ts=1700000000)
+        params = dict(route.calls[0].request.url.params)
+        assert params["min_ts"] == "1700000000"
 
 
 class TestHistoricalTrades:
@@ -1000,9 +1016,7 @@ class TestAsyncHistoricalPositions:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_positions_all_paginates(
-        self, async_historical: AsyncHistoricalResource
-    ) -> None:
+    async def test_positions_all_paginates(self, async_historical: AsyncHistoricalResource) -> None:
         respx.get(f"{BASE}/historical/positions").mock(
             side_effect=[
                 httpx.Response(

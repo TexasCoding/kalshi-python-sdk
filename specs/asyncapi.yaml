@@ -117,6 +117,10 @@ channels:
         $ref: '#/components/messages/listSubscriptionsResponse'
       unsubscribedResponse:
         $ref: '#/components/messages/unsubscribedResponse'
+      subscribedIndicesResponse:
+        $ref: '#/components/messages/subscribedIndicesResponse'
+      subscribedUnderlyingsResponse:
+        $ref: '#/components/messages/subscribedUnderlyingsResponse'
       okResponse:
         $ref: '#/components/messages/okResponse'
       errorResponse:
@@ -248,6 +252,8 @@ channels:
     messages:
       marketLifecycleV2:
         $ref: '#/components/messages/marketLifecycleV2'
+      marketMetadataUpdated:
+        $ref: '#/components/messages/marketMetadataUpdated'
       eventLifecycle:
         $ref: '#/components/messages/eventLifecycle'
       eventFeeUpdate:
@@ -338,7 +344,42 @@ channels:
     description: |
       Real-time CF Benchmarks index value updates, each carrying the raw upstream frame plus trailing 60-second and quarter-hour final-minute averages. Requires authentication.
 
-      **Requirements:**
+      ## Coins and index IDs
+
+      Use the following CF Benchmarks index IDs to request coin data on this channel or through the [REST passthrough](/cfbenchmarks/rest-passthrough). The BTC and ETH examples on this page are illustrative; they are not the full list of coins.
+
+      | Coin | CF Benchmarks index ID |
+      |------|------------------------|
+      | AAVE | `AAVEUSD_RTI` |
+      | ADA | `ADAUSD_RTI` |
+      | BCH | `BCHUSD_RTI` |
+      | BNB | `BNBUSD_RTI` |
+      | BTC | `BRTI` |
+      | DOGE | `DOGEUSD_RTI` |
+      | DOT | `DOTUSD_RTI` |
+      | ETH | `ETHUSD_RTI` |
+      | HBAR | `HBARUSD_RTI` |
+      | HYPE | `HYPEUSD_RTI` |
+      | LINK | `LINKUSD_RTI` |
+      | LTC | `LTCUSD_RTI` |
+      | NEAR | `NEARUSD_RTI` |
+      | SHIB / kSHIB | `SHIBUSD_RTI` |
+      | SOL | `SOLUSD_RTI` |
+      | SUI | `SUIUSD_RTI` |
+      | VVV | `VVVUSD_RTI` |
+      | WLD | `WLDUSD_RTI` |
+      | XLM | `XLMUSD_RTI` |
+      | XRP | `XRPUSD_RTI` |
+      | ZEC | `ZECUSD_RTI` |
+
+      Pass the index ID exactly as shown, rather than a coin symbol or Kalshi market ticker. For kSHIB, request `SHIBUSD_RTI`: values are USD per SHIB and are not scaled to kSHIB or a perpetual contract size.
+
+      Use the `indexlist` action below to check the index IDs available on your WebSocket connection. Availability can change; this table is a coin-to-index reference, not a guarantee that every index is streaming in every environment.
+
+      The [5Hz feed](/websockets/cfbenchmarks-value-5hz) has a smaller coin set: BTC, ETH, SOL, XRP, and DOGE. Use `cfbenchmarks_value` for the other coins above.
+
+      ## Requirements
+
       - Authentication required
       - Index specification via `index_ids` (array of CF Benchmarks index IDs, for example `["BRTI", "ETHUSD_RTI"]`)
       - `market_ticker`/`market_tickers`/`market_id`/`market_ids` are not supported for this channel
@@ -350,12 +391,41 @@ channels:
 
       **Use case:** Consuming CF Benchmarks reference index values and their short-window averages
 
-      **Subscription workflow:**
+      ## Subscription workflow
+
       1. Subscribe to `cfbenchmarks_value` (optionally seeding `index_ids`). A successful subscribe returns a `subscribed` response with the assigned `sid`.
       2. Discover available index IDs with the `indexlist` action; the server replies with a `cfbenchmarks_value_indexlist` message.
       3. Add or remove tracked index IDs with `subscribe_indices` / `unsubscribe_indices`, or use `index_ids: ["all"]` to track everything.
 
-      **Averaging semantics:**
+      For example, subscribe to BNB, HYPE, and SHIB values:
+
+      ```json
+      {
+        "id": 1,
+        "cmd": "subscribe",
+        "params": {
+          "channels": ["cfbenchmarks_value"],
+          "index_ids": ["BNBUSD_RTI", "HYPEUSD_RTI", "SHIBUSD_RTI"]
+        }
+      }
+      ```
+
+      To discover the available indices, send the following after the `subscribed` response. Replace `sid: 1` with the subscription ID returned by the server:
+
+      ```json
+      {
+        "id": 2,
+        "cmd": "update_subscription",
+        "params": {
+          "sid": 1,
+          "action": "indexlist"
+        }
+      }
+      ```
+
+      Read the available IDs from `msg.index_ids` in the `cfbenchmarks_value_indexlist` response. This lists the channel's available indices without changing which ones you subscribe to. A successful `subscribe` response alone does not confirm that a requested index is available.
+
+      ## Averaging semantics
 
       `avg_60s_data` (always present):
       - Window is trailing and per tick: `[source_ts_ms - 60000, source_ts_ms)`
@@ -368,7 +438,8 @@ channels:
       - This produces second-indexed counts: `:01 -> 1`, `:14 -> 14`, `:59 -> 59`, close tick (`:00/:15/:30/:45`) -> `60`
       - The field is omitted outside that final-minute window
 
-      **Integration notes:**
+      ## Integration notes
+
       - If you subscribe without any `index_ids`, no value events flow until you add indices or switch to `["all"]`
       - `sid` identifies the subscription stream; use it for `update_subscription` and `unsubscribe`
       - Missing `index_ids` for `subscribe_indices`/`unsubscribe_indices` returns an `error` with `code: 24` ("Index IDs required"); unsupported actions return a standard websocket `error`
@@ -385,7 +456,7 @@ channels:
     description: |
       Real-time CF Benchmarks index value updates at up to 5 updates per second, each carrying the raw upstream frame plus parsed value fields. Requires authentication.
 
-      This is the high-frequency sibling of the once-per-second [`cfbenchmarks_value`](/websockets/cfbenchmarks-value) channel. It carries the indices CF Benchmarks publishes at 200ms granularity (currently `BRTI`, `ETHUSD_RTI`, `SOLUSD_RTI`, `XRPUSD_RTI`, and `DOGEUSD_RTI`); all other indices remain available on `cfbenchmarks_value` only. Messages are lean raw ticks — they do not include the 60-second or quarter-hour averages, which stay on the per-second channel.
+      This is the high-frequency sibling of the once-per-second [`cfbenchmarks_value`](/websockets/cfbenchmarks-value) channel. It carries BTC (`BRTI`), ETH (`ETHUSD_RTI`), SOL (`SOLUSD_RTI`), XRP (`XRPUSD_RTI`), and DOGE (`DOGEUSD_RTI`) at up to five updates per second. For BNB, HYPE, NEAR, ZEC, SUI, BCH, LTC, LINK, SHIB/kSHIB, ADA, WLD, AAVE, VVV, and other per-second indices, see the [coin and index ID table](/websockets/cfbenchmarks-value#coins-and-index-ids). Use this channel's `indexlist` action to discover its available IDs. Messages are lean raw ticks — they do not include the 60-second or quarter-hour averages, which stay on the per-second channel.
 
       **Requirements:**
       - Authentication required
@@ -421,15 +492,141 @@ channels:
     description: |
       Real-time Pyth price updates for configured underlying tickers. Requires authentication.
 
-      **Requirements:**
+      ## Access and pricing
+
+      The Pyth data feed costs **$1,000/month**, with the **first seven days free**. [Subscribe to the Pyth data feed](https://buy.stripe.com/eVqaEXfmu9eN2ZB8gr4ZG0a).
+
+      Connect using an authenticated Kalshi WebSocket session. See [Quick Start: WebSockets](/getting_started/quick_start_websockets#authentication) for API key authentication and request signing.
+
+      ## Commodities and underlying tickers
+
+      The reference table below includes spot metals, commodity futures, and indices. The gold and silver examples are only a subset of the feed coverage.
+
+      | Pyth feed ID | Pyth symbol | Description |
+      |--------------|-------------|-------------|
+      | 345 | `Metal.XAG/USD` | Silver price in USD |
+      | 346 | `Metal.XAU/USD` | Gold price in USD |
+      | 2937 | `Commodities.CCU6/USD` | Cocoa futures (Sept 2026) in USD |
+      | 3052 | `Commodities.COU6/USD` | Crude Oil futures (Sept 2026) in USD |
+      | 3053 | `Commodities.COZ6/USD` | Crude Oil futures (Dec 2026) in USD |
+      | 3080 | `Commodities.WHU6/USD` | Wheat futures (Sept 2026) in USD |
+      | 3081 | `Commodities.WHZ6/USD` | Wheat futures (Dec 2026) in USD |
+      | 3085 | `Commodities.SOU6/USD` | Soybeans futures (Sept 2026) in USD |
+      | 3086 | `Commodities.SOX6/USD` | Soybeans futures (Nov 2026) in USD |
+      | 3063 | `Commodities.Index.PYTHOIL/USD` | Blended Oil Index in USD |
+      | 3153 | `Metal.Index.GOLD/USD` | Blended Gold Index in USD |
+      | 3154 | `Metal.Index.SILVER/USD` | Blended Silver Index in USD |
+      | 3045 | `Commodities.BRENTX6/USD` | Brent Crude futures (Nov 2026) in USD |
+      | 3525 | `Commodities.Index.CU/USD` | Copper Index in USD |
+      | 3265 | `Commodities.Index.NATGAS/USD` | Natural Gas Index in USD |
+      | 3446 | `Commodities.Index.BRENT/USD` | Blended Brent Crude Index in USD |
+      | 1781 | `Metal.XPT/USD` | Platinum price in USD |
+      | 1780 | `Metal.XPD/USD` | Palladium price in USD |
+
+      Pass the exact **Pyth symbol** in `underlying_tickers`. The numeric Pyth feed IDs are reference information and are not subscription parameters for this channel. Kalshi market tickers are not Pyth underlying tickers.
+
+      Use `underlying_list` to discover recently streamed tickers on your connection. Availability can change, including as futures contracts expire; the table does not guarantee that every feed is streaming in every environment.
+
+      ## Requirements
+
       - Authentication required
       - Seed `underlying_tickers` in the initial subscribe, or add them later
       - Use `underlying_tickers: ["all"]` to receive every available underlying
       - Supports `update_subscription` with `subscribe_underlyings`, `unsubscribe_underlyings`, and `underlying_list` actions
       - Duplicate and out-of-order source timestamps are ignored independently per underlying ticker
 
-      Subscribe without `underlying_tickers` to create an empty subscription, then use `underlying_list`
-      to discover recently streamed underlyings and `subscribe_underlyings` to receive prices.
+      ## Subscription workflow
+
+      Subscribe to `pyth_value` with the underlying tickers you want to receive. For example, request gold, oil, and natural gas prices:
+
+      ```json
+      {
+        "id": 1,
+        "cmd": "subscribe",
+        "params": {
+          "channels": ["pyth_value"],
+          "underlying_tickers": [
+            "Metal.XAU/USD",
+            "Commodities.Index.PYTHOIL/USD",
+            "Commodities.Index.NATGAS/USD"
+          ]
+        }
+      }
+      ```
+
+      A successful subscribe returns a `subscribed` response with the assigned `sid`. Use that subscription ID in subsequent commands; replace `sid: 1` in the examples below with the returned ID.
+
+      You can also omit `underlying_tickers` to create an empty subscription, discover tickers, and add them later. An empty subscription sends no price updates until you add tickers or switch to `["all"]`.
+
+      ### Discover recently streamed tickers
+
+      ```json
+      {
+        "id": 2,
+        "cmd": "update_subscription",
+        "params": {
+          "sid": 1,
+          "action": "underlying_list"
+        }
+      }
+      ```
+
+      Read `msg.underlying_tickers` in the `pyth_value_underlying_list` response. This lists tickers observed on the stream within the last two hours without changing your subscription. It is not a complete catalog: inactive feeds can be absent. A successful subscribe response alone does not confirm that a requested ticker is streaming.
+
+      ### Add or remove tickers
+
+      Add platinum to the existing subscription:
+
+      ```json
+      {
+        "id": 3,
+        "cmd": "update_subscription",
+        "params": {
+          "sid": 1,
+          "action": "subscribe_underlyings",
+          "underlying_tickers": ["Metal.XPT/USD"]
+        }
+      }
+      ```
+
+      Remove platinum from the subscription:
+
+      ```json
+      {
+        "id": 4,
+        "cmd": "update_subscription",
+        "params": {
+          "sid": 1,
+          "action": "unsubscribe_underlyings",
+          "underlying_tickers": ["Metal.XPT/USD"]
+        }
+      }
+      ```
+
+      ### Receive all available underlyings
+
+      Set `underlying_tickers` to `["all"]` in the initial subscribe, or enable it on an existing subscription:
+
+      ```json
+      {
+        "id": 5,
+        "cmd": "update_subscription",
+        "params": {
+          "sid": 1,
+          "action": "subscribe_underlyings",
+          "underlying_tickers": ["all"]
+        }
+      }
+      ```
+
+      While all-mode is enabled, removing an individual ticker does not exclude it. Send `unsubscribe_underlyings` with `["all"]` to disable all-mode; any explicitly subscribed tickers remain selected.
+
+      ## Integration notes
+
+      - `sid` identifies the subscription stream; use it for `update_subscription` and `unsubscribe`.
+      - Missing or empty `underlying_tickers` for `subscribe_underlyings` or `unsubscribe_underlyings` returns an `error` with `code: 28` ("Underlying tickers required").
+      - `value_usd` is a USD price string formatted to eight decimal places.
+      - `source_ts_ms` is the source timestamp in Unix milliseconds; `received_at` is when Kalshi received the update, also in Unix milliseconds.
     messages:
       pythValue:
         $ref: '#/components/messages/pythValue'
@@ -600,6 +797,8 @@ operations:
       $ref: '#/channels/root'
     messages:
       - $ref: '#/channels/root/messages/okResponse'
+      - $ref: '#/channels/root/messages/subscribedUnderlyingsResponse'
+      - $ref: '#/channels/root/messages/subscribedIndicesResponse'
     tags:
       - name: responses
 
@@ -704,6 +903,7 @@ operations:
       $ref: '#/channels/market_lifecycle_v2'
     messages:
       - $ref: '#/channels/market_lifecycle_v2/messages/marketLifecycleV2'
+      - $ref: '#/channels/market_lifecycle_v2/messages/marketMetadataUpdated'
     tags:
       - name: market-data
 
@@ -1018,13 +1218,13 @@ components:
               channels: ["cfbenchmarks_value_5hz"]
               index_ids: ["BRTI"]
         - name: subscribePythValue
-          summary: Subscribe to pyth_value, seeding underlying tickers
+          summary: Subscribe to gold, oil, and natural gas prices on pyth_value
           payload:
             id: 10
             cmd: subscribe
             params:
               channels: ["pyth_value"]
-              underlying_tickers: ["Metal.XAU/USD", "Metal.XAG/USD"]
+              underlying_tickers: ["Metal.XAU/USD", "Commodities.Index.PYTHOIL/USD", "Commodities.Index.NATGAS/USD"]
 
     unsubscribeCommand:
       name: unsubscribe
@@ -1189,23 +1389,32 @@ components:
               sid: 1
               action: underlying_list
         - name: subscribeUnderlyings
-          summary: Add underlying tickers to the subscription
+          summary: Add platinum to the subscription
           payload:
             id: 3
             cmd: update_subscription
             params:
               sid: 1
               action: subscribe_underlyings
-              underlying_tickers: ["Metal.XAU/USD"]
+              underlying_tickers: ["Metal.XPT/USD"]
         - name: unsubscribeUnderlyings
-          summary: Remove underlying tickers from the subscription
+          summary: Remove platinum from the subscription
           payload:
             id: 4
             cmd: update_subscription
             params:
               sid: 1
               action: unsubscribe_underlyings
-              underlying_tickers: ["Metal.XAU/USD"]
+              underlying_tickers: ["Metal.XPT/USD"]
+        - name: subscribeAllUnderlyings
+          summary: Receive every available underlying on the subscription
+          payload:
+            id: 5
+            cmd: update_subscription
+            params:
+              sid: 1
+              action: subscribe_underlyings
+              underlying_tickers: ["all"]
 
     # Response Messages (Server -> Client)
     subscribedResponse:
@@ -1240,6 +1449,22 @@ components:
             sid: 2
             seq: 7
             type: unsubscribed
+
+    subscribedIndicesResponse:
+      name: ok
+      title: Subscribed Indices
+      summary: Current CF Benchmarks index filter after an update; all-mode is ["all"]
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/subscribedIndicesResponsePayload'
+
+    subscribedUnderlyingsResponse:
+      name: ok
+      title: Subscribed Underlyings
+      summary: Current Pyth underlying ticker filter after an update; all-mode is ["all"]
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/subscribedUnderlyingsResponsePayload'
 
     okResponse:
       name: ok
@@ -1429,7 +1654,7 @@ components:
             msg:
               market_ticker: "FED-23DEC-T3.00"
               market_id: "9b0f6b43-5b68-4f9f-9f02-9a2d1b8ac1a1"
-              price_dollars: "0.960"
+              price_dollars: "0.9600"
               delta_fp: "-54.00"
               side: "yes"
               ts: "2022-11-22T20:44:01Z"
@@ -1473,7 +1698,7 @@ components:
         $ref: '#/components/schemas/cfbenchmarksIndexListPayload'
       examples:
         - name: indexListResponse
-          summary: Available index IDs
+          summary: Example available index IDs (illustrative subset)
           payload:
             type: cfbenchmarks_value_indexlist
             id: 2
@@ -1535,8 +1760,8 @@ components:
             sid: 1
             seq: 42
             msg:
-              underlying_ticker: "Metal.XAU/USD"
-              value_usd: "2365.12345000"
+              underlying_ticker: "Commodities.Index.PYTHOIL/USD"
+              value_usd: "82.12345000"
               source_ts_ms: 1710000000100
               received_at: 1710000000123
 
@@ -1555,7 +1780,7 @@ components:
             sid: 1
             seq: 1
             msg:
-              underlying_tickers: ["Metal.XAG/USD", "Metal.XAU/USD"]
+              underlying_tickers: ["Commodities.Index.NATGAS/USD", "Commodities.Index.PYTHOIL/USD", "Metal.XAG/USD", "Metal.XAU/USD"]
 
     ticker:
       name: ticker
@@ -1571,11 +1796,11 @@ components:
             type: ticker
             sid: 11
             msg:
-              market_ticker: "FED-23DEC-T3.00"
               market_id: "9b0f6b43-5b68-4f9f-9f02-9a2d1b8ac1a1"
-              price_dollars: "0.480"
-              yes_bid_dollars: "0.450"
-              yes_ask_dollars: "0.530"
+              market_ticker: "FED-23DEC-T3.00"
+              price_dollars: "0.4800"
+              yes_bid_dollars: "0.4500"
+              yes_ask_dollars: "0.5300"
               volume_fp: "33896.00"
               open_interest_fp: "20422.00"
               dollar_volume: 16948
@@ -1630,6 +1855,7 @@ components:
             msg:
               trade_id: "d91bc706-ee49-470d-82d8-11418bda6fed"
               order_id: "ee587a1c-8b87-4dcf-b721-9f6f790619fa"
+              client_order_id: "my-order-1"
               market_ticker: "HIGHNY-22DEC23-B53.5"
               exchange_index: 2
               is_taker: true
@@ -1649,7 +1875,7 @@ components:
     marketLifecycleV2:
       name: market_lifecycle_v2
       title: Market Lifecycle V2
-      summary: Market lifecycle events (created, activated, deactivated, close_date_updated, determined, settled, price_level_structure_updated, metadata_updated)
+      summary: Market lifecycle events (created, activated, deactivated, close_date_updated, determined, settled, price_level_structure_updated)
       contentType: application/json
       payload:
         $ref: '#/components/schemas/marketLifecycleV2Payload'
@@ -1662,11 +1888,9 @@ components:
             seq: 3
             msg:
               market_ticker: "INXD-23SEP14-B4487"
-              event_type: "created"
               exchange_index: 0
               open_ts: 1694635200
               close_ts: 1694721600
-              price_level_structure: "linear_cent"
               additional_metadata:
                 name: "S&P 500 daily return on Sep 14"
                 title: "S&P 500 closes up by 0.02% or more"
@@ -1679,6 +1903,9 @@ components:
                 expected_expiration_ts: 1694721600
                 strike_type: "greater"
                 floor_strike: 4487
+              event_type: "created"
+              price_level_structure: "linear_cent"
+
         - name: priceLevelStructureUpdated
           summary: Price level structure updated event
           payload:
@@ -1693,6 +1920,15 @@ components:
                 - start: "0.0000"
                   end: "1.0000"
                   step: "0.0010"
+
+    marketMetadataUpdated:
+      name: market_lifecycle_v2
+      title: Market Metadata Updated
+      summary: Updated strike information or yes subtitle
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marketMetadataUpdatedPayload'
+      examples:
         - name: metadataUpdated
           summary: Market metadata updated event
           payload:
@@ -1700,8 +1936,8 @@ components:
             sid: 13
             seq: 5
             msg:
-              market_ticker: "KXBTC-25APR30-T0915-B95000"
               event_type: "metadata_updated"
+              market_ticker: "KXBTC-25APR30-T0915-B95000"
               strike_type: "between"
               floor_strike: 95000
               cap_strike: 95250
@@ -1712,8 +1948,8 @@ components:
             sid: 13
             seq: 6
             msg:
-              market_ticker: "KXBTC15M-26APR160100-00"
               event_type: "metadata_updated"
+              market_ticker: "KXBTC15M-26APR160100-00"
               yes_sub_title: "above $95,000"
 
     multivariateMarketLifecycle:
@@ -1732,7 +1968,6 @@ components:
             seq: 7
             msg:
               market_ticker: "KXMVE-TEST-EVENT-M1"
-              event_type: "created"
               exchange_index: 0
               open_ts: 1773936000
               close_ts: 1774022400
@@ -1746,6 +1981,7 @@ components:
                 can_close_early: true
                 event_ticker: "KXMVE-TEST-EVENT"
                 expected_expiration_ts: 1774029600
+              event_type: "created"
 
     eventLifecycle:
       name: event_lifecycle
@@ -1898,7 +2134,7 @@ components:
             seq: 11
             msg:
               id: "rfq_123"
-              creator_id: ""
+              creator_id: "43fc3733603f4830a8c3b2986011a5f78d67b03b473dbfd3a3847abd85b63a51"
               market_ticker: "FED-23DEC-T3.00"
               event_ticker: "FED-23DEC"
               contracts_fp: "100.00"
@@ -1911,7 +2147,7 @@ components:
             seq: 11
             msg:
               id: "rfq_456"
-              creator_id: ""
+              creator_id: "43fc3733603f4830a8c3b2986011a5f78d67b03b473dbfd3a3847abd85b63a51"
               market_ticker: "KXMVE-24DEC-COMBO"
               event_ticker: "KXMVE-24DEC-EVENT"
               target_cost_dollars: "100.0000"
@@ -1946,7 +2182,7 @@ components:
               market_ticker: "FED-23DEC-T3.00"
               event_ticker: "FED-23DEC"
               contracts_fp: "100.00"
-              target_cost_dollars: "0.35"
+              target_cost_dollars: "0.3500"
               deleted_ts: "2024-12-01T10:05:00Z"
 
     quoteCreated:
@@ -1970,11 +2206,11 @@ components:
               rfq_creator_id: "comm_abc123"
               market_ticker: "FED-23DEC-T3.00"
               event_ticker: "FED-23DEC"
-              yes_bid_dollars: "0.35"
-              no_bid_dollars: "0.65"
+              yes_bid_dollars: "0.3500"
+              no_bid_dollars: "0.6500"
               yes_contracts_offered_fp: "100.00"
               no_contracts_offered_fp: "200.00"
-              rfq_target_cost_dollars: "0.35"
+              rfq_target_cost_dollars: "0.3500"
               created_ts: "2024-12-01T10:02:00Z"
               subaccount: 3
 
@@ -1999,13 +2235,13 @@ components:
               rfq_creator_id: "comm_abc123"
               market_ticker: "FED-23DEC-T3.00"
               event_ticker: "FED-23DEC"
-              yes_bid_dollars: "0.35"
-              no_bid_dollars: "0.65"
+              yes_bid_dollars: "0.3500"
+              no_bid_dollars: "0.6500"
               accepted_side: "yes"
               contracts_accepted_fp: "50.00"
               yes_contracts_offered_fp: "100.00"
               no_contracts_offered_fp: "200.00"
-              rfq_target_cost_dollars: "0.35"
+              rfq_target_cost_dollars: "0.3500"
               subaccount: 3
 
     quoteExecuted:
@@ -2082,8 +2318,8 @@ components:
 
     orderAction:
       type: string
-      description: Order action type
-      enum: ["buy", "sell"]
+      description: Legacy order action; an unknown action is emitted as an empty string.
+      enum: ["buy", "sell", "sell_partial", "sell_to_close", ""]
 
     # Command payloads
     subscribeCommandPayload:
@@ -2315,11 +2551,11 @@ components:
       type: object
       required: ["type", "msg"]
       properties:
-        id:
-          $ref: '#/components/schemas/commandId'
         type:
           type: string
           const: "subscribed"
+        id:
+          $ref: '#/components/schemas/commandId'
         msg:
           type: object
           required: ["channel", "sid"]
@@ -2333,29 +2569,75 @@ components:
       type: object
       required: ["sid", "seq", "type"]
       properties:
+        type:
+          type: string
+          const: "unsubscribed"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
+
+    subscribedIndicesResponsePayload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
         type:
           type: string
-          const: "unsubscribed"
+          const: "ok"
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["index_ids"]
+          properties:
+            index_ids:
+              type: array
+              description: Current CF Benchmarks index filter after an update; all-mode is ["all"]
+              items:
+                type: string
+
+    subscribedUnderlyingsResponsePayload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
+        type:
+          type: string
+          const: "ok"
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["underlying_tickers"]
+          properties:
+            underlying_tickers:
+              type: array
+              description: Current Pyth underlying ticker filter after an update; all-mode is ["all"]
+              items:
+                type: string
 
     okResponsePayload:
       type: object
       required: ["type"]
       properties:
+        type:
+          type: string
+          const: "ok"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
-        type:
-          type: string
-          const: "ok"
         msg:
           type: object
           properties:
@@ -2374,6 +2656,9 @@ components:
       type: object
       required: ["type", "msg"]
       properties:
+        type:
+          type: string
+          const: "error"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
@@ -2382,9 +2667,6 @@ components:
         seq:
           $ref: '#/components/schemas/sequenceNumber'
           description: Present on subscription-scoped errors on sequenced channels.
-        type:
-          type: string
-          const: "error"
         msg:
           type: object
           required: ["code", "msg"]
@@ -2425,6 +2707,14 @@ components:
             msg:
               type: string
               description: Human-readable error message
+            market_ticker:
+              type: string
+              description: Optional market ticker associated with the error
+            market_tickers:
+              type: array
+              description: Optional market tickers associated with the error
+              items:
+                type: string
 
     listSubscriptionsCommandPayload:
       type: object
@@ -2438,13 +2728,13 @@ components:
 
     listSubscriptionsResponsePayload:
       type: object
-      required: ["id", "type", "msg"]
+      required: ["type", "msg"]
       properties:
-        id:
-          $ref: '#/components/schemas/commandId'
         type:
           type: string
           const: "ok"
+        id:
+          $ref: '#/components/schemas/commandId'
         msg:
           type: array
           description: List of active subscriptions
@@ -2651,6 +2941,9 @@ components:
         type:
           type: string
           const: "orderbook_snapshot"
+        id:
+          $ref: '#/components/schemas/commandId'
+          description: Present when replying to a get_snapshot command with an ID
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
@@ -2720,11 +3013,6 @@ components:
               description: |
                 Optional - Present only when you caused this orderbook change.
                 Contains the client_order_id of your order that triggered this delta.
-            subaccount:
-              type: integer
-              description: |
-                Optional - Present only when you caused this orderbook change and are using subaccounts.
-                Contains the subaccount number of your order that triggered this delta.
             ts:
               type: string
               deprecated: true
@@ -2734,6 +3022,11 @@ components:
               type: integer
               description: Optional - Unix timestamp for when the orderbook change was recorded (in milliseconds)
               format: int64
+            subaccount:
+              type: integer
+              description: |
+                Optional - Present only when you caused this orderbook change and are using subaccounts.
+                Contains the subaccount number of your order that triggered this delta.
 
     tickerPayload:
       type: object
@@ -2746,12 +3039,12 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         msg:
           type: object
-          required: ["market_ticker", "market_id", "price_dollars", "yes_bid_dollars", "yes_ask_dollars", "yes_bid_size_fp", "yes_ask_size_fp", "last_trade_size_fp", "volume_fp", "open_interest_fp", "dollar_volume", "dollar_open_interest", "ts", "ts_ms", "time"]
+          required: ["market_id", "market_ticker", "price_dollars", "yes_bid_dollars", "yes_ask_dollars", "volume_fp", "open_interest_fp", "dollar_volume", "dollar_open_interest", "yes_bid_size_fp", "yes_ask_size_fp", "last_trade_size_fp", "ts", "ts_ms", "time"]
           properties:
-            market_ticker:
-              $ref: '#/components/schemas/marketTicker'
             market_id:
               $ref: '#/components/schemas/marketId'
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
             price_dollars:
               type: string
               description: Last traded price in dollars
@@ -2769,12 +3062,10 @@ components:
               description: Fixed-point open interest (2 decimals)
             dollar_volume:
               type: integer
-              description: Number of dollars traded in the market so far
-              minimum: 0
+              description: Signed whole-dollar cumulative traded notional
             dollar_open_interest:
               type: integer
-              description: Number of dollars positioned in the market currently
-              minimum: 0
+              description: Signed whole-dollar open-interest notional
             yes_bid_size_fp:
               type: string
               description: Fixed-point contracts at best bid (2 decimals)
@@ -2882,6 +3173,9 @@ components:
               type: string
               description: Unique identifier for orders. This is what you use to differentiate fills for different orders
               format: uuid
+            client_order_id:
+              type: string
+              description: Optional client-provided order ID
             market_ticker:
               $ref: '#/components/schemas/marketTicker'
               description: Unique identifier for markets. This is what you use to differentiate fills for different markets
@@ -2896,6 +3190,15 @@ components:
               deprecated: true
               description: |
                 Deprecated. Use `outcome_side` (or `book_side`) instead. See [Order direction](/getting_started/order_direction). This field will not be removed before May 14, 2026.
+            ts:
+              type: integer
+              deprecated: true
+              description: Deprecated - Unix timestamp for when the update happened (in seconds). Use ts_ms instead.
+              format: int64
+            ts_ms:
+              type: integer
+              description: Unix timestamp for when the update happened (in milliseconds)
+              format: int64
             yes_price_dollars:
               type: string
               description: Price for the yes side of the fill in dollars
@@ -2910,18 +3213,6 @@ components:
               deprecated: true
               description: |
                 Deprecated. Use `outcome_side` (or `book_side`) instead. See [Order direction](/getting_started/order_direction). This field will not be removed before May 14, 2026.
-            ts:
-              type: integer
-              deprecated: true
-              description: Deprecated - Unix timestamp for when the update happened (in seconds). Use ts_ms instead.
-              format: int64
-            ts_ms:
-              type: integer
-              description: Unix timestamp for when the update happened (in milliseconds)
-              format: int64
-            client_order_id:
-              type: string
-              description: Optional client-provided order ID
             post_position_fp:
               type: string
               description: Fixed-point position after the fill (2 decimals)
@@ -2961,21 +3252,8 @@ components:
           $ref: '#/components/schemas/sequenceNumber'
         msg:
           type: object
-          required: ["event_type", "market_ticker"]
+          required: ["market_ticker", "event_type"]
           properties:
-            event_type:
-              type: string
-              description: |
-                Field to annotate which of the event type this event is for:
-                - `created` - Market created
-                - `activated` - Market activated
-                - `deactivated` - Market deactivated
-                - `close_date_updated` - Market close date updated
-                - `determined` - Market determined
-                - `settled` - Market settled
-                - `price_level_structure_updated` - Market price level structure changed
-                - `metadata_updated` - Market metadata updated (e.g. floor strike, yes_sub_title)
-              enum: ["created", "deactivated", "activated", "close_date_updated", "determined", "settled", "price_level_structure_updated", "metadata_updated"]
             market_ticker:
               $ref: '#/components/schemas/marketTicker'
               description: Unique identifier for markets. This is what you use to differentiate updates for different markets
@@ -2990,27 +3268,41 @@ components:
               type: integer
               description: Optional - This key will ONLY exist when the market is created OR when the close date is updated. Unix timestamp for when the market is scheduled to close (in seconds). Will be updated in case of early determination markets
               format: int64
-            result:
-              type: string
-              description: Optional - This key will ONLY exist when the market is determined. Result of the market
             determination_ts:
               type: integer
               description: Optional - This key will ONLY exist when the market is determined. Unix timestamp for when the market is determined (in seconds)
               format: int64
-            settlement_value:
-              type: string
-              description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
             settled_ts:
               type: integer
               description: Optional - This key will ONLY exist when the market is settled. Unix timestamp for when the market is settled (in seconds)
               format: int64
+            result:
+              type: string
+              description: Optional - This key will ONLY exist when the market is determined. Result of the market
+            settlement_value:
+              type: string
+              description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
             is_deactivated:
               type: boolean
               description: Optional - This key will ONLY exist when the market is paused/unpaused. Boolean flag to indicate if trading is paused on an open market. This should only be interpreted for an open market
-            price_level_structure:
+            additional_metadata:
+              $ref: '#/components/schemas/lifecycleAdditionalMetadata'
+              description: Optional - This key will be emitted when the market is created
+            event_type:
               type: string
-              description: Optional - This key will exist when the market is created or when the price level structure is updated. The price level structure of the market
-              enum: ["linear_cent", "deci_cent", "tapered_deci_cent", "center_whole_edge_half_cent", "center_whole_edge_quint_cent", "center_half_edge_half_cent", "center_half_edge_quint_cent", "center_half_edge_deci_cent", "center_quint_edge_quint_cent", "center_quint_edge_deci_cent", "center_centi_edge_centi_cent", "center_deci_edge_centi_cent"]
+              description: |
+                Field to annotate which of the event type this event is for:
+                - `created` - Market created
+                - `activated` - Market activated
+                - `deactivated` - Market deactivated
+                - `close_date_updated` - Market close date updated
+                - `determined` - Market determined
+                - `settled` - Market settled
+                - `price_level_structure_updated` - Market price level structure changed
+              enum: ["created", "deactivated", "activated", "close_date_updated", "determined", "settled", "price_level_structure_updated"]
+            price_level_structure:
+              $ref: '#/components/schemas/lifecyclePriceLevelStructure'
+              description: Optional - The market price level structure on creation or price_level_structure_updated events
             price_ranges:
               type: array
               description: Optional - Emitted alongside price_level_structure (on market creation and price_level_structure_updated events). The valid price bands for the market, in fixed-point dollars. Use this to determine valid order prices rather than hardcoding a tick size.
@@ -3030,6 +3322,129 @@ components:
                   step:
                     type: string
                     description: Tick size (minimum price increment) within this band, in dollars
+
+    multivariateMarketLifecyclePayload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
+        type:
+          type: string
+          const: "multivariate_market_lifecycle"
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["market_ticker", "event_type"]
+          properties:
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+              description: Unique identifier for markets. This is what you use to differentiate updates for different markets
+            exchange_index:
+              type: integer
+              description: Optional - This key will ONLY exist when the market is created. Identifier for the exchange shard the market lives on
+            open_ts:
+              type: integer
+              description: Optional - This key will ONLY exist when the market is created. Unix timestamp for when the market opened (in seconds)
+              format: int64
+            close_ts:
+              type: integer
+              description: Optional - This key will ONLY exist when the market is created OR when the close date is updated. Unix timestamp for when the market is scheduled to close (in seconds). Will be updated in case of early determination markets
+              format: int64
+            determination_ts:
+              type: integer
+              description: Optional - This key will ONLY exist when the market is determined. Unix timestamp for when the market is determined (in seconds)
+              format: int64
+            settled_ts:
+              type: integer
+              description: Optional - This key will ONLY exist when the market is settled. Unix timestamp for when the market is settled (in seconds)
+              format: int64
+            result:
+              type: string
+              description: Optional - This key will ONLY exist when the market is determined. Result of the market
+            settlement_value:
+              type: string
+              description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
+            is_deactivated:
+              type: boolean
+              description: Optional - This key will ONLY exist when the market is paused/unpaused. Boolean flag to indicate if trading is paused on an open market. This should only be interpreted for an open market
+            additional_metadata:
+              $ref: '#/components/schemas/lifecycleAdditionalMetadata'
+              description: Optional - This key will be emitted when the market is created
+            event_type:
+              type: string
+              description: |
+                Field to annotate which of the event type this event is for:
+                - `created` - Market created
+                - `activated` - Market activated
+                - `deactivated` - Market deactivated
+                - `close_date_updated` - Market close date updated
+                - `determined` - Market determined
+                - `settled` - Market settled
+              enum: ["created", "deactivated", "activated", "close_date_updated", "determined", "settled"]
+            price_level_structure:
+              $ref: '#/components/schemas/lifecyclePriceLevelStructure'
+              description: Optional - The market price level structure on creation
+
+    lifecycleAdditionalMetadata:
+      type: object
+      required: ["name", "title", "yes_sub_title", "no_sub_title", "rules_primary", "rules_secondary", "can_close_early", "event_ticker", "expected_expiration_ts"]
+      properties:
+        name:
+          type: string
+        title:
+          type: string
+        yes_sub_title:
+          type: string
+        no_sub_title:
+          type: string
+        rules_primary:
+          type: string
+        rules_secondary:
+          type: string
+        can_close_early:
+          type: boolean
+        event_ticker:
+          type: string
+        expected_expiration_ts:
+          type: integer
+          format: int64
+        strike_type:
+          type: string
+        floor_strike:
+          type: number
+        cap_strike:
+          type: number
+        custom_strike:
+          type: object
+
+    lifecyclePriceLevelStructure:
+      type: string
+      description: The market price structure. An empty string represents an unknown structure.
+      enum: ["banded_centi_cent", "", "linear_cent", "deci_cent", "tapered_deci_cent", "center_whole_edge_half_cent", "center_whole_edge_quint_cent", "center_half_edge_half_cent", "center_half_edge_quint_cent", "center_half_edge_deci_cent", "center_quint_edge_quint_cent", "center_quint_edge_deci_cent", "center_centi_edge_centi_cent", "center_deci_edge_centi_cent"]
+
+    marketMetadataUpdatedPayload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
+        type:
+          type: string
+          const: "market_lifecycle_v2"
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["event_type", "market_ticker"]
+          properties:
+            event_type:
+              type: string
+              const: "metadata_updated"
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+              description: Unique identifier for markets. This is what you use to differentiate updates for different markets
             strike_type:
               type: string
               description: Optional - This key will ONLY exist for metadata_updated events. Determines how floor_strike / cap_strike are interpreted (e.g. "between" uses both, "greater" uses floor_strike only, "less" uses cap_strike only)
@@ -3045,130 +3460,6 @@ components:
             yes_sub_title:
               type: string
               description: Optional - This key will ONLY exist for metadata_updated events. The updated yes subtitle for the market
-            additional_metadata:
-              type: object
-              description: Optional - This key will be emitted when the market is created
-              properties:
-                name:
-                  type: string
-                title:
-                  type: string
-                yes_sub_title:
-                  type: string
-                no_sub_title:
-                  type: string
-                rules_primary:
-                  type: string
-                rules_secondary:
-                  type: string
-                can_close_early:
-                  type: boolean
-                event_ticker:
-                  type: string
-                expected_expiration_ts:
-                  type: integer
-                  format: int64
-                strike_type:
-                  type: string
-                floor_strike:
-                  type: number
-                cap_strike:
-                  type: number
-                custom_strike:
-                  type: object
-
-    multivariateMarketLifecyclePayload:
-      type: object
-      required: ["type", "sid", "seq", "msg"]
-      properties:
-        type:
-          type: string
-          const: "multivariate_market_lifecycle"
-        sid:
-          $ref: '#/components/schemas/subscriptionId'
-        seq:
-          $ref: '#/components/schemas/sequenceNumber'
-        msg:
-          type: object
-          required: ["event_type", "market_ticker"]
-          properties:
-            event_type:
-              type: string
-              description: |
-                Field to annotate which of the event type this event is for:
-                - `created` - Market created
-                - `activated` - Market activated
-                - `deactivated` - Market deactivated
-                - `close_date_updated` - Market close date updated
-                - `determined` - Market determined
-                - `settled` - Market settled
-              enum: ["created", "deactivated", "activated", "close_date_updated", "determined", "settled"]
-            market_ticker:
-              $ref: '#/components/schemas/marketTicker'
-              description: Unique identifier for markets. This is what you use to differentiate updates for different markets
-            exchange_index:
-              type: integer
-              description: Optional - This key will ONLY exist when the market is created. Identifier for the exchange shard the market lives on
-            open_ts:
-              type: integer
-              description: Optional - This key will ONLY exist when the market is created. Unix timestamp for when the market opened (in seconds)
-              format: int64
-            close_ts:
-              type: integer
-              description: Optional - This key will ONLY exist when the market is created OR when the close date is updated. Unix timestamp for when the market is scheduled to close (in seconds). Will be updated in case of early determination markets
-              format: int64
-            result:
-              type: string
-              description: Optional - This key will ONLY exist when the market is determined. Result of the market
-            determination_ts:
-              type: integer
-              description: Optional - This key will ONLY exist when the market is determined. Unix timestamp for when the market is determined (in seconds)
-              format: int64
-            settlement_value:
-              type: string
-              description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
-            settled_ts:
-              type: integer
-              description: Optional - This key will ONLY exist when the market is settled. Unix timestamp for when the market is settled (in seconds)
-              format: int64
-            is_deactivated:
-              type: boolean
-              description: Optional - This key will ONLY exist when the market is paused/unpaused. Boolean flag to indicate if trading is paused on an open market. This should only be interpreted for an open market
-            price_level_structure:
-              type: string
-              description: Optional - This key will exist when the market is created. The price level structure of the market
-              enum: ["linear_cent", "deci_cent", "tapered_deci_cent", "center_whole_edge_half_cent", "center_whole_edge_quint_cent", "center_half_edge_half_cent", "center_half_edge_quint_cent", "center_half_edge_deci_cent", "center_quint_edge_quint_cent", "center_quint_edge_deci_cent", "center_centi_edge_centi_cent", "center_deci_edge_centi_cent"]
-            additional_metadata:
-              type: object
-              description: Optional - This key will be emitted when the market is created
-              properties:
-                name:
-                  type: string
-                title:
-                  type: string
-                yes_sub_title:
-                  type: string
-                no_sub_title:
-                  type: string
-                rules_primary:
-                  type: string
-                rules_secondary:
-                  type: string
-                can_close_early:
-                  type: boolean
-                event_ticker:
-                  type: string
-                expected_expiration_ts:
-                  type: integer
-                  format: int64
-                strike_type:
-                  type: string
-                floor_strike:
-                  type: number
-                cap_strike:
-                  type: number
-                custom_strike:
-                  type: object
 
     eventLifecyclePayload:
       type: object
@@ -3231,13 +3522,11 @@ components:
               type: string
               description: Unique identifier for the event
             fee_type_override:
-              type: string
-              nullable: true
-              enum: [quadratic, quadratic_with_maker_fees, quadratic_with_combo_maker_fees, flat, null]
+              type: [string, "null"]
+              enum: [quadratic, quadratic_with_maker_fees, quadratic_with_combo_maker_fees, flat, margin_market_maker_program_fees, null]
               description: Event fee type override. `null` when the override has been cleared.
             fee_multiplier_override:
-              type: number
-              nullable: true
+              type: [number, "null"]
               description: Event fee multiplier override. `null` when the override has been cleared.
 
     marketPositionPayload:
@@ -3341,7 +3630,7 @@ components:
             status:
               type: string
               description: Current order status
-              enum: ["resting", "canceled", "executed"]
+              enum: ["resting", "canceled", "executed", "unknown"]
             side:
               $ref: '#/components/schemas/marketSide'
               deprecated: true
@@ -3401,23 +3690,15 @@ components:
               description: Self-trade prevention type
               enum: ["taker_at_cross", "maker"]
             created_time:
-              type: string
+              type: [string, "null"]
               deprecated: true
               description: Deprecated - Order creation time in RFC3339 format. Use created_ts_ms instead.
               format: date-time
-            created_ts_ms:
-              type: integer
-              description: Order creation time as a Unix timestamp in milliseconds
-              format: int64
             last_update_time:
               type: string
               deprecated: true
               description: Deprecated - Last update time in RFC3339 format. Use last_updated_ts_ms instead.
               format: date-time
-            last_updated_ts_ms:
-              type: integer
-              description: Last update time as a Unix timestamp in milliseconds
-              format: int64
             expiration_time:
               type: string
               deprecated: true
@@ -3426,6 +3707,14 @@ components:
             expiration_ts_ms:
               type: integer
               description: Order expiration time as a Unix timestamp in milliseconds
+              format: int64
+            created_ts_ms:
+              type: [integer, "null"]
+              description: Order creation time as a Unix timestamp in milliseconds
+              format: int64
+            last_updated_ts_ms:
+              type: integer
+              description: Last update time as a Unix timestamp in milliseconds
               format: int64
             subaccount_number:
               type: integer
@@ -3451,7 +3740,7 @@ components:
               description: Unique identifier for the RFQ
             creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized). Currently empty for rfq_created events.
+              description: Public communications ID of the RFQ creator (anonymized).
             market_ticker:
               type: string
               description: Market ticker for the RFQ
@@ -3544,7 +3833,7 @@ components:
           $ref: '#/components/schemas/sequenceNumber'
         msg:
           type: object
-          required: ["quote_id", "rfq_id", "quote_creator_id", "market_ticker", "yes_bid_dollars", "no_bid_dollars", "created_ts"]
+          required: ["quote_id", "rfq_id", "quote_creator_id", "rfq_creator_id", "market_ticker", "yes_bid_dollars", "no_bid_dollars", "created_ts"]
           properties:
             quote_id:
               type: string
@@ -3602,7 +3891,7 @@ components:
           $ref: '#/components/schemas/sequenceNumber'
         msg:
           type: object
-          required: ["quote_id", "rfq_id", "quote_creator_id", "market_ticker", "yes_bid_dollars", "no_bid_dollars"]
+          required: ["quote_id", "rfq_id", "quote_creator_id", "rfq_creator_id", "market_ticker", "yes_bid_dollars", "no_bid_dollars"]
           properties:
             quote_id:
               type: string

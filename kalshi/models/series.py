@@ -22,6 +22,9 @@ class Series(BaseModel):
     frequency: str
     title: str
     category: str
+    # Spec 3.30.0: discovery categories the series belongs to. The `category`
+    # filter on GET /series matches any entry in this list.
+    categories: list[str]
     tags: NullableList[str]
     settlement_sources: NullableList[dict[str, Any]]
     contract_url: str

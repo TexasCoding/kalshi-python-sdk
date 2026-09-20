@@ -264,9 +264,7 @@ class TestActiveObligations:
         assert not isinstance(resp.obligations[0].amount_centicents, bool)
         assert not isinstance(resp.obligations[0].amount_centicents, Decimal)
         assert resp.obligations[0].asset_class == "Crypto"
-        assert resp.obligations[0].settlement_details[0].position_quantity_fp == Decimal(
-            "1.25"
-        )
+        assert resp.obligations[0].settlement_details[0].position_quantity_fp == Decimal("1.25")
         assert resp.obligations[0].funding_payments[0].funding_amount_centicents == -50
         assert resp.obligations[0].execution_time.tzinfo is not None
         auth_klear_client.close()
@@ -444,9 +442,7 @@ class TestObligationHistory:
         auth_klear_client.close()
 
     @respx.mock
-    async def test_async_all_paginates(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async_all_paginates(self, auth_async_klear_client: AsyncKlearClient) -> None:
         responses = [
             httpx.Response(200, json={"obligations": [_obligation()], "cursor": "C"}),
             httpx.Response(200, json={"obligations": [_obligation()], "cursor": ""}),
@@ -540,17 +536,13 @@ class TestObligationDetailPages:
         auth_klear_client.close()
 
     @respx.mock
-    def test_detail_limit_over_max_raises_before_http(
-        self, auth_klear_client: KlearClient
-    ) -> None:
+    def test_detail_limit_over_max_raises_before_http(self, auth_klear_client: KlearClient) -> None:
         with pytest.raises(ValueError):
             auth_klear_client.margin.settlement_details("ob1", limit=1001)
         auth_klear_client.close()
 
     @respx.mock
-    async def test_async_funding_payments(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async_funding_payments(self, auth_async_klear_client: AsyncKlearClient) -> None:
         respx.get(f"{BASE}/margin/obligations/ob1/funding_payments").mock(
             return_value=httpx.Response(
                 200,
@@ -700,14 +692,10 @@ class TestSettlementBalanceHistory:
     @respx.mock
     def test_all_paginates(self, auth_klear_client: KlearClient) -> None:
         responses = [
-            httpx.Response(
-                200, json={"entries": [_balance_history_entry()], "cursor": "NEXT"}
-            ),
+            httpx.Response(200, json={"entries": [_balance_history_entry()], "cursor": "NEXT"}),
             httpx.Response(200, json={"entries": [_balance_history_entry()], "cursor": ""}),
         ]
-        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
-            side_effect=responses
-        )
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(side_effect=responses)
         items = list(auth_klear_client.margin.settlement_balance_history_all())
         assert len(items) == 2
         assert route.calls[1].request.url.params["cursor"] == "NEXT"
@@ -729,17 +717,13 @@ class TestSettlementBalanceHistory:
         auth_klear_client.close()
 
     @respx.mock
-    async def test_async_all_paginates(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async_all_paginates(self, auth_async_klear_client: AsyncKlearClient) -> None:
         responses = [
             httpx.Response(200, json={"entries": [_balance_history_entry()], "cursor": "C"}),
             httpx.Response(200, json={"entries": [_balance_history_entry()], "cursor": ""}),
         ]
         respx.get(f"{BASE}/margin/settlement_balance_history").mock(side_effect=responses)
-        items = [
-            e async for e in auth_async_klear_client.margin.settlement_balance_history_all()
-        ]
+        items = [e async for e in auth_async_klear_client.margin.settlement_balance_history_all()]
         assert len(items) == 2
         await auth_async_klear_client.close()
 
@@ -807,9 +791,7 @@ class TestWithdrawSettlementBalance:
         client.close()
 
     @respx.mock
-    async def test_async_happy_wire_shape(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async_happy_wire_shape(self, auth_async_klear_client: AsyncKlearClient) -> None:
         route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
             return_value=httpx.Response(200, json={"id": "wd-2"})
         )
@@ -859,9 +841,7 @@ class TestSettlementBalanceWithdrawal:
         auth_klear_client.close()
 
     @respx.mock
-    async def test_async_failed_status(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async_failed_status(self, auth_async_klear_client: AsyncKlearClient) -> None:
         respx.get(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(
                 200,
@@ -912,13 +892,9 @@ class TestSubtraderGroups:
                 200, json={"group_id": "22222222-2222-2222-2222-222222222222"}
             )
         )
-        resp = auth_klear_client.margin.create_subtrader_group(
-            subtrader_ids=["st-a", "st-b"]
-        )
+        resp = auth_klear_client.margin.create_subtrader_group(subtrader_ids=["st-a", "st-b"])
         assert resp.group_id == "22222222-2222-2222-2222-222222222222"
-        assert json.loads(route.calls[0].request.content) == {
-            "subtrader_ids": ["st-a", "st-b"]
-        }
+        assert json.loads(route.calls[0].request.content) == {"subtrader_ids": ["st-a", "st-b"]}
         # Bearer injected
         assert "Authorization" in route.calls[0].request.headers
         auth_klear_client.close()
@@ -929,12 +905,8 @@ class TestSubtraderGroups:
         route = respx.put(f"{BASE}/fcm/margin/subtrader_groups/{gid}").mock(
             return_value=httpx.Response(200, json={})
         )
-        auth_klear_client.margin.update_subtrader_group(
-            gid, subtrader_ids=["st-c"]
-        )
-        assert json.loads(route.calls[0].request.content) == {
-            "subtrader_ids": ["st-c"]
-        }
+        auth_klear_client.margin.update_subtrader_group(gid, subtrader_ids=["st-c"])
+        assert json.loads(route.calls[0].request.content) == {"subtrader_ids": ["st-c"]}
         auth_klear_client.close()
 
     @respx.mock
@@ -963,9 +935,7 @@ class TestSettlementPrices:
     @respx.mock
     def test_happy(self, auth_klear_client: KlearClient) -> None:
         route = respx.get(f"{BASE}/margin/settlement_prices").mock(
-            return_value=httpx.Response(
-                200, json={"settlement_prices": {"BTC-PERP": 650000000}}
-            )
+            return_value=httpx.Response(200, json={"settlement_prices": {"BTC-PERP": 650000000}})
         )
         resp = auth_klear_client.margin.settlement_prices(
             asset_class="Crypto",
@@ -994,9 +964,7 @@ class TestSettlementPrices:
             return_value=httpx.Response(400, json={"error": {"code": "bad_time"}})
         )
         with pytest.raises(KalshiValidationError):
-            auth_klear_client.margin.settlement_prices(
-                asset_class="Crypto", settlement_time="nope"
-            )
+            auth_klear_client.margin.settlement_prices(asset_class="Crypto", settlement_time="nope")
         auth_klear_client.close()
 
 
@@ -1008,9 +976,7 @@ class TestEstimateMaintenanceMargin:
         )
 
         route = respx.post(f"{BASE}/margin/estimate_maintenance_margin").mock(
-            return_value=httpx.Response(
-                200, json={"maintenance_margin_fp": "1234.5600"}
-            )
+            return_value=httpx.Response(200, json={"maintenance_margin_fp": "1234.5600"})
         )
         pos = EstimatePortfolioMaintenanceMarginPosition(
             market_ticker="BTC-PERP",
@@ -1054,9 +1020,7 @@ class TestEstimateMaintenanceMargin:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_async(
-        self, auth_async_klear_client: AsyncKlearClient
-    ) -> None:
+    async def test_async(self, auth_async_klear_client: AsyncKlearClient) -> None:
         from kalshi.perps.klear.models.margin import (
             EstimatePortfolioMaintenanceMarginPosition,
         )
@@ -1116,15 +1080,11 @@ class TestMemberFundingPayments:
                 },
             )
         )
-        page = auth_klear_client.margin.member_funding_payments(
-            funding_time="2026-09-01T16:00:00Z"
-        )
+        page = auth_klear_client.margin.member_funding_payments(funding_time="2026-09-01T16:00:00Z")
         assert len(page.items) == 1
         assert page.items[0].market_ticker == "BTC-PERP"
         assert page.items[0].settlement_execution_time is not None
-        assert dict(route.calls[0].request.url.params)["funding_time"] == (
-            "2026-09-01T16:00:00Z"
-        )
+        assert dict(route.calls[0].request.url.params)["funding_time"] == ("2026-09-01T16:00:00Z")
         auth_klear_client.close()
 
     @respx.mock
@@ -1156,9 +1116,7 @@ class TestFcmApiKeys:
         )
         resp = auth_klear_client.margin.list_fcm_api_keys(fcm_subtrader_id="user_desk1")
         assert resp.api_keys[0].api_key_id == "k-1"
-        assert dict(route.calls[0].request.url.params) == {
-            "fcm_subtrader_id": "user_desk1"
-        }
+        assert dict(route.calls[0].request.url.params) == {"fcm_subtrader_id": "user_desk1"}
         auth_klear_client.close()
 
     @respx.mock
@@ -1251,3 +1209,86 @@ class TestEstimateOptionalFields:
         assert body["clearing_type"] == "FCM"
         assert resp.base_margin_fp == Decimal("8.0000")
         auth_klear_client.close()
+
+
+class TestMaintenanceMarginMetadata:
+    @respx.mock
+    def test_forwards_query_and_parses(self, auth_klear_client: KlearClient) -> None:
+        import datetime
+
+        route = respx.get(f"{BASE}/margin/estimate_maintenance_margin/metadata").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "asset_class": "Crypto",
+                    "base_tail_percentile": 0.01,
+                    "funding_tail_percentile": 0.05,
+                    "matrices": {"hvar": {"market_tickers": ["BTC-PERP"], "returns": [[-0.1]]}},
+                    "liquidation_configs": [
+                        {
+                            "market_ticker": "BTC-PERP",
+                            "market_impact_volatility": 0.2,
+                            "market_impact_coefficient": 0.3,
+                            "market_impact_exponent": 0.5,
+                            "market_impact_forecasted_volume": 1.0,
+                            "spread_rate": 0.01,
+                        }
+                    ],
+                    "subgroups": [["BTC-PERP"]],
+                },
+            )
+        )
+        resp = auth_klear_client.margin.estimate_maintenance_margin_metadata(
+            asset_class="Crypto", date=datetime.date(2026, 9, 20)
+        )
+        assert dict(route.calls[0].request.url.params) == {
+            "asset_class": "Crypto",
+            "date": "2026-09-20",
+        }
+        assert resp.asset_class == "Crypto"
+        assert resp.matrices.hvar is not None
+        assert resp.matrices.hvar.market_tickers == ["BTC-PERP"]
+        auth_klear_client.close()
+
+
+class TestFundingEstimateAndSchedule:
+    @respx.mock
+    def test_funding_estimate_by_asset_class(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/funding_estimate_by_asset_class").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "estimates": {
+                        "Crypto": {
+                            "user_breakdown": {"funding_amount_centicents": 100},
+                            "omitted_subtrader_count": 0,
+                            "omitted_group_count": 0,
+                            "next_funding_time": "2026-09-20T12:00:00Z",
+                        }
+                    }
+                },
+            )
+        )
+        resp = auth_klear_client.margin.funding_estimate_by_asset_class()
+        assert resp.estimates["Crypto"].user_breakdown.funding_amount_centicents == 100
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_funding_schedule(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/funding_schedule").mock(
+            return_value=httpx.Response(200, json={"schedule": "0 */8 * * *"})
+        )
+        resp = auth_klear_client.margin.funding_schedule(asset_class="Crypto")
+        assert resp.schedule == "0 */8 * * *"
+        assert dict(route.calls[0].request.url.params)["asset_class"] == "Crypto"
+        auth_klear_client.close()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_funding_schedule(self, auth_async_klear_client: AsyncKlearClient) -> None:
+        respx.get(f"{BASE}/margin/funding_schedule").mock(
+            return_value=httpx.Response(200, json={"schedule": "0 */8 * * *"})
+        )
+        resp = await auth_async_klear_client.margin.funding_schedule(asset_class="Crypto")
+        assert resp.schedule == "0 */8 * * *"
+        await auth_async_klear_client.close()

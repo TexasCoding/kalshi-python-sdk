@@ -780,9 +780,7 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/portfolio/intra_exchange_instance_transfers",
     ),
     MethodEndpointEntry(
-        sdk_method=(
-            "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all"
-        ),
+        sdk_method=("kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all"),
         http_method="GET",
         path_template="/portfolio/intra_exchange_instance_transfers",
     ),
@@ -848,6 +846,44 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.resources.fcm.FcmResource.positions_all",
         http_method="GET",
         path_template="/fcm/positions",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.list_subtraders",
+        http_method="GET",
+        path_template="/fcm/subtraders",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.create_subtrader",
+        http_method="POST",
+        path_template="/fcm/subtraders",
+        request_body_schema="#/components/schemas/CreateFCMSubtraderRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.blocked_categories",
+        http_method="GET",
+        path_template="/fcm/subtraders/blocked_categories",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.update_blocked_categories",
+        http_method="PUT",
+        path_template="/fcm/subtraders/blocked_categories",
+        request_body_schema="#/components/schemas/UpdateFCMSubtraderBlockedCategoriesRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.event_contract_daily_cap",
+        http_method="GET",
+        path_template="/fcm/subtraders/event_contract_daily_cap",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.update_event_contract_daily_cap",
+        http_method="PUT",
+        path_template="/fcm/subtraders/event_contract_daily_cap",
+        request_body_schema="#/components/schemas/UpdateFCMEventContractDailyCapRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.delete_event_contract_daily_cap",
+        http_method="DELETE",
+        path_template="/fcm/subtraders/event_contract_daily_cap",
     ),
     # ── incentive programs ──────────────────────────────────────────────────
     MethodEndpointEntry(
@@ -1715,8 +1751,7 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     MethodEndpointEntry(
         sdk_method=(
-            "kalshi.perps.klear.resources.margin.MarginResource"
-            ".maintenance_margin_details_all"
+            "kalshi.perps.klear.resources.margin.MarginResource.maintenance_margin_details_all"
         ),
         http_method="GET",
         path_template="/margin/obligations/{obligation_id}/maintenance_margin_details",
@@ -1733,8 +1768,7 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     MethodEndpointEntry(
         sdk_method=(
-            "kalshi.perps.klear.resources.margin.MarginResource"
-            ".settlement_estimate_by_asset_class"
+            "kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate_by_asset_class"
         ),
         http_method="GET",
         path_template="/margin/settlement_estimate_by_asset_class",
@@ -1836,6 +1870,26 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="DELETE",
         path_template="/fcm/margin/api_keys/{api_key_id}",
     ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource"
+            ".estimate_maintenance_margin_metadata"
+        ),
+        http_method="GET",
+        path_template="/margin/estimate_maintenance_margin/metadata",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource.funding_estimate_by_asset_class"
+        ),
+        http_method="GET",
+        path_template="/margin/funding_estimate_by_asset_class",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.klear.resources.margin.MarginResource.funding_schedule",
+        http_method="GET",
+        path_template="/margin/funding_schedule",
+    ),
 ]
 
 # Shared perps exclusion allowlist (same ``(sdk_fqn, field) → Exclusion`` shape
@@ -1856,7 +1910,7 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ("kalshi.perps.models.orders.GetMarginOrdersResponse", "cursor"): Exclusion(
         reason=(
             "spec marks cursor required, but Kalshi omits the key on the final "
-            "page (rather than returning \"\") — kept optional so list_all() "
+            'page (rather than returning "") — kept optional so list_all() '
             "doesn't crash on the last page. Mirrors the GetMarginFillsResponse/"
             "GetMarginTradesResponse cursor handling."
         ),

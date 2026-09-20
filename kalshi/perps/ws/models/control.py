@@ -54,10 +54,15 @@ class PerpsChannel(StrEnum):
 
 
 class UpdateSubscriptionAction(StrEnum):
-    """Spec ``updateSubscriptionCommandPayload.params.action.enum`` — add or remove markets."""
+    """Spec ``updateSubscriptionCommandPayload.params.action.enum``.
+
+    ``get_snapshot`` requests a fresh orderbook snapshot without changing
+    the subscription.
+    """
 
     ADD_MARKETS = "add_markets"
     DELETE_MARKETS = "delete_markets"
+    GET_SNAPSHOT = "get_snapshot"
 
 
 class PerpsBookSide(StrEnum):
@@ -214,6 +219,9 @@ class OkMsg(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
     market_tickers: builtins.list[str] | None = None
+    # Subscribed-indices / subscribed-underlyings update acks.
+    index_ids: builtins.list[str] | None = None
+    underlying_tickers: builtins.list[str] | None = None
 
 
 class OkResponse(BaseModel):
@@ -247,7 +255,7 @@ class ListSubscriptionsResponse(BaseModel):
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
-    id: int
+    id: int | None = None
     type: Literal["ok"] = "ok"
     msg: builtins.list[SubscriptionEntry]
 

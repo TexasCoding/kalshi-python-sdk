@@ -1356,11 +1356,7 @@ class TestPortfolioIntraExchangeTransfers:
     def test_returns_page(self, portfolio: PortfolioResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/intra_exchange_instance_transfers"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"transfers": [_TRANSFER], "cursor": "next"}
-            )
-        )
+        ).mock(return_value=httpx.Response(200, json={"transfers": [_TRANSFER], "cursor": "next"}))
         page = portfolio.intra_exchange_transfers(limit=10)
         assert len(page.items) == 1
         t = page.items[0]
@@ -1411,11 +1407,7 @@ class TestAsyncPortfolioIntraExchangeTransfers:
     async def test_returns_page(self, async_portfolio: AsyncPortfolioResource) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/portfolio/intra_exchange_instance_transfers"
-        ).mock(
-            return_value=httpx.Response(
-                200, json={"transfers": [_TRANSFER], "cursor": ""}
-            )
-        )
+        ).mock(return_value=httpx.Response(200, json={"transfers": [_TRANSFER], "cursor": ""}))
         page = await async_portfolio.intra_exchange_transfers()
         assert len(page.items) == 1
         assert page.items[0].transfer_id == "xfer-1"
@@ -1431,9 +1423,7 @@ class TestAsyncPortfolioIntraExchangeTransfers:
         assert t.status == "complete"
 
     @pytest.mark.asyncio
-    async def test_requires_auth(
-        self, unauth_async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_requires_auth(self, unauth_async_portfolio: AsyncPortfolioResource) -> None:
         with pytest.raises(AuthRequiredError):
             await unauth_async_portfolio.intra_exchange_transfers()
 
@@ -1441,18 +1431,20 @@ class TestAsyncPortfolioIntraExchangeTransfers:
 class TestTargetBalanceAllocation:
     @respx.mock
     def test_get(self, portfolio: PortfolioResource) -> None:
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
-        ).mock(
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation").mock(
             return_value=httpx.Response(
                 200,
-                json={"allocations": [{"exchange_index": 0, "percent": 100}]},
+                json={
+                    "allocations": [{"exchange_index": 0, "percent": 100}],
+                    "resting_margin_reservation": "sum",
+                },
             )
         )
         resp = portfolio.target_balance_allocation()
         assert len(resp.allocations) == 1
         assert resp.allocations[0].exchange_index == 0
         assert resp.allocations[0].percent == 100
+        assert resp.resting_margin_reservation == "sum"
 
     @respx.mock
     def test_set_kwargs(self, portfolio: PortfolioResource) -> None:
@@ -1521,17 +1513,17 @@ class TestTargetBalanceAllocation:
 
     @respx.mock
     @pytest.mark.asyncio
-    async def test_async_roundtrip(
-        self, async_portfolio: AsyncPortfolioResource
-    ) -> None:
+    async def test_async_roundtrip(self, async_portfolio: AsyncPortfolioResource) -> None:
         from kalshi.models.portfolio import TargetBalanceAllocationInput
 
-        respx.get(
-            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
-        ).mock(return_value=httpx.Response(200, json={"allocations": []}))
-        respx.post(
-            "https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation"
-        ).mock(return_value=httpx.Response(200, json={}))
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation").mock(
+            return_value=httpx.Response(
+                200, json={"allocations": [], "resting_margin_reservation": "sum"}
+            )
+        )
+        respx.post("https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation").mock(
+            return_value=httpx.Response(200, json={})
+        )
         resp = await async_portfolio.target_balance_allocation()
         assert resp.allocations == []
         await async_portfolio.set_target_balance_allocation(

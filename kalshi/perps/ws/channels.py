@@ -44,6 +44,7 @@ from kalshi.perps.ws.models.control import (
 
 logger = logging.getLogger("kalshi.perps.ws")
 
+
 class PerpsSubscription:
     """A single perps channel subscription with durable identity."""
 
@@ -150,9 +151,7 @@ class PerpsSubscriptionManager:
                     op=op,  # type: ignore[arg-type]
                 )
             try:
-                raw = await asyncio.wait_for(
-                    self._connection.recv(), timeout=remaining
-                )
+                raw = await asyncio.wait_for(self._connection.recv(), timeout=remaining)
             except ConnectionClosed as e:
                 raise KalshiConnectionError(
                     f"Connection closed while awaiting response to command {msg_id}"
@@ -198,9 +197,9 @@ class PerpsSubscriptionManager:
         sid = data.get("sid")
         if not isinstance(sid, int):
             logger.debug(
-                "Stash mode: dropping non-matching frame with non-int sid: "
-                "type=%s sid=%r",
-                data.get("type"), sid,
+                "Stash mode: dropping non-matching frame with non-int sid: type=%s sid=%r",
+                data.get("type"),
+                sid,
             )
             return
         bucket = self._stash.get(sid)
@@ -213,7 +212,8 @@ class PerpsSubscriptionManager:
                 "Stash for sid %d is full (%d frames); oldest frame will be "
                 "evicted. Resubscribe may be stalled or the channel is too "
                 "high-volume for the configured stash_maxlen.",
-                sid, self._stash_maxlen,
+                sid,
+                self._stash_maxlen,
             )
         bucket.append(raw)
 
@@ -246,14 +246,15 @@ class PerpsSubscriptionManager:
             id=msg_id,
             params=SubscribeParams.model_validate(sub.to_subscribe_params()),
         )
-        await self._connection.send(
-            cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
-        )
+        await self._connection.send(cmd.model_dump(exclude_none=True, by_alias=True, mode="json"))
 
         # An error ack is raised inside _wait_for_response (centralized), so a
         # returned frame here is always a success.
         data = await self._wait_for_response(
-            msg_id, channel=channel, client_id=client_id, op="subscribe",
+            msg_id,
+            channel=channel,
+            client_id=client_id,
+            op="subscribe",
         )
         server_sid = data.get("msg", {}).get("sid")
         if server_sid is not None:
@@ -263,7 +264,9 @@ class PerpsSubscriptionManager:
         self._subscriptions[client_id] = sub
         logger.debug(
             "Subscribed to %s: client_id=%d, server_sid=%s",
-            channel, client_id, server_sid,
+            channel,
+            client_id,
+            server_sid,
         )
         return sub
 
@@ -274,22 +277,19 @@ class PerpsSubscriptionManager:
             return
 
         msg_id = self._get_msg_id()
-        cmd = UnsubscribeCommand(
-            id=msg_id, params=UnsubscribeParams(sids=[sub.server_sid])
-        )
-        await self._connection.send(
-            cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
-        )
+        cmd = UnsubscribeCommand(id=msg_id, params=UnsubscribeParams(sids=[sub.server_sid]))
+        await self._connection.send(cmd.model_dump(exclude_none=True, by_alias=True, mode="json"))
 
         await self._wait_for_response(
-            msg_id, channel=sub.channel, client_id=client_id, op="unsubscribe",
+            msg_id,
+            channel=sub.channel,
+            client_id=client_id,
+            op="unsubscribe",
         )
         await sub.queue.put_sentinel()
         self._sid_to_client.pop(sub.server_sid, None)
         del self._subscriptions[client_id]
-        logger.debug(
-            "Unsubscribed client_id=%d (server_sid=%d)", client_id, sub.server_sid
-        )
+        logger.debug("Unsubscribed client_id=%d (server_sid=%d)", client_id, sub.server_sid)
 
     @staticmethod
     def _apply_market_delta(
@@ -320,10 +320,11 @@ class PerpsSubscriptionManager:
         market_tickers: builtins.list[str] | None = None,
         send_initial_snapshot: bool | None = None,
     ) -> None:
-        """Add or remove markets from an existing subscription (array-``sids`` form).
+        """Add or remove markets, or request a snapshot, on an existing subscription.
 
         Builds ``updateSubscriptionCommandPayload`` with ``params.sids`` as a
-        single-element array (spec ``maxItems: 1``).
+        single-element array (spec ``maxItems: 1``). ``get_snapshot`` does not
+        mutate the persisted market set.
         """
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
@@ -344,17 +345,16 @@ class PerpsSubscriptionManager:
                 send_initial_snapshot=send_initial_snapshot,
             ),
         )
-        await self._connection.send(
-            cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
-        )
+        await self._connection.send(cmd.model_dump(exclude_none=True, by_alias=True, mode="json"))
         await self._wait_for_response(
-            msg_id, channel=sub.channel, client_id=client_id,
+            msg_id,
+            channel=sub.channel,
+            client_id=client_id,
             op="update_subscription",
         )
-        self._apply_market_delta(sub, action, market_tickers)
-        logger.debug(
-            "Updated subscription (sids) client_id=%d action=%s", client_id, action
-        )
+        if action != UpdateSubscriptionAction.GET_SNAPSHOT:
+            self._apply_market_delta(sub, action, market_tickers)
+        logger.debug("Updated subscription (sids) client_id=%d action=%s", client_id, action)
 
     async def update_subscription_single_sid(
         self,
@@ -388,17 +388,19 @@ class PerpsSubscriptionManager:
                 send_initial_snapshot=send_initial_snapshot,
             ),
         )
-        await self._connection.send(
-            cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
-        )
+        await self._connection.send(cmd.model_dump(exclude_none=True, by_alias=True, mode="json"))
         await self._wait_for_response(
-            msg_id, channel=sub.channel, client_id=client_id,
+            msg_id,
+            channel=sub.channel,
+            client_id=client_id,
             op="update_subscription",
         )
-        self._apply_market_delta(sub, action, market_tickers)
+        if action != UpdateSubscriptionAction.GET_SNAPSHOT:
+            self._apply_market_delta(sub, action, market_tickers)
         logger.debug(
             "Updated subscription (single sid) client_id=%d action=%s",
-            client_id, action,
+            client_id,
+            action,
         )
 
     async def list_subscriptions(self) -> builtins.list[SubscriptionEntry]:
@@ -411,9 +413,7 @@ class PerpsSubscriptionManager:
         """
         msg_id = self._get_msg_id()
         cmd = ListSubscriptionsCommand(id=msg_id)
-        await self._connection.send(
-            cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
-        )
+        await self._connection.send(cmd.model_dump(exclude_none=True, by_alias=True, mode="json"))
         data = await self._wait_for_response(msg_id, op="list_subscriptions")
         raw_entries = data.get("msg")
         if not isinstance(raw_entries, list):
@@ -448,16 +448,16 @@ class PerpsSubscriptionManager:
                         params=SubscribeParams.model_validate(params),
                     )
                     await self._connection.send(
-                        cmd.model_dump(
-                            exclude_none=True, by_alias=True, mode="json"
-                        )
+                        cmd.model_dump(exclude_none=True, by_alias=True, mode="json")
                     )
 
                     # An error ack raises inside _wait_for_response and is caught
                     # by the per-sub ``except`` below (sentinel + drop).
                     data = await self._wait_for_response(
-                        msg_id, channel=sub.channel,
-                        client_id=client_id, op="subscribe",
+                        msg_id,
+                        channel=sub.channel,
+                        client_id=client_id,
+                        op="subscribe",
                     )
                     new_sid = data.get("msg", {}).get("sid")
                     if new_sid is not None:
@@ -465,12 +465,16 @@ class PerpsSubscriptionManager:
                         self._sid_to_client[new_sid] = client_id
                     logger.debug(
                         "Resubscribed %s: client_id=%d, new_sid=%s",
-                        sub.channel, client_id, new_sid,
+                        sub.channel,
+                        client_id,
+                        new_sid,
                     )
                 except Exception:
                     logger.warning(
                         "Resubscribe failed for client_id=%d channel=%s",
-                        client_id, sub.channel, exc_info=True,
+                        client_id,
+                        sub.channel,
+                        exc_info=True,
                     )
                     await sub.queue.put_sentinel()
                     self._subscriptions.pop(client_id, None)
