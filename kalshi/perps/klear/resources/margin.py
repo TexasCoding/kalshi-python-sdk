@@ -52,7 +52,10 @@ from kalshi.perps.klear.models.margin import (
     GenerateMarginFcmApiKeyRequest,
     GenerateMarginFcmApiKeyResponse,
     GetActiveMarginObligationsResponse,
+    GetFundingEstimateByAssetClassResponse,
     GetGuarantyFundBalanceResponse,
+    GetMaintenanceMarginMetadataResponse,
+    GetMarginFundingScheduleResponse,
     GetMarginReportsResponse,
     GetMarginSubtraderGroupsResponse,
     GetSettlementBalanceResponse,
@@ -109,9 +112,7 @@ def _validate_date_range(start_date: str, end_date: str) -> None:
                 f"(parsed as {parsed.isoformat()})"
             )
     if end < start:
-        raise ValueError(
-            f"end_date ({end_date}) must be on or after start_date ({start_date})"
-        )
+        raise ValueError(f"end_date ({end_date}) must be on or after start_date ({start_date})")
 
 
 class MarginResource(KlearSyncResource):
@@ -314,9 +315,7 @@ class MarginResource(KlearSyncResource):
 
         Next-settlement estimates keyed by asset class.
         """
-        data = self._get(
-            "/margin/settlement_estimate_by_asset_class", extra_headers=extra_headers
-        )
+        data = self._get("/margin/settlement_estimate_by_asset_class", extra_headers=extra_headers)
         return GetSettlementEstimateByAssetClassResponse.model_validate(data)
 
     def settlement_balance(
@@ -518,9 +517,7 @@ class MarginResource(KlearSyncResource):
     ) -> ListMarginFcmApiKeysResponse:
         """``GET /fcm/margin/api_keys`` — FCM-bound margin API keys."""
         params = _params(fcm_subtrader_id=fcm_subtrader_id)
-        data = self._get(
-            "/fcm/margin/api_keys", params=params, extra_headers=extra_headers
-        )
+        data = self._get("/fcm/margin/api_keys", params=params, extra_headers=extra_headers)
         return ListMarginFcmApiKeysResponse.model_validate(data)
 
     def create_fcm_api_key(
@@ -568,9 +565,7 @@ class MarginResource(KlearSyncResource):
                     "generate_fcm_api_key() requires `name` and `fcm_subtrader_id` "
                     "(or pass `request=...`)"
                 )
-            request = GenerateMarginFcmApiKeyRequest(
-                name=name, fcm_subtrader_id=fcm_subtrader_id
-            )
+            request = GenerateMarginFcmApiKeyRequest(name=name, fcm_subtrader_id=fcm_subtrader_id)
         data = self._post(
             "/fcm/margin/api_keys/generate",
             json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
@@ -606,8 +601,7 @@ class MarginResource(KlearSyncResource):
         if request is None:
             if subtrader_ids is None:
                 raise TypeError(
-                    "create_subtrader_group() requires `subtrader_ids` "
-                    "(or pass `request=...`)"
+                    "create_subtrader_group() requires `subtrader_ids` (or pass `request=...`)"
                 )
             request = CreateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
         data = self._post(
@@ -630,8 +624,7 @@ class MarginResource(KlearSyncResource):
         if request is None:
             if subtrader_ids is None:
                 raise TypeError(
-                    "update_subtrader_group() requires `subtrader_ids` "
-                    "(or pass `request=...`)"
+                    "update_subtrader_group() requires `subtrader_ids` (or pass `request=...`)"
                 )
             request = UpdateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
         self._put(
@@ -648,6 +641,40 @@ class MarginResource(KlearSyncResource):
             f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
             extra_headers=extra_headers,
         )
+
+    def estimate_maintenance_margin_metadata(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        date: datetime.date,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMaintenanceMarginMetadataResponse:
+        """``GET /margin/estimate_maintenance_margin/metadata``."""
+        params = _params(asset_class=asset_class, date=date.isoformat())
+        data = self._get(
+            "/margin/estimate_maintenance_margin/metadata",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetMaintenanceMarginMetadataResponse.model_validate(data)
+
+    def funding_estimate_by_asset_class(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFundingEstimateByAssetClassResponse:
+        """``GET /margin/funding_estimate_by_asset_class``."""
+        data = self._get("/margin/funding_estimate_by_asset_class", extra_headers=extra_headers)
+        return GetFundingEstimateByAssetClassResponse.model_validate(data)
+
+    def funding_schedule(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMarginFundingScheduleResponse:
+        """``GET /margin/funding_schedule`` — cron expression in US Eastern Time."""
+        params = _params(asset_class=asset_class)
+        data = self._get("/margin/funding_schedule", params=params, extra_headers=extra_headers)
+        return GetMarginFundingScheduleResponse.model_validate(data)
 
 
 class AsyncMarginResource(KlearAsyncResource):
@@ -1036,9 +1063,7 @@ class AsyncMarginResource(KlearAsyncResource):
     ) -> ListMarginFcmApiKeysResponse:
         """Async :meth:`MarginResource.list_fcm_api_keys`."""
         params = _params(fcm_subtrader_id=fcm_subtrader_id)
-        data = await self._get(
-            "/fcm/margin/api_keys", params=params, extra_headers=extra_headers
-        )
+        data = await self._get("/fcm/margin/api_keys", params=params, extra_headers=extra_headers)
         return ListMarginFcmApiKeysResponse.model_validate(data)
 
     async def create_fcm_api_key(
@@ -1086,9 +1111,7 @@ class AsyncMarginResource(KlearAsyncResource):
                     "generate_fcm_api_key() requires `name` and `fcm_subtrader_id` "
                     "(or pass `request=...`)"
                 )
-            request = GenerateMarginFcmApiKeyRequest(
-                name=name, fcm_subtrader_id=fcm_subtrader_id
-            )
+            request = GenerateMarginFcmApiKeyRequest(name=name, fcm_subtrader_id=fcm_subtrader_id)
         data = await self._post(
             "/fcm/margin/api_keys/generate",
             json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
@@ -1124,8 +1147,7 @@ class AsyncMarginResource(KlearAsyncResource):
         if request is None:
             if subtrader_ids is None:
                 raise TypeError(
-                    "create_subtrader_group() requires `subtrader_ids` "
-                    "(or pass `request=...`)"
+                    "create_subtrader_group() requires `subtrader_ids` (or pass `request=...`)"
                 )
             request = CreateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
         data = await self._post(
@@ -1148,8 +1170,7 @@ class AsyncMarginResource(KlearAsyncResource):
         if request is None:
             if subtrader_ids is None:
                 raise TypeError(
-                    "update_subtrader_group() requires `subtrader_ids` "
-                    "(or pass `request=...`)"
+                    "update_subtrader_group() requires `subtrader_ids` (or pass `request=...`)"
                 )
             request = UpdateMarginSubtraderGroupRequest(subtrader_ids=subtrader_ids)
         await self._put(
@@ -1166,3 +1187,41 @@ class AsyncMarginResource(KlearAsyncResource):
             f"/fcm/margin/subtrader_groups/{_seg(group_id, name='group_id')}",
             extra_headers=extra_headers,
         )
+
+    async def estimate_maintenance_margin_metadata(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        date: datetime.date,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMaintenanceMarginMetadataResponse:
+        """Async :meth:`MarginResource.estimate_maintenance_margin_metadata`."""
+        params = _params(asset_class=asset_class, date=date.isoformat())
+        data = await self._get(
+            "/margin/estimate_maintenance_margin/metadata",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetMaintenanceMarginMetadataResponse.model_validate(data)
+
+    async def funding_estimate_by_asset_class(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFundingEstimateByAssetClassResponse:
+        """Async :meth:`MarginResource.funding_estimate_by_asset_class`."""
+        data = await self._get(
+            "/margin/funding_estimate_by_asset_class", extra_headers=extra_headers
+        )
+        return GetFundingEstimateByAssetClassResponse.model_validate(data)
+
+    async def funding_schedule(
+        self,
+        *,
+        asset_class: AssetClassLiteral,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMarginFundingScheduleResponse:
+        """Async :meth:`MarginResource.funding_schedule`."""
+        params = _params(asset_class=asset_class)
+        data = await self._get(
+            "/margin/funding_schedule", params=params, extra_headers=extra_headers
+        )
+        return GetMarginFundingScheduleResponse.model_validate(data)

@@ -85,9 +85,7 @@ async def test_update_subscription_array_sids_form(
 ) -> None:
     conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
     sub = await mgr.subscribe("ticker")
-    await mgr.update_subscription(
-        sub.client_id, "add_markets", market_tickers=["ETH-PERP"]
-    )
+    await mgr.update_subscription(sub.client_id, "add_markets", market_tickers=["ETH-PERP"])
     cmd = fake_perps_ws.received_commands[-1]
     assert cmd["cmd"] == "update_subscription"
     assert cmd["params"]["action"] == "add_markets"
@@ -145,9 +143,7 @@ async def test_update_raises_on_error_ack(
     sub = await mgr.subscribe("ticker")
     fake_perps_ws.force_error = True
     with pytest.raises(KalshiSubscriptionError):
-        await mgr.update_subscription(
-            sub.client_id, "add_markets", market_tickers=["ETH-PERP"]
-        )
+        await mgr.update_subscription(sub.client_id, "add_markets", market_tickers=["ETH-PERP"])
     await conn.close()
 
 
@@ -166,14 +162,28 @@ async def test_update_add_markets_persists_to_params(
     await conn.close()
 
 
+async def test_update_get_snapshot_does_not_persist_markets(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
+    sub = await mgr.subscribe("ticker", params={"market_tickers": ["A"]})
+    await mgr.update_subscription(
+        sub.client_id, "get_snapshot", market_tickers=["B"]
+    )
+    persisted = mgr.get_subscription(sub.client_id)
+    assert persisted is not None
+    assert persisted.params["market_tickers"] == ["A"]
+    cmd = fake_perps_ws.received_commands[-1]
+    assert cmd["params"]["action"] == "get_snapshot"
+    await conn.close()
+
+
 async def test_update_delete_markets_persists_to_params(
     fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
 ) -> None:
     conn, mgr = await _connected_mgr(fake_perps_ws, perps_ws_config, perps_auth)
     sub = await mgr.subscribe("ticker", params={"market_tickers": ["A", "B"]})
-    await mgr.update_subscription_single_sid(
-        sub.client_id, "delete_markets", market_tickers=["A"]
-    )
+    await mgr.update_subscription_single_sid(sub.client_id, "delete_markets", market_tickers=["A"])
     persisted = mgr.get_subscription(sub.client_id)
     assert persisted is not None
     assert persisted.params["market_tickers"] == ["B"]

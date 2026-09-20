@@ -79,6 +79,8 @@ class MarginMarket(BaseModel):
     title: str
     status: MarginMarketStatusLiteral
     contract_size: DollarDecimal
+    # Spec 3.30.0: underlying units per contract-size unit (required string).
+    underlying_multiplier: str
     tick_size: DollarDecimal
     fractional_trading_enabled: bool
     # Spec requires the key; value is null for markets that trade 24/7
@@ -134,6 +136,7 @@ class MarginMarket(BaseModel):
     reference_price: TickerPrice | None = None
     # Omitted when the market has no assigned class. New classes may appear over time.
     asset_class: str | None = None
+    product_metadata: dict[str, object] | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

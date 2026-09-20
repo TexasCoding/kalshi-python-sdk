@@ -244,6 +244,14 @@ returns a ticker → centicents map at a settlement cycle.
 margins a hypothetical portfolio. Optional `date=` (YYYY-MM-DD) and
 `clearing_type=` (`"FCM"` / `"SelfClearing"`) select the matrix day and
 clearing arrangement.
+`klear.margin.estimate_maintenance_margin_metadata(asset_class="Crypto", date=...)`
+returns the matrices, liquidation configs, and subgroups that feed that
+estimate.
+
+`klear.margin.funding_estimate_by_asset_class()` returns the next-funding
+estimate keyed by asset class.
+`klear.margin.funding_schedule(asset_class="Crypto")` returns a cron
+expression evaluated in US Eastern Time.
 
 `klear.margin.member_funding_payments(funding_time=...)` returns the
 member's funding payments for one funding execution (distinct from the

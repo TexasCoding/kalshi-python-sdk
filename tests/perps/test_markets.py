@@ -34,6 +34,7 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         "title": "Bitcoin Perpetual",
         "status": "active",
         "contract_size": "1.000000",
+        "underlying_multiplier": "1",
         "tick_size": "0.0100",
         "fractional_trading_enabled": True,
         # Spec requires schedule; null means 24/7. Populated object used as the
@@ -102,6 +103,7 @@ class TestList:
         assert m.status == "active"
         assert m.contract_size == Decimal("1.000000")
         assert isinstance(m.contract_size, Decimal)
+        assert m.underlying_multiplier == "1"
         assert m.tick_size == Decimal("0.0100")
         assert isinstance(m.tick_size, Decimal)
         assert m.leverage_estimate == Decimal("2.5")
@@ -150,6 +152,7 @@ class TestList:
                             "title": "Ether Perpetual",
                             "status": "inactive",
                             "contract_size": "1.000000",
+                            "underlying_multiplier": "1",
                             "tick_size": "0.0100",
                             "fractional_trading_enabled": False,
                             # required key present, null value = 24/7 market
@@ -248,9 +251,7 @@ class TestGet:
     @respx.mock
     def test_not_found_single_call(self, perps_client: PerpsClient) -> None:
         # 404 is non-retryable; GET only retries on 429/502/503/504.
-        route = respx.get(f"{BASE}/margin/markets/NOPE").mock(
-            return_value=httpx.Response(404)
-        )
+        route = respx.get(f"{BASE}/margin/markets/NOPE").mock(return_value=httpx.Response(404))
         with pytest.raises(KalshiNotFoundError):
             perps_client.markets.get("NOPE")
         assert route.call_count == 1
@@ -304,9 +305,7 @@ class TestOrderbook:
     @respx.mock
     def test_null_bids_asks(self, perps_client: PerpsClient) -> None:
         respx.get(f"{BASE}/margin/markets/BTC-PERP/orderbook").mock(
-            return_value=httpx.Response(
-                200, json={"orderbook": {"bids": None, "asks": None}}
-            )
+            return_value=httpx.Response(200, json={"orderbook": {"bids": None, "asks": None}})
         )
         ob = perps_client.markets.orderbook("BTC-PERP")
         assert ob.bids == []
@@ -323,9 +322,7 @@ class TestOrderbook:
 
     @respx.mock
     def test_not_found_maps(self, perps_client: PerpsClient) -> None:
-        respx.get(f"{BASE}/margin/markets/NOPE/orderbook").mock(
-            return_value=httpx.Response(404)
-        )
+        respx.get(f"{BASE}/margin/markets/NOPE/orderbook").mock(return_value=httpx.Response(404))
         with pytest.raises(KalshiNotFoundError):
             perps_client.markets.orderbook("NOPE")
 
@@ -394,9 +391,9 @@ class TestCandlesticks:
                 },
             )
         )
-        c = perps_client.markets.candlesticks(
-            "BTC-PERP", start_ts=1, end_ts=2, period_interval=60
-        )[0]
+        c = perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=60)[
+            0
+        ]
         assert c.price.open is None
         assert c.price.close is None
         assert c.price.mean is None
@@ -426,14 +423,10 @@ class TestCandlesticks:
             perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
         # A null candlesticks array coerces to [] (NullableList).
         route.mock(
-            return_value=httpx.Response(
-                200, json={"ticker": "BTC-PERP", "candlesticks": None}
-            )
+            return_value=httpx.Response(200, json={"ticker": "BTC-PERP", "candlesticks": None})
         )
         assert (
-            perps_client.markets.candlesticks(
-                "BTC-PERP", start_ts=1, end_ts=2, period_interval=1
-            )
+            perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
             == []
         )
 
@@ -460,16 +453,12 @@ class TestCandlesticks:
         route = respx.get(f"{BASE}/margin/markets/BTC-PERP/candlesticks").mock(
             return_value=httpx.Response(200, json={"ticker": "BTC-PERP", "candlesticks": []})
         )
-        perps_client.markets.candlesticks(
-            "BTC-PERP", start_ts=1, end_ts=2, period_interval=1
-        )
+        perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=1)
         assert "include_latest_before_start" not in dict(route.calls[0].request.url.params)
 
     @respx.mock
     def test_not_found_maps(self, perps_client: PerpsClient) -> None:
-        respx.get(f"{BASE}/margin/markets/NOPE/candlesticks").mock(
-            return_value=httpx.Response(404)
-        )
+        respx.get(f"{BASE}/margin/markets/NOPE/candlesticks").mock(return_value=httpx.Response(404))
         with pytest.raises(KalshiNotFoundError):
             perps_client.markets.candlesticks("NOPE", start_ts=1, end_ts=2, period_interval=1)
 
@@ -481,9 +470,7 @@ class TestCandlesticks:
             return_value=httpx.Response(400, json={"error": {"code": "invalid_parameter"}})
         )
         with pytest.raises(Exception):  # noqa: B017 — mapped SDK validation error
-            perps_client.markets.candlesticks(
-                "BTC-PERP", start_ts=1, end_ts=2, period_interval=5
-            )
+            perps_client.markets.candlesticks("BTC-PERP", start_ts=1, end_ts=2, period_interval=5)
 
     @respx.mock
     async def test_async(self, async_perps_client: AsyncPerpsClient) -> None:

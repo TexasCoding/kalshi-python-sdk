@@ -2,6 +2,13 @@
 
 ## Shipped
 
+- **v15.0.0 (2026-09-20)** — Spec-drift reconcile (#515 / #517). OpenAPI
+  3.29.0 → 3.30.0. **Breaking:** `Series.categories`,
+  `GetTargetBalanceAllocationResponse.resting_margin_reservation`,
+  `MarginMarket.underlying_multiplier`, WS quote created/accepted
+  `rfq_creator_id` required. Additive: FCM subtrader admin, RFQ
+  `target_cost_excludes_fees`, historical fills/orders `min_ts`, Klear
+  maintenance-margin metadata + funding estimate/schedule.
 - **v14.0.0 (2026-09-06)** — Spec-drift reconcile (#510 / #511). OpenAPI
   3.29.0 content + perps/Klear/AsyncAPI. **Breaking:** perps WS
   `MarginFillPayload` / `MarginUserOrderPayload` require `order_source`.

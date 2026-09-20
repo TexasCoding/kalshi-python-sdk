@@ -67,10 +67,10 @@ trades = client.historical.trades(
 Both require auth — these are your own trade history.
 
 ```python
-for fill in client.historical.fills_all(ticker="KXPRES-24-DJT"):
+for fill in client.historical.fills_all(ticker="KXPRES-24-DJT", min_ts=1_600_000_000):
     print(fill.fill_id, fill.price, fill.count)
 
-for order in client.historical.orders_all(status="executed"):
+for order in client.historical.orders_all(ticker="KXPRES-24-DJT", min_ts=1_600_000_000):
     print(order.order_id, order.client_order_id)
 ```
 

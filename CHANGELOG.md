@@ -2,6 +2,70 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 15.0.0 — 2026-09-20
+
+Reconciles upstream OpenAPI **3.29.0 → 3.30.0** plus matching perps, Klear,
+and AsyncAPI updates after nightly contract failures (Closes #515,
+Closes #517). **Breaking** for constructors of `Series`,
+`GetTargetBalanceAllocationResponse`, `MarginMarket`, and WS
+`QuoteCreatedPayload` / `QuoteAcceptedPayload` that omit newly required
+fields.
+
+### Changed (breaking)
+
+- **`Series.categories`** (`list[str]`, required) — discovery categories
+  the series belongs to. The `category` filter on `series.list()` matches
+  any entry. Live list callers are unaffected; tests/mocks that construct
+  `Series` must pass `categories`.
+- **`GetTargetBalanceAllocationResponse.resting_margin_reservation`**
+  (`"max"` / `"sum"`, required). The GET now echoes the reservation policy
+  previously write-only on `set_target_balance_allocation`.
+- **Perps** `MarginMarket.underlying_multiplier` (`str`, required) —
+  underlying units per contract-size unit.
+- **WS** `QuoteCreatedPayload.rfq_creator_id` and
+  `QuoteAcceptedPayload.rfq_creator_id` (`str`, required). Live stream
+  callers are unaffected; tests/mocks that construct these payloads must
+  pass the creator id.
+
+### Added
+
+- **FCM subtrader admin** on `client.fcm`:
+  `list_subtraders()` / `create_subtrader(subtrader_suffix=...)`,
+  `blocked_categories(subtrader_id=)` /
+  `update_blocked_categories(subtrader_id=, category=, blocked=)`,
+  `event_contract_daily_cap(subtrader_id=)` /
+  `update_event_contract_daily_cap(subtrader_id=, limit=)` /
+  `delete_event_contract_daily_cap(subtrader_id=)`.
+- Optional **`CreateRFQRequest.target_cost_excludes_fees`** (and the same
+  field on `RFQ` / `Quote` responses) — sizes quotes against the target
+  cost as principal only, with taker fees charged on top.
+- Optional **`historical.fills` / `fills_all` / `orders` / `orders_all`**
+  `min_ts=` query (mirrors `historical.trades`).
+- Optional **`MarginMarket.product_metadata`**.
+- **Klear** `estimate_maintenance_margin_metadata(asset_class=, date=)`,
+  `funding_estimate_by_asset_class()`, `funding_schedule(asset_class=)`.
+- Optional **`id`** on orderbook snapshot envelopes (core + perps) when
+  the snapshot is a `get_snapshot` reply.
+- Perps WS `UpdateSubscriptionAction.get_snapshot` — request a fresh
+  orderbook snapshot without changing the subscription.
+
+### Changed (non-breaking)
+
+- Perps WS `ListSubscriptionsResponse.id` is optional (spec dropped it
+  from required). `OkMsg` accepts optional `index_ids` /
+  `underlying_tickers` on subscribed-indices / subscribed-underlyings
+  acks.
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.30.0** (paths 99; 116 operations;
+  115 mapped). Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer`.
+- AsyncAPI still 15 channels. 12 typed `subscribe_*` helpers.
+- Perps OpenAPI: 48 operations.
+- Perps SCM OpenAPI: 24 → 27 operations. Still unimplemented:
+  `GET /margin/large_trader_positions` (surveillance).
+
 ## 14.0.0 — 2026-09-06
 
 Reconciles upstream OpenAPI **3.29.0** content drift plus matching perps,

@@ -249,6 +249,27 @@ paths:
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /margin/estimate_maintenance_margin/metadata:
+    get:
+      operationId: GetMaintenanceMarginMetadata
+      summary: Get Maintenance Margin Metadata
+      description: Inputs to the maintenance margin calculation for an asset class.
+
+      parameters:
+        - { name: asset_class, in: query, required: true, schema: { $ref: '#/components/schemas/AssetClass' } }
+        - { name: date, in: query, required: true, schema: { type: string, format: date }, description: 'Return the matrices calibrated on this Eastern-time day (YYYY-MM-DD), the liquidation parameters in effect at the end of that day, and the current subgroups of the markets they cover for the caller. Returns 404 if no matrices were calibrated that day.' }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetMaintenanceMarginMetadataResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/settlement_estimate_by_asset_class:
     get:
       operationId: GetSettlementEstimateByAssetClass
@@ -270,6 +291,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GetSettlementEstimateByAssetClassResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/funding_estimate_by_asset_class:
+    get:
+      operationId: GetFundingEstimateByAssetClass
+      summary: Get Funding Estimate By Asset Class
+      description: >-
+        Estimated funding at the next scheduled funding time for the
+        authenticated clearing member, keyed by asset class.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetFundingEstimateByAssetClassResponse' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /margin/funding_schedule:
+    get:
+      operationId: GetMarginFundingSchedule
+      summary: Get Funding Schedule
+      description: >-
+        Returns an asset class's funding schedule as a cron expression
+        evaluated in US Eastern Time. Funding executes at each scheduled
+        tick; schedules differ by asset class.
+      parameters:
+        - { name: asset_class, in: query, required: true, schema: { $ref: '#/components/schemas/AssetClass' } }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetMarginFundingScheduleResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
@@ -650,6 +709,10 @@ components:
             - settlement_periods
             - maintenance_margin
             - maintenance_margin_aggregate
+            - cash_balance_daily
+            - cash_activity_daily
+            - daily_financial_summary
+            - interest_on_collateral_monthly
         url: { type: string, description: Presigned download URL (omitted from logs). }
         date:
           type: string
@@ -872,6 +935,52 @@ components:
         funding_addon_fp: { type: string, description: 'Funding margin add-on, in USD.' }
         liquidation_addon_fp: { type: string, description: 'Liquidation margin add-on, in USD.' }
 
+    MaintenanceMarginMatrix:
+      type: object
+      required: [market_tickers, returns]
+      properties:
+        market_tickers: { type: array, items: { type: string }, description: Markets covered by the matrix, in column order. }
+        returns:
+          type: array
+          items: { type: array, items: { type: number, format: double } }
+          description: One row per scenario; each row holds one return per entry in market_tickers.
+
+    MaintenanceMarginMatrices:
+      type: object
+      properties:
+        hvar: { $ref: '#/components/schemas/MaintenanceMarginMatrix' }
+        apc: { $ref: '#/components/schemas/MaintenanceMarginMatrix' }
+        aug: { $ref: '#/components/schemas/MaintenanceMarginMatrix' }
+        funding: { $ref: '#/components/schemas/MaintenanceMarginMatrix' }
+
+    MaintenanceMarginLiquidationConfig:
+      type: object
+      required: [market_ticker, market_impact_volatility, market_impact_coefficient, market_impact_exponent, market_impact_forecasted_volume, spread_rate]
+      properties:
+        market_ticker: { type: string }
+        market_impact_volatility: { type: number, format: double }
+        market_impact_coefficient: { type: number, format: double }
+        market_impact_exponent: { type: number, format: double }
+        market_impact_forecasted_volume: { type: number, format: double }
+        spread_rate: { type: number, format: double }
+
+    GetMaintenanceMarginMetadataResponse:
+      type: object
+      required: [asset_class, base_tail_percentile, funding_tail_percentile, matrices, liquidation_configs, subgroups]
+      properties:
+        asset_class: { $ref: '#/components/schemas/AssetClass' }
+        base_tail_percentile: { type: number, format: double, description: Lower-tail percentile of the scenario P&L distribution used for the base margin. }
+        funding_tail_percentile: { type: number, format: double, description: Lower-tail percentile of the scenario P&L distribution used for the funding margin. }
+        matrices: { $ref: '#/components/schemas/MaintenanceMarginMatrices' }
+        liquidation_configs:
+          type: array
+          description: Liquidation margin parameters for each active market with a calibrated margin config.
+          items: { $ref: '#/components/schemas/MaintenanceMarginLiquidationConfig' }
+        subgroups:
+          type: array
+          description: Partition of the asset class's active markets; positions within a subgroup are margined together.
+          items: { type: array, items: { type: string } }
+
     GetObligationHistoryResponse:
       type: object
       required: [obligations]
@@ -998,6 +1107,55 @@ components:
           description: Map of asset class to the estimated next settlement for that asset class.
           additionalProperties: { $ref: '#/components/schemas/AssetClassSettlementEstimate' }
         settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
+
+    MarketFundingEstimate:
+      type: object
+      required: [quantity_centicount, funding_amount_centicents]
+      properties:
+        quantity_centicount: { type: integer, format: int64 }
+        funding_amount_centicents: { type: integer, format: int64 }
+
+    FundingEstimate:
+      type: object
+      required: [funding_amount_centicents]
+      properties:
+        funding_amount_centicents: { type: integer, format: int64 }
+        positions:
+          type: object
+          description: Keyed by market ticker; only present on subtrader and group breakdowns.
+          additionalProperties: { $ref: '#/components/schemas/MarketFundingEstimate' }
+
+    AssetClassFundingEstimate:
+      type: object
+      required: [user_breakdown, omitted_subtrader_count, omitted_group_count, next_funding_time]
+      properties:
+        user_breakdown: { $ref: '#/components/schemas/FundingEstimate' }
+        subtrader_breakdowns:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/FundingEstimate' }
+        group_breakdowns:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/FundingEstimate' }
+        omitted_subtrader_count: { type: integer, format: int64 }
+        omitted_group_count: { type: integer, format: int64 }
+        next_funding_time: { type: string, format: date-time, description: Next scheduled funding time for this asset class. }
+
+    GetFundingEstimateByAssetClassResponse:
+      type: object
+      required: [estimates]
+      properties:
+        estimates:
+          type: object
+          description: Keyed by asset class.
+          additionalProperties: { $ref: '#/components/schemas/AssetClassFundingEstimate' }
+
+    GetMarginFundingScheduleResponse:
+      type: object
+      required: [schedule]
+      properties:
+        schedule:
+          type: string
+          description: Cron expression evaluated in US Eastern Time (e.g. "0 */8 * * *" = midnight, 8AM and 4PM ET).
 
     GetSettlementPricesResponse:
       type: object
@@ -1135,7 +1293,7 @@ components:
         warning:
           type: string
           nullable: true
-          description: Present only when the bound subtrader has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders are rejected until a cap is set.
+          description: Present only when the bound subtrader is missing a per-subtrader risk control - the initial-margin cap (margin lane) or the event-contract daily cap. The mint still succeeds; the warning names each missing control - an event-contract subtrader without a daily cap has its event-contract orders rejected until one is set, while a margin subtrader without an initial-margin cap is bounded only by firm-level risk limits.
 
     GenerateMarginFcmApiKeyRequest:
       type: object
@@ -1159,7 +1317,7 @@ components:
         warning:
           type: string
           nullable: true
-          description: Present only when the bound subtrader has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders are rejected until a cap is set.
+          description: Present only when the bound subtrader is missing a per-subtrader risk control - the initial-margin cap (margin lane) or the event-contract daily cap. The mint still succeeds; the warning names each missing control - an event-contract subtrader without a daily cap has its event-contract orders rejected until one is set, while a margin subtrader without an initial-margin cap is bounded only by firm-level risk limits.
 
     MarginFcmApiKey:
       type: object

@@ -63,7 +63,8 @@ def comms(test_auth: KalshiAuth, config: KalshiConfig) -> CommunicationsResource
 
 @pytest.fixture
 def async_comms(
-    test_auth: KalshiAuth, config: KalshiConfig,
+    test_auth: KalshiAuth,
+    config: KalshiConfig,
 ) -> AsyncCommunicationsResource:
     return AsyncCommunicationsResource(AsyncTransport(test_auth, config))
 
@@ -111,13 +112,17 @@ _MINIMAL_QUOTE = {
 
 class TestCommunicationsResponseModels:
     def test_rfq_accepts_fp_and_dollars_aliases(self) -> None:
-        rfq = RFQ.model_validate(
-            {**_MINIMAL_RFQ, "target_cost_dollars": "50.0000"}
-        )
+        rfq = RFQ.model_validate({**_MINIMAL_RFQ, "target_cost_dollars": "50.0000"})
         assert rfq.id == "rfq-1"
         assert rfq.contracts == Decimal("100")
         assert rfq.target_cost == Decimal("50.0000")
         assert rfq.status == "open"
+
+    def test_rfq_and_quote_target_cost_excludes_fees(self) -> None:
+        rfq = RFQ.model_validate({**_MINIMAL_RFQ, "target_cost_excludes_fees": True})
+        quote = Quote.model_validate({**_MINIMAL_QUOTE, "target_cost_excludes_fees": True})
+        assert rfq.target_cost_excludes_fees is True
+        assert quote.target_cost_excludes_fees is True
 
     def test_rfq_accepts_short_name_aliases(self) -> None:
         rfq = RFQ.model_validate(
@@ -186,10 +191,21 @@ class TestCommunicationsRequestModels:
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         assert body == {"market_ticker": "MKT-1", "rest_remainder": False}
 
+    def test_create_rfq_request_serializes_target_cost_excludes_fees(self) -> None:
+        req = CreateRFQRequest(
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            target_cost_excludes_fees=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["target_cost_excludes_fees"] is True
+
     def test_create_rfq_forbids_extra(self) -> None:
         with pytest.raises(ValidationError):
             CreateRFQRequest(  # type: ignore[call-arg]
-                market_ticker="MKT-1", rest_remainder=True, phantom=1,
+                market_ticker="MKT-1",
+                rest_remainder=True,
+                phantom=1,
             )
 
     def test_create_rfq_rejects_zero_contracts(self) -> None:
@@ -261,7 +277,8 @@ class TestListRfqs:
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
         ).mock(
             return_value=httpx.Response(
-                200, json={"rfqs": [_MINIMAL_RFQ], "cursor": "next"},
+                200,
+                json={"rfqs": [_MINIMAL_RFQ], "cursor": "next"},
             ),
         )
         page = comms.list_rfqs(limit=10)
@@ -290,7 +307,8 @@ class TestListRfqs:
 
     @respx.mock
     def test_list_all_rfqs_auto_paginates(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
@@ -304,7 +322,8 @@ class TestListRfqs:
                     },
                 ),
                 httpx.Response(
-                    200, json={"rfqs": [{**_MINIMAL_RFQ, "id": "rfq-3"}]},
+                    200,
+                    json={"rfqs": [{**_MINIMAL_RFQ, "id": "rfq-3"}]},
                 ),
             ],
         )
@@ -354,6 +373,19 @@ class TestCreateRfq:
         }
 
     @respx.mock
+    def test_sends_target_cost_excludes_fees(self, comms: CommunicationsResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(201, json={"id": "rfq-new"}))
+        comms.create_rfq(
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            target_cost_excludes_fees=True,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["target_cost_excludes_fees"] is True
+
+    @respx.mock
     def test_omits_optional_fields(self, comms: CommunicationsResource) -> None:
         route = respx.post(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
@@ -364,7 +396,8 @@ class TestCreateRfq:
 
     @respx.mock
     def test_400_maps_to_validation_error(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         respx.post(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
@@ -407,7 +440,9 @@ class TestListQuotes:
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
         ).mock(return_value=httpx.Response(200, json={"quotes": []}))
         comms.list_quotes(
-            rfq_id="rfq-1", status="accepted", quote_creator_user_id="u1",
+            rfq_id="rfq-1",
+            status="accepted",
+            quote_creator_user_id="u1",
         )
         params = route.calls[0].request.url.params
         assert params["rfq_id"] == "rfq-1"
@@ -416,7 +451,8 @@ class TestListQuotes:
 
     @respx.mock
     def test_list_all_quotes_auto_paginates(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
@@ -427,7 +463,8 @@ class TestListQuotes:
                     json={"quotes": [_MINIMAL_QUOTE], "cursor": "page2"},
                 ),
                 httpx.Response(
-                    200, json={"quotes": [{**_MINIMAL_QUOTE, "id": "q-2"}]},
+                    200,
+                    json={"quotes": [{**_MINIMAL_QUOTE, "id": "q-2"}]},
                 ),
             ],
         )
@@ -435,7 +472,8 @@ class TestListQuotes:
         assert [q.id for q in items] == ["q-1", "q-2"]
 
     def test_raises_without_creator_filter(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """Spec + demo require creator_user_id or rfq_creator_user_id.
 
@@ -448,7 +486,8 @@ class TestListQuotes:
             comms.list_quotes()
 
     def test_raises_without_creator_filter_even_with_rfq_id(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """rfq_id alone is not enough — v0.11.0 integration audit confirmed."""
         with pytest.raises(ValueError):
@@ -456,7 +495,8 @@ class TestListQuotes:
 
     @respx.mock
     def test_rfq_creator_user_id_alone_is_sufficient(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
@@ -465,7 +505,8 @@ class TestListQuotes:
         assert page.items == []
 
     def test_list_all_quotes_raises_without_creator_filter(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """Generator-returning variant must raise eagerly, not on first yield."""
         with pytest.raises(ValueError):
@@ -473,7 +514,8 @@ class TestListQuotes:
 
     @respx.mock
     def test_user_filter_alone_is_sufficient(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """Spec v3.18.0 added user_filter='self' as a server-side shorthand
         for the caller's user-id, so it satisfies the filter requirement.
@@ -486,7 +528,8 @@ class TestListQuotes:
 
     @respx.mock
     def test_rfq_user_filter_alone_is_sufficient(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """rfq_user_filter='self' (filter to quotes responding to the caller's
         own RFQs) is also a valid standalone satisfier.
@@ -498,7 +541,8 @@ class TestListQuotes:
         assert page.items == []
 
     def test_raises_lists_all_four_satisfiers(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         """The updated error message must enumerate all four valid filters
         so callers know about the user_filter / rfq_user_filter shortcuts.
@@ -701,7 +745,9 @@ class TestAsyncCommunications:
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
         ).mock(return_value=httpx.Response(201, json={"id": "rfq-9"}))
         resp = await async_comms.create_rfq(
-            market_ticker="MKT-1", rest_remainder=True, contracts=5,
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            contracts=5,
         )
         assert resp.id == "rfq-9"
         assert route.called
@@ -720,7 +766,8 @@ class TestAsyncCommunications:
                     json={"rfqs": [_MINIMAL_RFQ], "cursor": "page2"},
                 ),
                 httpx.Response(
-                    200, json={"rfqs": [{**_MINIMAL_RFQ, "id": "rfq-2"}]},
+                    200,
+                    json={"rfqs": [{**_MINIMAL_RFQ, "id": "rfq-2"}]},
                 ),
             ],
         )
@@ -836,7 +883,8 @@ class TestAsyncCommunications:
         assert route.called
 
     async def test_list_quotes_raises_without_creator_filter(
-        self, async_comms: AsyncCommunicationsResource,
+        self,
+        async_comms: AsyncCommunicationsResource,
     ) -> None:
         with pytest.raises(
             ValueError,
@@ -845,7 +893,8 @@ class TestAsyncCommunications:
             await async_comms.list_quotes()
 
     async def test_list_all_quotes_raises_without_creator_filter(
-        self, async_comms: AsyncCommunicationsResource,
+        self,
+        async_comms: AsyncCommunicationsResource,
     ) -> None:
         """Must raise at call time, not on first iteration."""
         with pytest.raises(ValueError):
@@ -877,61 +926,71 @@ class TestAsyncCommunications:
 
 class TestCommunicationsAuthGuard:
     def test_get_id_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.get_id()
 
     def test_list_rfqs_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.list_rfqs()
 
     def test_list_all_rfqs_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             list(unauth_comms.list_all_rfqs())
 
     def test_get_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.get_rfq("rfq-1")
 
     def test_create_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.create_rfq(market_ticker="MKT-1", rest_remainder=True)
 
     def test_delete_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.delete_rfq("rfq-1")
 
     def test_list_quotes_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.list_quotes()
 
     def test_list_all_quotes_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             list(unauth_comms.list_all_quotes())
 
     def test_get_quote_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.get_quote("q-1")
 
     def test_create_quote_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.create_quote(
@@ -942,43 +1001,50 @@ class TestCommunicationsAuthGuard:
             )
 
     def test_delete_quote_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.delete_quote("q-1")
 
     def test_accept_quote_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.accept_quote("q-1", accepted_side="yes")
 
     def test_confirm_quote_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.confirm_quote("q-1")
 
     def test_get_for_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.quotes.get_for_rfq("r-1", "q-1")
 
     def test_delete_for_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.quotes.delete_for_rfq("r-1", "q-1")
 
     def test_accept_for_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.quotes.accept_for_rfq("r-1", "q-1", accepted_side="yes")
 
     def test_confirm_for_rfq_requires_auth(
-        self, unauth_comms: CommunicationsResource,
+        self,
+        unauth_comms: CommunicationsResource,
     ) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.quotes.confirm_for_rfq("r-1", "q-1")
@@ -986,15 +1052,18 @@ class TestCommunicationsAuthGuard:
 
 class TestClientWiring:
     def test_sync_client_exposes_communications(
-        self, client: KalshiClient,
+        self,
+        client: KalshiClient,
     ) -> None:
         assert isinstance(client.communications, CommunicationsResource)
 
     def test_async_client_exposes_communications(
-        self, async_client: AsyncKalshiClient,
+        self,
+        async_client: AsyncKalshiClient,
     ) -> None:
         assert isinstance(
-            async_client.communications, AsyncCommunicationsResource,
+            async_client.communications,
+            AsyncCommunicationsResource,
         )
 
 
@@ -1018,7 +1087,11 @@ class TestIssue324CommunicationsStatusLiteralNarrowing:
         # status is a non-breaking expansion; removing one is breaking.
         assert set(get_args(RfqStatusLiteral)) == {"open", "closed"}
         assert set(get_args(QuoteStatusLiteral)) == {
-            "open", "accepted", "confirmed", "executed", "cancelled",
+            "open",
+            "accepted",
+            "confirmed",
+            "executed",
+            "cancelled",
         }
 
     def test_issue_324_status_literals_reexported_from_models_and_root(self) -> None:
@@ -1032,7 +1105,8 @@ class TestIssue324CommunicationsStatusLiteralNarrowing:
 
     @respx.mock
     def test_issue_324_valid_rfq_status_flows_through_to_query(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
@@ -1042,7 +1116,8 @@ class TestIssue324CommunicationsStatusLiteralNarrowing:
 
     @respx.mock
     def test_issue_324_valid_quote_status_flows_through_to_query(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         route = respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/quotes",
@@ -1089,7 +1164,8 @@ class TestV3DeprecationAliases:
 
     @respx.mock
     def test_issue_348_rfqs_sub_namespace_works(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         assert isinstance(comms.rfqs, RFQsResource)
         respx.get(
@@ -1113,7 +1189,8 @@ class TestV3DeprecationAliases:
 
     @respx.mock
     def test_issue_348_quotes_sub_namespace_works(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         assert isinstance(comms.quotes, QuotesResource)
         respx.get(
@@ -1140,7 +1217,8 @@ class TestV3DeprecationAliases:
         comms.quotes.accept("q-1", accepted_side="yes")
 
     def test_issue_348_async_rfqs_sub_namespace_class(
-        self, async_comms: AsyncCommunicationsResource,
+        self,
+        async_comms: AsyncCommunicationsResource,
     ) -> None:
         # Wiring check — full async I/O is exercised in TestAsyncCommunications
         # via the deprecated forwarders, which delegate here.
@@ -1149,7 +1227,8 @@ class TestV3DeprecationAliases:
 
     @respx.mock
     def test_issue_348_flat_names_still_work_emit_deprecation_warning(
-        self, comms: CommunicationsResource,
+        self,
+        comms: CommunicationsResource,
     ) -> None:
         respx.get(
             "https://test.kalshi.com/trade-api/v2/communications/rfqs",
@@ -1286,7 +1365,8 @@ class TestV3DeprecationAliases:
 
         with pytest.warns(DeprecationWarning, match=r"rfqs\.create"):
             new_rfq = await async_comms.create_rfq(
-                market_ticker="MKT-1", rest_remainder=True,
+                market_ticker="MKT-1",
+                rest_remainder=True,
             )
         assert new_rfq.id == "rfq-new"
 
@@ -1298,9 +1378,7 @@ class TestV3DeprecationAliases:
         assert isinstance(page_quotes.items[0], Quote)
 
         with pytest.warns(DeprecationWarning, match=r"quotes\.list_all"):
-            quotes_all = [
-                q async for q in async_comms.list_all_quotes(quote_creator_user_id="u1")
-            ]
+            quotes_all = [q async for q in async_comms.list_all_quotes(quote_creator_user_id="u1")]
         assert isinstance(quotes_all[0], Quote)
 
         with pytest.warns(DeprecationWarning, match=r"quotes\.get"):
@@ -1549,9 +1627,7 @@ class TestProposeBlockTrade:
 class TestAcceptBlockTradeProposal:
     @respx.mock
     def test_sends_post_with_empty_body(self, comms: CommunicationsResource) -> None:
-        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(
-            return_value=httpx.Response(204)
-        )
+        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(return_value=httpx.Response(204))
         comms.block_trade_proposals.accept("btp-1")
         assert route.called
         # empty AcceptBlockTradeProposalRequest serializes to {}
@@ -1559,9 +1635,7 @@ class TestAcceptBlockTradeProposal:
 
     @respx.mock
     def test_sends_post_with_subaccount(self, comms: CommunicationsResource) -> None:
-        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(
-            return_value=httpx.Response(204)
-        )
+        route = respx.post(f"{_BTP_URL}/btp-1/accept").mock(return_value=httpx.Response(204))
         comms.block_trade_proposals.accept("btp-1", subaccount=2)
         body = json.loads(route.calls[0].request.content)
         assert body == {"subaccount": 2}
@@ -1577,7 +1651,9 @@ class TestAcceptBlockTradeProposal:
 
 class TestAsyncBlockTradeProposals:
     async def test_list(
-        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
     ) -> None:
         respx_mock.get(_BTP_URL).mock(
             return_value=httpx.Response(200, json={"block_trade_proposals": [_MINIMAL_BTP]})
@@ -1587,7 +1663,9 @@ class TestAsyncBlockTradeProposals:
         assert isinstance(page.items[0], BlockTradeProposal)
 
     async def test_list_all(
-        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
     ) -> None:
         respx_mock.get(_BTP_URL).mock(
             side_effect=[
@@ -1603,7 +1681,9 @@ class TestAsyncBlockTradeProposals:
         assert ids == ["btp-1", "btp-2"]
 
     async def test_create(
-        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
     ) -> None:
         route = respx_mock.post(_BTP_URL).mock(
             return_value=httpx.Response(201, json={"block_trade_proposal_id": "btp-9"})
@@ -1621,11 +1701,11 @@ class TestAsyncBlockTradeProposals:
         assert route.called
 
     async def test_accept(
-        self, async_comms: AsyncCommunicationsResource, respx_mock: respx.MockRouter,
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
     ) -> None:
-        route = respx_mock.post(f"{_BTP_URL}/btp-1/accept").mock(
-            return_value=httpx.Response(204)
-        )
+        route = respx_mock.post(f"{_BTP_URL}/btp-1/accept").mock(return_value=httpx.Response(204))
         await async_comms.block_trade_proposals.accept("btp-1", subtrader_id="st-1")
         body = json.loads(route.calls[0].request.content)
         assert body == {"subtrader_id": "st-1"}

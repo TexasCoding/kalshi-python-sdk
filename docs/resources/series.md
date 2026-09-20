@@ -27,7 +27,7 @@ all_series = client.series.list(
     include_volume=True,
 )
 for s in all_series:
-    print(s.series_ticker, s.title)
+    print(s.ticker, s.title, s.category, s.categories)
 ```
 
 ## Get one series

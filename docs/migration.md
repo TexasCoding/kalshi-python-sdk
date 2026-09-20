@@ -1,5 +1,51 @@
 # Migration
 
+## v14.0 → v15.0.0
+
+Reconciles upstream OpenAPI **3.29.0 → 3.30.0** plus matching perps, Klear,
+and AsyncAPI updates (Closes #515, Closes #517). **Breaking** only for code
+that constructs `Series`, `GetTargetBalanceAllocationResponse`,
+`MarginMarket`, or WS quote created/accepted payloads without the new
+required fields.
+
+### Response model field changes
+
+- **`Series.categories`** — required `list[str]`.
+- **`GetTargetBalanceAllocationResponse.resting_margin_reservation`** —
+  required `"max"` / `"sum"`.
+- **Perps** `MarginMarket.underlying_multiplier` — required `str`.
+- **WS** `QuoteCreatedPayload.rfq_creator_id` and
+  `QuoteAcceptedPayload.rfq_creator_id` — required `str`.
+
+```python
+# Before (constructors / test fixtures):
+# Series(..., category="Politics")
+# GetTargetBalanceAllocationResponse(allocations=[...])
+# MarginMarket(..., contract_size="1.000000")
+# QuoteCreatedPayload(..., quote_creator_id="u2")
+
+# After:
+Series(..., category="Politics", categories=["Politics"])
+GetTargetBalanceAllocationResponse(allocations=[...], resting_margin_reservation="sum")
+MarginMarket(..., contract_size="1.000000", underlying_multiplier="1")
+QuoteCreatedPayload(..., quote_creator_id="u2", rfq_creator_id="u1")
+```
+
+Live list / stream callers are unaffected.
+
+### Added (non-breaking)
+
+- `fcm.list_subtraders()` / `create_subtrader()` / blocked-categories /
+  event-contract daily cap
+- `communications.rfqs.create(..., target_cost_excludes_fees=)`
+- `historical.fills(..., min_ts=)` / `orders(..., min_ts=)`
+- Klear `estimate_maintenance_margin_metadata` /
+  `funding_estimate_by_asset_class` / `funding_schedule`
+- Perps WS `update_subscription(..., action="get_snapshot")`
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v13.0 → v14.0.0
 
 Reconciles upstream OpenAPI **3.29.0** content drift plus matching perps,

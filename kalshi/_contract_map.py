@@ -127,6 +127,42 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="SeriesFeeChange",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.fcm.FCMSubtrader",
+        spec_schema="FCMSubtrader",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.ListFCMSubtradersResponse",
+        spec_schema="ListFCMSubtradersResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.CreateFCMSubtraderRequest",
+        spec_schema="CreateFCMSubtraderRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.CreateFCMSubtraderResponse",
+        spec_schema="CreateFCMSubtraderResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.GetFCMSubtraderBlockedCategoriesResponse",
+        spec_schema="GetFCMSubtraderBlockedCategoriesResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.UpdateFCMSubtraderBlockedCategoriesRequest",
+        spec_schema="UpdateFCMSubtraderBlockedCategoriesRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.UpdateFCMSubtraderBlockedCategoriesResponse",
+        spec_schema="UpdateFCMSubtraderBlockedCategoriesResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.GetFCMEventContractDailyCapResponse",
+        spec_schema="GetFCMEventContractDailyCapResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.UpdateFCMEventContractDailyCapRequest",
+        spec_schema="UpdateFCMEventContractDailyCapRequest",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.multivariate.MultivariateEventCollection",
         spec_schema="MultivariateEventCollection",
     ),
@@ -1038,5 +1074,41 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetMemberFundingPaymentsResponse",
         spec_schema="GetMemberFundingPaymentsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MaintenanceMarginMatrix",
+        spec_schema="MaintenanceMarginMatrix",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MaintenanceMarginMatrices",
+        spec_schema="MaintenanceMarginMatrices",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MaintenanceMarginLiquidationConfig",
+        spec_schema="MaintenanceMarginLiquidationConfig",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetMaintenanceMarginMetadataResponse",
+        spec_schema="GetMaintenanceMarginMetadataResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.MarketFundingEstimate",
+        spec_schema="MarketFundingEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.FundingEstimate",
+        spec_schema="FundingEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.AssetClassFundingEstimate",
+        spec_schema="AssetClassFundingEstimate",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetFundingEstimateByAssetClassResponse",
+        spec_schema="GetFundingEstimateByAssetClassResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.GetMarginFundingScheduleResponse",
+        spec_schema="GetMarginFundingScheduleResponse",
     ),
 ]

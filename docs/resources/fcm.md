@@ -13,6 +13,13 @@ calls come back 401/403. Auth required throughout.
 | `orders(*, subtrader_id=None, client_order_ids=None, ...)` | `GET /fcm/orders` |
 | `orders_all(*, subtrader_id=None, client_order_ids=None, ...)` | walks `orders` |
 | `positions(*, subtrader_id, ...)` | `GET /fcm/positions` |
+| `list_subtraders()` | `GET /fcm/subtraders` |
+| `create_subtrader(*, subtrader_suffix)` | `POST /fcm/subtraders` |
+| `blocked_categories(*, subtrader_id)` | `GET /fcm/subtraders/blocked_categories` |
+| `update_blocked_categories(*, subtrader_id, category, blocked)` | `PUT /fcm/subtraders/blocked_categories` |
+| `event_contract_daily_cap(*, subtrader_id=None)` | `GET /fcm/subtraders/event_contract_daily_cap` |
+| `update_event_contract_daily_cap(*, subtrader_id, limit)` | `PUT /fcm/subtraders/event_contract_daily_cap` |
+| `delete_event_contract_daily_cap(*, subtrader_id)` | `DELETE /fcm/subtraders/event_contract_daily_cap` |
 
 ## List orders
 
@@ -65,6 +72,25 @@ for mp in client.fcm.positions_all(subtrader_id="st_alpha", settlement_status="u
 
 `settlement_status` is the FCM-specific kwarg that does **not** exist on
 `portfolio.positions()`.
+
+## Subtrader admin
+
+List and create subtraders, block event categories, and set a daily
+event-contract notional cap. POST/PUT/DELETE are never retried.
+
+```python
+owned = client.fcm.list_subtraders()
+created = client.fcm.create_subtrader(subtrader_suffix="desk1")
+client.fcm.update_blocked_categories(
+    subtrader_id=created.subtrader_id, category="Politics", blocked=True
+)
+client.fcm.update_event_contract_daily_cap(
+    subtrader_id=created.subtrader_id, limit="10000.00"
+)
+```
+
+`create_subtrader` composes the full id server-side as
+`{account_id}_{suffix}` (suffix is 1–16 ASCII alphanumeric characters).
 
 ## Reference
 

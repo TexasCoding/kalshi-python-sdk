@@ -67,10 +67,11 @@ def _historical_fills_or_orders_params(
     limit: int | None,
     cursor: str | None,
     ticker: str | None,
+    min_ts: int | None,
     max_ts: int | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000)
-    return _params(limit=limit, cursor=cursor, ticker=ticker, max_ts=max_ts)
+    return _params(limit=limit, cursor=cursor, ticker=ticker, min_ts=min_ts, max_ts=max_ts)
 
 
 def _historical_trades_params(
@@ -210,6 +211,7 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
@@ -218,6 +220,7 @@ class HistoricalResource(SyncResource):
             limit=limit,
             cursor=cursor,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list(
@@ -229,6 +232,7 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -239,6 +243,7 @@ class HistoricalResource(SyncResource):
             limit=limit,
             cursor=None,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list_all(
@@ -256,6 +261,7 @@ class HistoricalResource(SyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
@@ -264,6 +270,7 @@ class HistoricalResource(SyncResource):
             limit=limit,
             cursor=cursor,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list(
@@ -275,6 +282,7 @@ class HistoricalResource(SyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -285,6 +293,7 @@ class HistoricalResource(SyncResource):
             limit=limit,
             cursor=None,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list_all(
@@ -505,6 +514,7 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
@@ -513,6 +523,7 @@ class AsyncHistoricalResource(AsyncResource):
             limit=limit,
             cursor=cursor,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return await self._list(
@@ -524,6 +535,7 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -534,6 +546,7 @@ class AsyncHistoricalResource(AsyncResource):
             limit=limit,
             cursor=None,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list_all(
@@ -551,6 +564,7 @@ class AsyncHistoricalResource(AsyncResource):
         limit: int | None = None,
         cursor: str | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
@@ -559,6 +573,7 @@ class AsyncHistoricalResource(AsyncResource):
             limit=limit,
             cursor=cursor,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return await self._list(
@@ -570,6 +585,7 @@ class AsyncHistoricalResource(AsyncResource):
         *,
         limit: int | None = None,
         ticker: str | None = None,
+        min_ts: int | None = None,
         max_ts: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -580,6 +596,7 @@ class AsyncHistoricalResource(AsyncResource):
             limit=limit,
             cursor=None,
             ticker=ticker,
+            min_ts=min_ts,
             max_ts=max_ts,
         )
         return self._list_all(
@@ -668,9 +685,7 @@ class AsyncHistoricalResource(AsyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
         )
-        data = await self._get(
-            "/historical/positions", params=params, extra_headers=extra_headers
-        )
+        data = await self._get("/historical/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
 
     def positions_all(

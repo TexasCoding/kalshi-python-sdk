@@ -55,6 +55,9 @@ paths:
         exchange. A cap with neither market_ticker nor asset_class applies across all markets; the
         remaining caps are scoped to a single market or a single asset class each. Every cap in
         scope for an order is enforced independently. Markets without a cap are omitted.
+        API keys bound to a single FCM subtrader may also call this endpoint: `subtrader_id` may be
+        omitted and defaults to the key's bound subtrader, and if supplied it must equal the bound
+        subtrader or the request is rejected.
       tags:
         - fcm
       security:
@@ -64,10 +67,11 @@ paths:
       parameters:
         - name: subtrader_id
           in: query
-          required: true
-          description: The subtrader whose initial margin caps should be returned. Must belong to the requesting FCM.
+          required: false
+          description: The subtrader whose initial margin caps should be returned. Must belong to the requesting FCM. Required unless the API key is bound to a subtrader, in which case it defaults to the bound subtrader when omitted and must equal it when supplied.
           schema:
             type: string
+            x-go-type-skip-optional-pointer: true
         - name: market_ticker
           in: query
           required: false
@@ -647,13 +651,16 @@ paths:
     get:
       operationId: GetMarginFills
       summary: Get Fills
-      description: Endpoint for retrieving the authenticated user's margin fills.
+      description: |
+        Endpoint for retrieving the authenticated user's margin fills.
+        Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - name: subaccount
           in: query
@@ -711,13 +718,16 @@ paths:
     get:
       operationId: GetMarginPositions
       summary: Get Positions
-      description: 'Endpoint for retrieving the authenticated user''s margin positions.'
+      description: |
+        Endpoint for retrieving the authenticated user's margin positions.
+        Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - name: subaccount
           in: query
@@ -1686,6 +1696,10 @@ paths:
 
 components:
   securitySchemes:
+    kalshiOauthAccessToken:
+      type: http
+      scheme: bearer
+      description: User OAuth access token with read::compliance_partner, issued to an explicitly authorized partner. Accepted only on margin fills and margin positions in this lane; generic read and partner client-credentials tokens do not grant access.
     kalshiAccessKey:
       type: apiKey
       in: header
@@ -1752,7 +1766,7 @@ components:
       properties:
         subtrader_suffix:
           type: string
-          pattern: '^[a-z0-9]{1,16}$'
+          pattern: '^[A-Za-z0-9]{1,16}$'
           description: Suffix for the new subtrader. The full subtrader id is composed server-side as {user_id}_{subtrader_suffix}.
 
     CreateMarginFCMSubtraderResponse:
@@ -2684,6 +2698,7 @@ components:
         - status
         - title
         - contract_size
+        - underlying_multiplier
         - tick_size
         - fractional_trading_enabled
         - schedule
@@ -2699,6 +2714,9 @@ components:
         contract_size:
           type: string
           description: Fixed-point number with 6 decimal places
+        underlying_multiplier:
+          type: string
+          description: Underlying units per contract-size unit.
         tick_size:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Minimum price increment in dollars.
@@ -2780,6 +2798,15 @@ components:
           description: >
             Asset class grouping for this market. New asset classes may be added
             over time. Omitted when the market has no assigned class.
+        product_metadata:
+          type: object
+          additionalProperties: true
+          x-omitempty: true
+          x-go-type-skip-optional-pointer: true
+          description: Public metadata for this market.
+          example:
+            important_info:
+              markdown: "**Important information:** Review this market's trading schedule."
         schedule:
           $ref: '#/components/schemas/MarginMarketSchedule'
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from decimal import Decimal
+
 import httpx
 import pytest
 import respx
@@ -275,3 +278,107 @@ class TestAsyncFcmPositionsAll:
         )
         tickers = [p.ticker async for p in async_fcm.positions_all(subtrader_id="sub-1")]
         assert tickers == ["A", "B"]
+
+
+class TestFcmSubtraders:
+    @respx.mock
+    def test_list_subtraders(self, fcm: FcmResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/fcm/subtraders").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "subtraders": [
+                        {
+                            "subtrader_id": "acct_desk1",
+                            "exchange_indices": [0],
+                            "trading_blocked": False,
+                            "fcm_trading_blocked": False,
+                            "propagation_pending": False,
+                        }
+                    ]
+                },
+            )
+        )
+        resp = fcm.list_subtraders()
+        assert resp.subtraders[0].subtrader_id == "acct_desk1"
+
+    @respx.mock
+    def test_create_subtrader(self, fcm: FcmResource) -> None:
+        route = respx.post("https://test.kalshi.com/trade-api/v2/fcm/subtraders").mock(
+            return_value=httpx.Response(200, json={"subtrader_id": "acct_desk1"})
+        )
+        resp = fcm.create_subtrader(subtrader_suffix="desk1")
+        assert resp.subtrader_id == "acct_desk1"
+        assert json.loads(route.calls[0].request.content) == {"subtrader_suffix": "desk1"}
+
+    def test_create_subtrader_requires_suffix(self, fcm: FcmResource) -> None:
+        with pytest.raises(TypeError, match="create_subtrader"):
+            fcm.create_subtrader()  # type: ignore[call-overload]
+
+    @respx.mock
+    def test_blocked_categories_roundtrip(self, fcm: FcmResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/fcm/subtraders/blocked_categories").mock(
+            return_value=httpx.Response(200, json={"categories": ["Politics"]})
+        )
+        got = fcm.blocked_categories(subtrader_id="acct_desk1")
+        assert got.categories == ["Politics"]
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/fcm/subtraders/blocked_categories"
+        ).mock(return_value=httpx.Response(200, json={"categories": ["Politics", "Sports"]}))
+        updated = fcm.update_blocked_categories(
+            subtrader_id="acct_desk1", category="Sports", blocked=True
+        )
+        assert updated.categories == ["Politics", "Sports"]
+        body = json.loads(route.calls[0].request.content)
+        assert body == {
+            "subtrader_id": "acct_desk1",
+            "category": "Sports",
+            "blocked": True,
+        }
+
+    @respx.mock
+    def test_event_contract_daily_cap_roundtrip(self, fcm: FcmResource) -> None:
+        respx.get(
+            "https://test.kalshi.com/trade-api/v2/fcm/subtraders/event_contract_daily_cap"
+        ).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "subtrader_id": "acct_desk1",
+                    "limit": "10000.0000",
+                    "executed_utilization": "100.0000",
+                    "resting_order_utilization": "50.0000",
+                    "pending_order_utilization": "25.0000",
+                    "cap_date": "2026-09-20",
+                },
+            )
+        )
+        got = fcm.event_contract_daily_cap(subtrader_id="acct_desk1")
+        assert got.limit == Decimal("10000.0000")
+        route = respx.put(
+            "https://test.kalshi.com/trade-api/v2/fcm/subtraders/event_contract_daily_cap"
+        ).mock(return_value=httpx.Response(200, json={}))
+        fcm.update_event_contract_daily_cap(subtrader_id="acct_desk1", limit="5000.00")
+        assert json.loads(route.calls[0].request.content) == {
+            "subtrader_id": "acct_desk1",
+            "limit": "5000.00",
+        }
+        delete = respx.delete(
+            "https://test.kalshi.com/trade-api/v2/fcm/subtraders/event_contract_daily_cap"
+        ).mock(return_value=httpx.Response(200, json={}))
+        fcm.delete_event_contract_daily_cap(subtrader_id="acct_desk1")
+        assert dict(delete.calls[0].request.url.params)["subtrader_id"] == "acct_desk1"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_list_and_create(self, async_fcm: AsyncFcmResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/fcm/subtraders").mock(
+            return_value=httpx.Response(200, json={"subtraders": []})
+        )
+        respx.post("https://test.kalshi.com/trade-api/v2/fcm/subtraders").mock(
+            return_value=httpx.Response(200, json={"subtrader_id": "acct_a"})
+        )
+        listed = await async_fcm.list_subtraders()
+        created = await async_fcm.create_subtrader(subtrader_suffix="a")
+        assert listed.subtraders == []
+        assert created.subtrader_id == "acct_a"

@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.29.0
+  version: 3.30.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -339,6 +339,8 @@ paths:
         - name: category
           in: query
           required: false
+          description: >-
+            Return series whose `categories` list contains this value. A series can have more than one discovery category, so the `category` field of a returned series (its primary category) may differ from the filter value. Matching is exact and case-sensitive.
           schema:
             type: string
           x-go-type-skip-optional-pointer: true
@@ -1048,12 +1050,16 @@ paths:
           $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '409':
           $ref: '#/components/responses/ConflictError'
         '429':
           $ref: '#/components/responses/RateLimitError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
 
     delete:
       operationId: CancelAllOrders
@@ -1245,10 +1251,14 @@ paths:
           $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailableError'
 
   /portfolio/events/orders/{order_id}/decrease:
     post:
@@ -1798,13 +1808,16 @@ paths:
     get:
       operationId: GetPositions
       summary: Get Positions
-      description: 'Restricts the positions to those with any of following fields with non-zero values, as a comma separated list. The following values are accepted: position, total_traded'
+      description: |
+        Restricts the positions to those with any of following fields with non-zero values, as a comma separated list. The following values are accepted: position, total_traded.
+        Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - $ref: '#/components/parameters/PositionsCursorQuery'
         - $ref: '#/components/parameters/PositionsLimitQuery'
@@ -1945,6 +1958,7 @@ paths:
       summary: Get Fills
       description: |
         Endpoint for getting all fills for the member. A fill is when a trade you have is matched.
+        Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
         Fills that occurred before the historical cutoff are only available via `GET /historical/fills`. See [Historical Data](https://docs.kalshi.com/getting_started/historical_data) for details.
       tags:
         - portfolio
@@ -1952,6 +1966,7 @@ paths:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - $ref: '#/components/parameters/TickerQuery'
         - $ref: '#/components/parameters/OrderIdQuery'
@@ -2112,7 +2127,10 @@ paths:
     get:
       operationId: GetRFQs
       summary: Get RFQs
-      description: ' Endpoint for getting RFQs'
+      description: >-
+        List RFQs. Pass pagination cursors back unchanged. A malformed cursor or
+        invalid creator_user_id UUID returns HTTP 400. Use user_filter=self to
+        filter by the authenticated user.
       tags:
         - communications
       security:
@@ -2140,7 +2158,7 @@ paths:
             type: string
         - name: creator_user_id
           in: query
-          description: Filter RFQs by creator user ID
+          description: Filter RFQs by creator user UUID. Use user_filter=self for the authenticated user.
           deprecated: true
           schema:
             type: string
@@ -2159,6 +2177,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetRFQsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
@@ -2216,6 +2236,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetRFQResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2238,6 +2260,8 @@ paths:
       responses:
         '204':
           description: RFQ deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2271,6 +2295,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetQuoteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2299,6 +2325,8 @@ paths:
       responses:
         '204':
           description: Quote deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2343,6 +2371,11 @@ paths:
       operationId: ConfirmRFQQuote
       summary: Confirm RFQ Quote
       description: ' Endpoint for confirming a quote scoped to its RFQ. This will start a timer for order execution.'
+      x-mint:
+        content: |
+          <Note>
+          Rate limits are more favorable when providing the RFQ ID.
+          </Note>
       tags:
         - communications
       security:
@@ -2361,6 +2394,8 @@ paths:
       responses:
         '204':
           description: Quote confirmed successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2372,7 +2407,9 @@ paths:
     get:
       operationId: GetQuotes
       summary: Get Quotes
-      description: ' Endpoint for getting quotes'
+      description: >-
+        List quotes. The rfq_id filter requires an RFQ UUID. Pass pagination
+        cursors back unchanged; malformed RFQ IDs or cursors return HTTP 400.
       tags:
         - communications
       security:
@@ -2448,7 +2485,7 @@ paths:
             x-go-type-skip-optional-pointer: true
         - name: rfq_id
           in: query
-          description: Filter quotes by RFQ ID
+          description: Filter quotes by RFQ UUID. Pass the RFQ ID unchanged; malformed IDs return HTTP 400.
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
@@ -2459,6 +2496,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetQuotesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '500':
@@ -2529,6 +2568,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetQuoteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2561,6 +2602,8 @@ paths:
       responses:
         '204':
           description: Quote deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -2616,6 +2659,10 @@ paths:
           <Warning>
           This endpoint is deprecated. Use `PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/confirm` instead.
           </Warning>
+
+          <Note>
+          Rate limits are more favorable when providing the RFQ ID.
+          </Note>
       tags:
         - communications
       security:
@@ -2633,6 +2680,8 @@ paths:
       responses:
         '204':
           description: Quote confirmed successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '404':
@@ -3531,10 +3580,10 @@ paths:
         - name: type
           in: query
           required: false
-          description: 'Type filter. Can be "all", "liquidity", "volume", or "margin_maker_volume". Default is "all".'
+          description: 'Type filter. Can be "all", "liquidity", "volume", "margin_maker_volume", or "margin_taker_volume". Default is "all".'
           schema:
             type: string
-            enum: [all, liquidity, volume, margin_maker_volume]
+            enum: [all, liquidity, volume, margin_maker_volume, margin_taker_volume]
         - name: incentive_description
           in: query
           required: false
@@ -3583,6 +3632,9 @@ paths:
         Endpoint for FCM members to get orders for their subtraders.
         This endpoint requires FCM member access level. At least one of `subtrader_id` or
         `client_order_ids` is required; supplying both returns only the orders matching both filters.
+        API keys bound to a single FCM subtrader may also call this endpoint: `subtrader_id` may be
+        omitted and defaults to the key's bound subtrader, and if supplied it must equal the bound
+        subtrader or the request is rejected.
       tags:
         - fcm
       security:
@@ -3592,7 +3644,7 @@ paths:
       parameters:
         - name: subtrader_id
           in: query
-          description: Restricts the response to orders for a specific subtrader (FCM members only). Required unless client_order_ids is supplied.
+          description: Restricts the response to orders for a specific subtrader (FCM members only). Required unless client_order_ids is supplied. For an API key bound to a subtrader, defaults to the bound subtrader when omitted and must equal it when supplied.
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
@@ -3641,10 +3693,277 @@ paths:
           description: Bad request
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden - the API key is bound to a different FCM subtrader
         '404':
           description: Not found
         '500':
           description: Internal server error
+
+  /fcm/subtraders:
+    get:
+      operationId: ListFCMSubtraders
+      summary: List FCM Subtraders
+      description: |
+        Lists the authenticated FCM's event-contract subtraders, including accounts with
+        no trades. Exchange metadata is asynchronous, so newly created accounts may not
+        appear immediately. Trading block status includes firm-wide and Kalshi restrictions;
+        fcm_trading_blocked identifies the FCM's own per-subtrader restriction.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '200':
+          description: Event-contract subtraders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListFCMSubtradersResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: CreateFCMSubtrader
+      summary: Create FCM Subtrader
+      description: |
+        Endpoint for FCM members to create a subtrader on the event-contract exchange. The
+        subtrader is registered on every exchange shard that knows the FCM; a shard provisioned
+        later registers it lazily on the subtrader's first order there. Re-creating an existing
+        subtrader returns 409.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFCMSubtraderRequest'
+      responses:
+        '201':
+          description: Subtrader created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFCMSubtraderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /fcm/subtraders/event_contract_daily_cap:
+    get:
+      operationId: GetFCMEventContractDailyCap
+      summary: Get FCM Subtrader Event Contract Daily Cap
+      description: |
+        Returns the event-contract daily premium cap configured for an FCM member's subtrader,
+        together with its live utilization. Executed utilization is the net premium deployed by
+        fills today (sells and settlements credit back); resting and pending utilization reserve
+        open and in-flight orders at their full worst-case cost plus fees. Executed utilization
+        resets at midnight New York time on the returned cap date; resting and pending
+        reservations persist for as long as their orders remain open, including across the reset.
+        Returns 404 when the subtrader has no cap configured — in that state every order placed
+        through the subtrader's bound API keys is rejected.
+        API keys bound to a single FCM subtrader may also call this endpoint: `subtrader_id` may be
+        omitted and defaults to the key's bound subtrader, and if supplied it must equal the bound
+        subtrader or the request is rejected.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: subtrader_id
+          in: query
+          description: The subtrader whose daily cap should be returned. Must belong to the requesting FCM. Required unless the API key is bound to a subtrader, in which case it defaults to the bound subtrader when omitted and must equal it when supplied.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
+      responses:
+        '200':
+          description: Daily cap retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetFCMEventContractDailyCapResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      operationId: UpdateFCMEventContractDailyCap
+      summary: Update FCM Subtrader Event Contract Daily Cap
+      description: |
+        Sets the event-contract daily premium cap for an FCM member's subtrader. The cap bounds
+        the subtrader's net premium at risk per trading day. It is enforced on cap-reservation
+        sessions — which every subtrader-bound API key uses — and is mandatory there: a subtrader
+        with no cap cannot trade through its bound keys. Cap changes take effect immediately;
+        existing resting orders are never cancelled by a cap change.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFCMEventContractDailyCapRequest'
+      responses:
+        '200':
+          description: Daily cap updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: DeleteFCMEventContractDailyCap
+      summary: Delete FCM Subtrader Event Contract Daily Cap
+      description: |
+        Removes the event-contract daily premium cap for an FCM member's subtrader. Removal
+        closes the subtrader to new orders on cap-reservation sessions — every subtrader-bound
+        API key — until a cap is set again. It does not stop orders your own unbound sessions
+        submit on the subtrader's behalf; to stop the account entirely, block subtrader trading.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: subtrader_id
+          in: query
+          required: true
+          description: The subtrader whose daily cap should be removed. Must belong to the requesting FCM.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Daily cap deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /fcm/subtraders/blocked_categories:
+    get:
+      operationId: GetFCMSubtraderBlockedCategories
+      summary: Get FCM Subtrader Blocked Categories
+      description: |
+        Returns the event categories an FCM member has blocked for one of its
+        subtraders. The subtrader must belong to the requesting FCM. A subtrader
+        with no blocks returns an empty list.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: subtrader_id
+          in: query
+          required: true
+          description: The subtrader whose blocked categories should be returned. Must belong to the requesting FCM.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Blocked categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetFCMSubtraderBlockedCategoriesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      operationId: UpdateFCMSubtraderBlockedCategories
+      summary: Update FCM Subtrader Blocked Categories
+      description: |
+        Adds one event category to, or removes one from, the set an FCM member
+        has blocked for one of its subtraders. The subtrader must belong to the
+        requesting FCM. Blocks apply prospectively: new orders the subtrader
+        places through its bound API credentials are rejected in markets whose
+        event belongs to a blocked category, while orders already resting are
+        not cancelled. Returns the subtrader's full resulting blocked set.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFCMSubtraderBlockedCategoriesRequest'
+      responses:
+        '200':
+          description: Blocked categories updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateFCMSubtraderBlockedCategoriesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /portfolio/target_balance_allocation:
     get:
@@ -3712,6 +4031,9 @@ paths:
       description: |
         Endpoint for FCM members to get market positions filtered by subtrader ID.
         This endpoint requires FCM member access level and allows filtering positions by subtrader ID.
+        API keys bound to a single FCM subtrader may also call this endpoint: `subtrader_id` may be
+        omitted and defaults to the key's bound subtrader, and if supplied it must equal the bound
+        subtrader or the request is rejected.
       tags:
         - fcm
       security:
@@ -3721,10 +4043,10 @@ paths:
       parameters:
         - name: subtrader_id
           in: query
-          required: true
-          description: Restricts the response to positions for a specific subtrader (FCM members only)
+          description: Restricts the response to positions for a specific subtrader (FCM members only). Required unless the API key is bound to a subtrader, in which case it defaults to the bound subtrader when omitted and must equal it when supplied.
           schema:
             type: string
+            x-go-type-skip-optional-pointer: true
         - name: ticker
           in: query
           description: Ticker of desired positions
@@ -3771,6 +4093,8 @@ paths:
           description: Bad request
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden - the API key is bound to a different FCM subtrader
         '404':
           description: Not found
         '500':
@@ -3855,15 +4179,19 @@ paths:
     get:
       operationId: GetFillsHistorical
       summary: Get Historical Fills
-      description: ' Endpoint for getting all historical fills for the member. A fill is when a trade you have is matched.'
+      description: |
+        Endpoint for getting all historical fills for the member. A fill is when a trade you have is matched.
+        Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - historical
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - $ref: '#/components/parameters/TickerQuery'
+        - $ref: '#/components/parameters/MinTsQuery'
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
@@ -3896,6 +4224,7 @@ paths:
           kalshiAccessTimestamp: []
       parameters:
         - $ref: '#/components/parameters/TickerQuery'
+        - $ref: '#/components/parameters/MinTsQuery'
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
@@ -4022,6 +4351,10 @@ paths:
 
 components:
   securitySchemes:
+    kalshiOauthAccessToken:
+      type: http
+      scheme: bearer
+      description: User OAuth access token with read::compliance_partner, issued to an explicitly authorized partner. Accepted only on current and historical fills and current portfolio positions endpoints; generic read and partner client-credentials tokens do not grant access.
     kalshiAccessKey:
       type: apiKey
       in: header
@@ -4053,6 +4386,12 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
     InternalServerError:
       description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailableError:
+      description: Service temporarily unavailable
       content:
         application/json:
           schema:
@@ -4163,7 +4502,7 @@ components:
       name: rfq_id
       in: path
       required: true
-      description: RFQ ID
+      description: RFQ UUID returned when the RFQ was created. Pass it unchanged; malformed IDs return HTTP 400.
       schema:
         type: string
 
@@ -4171,7 +4510,7 @@ components:
       name: quote_id
       in: path
       required: true
-      description: Quote ID
+      description: Quote UUID. Pass the ID exactly as received when the quote was created; malformed IDs return HTTP 400.
       schema:
         type: string
 
@@ -4593,9 +4932,9 @@ components:
 
     ApiKeyScope:
       type: string
-      enum: ['read', 'write', 'read::block_trade_accept', 'read::portfolio_balance', 'write::trade', 'write::transfer', 'write::block_trade_accept']
-      x-enum-varnames: ['ApiKeyScopeRead', 'ApiKeyScopeWrite', 'ApiKeyScopeReadBlockTradeAccept', 'ApiKeyScopeReadPortfolioBalance', 'ApiKeyScopeWriteTrade', 'ApiKeyScopeWriteTransfer', 'ApiKeyScopeWriteBlockTradeAccept']
-      description: Scope granted to an API key. Parent scopes grant broad access; for example, `read` grants all read endpoints and `write` grants all write endpoints. Child scopes such as `read::block_trade_accept`, `read::portfolio_balance`, `write::trade`, `write::transfer`, and `write::block_trade_accept` grant only their specific endpoint group and can be granted without the parent scope.
+      enum: ['read', 'write', 'read::block_trade_accept', 'read::portfolio_balance', 'write::trade', 'write::transfer', 'write::fcm_risk', 'write::block_trade_accept']
+      x-enum-varnames: ['ApiKeyScopeRead', 'ApiKeyScopeWrite', 'ApiKeyScopeReadBlockTradeAccept', 'ApiKeyScopeReadPortfolioBalance', 'ApiKeyScopeWriteTrade', 'ApiKeyScopeWriteTransfer', 'ApiKeyScopeWriteFCMRisk', 'ApiKeyScopeWriteBlockTradeAccept']
+      description: Scope granted to an API key. Parent scopes grant broad access; for example, `read` grants all read endpoints and `write` grants all write endpoints. Child scopes such as `read::block_trade_accept`, `read::portfolio_balance`, `write::trade`, `write::transfer`, `write::fcm_risk` (FCM subtrader creation, trading blocks, daily premium caps, and margin caps), and `write::block_trade_accept` grant only their specific endpoint group and can be granted without the parent scope.
 
     ApiKey:
       type: object
@@ -4666,7 +5005,7 @@ components:
           description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted. Mutually exclusive with fcm_subtrader_id.
         fcm_subtrader_id:
           type: string
-          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 lowercase alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
+          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 case-sensitive ASCII alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
 
     CreateApiKeyResponse:
       type: object
@@ -4679,7 +5018,7 @@ components:
         warning:
           type: string
           nullable: true
-          description: Present only when the minted key is bound to an FCM subtrader that has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders will be rejected until a cap is set.
+          description: Present only when the minted key is bound to an FCM subtrader that is missing a per-subtrader risk control - the initial-margin cap (margin lane) or the event-contract daily cap. The mint still succeeds; the warning names each missing control - an event-contract subtrader without a daily cap has its event-contract orders rejected until one is set, while a margin subtrader without an initial-margin cap is bounded only by firm-level risk limits.
 
     GenerateApiKeyRequest:
       type: object
@@ -4701,7 +5040,7 @@ components:
           description: If set, restricts the API key to a single sub-account (0-63) that you own. A restricted key may only read and trade on that sub-account; it cannot act on other sub-accounts, transfer funds between sub-accounts, or create sub-accounts. Omit to leave the key unrestricted. Mutually exclusive with fcm_subtrader_id.
         fcm_subtrader_id:
           type: string
-          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 lowercase alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
+          description: FCM members only. If set, binds the API key to a single FCM subtrader that you own, spelled {your_user_id}_{suffix} with a suffix of 1-16 case-sensitive ASCII alphanumeric characters. The subtrader must already exist. A bound key is the institution's trading credential for that subtrader - FIX order-entry and market-data sessions, plus margin WebSocket sessions scoped to the subtrader's own data - and is denied on every REST endpoint, including key management. Mutually exclusive with subaccount.
 
     GenerateApiKeyResponse:
       type: object
@@ -4718,7 +5057,7 @@ components:
         warning:
           type: string
           nullable: true
-          description: Present only when the minted key is bound to an FCM subtrader that has no initial-margin cap at any scope. The mint still succeeds; once SMA enforcement is enabled, the subtrader's orders will be rejected until a cap is set.
+          description: Present only when the minted key is bound to an FCM subtrader that is missing a per-subtrader risk control - the initial-margin cap (margin lane) or the event-contract daily cap. The mint still succeeds; the warning names each missing control - an event-contract subtrader without a daily cap has its event-contract orders rejected until one is set, while a margin subtrader without an initial-margin cap is bounded only by firm-level risk limits.
 
     GetTagsForSeriesCategoriesResponse:
       type: object
@@ -6464,7 +6803,7 @@ components:
           description: The ticker symbol of the market associated with this incentive program
         incentive_type:
           type: string
-          enum: ['liquidity', 'volume', 'margin_maker_volume']
+          enum: ['liquidity', 'volume', 'margin_maker_volume', 'margin_taker_volume']
           description: Type of incentive program
         incentive_description:
           type: string
@@ -6664,6 +7003,137 @@ components:
           $ref: '#/components/schemas/StructuredTarget'
 
     # Order Group schemas
+    FCMSubtrader:
+      type: object
+      required:
+        - subtrader_id
+        - exchange_indices
+        - trading_blocked
+        - fcm_trading_blocked
+        - propagation_pending
+      properties:
+        subtrader_id:
+          type: string
+          description: Full subtrader identifier owned by the authenticated FCM.
+        exchange_indices:
+          type: array
+          description: Exchange indices where this subtrader has been observed.
+          items:
+            type: integer
+            format: int32
+        trading_blocked:
+          type: boolean
+          description: Effective trading block, including firm-wide and Kalshi restrictions.
+        fcm_trading_blocked:
+          type: boolean
+          description: Whether an FCM-owned per-subtrader trading block is configured.
+        propagation_pending:
+          type: boolean
+          description: Whether a configured per-subtrader block is awaiting engine application.
+
+    ListFCMSubtradersResponse:
+      type: object
+      required:
+        - subtraders
+      properties:
+        subtraders:
+          type: array
+          items:
+            $ref: '#/components/schemas/FCMSubtrader'
+
+    CreateFCMSubtraderRequest:
+      type: object
+      required:
+        - subtrader_suffix
+      properties:
+        subtrader_suffix:
+          type: string
+          description: Suffix for the new subtrader, 1-16 case-sensitive ASCII alphanumeric characters ([A-Za-z0-9]). The full subtrader id becomes {your_account_id}_{suffix}.
+
+    CreateFCMSubtraderResponse:
+      type: object
+      required:
+        - subtrader_id
+      properties:
+        subtrader_id:
+          type: string
+          description: The full id of the created subtrader.
+
+    GetFCMEventContractDailyCapResponse:
+      type: object
+      required:
+        - subtrader_id
+        - limit
+        - executed_utilization
+        - resting_order_utilization
+        - pending_order_utilization
+        - cap_date
+      properties:
+        subtrader_id:
+          type: string
+        limit:
+          $ref: '#/components/schemas/FixedPointDollars'
+        executed_utilization:
+          $ref: '#/components/schemas/FixedPointDollars'
+        resting_order_utilization:
+          $ref: '#/components/schemas/FixedPointDollars'
+        pending_order_utilization:
+          $ref: '#/components/schemas/FixedPointDollars'
+        cap_date:
+          type: string
+          description: The New York calendar date the executed utilization applies to. Executed utilization resets at midnight New York time; resting and pending reservations persist while their orders remain open.
+
+    UpdateFCMEventContractDailyCapRequest:
+      type: object
+      required:
+        - subtrader_id
+        - limit
+      properties:
+        subtrader_id:
+          type: string
+          description: The subtrader whose daily cap should be set. Must belong to the requesting FCM.
+        limit:
+          $ref: '#/components/schemas/FixedPointDollars'
+
+    GetFCMSubtraderBlockedCategoriesResponse:
+      type: object
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          description: The event categories blocked for the subtrader, sorted ascending. Empty when no categories are blocked.
+          items:
+            type: string
+
+    UpdateFCMSubtraderBlockedCategoriesRequest:
+      type: object
+      required:
+        - subtrader_id
+        - category
+        - blocked
+      properties:
+        subtrader_id:
+          type: string
+          description: The subtrader whose blocked categories should be updated. Must belong to the requesting FCM.
+        category:
+          type: string
+          description: A single event category to add to or remove from the blocked set, 1-100 characters (e.g. "Politics").
+        blocked:
+          type: boolean
+          description: True adds the category to the blocked set; false removes it. Removing a category that is not blocked is a no-op.
+
+    UpdateFCMSubtraderBlockedCategoriesResponse:
+      type: object
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          description: The subtrader's full resulting blocked set, sorted ascending.
+          items:
+            type: string
+
     EmptyResponse:
       type: object
       description: An empty response body
@@ -6718,11 +7188,14 @@ components:
       type: object
       required:
         - allocations
+        - resting_margin_reservation
       properties:
         allocations:
           type: array
           items:
             $ref: '#/components/schemas/TargetBalanceAllocation'
+        resting_margin_reservation:
+          $ref: '#/components/schemas/RestingMarginReservation'
 
     SetTargetBalanceAllocationRequest:
       type: object
@@ -7211,7 +7684,7 @@ components:
       properties:
         id:
           type: string
-          description: Unique identifier for the RFQ
+          description: UUID of the RFQ. Preserve the exact returned string.
         creator_id:
           type: string
           description: Public communications ID of the RFQ creator.
@@ -7224,6 +7697,12 @@ components:
         target_cost_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Total value of the RFQ in dollars
+        target_cost_excludes_fees:
+          type: boolean
+          description: >-
+            True when the target cost is principal-only and quote sizes are
+            computed without reserving taker fees (fees are charged on top).
+          x-go-type-skip-optional-pointer: true
         status:
           type: string
           description: Current status of the RFQ (open, closed)
@@ -7317,6 +7796,15 @@ components:
           $ref: '#/components/schemas/FixedPointDollars'
           description: The target cost for the RFQ in dollars
           x-go-type-skip-optional-pointer: true
+        target_cost_excludes_fees:
+          type: boolean
+          description: >-
+            Sizes quotes against the target cost as principal only (contracts =
+            target cost / price), with your taker fees charged on top of the
+            target cost. By default (false) the target cost caps principal plus
+            Kalshi fees, and quote sizes are reduced to make room for the fees.
+            Only valid together with a target cost.
+          x-go-type-skip-optional-pointer: true
         rest_remainder:
           type: boolean
           description: Whether to rest the remainder of the RFQ after execution
@@ -7340,7 +7828,7 @@ components:
       properties:
         id:
           type: string
-          description: The ID of the newly created RFQ
+          description: UUID of the newly created RFQ. Pass it unchanged in subsequent requests.
 
     Quote:
       type: object
@@ -7359,10 +7847,10 @@ components:
       properties:
         id:
           type: string
-          description: Unique identifier for the quote
+          description: UUID of the quote. Preserve the exact returned string.
         rfq_id:
           type: string
-          description: ID of the RFQ this quote is responding to
+          description: UUID of the RFQ this quote is responding to.
         creator_id:
           type: string
           description: Public communications ID of the quote creator
@@ -7435,6 +7923,13 @@ components:
         rfq_target_cost_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Total value requested in the RFQ in dollars
+        target_cost_excludes_fees:
+          type: boolean
+          description: >-
+            True when the RFQ's target cost is principal-only and the
+            contracts-offered sizes were computed without reserving taker fees
+            (fees are charged on top of the target cost).
+          x-go-type-skip-optional-pointer: true
         rfq_creator_order_id:
           type: string
           description: Order ID for the RFQ creator (private field)
@@ -7490,7 +7985,7 @@ components:
       properties:
         rfq_id:
           type: string
-          description: The ID of the RFQ to quote on
+          description: The UUID of the RFQ to quote on. Pass the RFQ ID unchanged; malformed IDs return HTTP 400.
         yes_bid:
           type: string
           $ref: '#/components/schemas/FixedPointDollars'
@@ -7516,7 +8011,7 @@ components:
       properties:
         id:
           type: string
-          description: The ID of the newly created quote
+          description: UUID of the newly created quote. Pass it unchanged in subsequent requests.
 
     AcceptQuoteRequest:
       type: object
@@ -8829,6 +9324,7 @@ components:
         - frequency
         - title
         - category
+        - categories
         - tags
         - settlement_sources
         - contract_url
@@ -8848,7 +9344,12 @@ components:
           description: Title describing the series. For full context use you should use this field with the title field of the events belonging to this series.
         category:
           type: string
-          description: Category specifies the category which this series belongs to.
+          description: Category is the primary category of this series.
+        categories:
+          type: array
+          items:
+            type: string
+          description: Categories is the list of discovery categories for this series. The `category` filter on Get Series List matches any entry in this list. May be empty.
         tags:
           type: array
           nullable: true

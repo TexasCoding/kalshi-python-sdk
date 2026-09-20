@@ -618,6 +618,99 @@ class ListMarginFcmApiKeysResponse(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class MaintenanceMarginMatrix(BaseModel):
+    """One scenario-return matrix used in maintenance-margin metadata."""
+
+    market_tickers: list[str]
+    returns: list[list[float]]
+
+    model_config = {"extra": "allow"}
+
+
+class MaintenanceMarginMatrices(BaseModel):
+    """HVaR / APC / AUG / funding matrices for an asset class."""
+
+    hvar: MaintenanceMarginMatrix | None = None
+    apc: MaintenanceMarginMatrix | None = None
+    aug: MaintenanceMarginMatrix | None = None
+    funding: MaintenanceMarginMatrix | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class MaintenanceMarginLiquidationConfig(BaseModel):
+    """Liquidation-margin parameters for one market."""
+
+    market_ticker: str
+    market_impact_volatility: float
+    market_impact_coefficient: float
+    market_impact_exponent: float
+    market_impact_forecasted_volume: float
+    spread_rate: float
+
+    model_config = {"extra": "allow"}
+
+
+class GetMaintenanceMarginMetadataResponse(BaseModel):
+    """Response from GET /margin/estimate_maintenance_margin/metadata."""
+
+    asset_class: AssetClassLiteral
+    base_tail_percentile: float
+    funding_tail_percentile: float
+    matrices: MaintenanceMarginMatrices
+    liquidation_configs: list[MaintenanceMarginLiquidationConfig]
+    subgroups: list[list[str]]
+
+    model_config = {"extra": "allow"}
+
+
+class MarketFundingEstimate(BaseModel):
+    """Per-market funding estimate on a subtrader or group breakdown."""
+
+    quantity_centicount: int
+    funding_amount_centicents: int
+
+    model_config = {"extra": "allow"}
+
+
+class FundingEstimate(BaseModel):
+    """Funding amount plus optional per-market position breakdown."""
+
+    funding_amount_centicents: int
+    positions: dict[str, MarketFundingEstimate] | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class AssetClassFundingEstimate(BaseModel):
+    """Next-funding estimate for one asset class, with optional breakdowns."""
+
+    user_breakdown: FundingEstimate
+    omitted_subtrader_count: int
+    omitted_group_count: int
+    next_funding_time: AwareDatetime
+    subtrader_breakdowns: dict[str, FundingEstimate] | None = None
+    group_breakdowns: dict[str, FundingEstimate] | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetFundingEstimateByAssetClassResponse(BaseModel):
+    """Response from GET /margin/funding_estimate_by_asset_class."""
+
+    estimates: dict[str, AssetClassFundingEstimate]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarginFundingScheduleResponse(BaseModel):
+    """Response from GET /margin/funding_schedule."""
+
+    schedule: str
+
+    model_config = {"extra": "allow"}
+
+
 class MemberFundingPayment(FundingPaymentDetail):
     """Spec ``MemberFundingPayment`` — obligation funding row plus settlement time."""
 

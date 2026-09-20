@@ -820,6 +820,7 @@ class TestCommunicationsModel:
                 "quote_id": "q-001",
                 "rfq_id": "rfq-001",
                 "quote_creator_id": "user-2",
+                "rfq_creator_id": "user-1",
                 "market_ticker": "T",
                 "yes_bid_dollars": "0.55",
                 "no_bid_dollars": "0.45",
@@ -1053,6 +1054,7 @@ class TestWsV0140Backfill:
             {
                 "quote_id": "q-1",
                 "quote_creator_id": "user-2",
+                "rfq_creator_id": "user-1",
                 "rfq_id": "rfq-001",
                 "created_ts": "2026-01-01T00:00:00Z",
                 "market_ticker": "T",
@@ -1074,6 +1076,7 @@ class TestWsV0140Backfill:
             {
                 "quote_id": "q-1",
                 "quote_creator_id": "user-2",
+                "rfq_creator_id": "user-1",
                 "rfq_id": "rfq-001",
                 "market_ticker": "T",
                 "yes_bid_dollars": "0.55",
@@ -1205,9 +1208,7 @@ class TestWsPayloadDecimalCoercion:
         from kalshi.ws.models.orderbook_delta import OrderbookSnapshotPayload
 
         with pytest.raises(ValidationError):
-            OrderbookSnapshotPayload.model_validate(
-                {"market_ticker": "T", "market_id": "x"}
-            )
+            OrderbookSnapshotPayload.model_validate({"market_ticker": "T", "market_id": "x"})
         with pytest.raises(ValidationError):
             OrderbookSnapshotPayload.model_validate(
                 {"market_ticker": "T", "market_id": "x", "yes": []}
@@ -1236,6 +1237,7 @@ class TestWsPayloadDecimalCoercion:
                 "quote_id": "q-1",
                 "rfq_id": "rfq-1",
                 "quote_creator_id": "u2",
+                "rfq_creator_id": "u1",
                 "market_ticker": "T",
                 "yes_bid_dollars": "0.55",
                 "no_bid_dollars": "0.45",
@@ -1282,6 +1284,7 @@ class TestWsPayloadDatetimeCoercion:
                 "quote_id": "q-1",
                 "rfq_id": "rfq-1",
                 "quote_creator_id": "u2",
+                "rfq_creator_id": "u1",
                 "market_ticker": "T",
                 "yes_bid_dollars": "0.55",
                 "no_bid_dollars": "0.45",
@@ -1521,6 +1524,7 @@ _SDK_NAME_PAYLOADS: list[tuple[type, dict[str, object]]] = [
             "quote_id": "q-1",
             "rfq_id": "rfq-1",
             "quote_creator_id": "u2",
+            "rfq_creator_id": "u1",
             "market_ticker": "MKT-A",
             "yes_bid": Decimal("0.50"),
             "no_bid": Decimal("0.50"),

@@ -109,6 +109,7 @@ channels:
       - authenticated connection
       - market specification required via `market_ticker` or `market_tickers`
       - sends `orderbook_snapshot` first, then incremental `orderbook_delta` updates
+      - supports `get_snapshot` on `update_subscription` to request a fresh snapshot without changing the subscription
     messages:
       orderbookSnapshot:
         $ref: '#/components/messages/orderbookSnapshot'
@@ -635,8 +636,8 @@ components:
 
     lastUpdateReason:
       type: string
-      enum: ["", "Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "Trade", "PostOnlyCrossCancel"]
-      description: Margin order update reason when the delta corresponds to the authenticated user's order.
+      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel"]
+      description: Margin order update reason when the delta corresponds to the authenticated user's order. CloseCancel and HaltCancel are reserved; the current orderbook stream filters out these operations. The field is omitted when no reason applies.
 
     tickerPrice:
       type: object
@@ -762,7 +763,7 @@ components:
               default: false
             action:
               type: string
-              enum: ["add_markets", "delete_markets"]
+              enum: ["add_markets", "delete_markets", "get_snapshot"]
 
     listSubscriptionsCommandPayload:
       type: object
@@ -778,11 +779,11 @@ components:
       type: object
       required: ["type", "msg"]
       properties:
-        id:
-          $ref: '#/components/schemas/commandId'
         type:
           type: string
           const: "subscribed"
+        id:
+          $ref: '#/components/schemas/commandId'
         msg:
           type: object
           required: ["channel", "sid"]
@@ -796,29 +797,29 @@ components:
       type: object
       required: ["sid", "seq", "type"]
       properties:
+        type:
+          type: string
+          const: "unsubscribed"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
-        type:
-          type: string
-          const: "unsubscribed"
 
     okResponsePayload:
       type: object
       required: ["type"]
       properties:
+        type:
+          type: string
+          const: "ok"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
-        type:
-          type: string
-          const: "ok"
         msg:
           type: object
           properties:
@@ -826,16 +827,22 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/marketTicker'
+            market_ids:
+              type: array
+              description: Full list of market IDs after update
+              items:
+                type: string
+                format: uuid
 
     listSubscriptionsResponsePayload:
       type: object
-      required: ["id", "type", "msg"]
+      required: ["type", "msg"]
       properties:
-        id:
-          $ref: '#/components/schemas/commandId'
         type:
           type: string
           const: "ok"
+        id:
+          $ref: '#/components/schemas/commandId'
         msg:
           type: array
           items:
@@ -851,6 +858,9 @@ components:
       type: object
       required: ["type", "msg"]
       properties:
+        type:
+          type: string
+          const: "error"
         id:
           $ref: '#/components/schemas/commandId'
         sid:
@@ -859,9 +869,6 @@ components:
         seq:
           $ref: '#/components/schemas/sequenceNumber'
           description: Present on subscription-scoped errors on sequenced channels.
-        type:
-          type: string
-          const: "error"
         msg:
           type: object
           required: ["code", "msg"]
@@ -878,6 +885,14 @@ components:
               enum: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 23, 24, 25, 26, 27, 28]
             msg:
               type: string
+            market_ticker:
+              type: string
+              description: Optional market ticker associated with the error
+            market_tickers:
+              type: array
+              description: Optional market tickers associated with the error
+              items:
+                type: string
 
     marginOrderbookSnapshotPayload:
       type: object
@@ -886,6 +901,9 @@ components:
         type:
           type: string
           const: "orderbook_snapshot"
+        id:
+          $ref: '#/components/schemas/commandId'
+          description: Present when replying to a get_snapshot command with an ID
         sid:
           $ref: '#/components/schemas/subscriptionId'
         seq:
@@ -932,12 +950,12 @@ components:
               $ref: '#/components/schemas/lastUpdateReason'
             client_order_id:
               type: string
-            subaccount:
-              type: integer
             ts_ms:
               type: integer
               format: int64
               description: Unix timestamp in milliseconds.
+            subaccount:
+              type: integer
 
     marginTickerPayload:
       type: object
@@ -1122,7 +1140,7 @@ components:
               format: int64
               description: Unix timestamp in milliseconds.
             created_ts_ms:
-              type: integer
+              type: [integer, "null"]
               format: int64
               description: Unix timestamp in milliseconds.
             last_updated_ts_ms:
