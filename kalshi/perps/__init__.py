@@ -79,8 +79,10 @@ from kalshi.perps.models.exchange import (
 )
 from kalshi.perps.models.fcm import (
     FCMAssetClassLiteral,
+    FCMSubtraderNotionalRiskLimit,
     FCMSubtraderRiskControls,
     GetFCMSubtraderRiskControlsResponse,
+    UpdateFCMNotionalRiskLimitRequest,
     UpdateFCMSubtraderRiskControlsRequest,
 )
 from kalshi.perps.models.funding import (
@@ -265,6 +267,7 @@ __all__ = [
     "ExitTriggerReasonLiteral",
     "ExitTriggerStatusLiteral",
     "FCMAssetClassLiteral",
+    "FCMSubtraderNotionalRiskLimit",
     "FCMSubtraderRiskControls",
     "FeeScheduleLiteral",
     "FundingPaymentDetail",
@@ -374,6 +377,7 @@ __all__ = [
     "TimeInForceLiteral",
     "TransfersResource",
     "UpdateExitTriggerRequest",
+    "UpdateFCMNotionalRiskLimitRequest",
     "UpdateFCMSubtraderRiskControlsRequest",
     "UpdateOrderGroupLimitRequest",
     "UpdateSubscriptionAction",

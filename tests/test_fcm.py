@@ -382,3 +382,127 @@ class TestFcmSubtraders:
         created = await async_fcm.create_subtrader(subtrader_suffix="a")
         assert listed.subtraders == []
         assert created.subtrader_id == "acct_a"
+
+
+_FILL = {
+    "fill_id": "fill-1",
+    "exchange_index": 0,
+    "ticker": "TEST-MKT",
+    "taker_outcome_side": "yes",
+    "count_fp": "2.00",
+    "yes_price_dollars": "0.5600",
+    "created_time": "2026-04-12T12:00:00Z",
+    "maker_order_id": "maker-1",
+    "maker_subtrader_id": "acct_maker",
+    "maker_fee_cost": "0.0100",
+    "taker_order_id": "taker-1",
+    "taker_subtrader_id": "acct_taker",
+    "taker_fee_cost": "0.0200",
+}
+
+_FCM = "https://test.kalshi.com/trade-api/v2"
+
+
+class TestFills:
+    @respx.mock
+    def test_returns_fills(self, fcm: FcmResource) -> None:
+        route = respx.get(f"{_FCM}/fcm/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [_FILL], "cursor": "p2"})
+        )
+        resp = fcm.fills(min_ts=100, max_ts=200, cursor="p1")
+        params = dict(route.calls[0].request.url.params)
+        assert params == {"min_ts": "100", "max_ts": "200", "cursor": "p1"}
+        assert len(resp.fills) == 1
+        fill = resp.fills[0]
+        assert fill.fill_id == "fill-1"
+        assert fill.count == Decimal("2.00")
+        assert fill.yes_price == Decimal("0.5600")
+        assert fill.taker_outcome_side == "yes"
+        assert fill.maker_fee_cost == Decimal("0.0100")
+        assert fill.taker_fee_cost == Decimal("0.0200")
+        assert resp.cursor == "p2"
+
+    @respx.mock
+    def test_optional_fields_omitted(self, fcm: FcmResource) -> None:
+        respx.get(f"{_FCM}/fcm/fills").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "fills": [
+                        {
+                            "fill_id": "fill-2",
+                            "exchange_index": 1,
+                            "ticker": "TEST-MKT",
+                            "taker_outcome_side": "no",
+                            "count_fp": "1.00",
+                            "yes_price_dollars": "0.1000",
+                        }
+                    ],
+                    "cursor": "",
+                },
+            )
+        )
+        resp = fcm.fills()
+        fill = resp.fills[0]
+        assert fill.maker_order_id is None
+        assert fill.maker_fee_cost is None
+        assert fill.taker_fee_cost is None
+        assert fill.created_time is None
+        assert resp.cursor == ""
+        assert fill.count == Decimal("1.00")
+
+    def test_requires_auth(self, unauth_fcm: FcmResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_fcm.fills()
+
+    @respx.mock
+    def test_server_401(self, fcm: FcmResource) -> None:
+        respx.get(f"{_FCM}/fcm/fills").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            fcm.fills()
+
+    @respx.mock
+    def test_fills_all_paginates(self, fcm: FcmResource) -> None:
+        respx.get(f"{_FCM}/fcm/fills").mock(
+            side_effect=[
+                httpx.Response(200, json={"fills": [_FILL], "cursor": "p2"}),
+                httpx.Response(
+                    200,
+                    json={
+                        "fills": [{**_FILL, "fill_id": "fill-2"}],
+                        "cursor": "",
+                    },
+                ),
+            ]
+        )
+        ids = [fill.fill_id for fill in fcm.fills_all(min_ts=5, max_pages=5)]
+        assert ids == ["fill-1", "fill-2"]
+
+    def test_fills_all_requires_auth(self, unauth_fcm: FcmResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_fcm.fills_all()
+
+    def test_fills_all_rejects_zero_max_pages(self, fcm: FcmResource) -> None:
+        with pytest.raises(ValueError, match="max_pages"):
+            fcm.fills_all(max_pages=0)
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_fills(self, async_fcm: AsyncFcmResource) -> None:
+        route = respx.get(f"{_FCM}/fcm/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [_FILL], "cursor": ""})
+        )
+        resp = await async_fcm.fills(max_ts=9)
+        assert dict(route.calls[0].request.url.params) == {"max_ts": "9"}
+        assert resp.fills[0].yes_price == Decimal("0.5600")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_fills_all(self, async_fcm: AsyncFcmResource) -> None:
+        respx.get(f"{_FCM}/fcm/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [_FILL], "cursor": ""})
+        )
+        ids = [fill.fill_id async for fill in async_fcm.fills_all()]
+        assert ids == ["fill-1"]

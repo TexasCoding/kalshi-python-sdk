@@ -54,6 +54,7 @@ LastUpdateReasonLiteral = Literal[
     "ExpiryCancel",
     "Trade",
     "PostOnlyCrossCancel",
+    "ReduceOnlyCancel",
 ]
 """Why an order was last updated. Spec ``LastUpdateReason`` (line 2044).
 

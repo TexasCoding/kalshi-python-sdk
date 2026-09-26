@@ -163,6 +163,15 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="UpdateFCMEventContractDailyCapRequest",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.fcm.FcmFill",
+        spec_schema="FcmFill",
+        notes="yes_price/count use short names with _dollars/_fp aliases",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.GetFcmFillsResponse",
+        spec_schema="GetFcmFillsResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.multivariate.MultivariateEventCollection",
         spec_schema="MultivariateEventCollection",
     ),
@@ -900,6 +909,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.models.fcm.UpdateFCMSubtraderRiskControlsRequest",
         spec_schema="UpdateFCMSubtraderRiskControlsRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.FCMSubtraderNotionalRiskLimit",
+        spec_schema="FCMSubtraderNotionalRiskLimit",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.UpdateFCMNotionalRiskLimitRequest",
+        spec_schema="UpdateFCMNotionalRiskLimitRequest",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.models.portfolio.ExitTrigger",

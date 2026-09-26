@@ -51,10 +51,14 @@ paths:
       operationId: GetFCMSubtraderRiskControls
       summary: Get FCM Subtrader Risk Controls
       description: |
-        Returns the initial margin caps configured for an FCM member's subtrader on the margined
-        exchange. A cap with neither market_ticker nor asset_class applies across all markets; the
-        remaining caps are scoped to a single market or a single asset class each. Every cap in
-        scope for an order is enforced independently. Markets without a cap are omitted.
+        Returns the risk controls configured for an FCM member's subtrader on the margined
+        exchange: the FCM-set initial margin caps in `risk_controls`, and the admin-set notional
+        value risk limits in `notional_limits` — one call returns the subtrader's complete limit
+        picture. A cap with neither market_ticker nor asset_class applies across all markets; the
+        remaining caps are scoped to a single market or a single asset class each. A
+        notional_limits entry without a market_ticker is the whole-subtrader (all-markets) limit;
+        the rest are per-market. Every cap or limit in scope for an order is enforced
+        independently. Markets without a cap are omitted.
         API keys bound to a single FCM subtrader may also call this endpoint: `subtrader_id` may be
         omitted and defaults to the key's bound subtrader, and if supplied it must equal the bound
         subtrader or the request is rejected.
@@ -68,7 +72,7 @@ paths:
         - name: subtrader_id
           in: query
           required: false
-          description: The subtrader whose initial margin caps should be returned. Must belong to the requesting FCM. Required unless the API key is bound to a subtrader, in which case it defaults to the bound subtrader when omitted and must equal it when supplied.
+          description: The subtrader whose risk controls and notional value risk limits should be returned. Must belong to the requesting FCM; newly created subtrader IDs take the form {your_account_id}_{suffix}, and any subtrader ID of yours (including legacy UUID-form IDs) is accepted. Required unless the API key is bound to a subtrader, in which case it defaults to the bound subtrader when omitted and must equal it when supplied.
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
@@ -86,7 +90,7 @@ paths:
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
-            enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
+            enum: [Crypto, Equities, Metals]
       responses:
         '200':
           description: Risk controls retrieved successfully
@@ -168,7 +172,7 @@ paths:
           schema:
             type: string
             x-go-type-skip-optional-pointer: true
-            enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
+            enum: [Crypto, Equities, Metals]
       responses:
         '200':
           description: Risk controls deleted successfully
@@ -184,6 +188,73 @@ paths:
           $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /margin/fcm/notional_risk_limit:
+    put:
+      operationId: UpdateFCMNotionalRiskLimit
+      summary: Update FCM Notional Risk Limit
+      description: |
+        Sets the calling FCM member's own account-level notional value risk limit on the margined
+        exchange. The limit is stored separately from the limit Kalshi administration sets on the
+        same account; the exchange accepts any value and always enforces the smaller of the two,
+        so this value can tighten but never raise the effective limit. As a courtesy, a value
+        above the current Kalshi-set limit is rejected with a 400 naming that ceiling — a larger
+        value would never govern. Lowering the limit cancels resting orders until the account is
+        back within it, exactly like an administrative lowering.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFCMNotionalRiskLimitRequest'
+      responses:
+        '200':
+          description: Notional risk limit updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      operationId: DeleteFCMNotionalRiskLimit
+      summary: Delete FCM Notional Risk Limit
+      description: |
+        Clears the calling FCM member's own account-level notional value risk limit on the
+        margined exchange. Any limit Kalshi administration has set on the account remains in
+        force; clearing the member-set value never cancels resting orders, since it can only
+        raise the effective limit.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      responses:
+        '200':
+          description: Notional risk limit deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmptyResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -840,7 +911,11 @@ paths:
     get:
       operationId: GetMarginNotionalRiskLimit
       summary: Get Notional Risk Limit
-      description: 'Endpoint for retrieving the notional value risk limit for the authenticated margin user.'
+      description: |
+        Endpoint for retrieving the notional value risk limits for the authenticated margin user.
+        Direct members and FCM members may read their own account's limits. For an FCM member the
+        account-level limit covers the whole omnibus account: exposure across all client accounts
+        is aggregated against it.
       tags:
         - risk
       security:
@@ -856,6 +931,8 @@ paths:
                 $ref: '#/components/schemas/NotionalRiskLimitResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1709,7 +1786,7 @@ components:
       type: apiKey
       in: header
       name: KALSHI-ACCESS-SIGNATURE
-      description: RSA-PSS signature of the request
+      description: Base64 signature of the pre-sign text (timestamp + method + path) made with the API key's algorithm - RSA-PSS with SHA-256 for RSA keys, Ed25519 for Ed25519 keys
     kalshiAccessTimestamp:
       type: apiKey
       in: header
@@ -1856,6 +1933,18 @@ components:
         subaccount_number:
           type: integer
           description: The sequential number assigned to this subaccount (1-63).
+    UpdateFCMNotionalRiskLimitRequest:
+      type: object
+      required:
+        - notional_value_risk_limit
+      properties:
+        notional_value_risk_limit:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: A non-negative fixed-point US dollar amount with up to 4 decimal places. A value above the current Kalshi-set limit on the account gets a courtesy 400, since it would never govern.
+          pattern: '^[0-9]+(\.[0-9]{1,4})?$'
+          maxLength: 20
+          example: "5000.0000"
     UpdateFCMSubtraderRiskControlsRequest:
       type: object
       required:
@@ -1873,7 +1962,7 @@ components:
           type: string
           description: Scopes the initial margin cap to this asset class when supplied. Mutually exclusive with market_ticker.
           x-go-type-skip-optional-pointer: true
-          enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
+          enum: [Crypto, Equities, Metals]
         im_cap:
           allOf:
             - $ref: '#/components/schemas/FixedPointDollars'
@@ -1885,17 +1974,24 @@ components:
       type: object
       required:
         - risk_controls
+        - notional_limits
       properties:
         risk_controls:
           type: array
           description: One entry per configured initial margin cap.
           items:
             $ref: '#/components/schemas/FCMSubtraderRiskControls'
+        notional_limits:
+          type: array
+          description: The admin-set notional value risk limits for the same subtrader as the rest of the response, sorted by market_ticker. An entry without a market_ticker is the whole-subtrader (all-markets) limit and sorts first; the rest are per-market. Set by exchange administration and read-only through this API; markets without a configured limit are omitted, and the market_ticker/asset_class filters apply only to risk_controls. Newly created subtrader IDs take the form {your_account_id}_{suffix}; legacy UUID-form subtraders are included as well.
+          items:
+            $ref: '#/components/schemas/FCMSubtraderNotionalRiskLimit'
     FCMSubtraderRiskControls:
       type: object
       required:
         - subtrader_id
         - im_cap
+        - current_im
       properties:
         subtrader_id:
           type: string
@@ -1908,12 +2004,53 @@ components:
           type: string
           description: Present only on an asset-class-scoped cap. A cap with neither market_ticker nor asset_class applies across all markets.
           x-go-type-skip-optional-pointer: true
-          enum: [Crypto, Equities, Metals, FX, Energy, Indices, Rates, Compute, GPU]
+          enum: [Crypto, Equities, Metals]
         im_cap:
           allOf:
             - $ref: '#/components/schemas/FixedPointDollars'
           description: A non-negative fixed-point US dollar amount with up to 4 decimal places.
           example: "100.0000"
+        current_im:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            The initial margin currently attributable to this cap's scope, in fixed-point US dollars — the value the
+            exchange compares against im_cap when admitting an order. Computed from the exchange's read model
+            (positions plus resting orders), so it excludes orders still in flight and may slightly trail the engine.
+            A market-scoped cap prices that market standalone; an asset-class cap prices the class-filtered portfolio,
+            so hedged positions within the class margin jointly rather than summing per-market.
+          example: "42.0000"
+    FCMSubtraderNotionalRiskLimit:
+      type: object
+      required:
+        - subtrader_id
+        - notional_value_risk_limit
+        - current_notional
+      properties:
+        subtrader_id:
+          type: string
+          description: The subtrader the notional value risk limit applies to.
+        market_ticker:
+          type: string
+          description: The market the notional value risk limit applies to. Absent on the whole-subtrader (all-markets) limit.
+          x-go-type-skip-optional-pointer: true
+        notional_value_risk_limit:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: The notional value risk limit as a fixed-point US dollar string with 4 decimal places.
+          example: "5000.0000"
+        current_notional:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            The notional currently consumed against this limit, in fixed-point US dollars. Per market it is the larger
+            of the subtrader's long side (position plus resting bids) and short side (position minus resting asks),
+            over the signed net position; a whole-subtrader entry carries that value summed across every market the
+            subtrader touches. Every term is priced through the market's risk-notional model, the same pricing the
+            exchange's limit check uses: the cached mark for positions and the limit price for resting orders on
+            mark-model asset classes, quantity times the fixed DV01 base on Rates. Computed from the exchange's read
+            model, so it excludes orders still in flight and may slightly trail the engine.
+          example: "1250.0000"
     # Order Group schemas
     EmptyResponse:
       type: object
@@ -2864,7 +3001,8 @@ components:
 
     LastUpdateReason:
       type: string
-      enum: ['', 'Decrease', 'Amend', 'MarginCancel', 'SelfTradeCancel', 'ExpiryCancel', 'Trade', 'PostOnlyCrossCancel']
+      enum: ['', 'Decrease', 'Amend', 'MarginCancel', 'SelfTradeCancel', 'ExpiryCancel', 'Trade', 'PostOnlyCrossCancel', 'ReduceOnlyCancel']
+      description: ReduceOnlyCancel means reduce_only capped the order at placement.
 
     MarginMarketResponse:
       type: object
@@ -3060,6 +3198,8 @@ components:
       required:
         - default_notional_value_risk_limit
         - notional_value_risk_limits_by_market_ticker
+        - total_current_usage
+        - current_usage_by_market_ticker
       properties:
         default_notional_value_risk_limit:
           type: string
@@ -3072,6 +3212,44 @@ components:
           description: Map of market_ticker to notional value risk limit as a fixed-point dollar string with 4 decimal places (e.g., "5000.0000"). If present, the market-level risk limit overrides the default notional value risk limit.
           example:
             "market-abc-123": "5000.0000"
+        total_current_usage:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            The account's current notional usage in fixed-point US dollars, aggregated the way the exchange checks the
+            account-level limit: per market, the larger of the long side (long positions plus resting bids) and the
+            short side (short positions plus resting asks), summed across every market the account holds positions or
+            resting orders in — for an FCM, across the whole omnibus account. Every term is priced through the
+            market's risk-notional model, the same pricing the exchange's limit check uses: the cached mark for
+            positions and the limit price for resting orders. Computed from the exchange's read model, so it excludes
+            orders still in flight and may slightly trail the engine.
+          example: "1250.0000"
+        current_usage_by_market_ticker:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            Per-market components of total_current_usage, as fixed-point US dollar strings. Entries exist only for
+            markets where the account holds positions or resting orders; like the total, values come from the
+            exchange's read model and may slightly trail the engine.
+          example:
+            "market-abc-123": "1250.0000"
+        member_notional_value_risk_limit:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            The account-level notional value risk limit the member set on its own account (FCM members only), as a
+            fixed-point dollar string. Stored separately from the Kalshi-set limit; the exchange enforces the smaller
+            of the two. Absent when the member has not set one.
+          example: "5000.0000"
+        effective_account_notional_value_risk_limit:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: >-
+            The account-level notional value risk limit the exchange enforces, as a fixed-point dollar string - the
+            smaller of the Kalshi-set limit and the member-set limit, or whichever one is set. Absent when neither is
+            set.
+          example: "5000.0000"
 
     MarginSubaccountBalance:
       type: object

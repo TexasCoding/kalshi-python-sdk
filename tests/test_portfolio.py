@@ -1478,6 +1478,20 @@ class TestTargetBalanceAllocation:
         assert json.loads(route.calls[0].request.content)["resting_margin_reservation"] == "max"
 
     @respx.mock
+    def test_resting_margin_reservation_none(self, portfolio: PortfolioResource) -> None:
+        respx.get("https://test.kalshi.com/trade-api/v2/portfolio/target_balance_allocation").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "allocations": [{"exchange_index": 0, "percent": 100}],
+                    "resting_margin_reservation": "none",
+                },
+            )
+        )
+        resp = portfolio.target_balance_allocation()
+        assert resp.resting_margin_reservation == "none"
+
+    @respx.mock
     def test_set_request_model(self, portfolio: PortfolioResource) -> None:
         import json
 

@@ -1047,3 +1047,82 @@ class TestAsyncHistoricalPositions:
         with pytest.raises(AuthRequiredError):
             async for _ in unauth_async_historical.positions_all():
                 pass
+
+
+class TestHistoricalSubaccount:
+    @respx.mock
+    def test_fills_subaccount(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [], "cursor": ""})
+        )
+        page = historical.fills(subaccount=3, ticker="MKT-A")
+        assert page.items == []
+        params = dict(route.calls[0].request.url.params)
+        assert params["subaccount"] == "3"
+        assert params["ticker"] == "MKT-A"
+
+    @respx.mock
+    def test_fills_omits_subaccount(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [], "cursor": ""})
+        )
+        historical.fills()
+        assert "subaccount" not in route.calls[0].request.url.params
+
+    def test_fills_requires_auth(self, unauth_historical: HistoricalResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_historical.fills(subaccount=1)
+
+    @respx.mock
+    def test_orders_subaccount_zero(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": [], "cursor": ""})
+        )
+        historical.orders(subaccount=0)
+        assert route.calls[0].request.url.params["subaccount"] == "0"
+
+    def test_orders_requires_auth(self, unauth_historical: HistoricalResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_historical.orders(subaccount=1)
+
+    @respx.mock
+    def test_fills_all_forwards_subaccount(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [], "cursor": ""})
+        )
+        assert list(historical.fills_all(subaccount=2)) == []
+        assert route.calls[0].request.url.params["subaccount"] == "2"
+        assert "cursor" not in route.calls[0].request.url.params
+
+    @respx.mock
+    def test_orders_all_forwards_subaccount(self, historical: HistoricalResource) -> None:
+        route = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": [], "cursor": ""})
+        )
+        assert list(historical.orders_all(subaccount=4)) == []
+        assert route.calls[0].request.url.params["subaccount"] == "4"
+
+    @respx.mock
+    async def test_async_fills_and_orders(self, async_historical: AsyncHistoricalResource) -> None:
+        fills = respx.get(f"{BASE}/historical/fills").mock(
+            return_value=httpx.Response(200, json={"fills": [], "cursor": ""})
+        )
+        orders = respx.get(f"{BASE}/historical/orders").mock(
+            return_value=httpx.Response(200, json={"orders": [], "cursor": ""})
+        )
+        await async_historical.fills(subaccount=1)
+        await async_historical.orders(subaccount=1)
+        assert fills.calls[0].request.url.params["subaccount"] == "1"
+        assert orders.calls[0].request.url.params["subaccount"] == "1"
+        fill_items = [f async for f in async_historical.fills_all(subaccount=1)]
+        order_items = [o async for o in async_historical.orders_all(subaccount=1)]
+        assert fill_items == []
+        assert order_items == []
+
+    async def test_async_requires_auth(
+        self, unauth_async_historical: AsyncHistoricalResource
+    ) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_historical.fills(subaccount=1)
+        with pytest.raises(AuthRequiredError):
+            await unauth_async_historical.orders()

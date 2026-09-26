@@ -39,6 +39,7 @@ class TestEnums:
         # PascalCase wire members (no snake_case rename).
         assert LastUpdateReason("MarginCancel") is LastUpdateReason.MARGIN_CANCEL
         assert LastUpdateReason("PostOnlyCrossCancel") is LastUpdateReason.POST_ONLY_CROSS_CANCEL
+        assert LastUpdateReason("ReduceOnlyCancel") is LastUpdateReason.REDUCE_ONLY_CANCEL
 
     def test_order_source_values(self) -> None:
         assert OrderSource("user") is OrderSource.USER

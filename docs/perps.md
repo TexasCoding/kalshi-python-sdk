@@ -66,7 +66,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
-| `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls` |
+| `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -94,7 +94,19 @@ perps.fcm.update_risk_controls(
 perps.fcm.delete_risk_controls(subtrader_id="user_desk1", market_ticker="BTC-PERP")
 # asset_class is mutually exclusive with market_ticker
 perps.fcm.risk_controls(subtrader_id="user_desk1", asset_class="Crypto")
+
+# Member-set account notional limit (PUT/DELETE are never retried).
+# The exchange enforces the smaller of this value and the Kalshi-set limit.
+perps.fcm.update_notional_risk_limit(notional_value_risk_limit=Decimal("5000.0000"))
+perps.fcm.delete_notional_risk_limit()
 ```
+
+`risk_controls()` also returns `notional_limits` (admin-set notional caps for
+the same subtrader). Each `FCMSubtraderRiskControls` row includes required
+`current_im`. `margin.notional_risk_limit()` reports required
+`total_current_usage` and `current_usage_by_market_ticker`, plus optional
+`member_notional_value_risk_limit` and
+`effective_account_notional_value_risk_limit`.
 
 Exit triggers (stop-loss / take-profit / trailing) sit on a position slot:
 

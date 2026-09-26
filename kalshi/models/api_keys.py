@@ -9,9 +9,19 @@ has Kalshi mint a fresh key pair and returns the private key once
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from kalshi.types import NullableList
+
+ApiKeyTypeLiteral = Literal["rsa", "ed25519"]
+"""Signature algorithm for a generated API key. Spec ``ApiKeyType``.
+
+``rsa`` is 2048-bit RSA-PSS. ``ed25519`` is RFC 8032. The server defaults
+to ``rsa`` when ``key_type`` is omitted. :class:`kalshi.auth.KalshiAuth`
+signs with RSA-PSS only — an Ed25519 private key cannot be used with it.
+"""
 
 
 class ApiKey(BaseModel):
@@ -90,9 +100,15 @@ class CreateApiKeyResponse(BaseModel):
 
 
 class GenerateApiKeyRequest(BaseModel):
-    """Body for POST /api_keys/generate — let Kalshi mint a key pair."""
+    """Body for POST /api_keys/generate — let Kalshi mint a key pair.
+
+    ``key_type`` selects the algorithm. Omit it to keep the server default
+    (``rsa``). The SDK request signer is RSA-only; see
+    :data:`ApiKeyTypeLiteral`.
+    """
 
     name: str
+    key_type: ApiKeyTypeLiteral | None = None
     scopes: list[str] | None = None
     # Spec v3.23.0: restrict the key to a single subaccount when set. The spec
     # declares an explicit minimum/maximum (0-63), so bound it client-side.
@@ -117,11 +133,14 @@ class GenerateApiKeyResponse(BaseModel):
     cannot be retrieved later. The field is typed as :class:`pydantic.SecretStr`
     so it prints as ``'**********'`` in ``repr()``/logs; call
     ``response.private_key.get_secret_value()`` to retrieve the PEM string
-    when you need to persist it.
+    when you need to persist it. ``key_type`` is ``rsa`` or ``ed25519`` when
+    the server sends it. :class:`kalshi.auth.KalshiAuth` can sign only with
+    an RSA private key.
     """
 
     api_key_id: str
     private_key: SecretStr
+    key_type: ApiKeyTypeLiteral | None = None
     # Present only when a bound FCM subtrader has no initial-margin cap.
     warning: str | None = None
 

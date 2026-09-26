@@ -289,7 +289,7 @@ channels:
       - Market specification ignored
       - Optional sharding for fanout control:
         - `shard_factor` (1-100) and `shard_key` (`0 <= key < shard_factor`)
-      - RFQ events (RFQCreated, RFQDeleted) always sent
+      - RFQ events (RFQCreated, RFQDeleted) are sent for all users by default. Set `user_filter: "self"` to receive only RFQs you created. Omitted or empty `user_filter` keeps the default.
       - Quote events (QuoteCreated, QuoteAccepted, QuoteExecuted) are only sent if you created the quote OR you created the RFQ
 
       **Use case:** Tracking RFQs you create and quotes on your RFQs, or quotes you create on others' RFQs. Use QuoteExecuted to correlate fill messages with quotes via client_order_id.
@@ -2316,6 +2316,11 @@ components:
       description: 'Side of the book for an order or trade. ''bid'' is equivalent to outcome_side ''yes''; ''ask'' is equivalent to outcome_side ''no''.'
       enum: ["bid", "ask"]
 
+    lastUpdateReason:
+      type: string
+      description: Order update reason. ReduceOnlyCancel means reduce_only capped the order at placement.
+      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel"]
+
     orderAction:
       type: string
       description: Legacy order action; an unknown action is emitted as an empty string.
@@ -2383,6 +2388,11 @@ components:
                 the legacy no-leg pricing. Integrations relying on the legacy behavior should migrate before
                 the default flip; concrete dates will be announced before each step.
               default: false
+            user_filter:
+              type: string
+              enum: ["", "self"]
+              default: ""
+              description: 'Communications channel only. Set to "self" to receive RFQ created/deleted events only for RFQs you created. Omitted or empty receives RFQs from all users. Quote notifications are unchanged.'
             shard_factor:
               type: integer
               description: 'Number of shards for communications channel fanout (optional)'
@@ -3716,6 +3726,9 @@ components:
               type: integer
               description: Last update time as a Unix timestamp in milliseconds
               format: int64
+            last_update_reason:
+              $ref: '#/components/schemas/lastUpdateReason'
+              description: Reason for the most recent update, if applicable
             subaccount_number:
               type: integer
               description: Subaccount number (0 for primary, 1-63 for subaccounts)

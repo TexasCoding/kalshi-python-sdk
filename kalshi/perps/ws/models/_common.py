@@ -37,6 +37,7 @@ PerpsLastUpdateReason = Literal[
     "ExpiryCancel",
     "Trade",
     "PostOnlyCrossCancel",
+    "ReduceOnlyCancel",
 ]
 
 # Spec ``orderGroupUpdatesPayload.msg.event_type`` enum.

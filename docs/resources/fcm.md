@@ -12,6 +12,8 @@ calls come back 401/403. Auth required throughout.
 |---|---|
 | `orders(*, subtrader_id=None, client_order_ids=None, ...)` | `GET /fcm/orders` |
 | `orders_all(*, subtrader_id=None, client_order_ids=None, ...)` | walks `orders` |
+| `fills(*, min_ts=None, max_ts=None, cursor=None)` | `GET /fcm/fills` |
+| `fills_all(*, min_ts=None, max_ts=None, max_pages=None)` | walks `fills` |
 | `positions(*, subtrader_id, ...)` | `GET /fcm/positions` |
 | `list_subtraders()` | `GET /fcm/subtraders` |
 | `create_subtrader(*, subtrader_suffix)` | `POST /fcm/subtraders` |
@@ -42,6 +44,23 @@ for o in client.fcm.orders_all(subtrader_id="st_alpha", status="resting"):
 
 Same `Order` model as [Orders](orders.md). Standard `Page[Order]` pagination
 on `orders()`.
+
+## Fills
+
+Fills across the member's subtraders. Query params are only `min_ts`,
+`max_ts`, and `cursor` — there is no `limit` or `subtrader_id` filter.
+`fills()` returns `GetFcmFillsResponse` (`fills`, `cursor`). `fills_all()`
+walks that cursor and yields each `FcmFill`. Prices are `Decimal`
+(`yes_price` accepts `yes_price_dollars`); `count` accepts `count_fp`.
+
+```python
+resp = client.fcm.fills(min_ts=1_700_000_000, max_ts=1_800_000_000)
+for fill in resp.fills:
+    print(fill.fill_id, fill.ticker, fill.taker_outcome_side, fill.yes_price, fill.count)
+
+for fill in client.fcm.fills_all(min_ts=1_700_000_000):
+    print(fill.maker_subtrader_id, fill.taker_subtrader_id, fill.maker_fee_cost)
+```
 
 ## Positions
 

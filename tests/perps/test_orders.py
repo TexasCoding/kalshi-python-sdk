@@ -51,6 +51,11 @@ def _order_dict(**overrides: object) -> dict[str, object]:
     return base
 
 
+def test_margin_order_accepts_reduce_only_cancel() -> None:
+    order = MarginOrder.model_validate(_order_dict(last_update_reason="ReduceOnlyCancel"))
+    assert order.last_update_reason == "ReduceOnlyCancel"
+
+
 # ── create ───────────────────────────────────────────────────────────────────
 
 

@@ -12,6 +12,7 @@ from kalshi.models.account import (
 )
 from kalshi.models.api_keys import (
     ApiKey,
+    ApiKeyTypeLiteral,
     CreateApiKeyRequest,
     CreateApiKeyResponse,
     GenerateApiKeyRequest,
@@ -63,8 +64,10 @@ from kalshi.models.exchange import (
 from kalshi.models.fcm import (
     CreateFCMSubtraderRequest,
     CreateFCMSubtraderResponse,
+    FcmFill,
     FCMSubtrader,
     GetFCMEventContractDailyCapResponse,
+    GetFcmFillsResponse,
     GetFCMSubtraderBlockedCategoriesResponse,
     ListFCMSubtradersResponse,
     UpdateFCMEventContractDailyCapRequest,
@@ -214,6 +217,7 @@ __all__ = [
     "AmendOrderV2Response",
     "Announcement",
     "ApiKey",
+    "ApiKeyTypeLiteral",
     "ApiUsageLevelGrant",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
@@ -262,6 +266,7 @@ __all__ = [
     "ExchangeInstanceLiteral",
     "ExchangeStatus",
     "FCMSubtrader",
+    "FcmFill",
     "Fill",
     "ForecastPercentilesPoint",
     "GenerateApiKeyRequest",
@@ -272,6 +277,7 @@ __all__ = [
     "GetEventLiveDataResponse",
     "GetFCMEventContractDailyCapResponse",
     "GetFCMSubtraderBlockedCategoriesResponse",
+    "GetFcmFillsResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",

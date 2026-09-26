@@ -828,6 +828,16 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     # ── fcm ─────────────────────────────────────────────────────────────────
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.fills",
+        http_method="GET",
+        path_template="/fcm/fills",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.fills_all",
+        http_method="GET",
+        path_template="/fcm/fills",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.fcm.FcmResource.orders",
         http_method="GET",
         path_template="/fcm/orders",
@@ -1235,7 +1245,11 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
-    # --- fcm.orders_all: cursor paginator-handled ---
+    # --- fcm.orders_all / fills_all: cursor paginator-handled ---
+    ("kalshi.resources.fcm.FcmResource.fills_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on fills_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.fcm.FcmResource.orders_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1351,6 +1365,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.PortfolioResource.fills_all",
     "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all",
     "kalshi.resources.fcm.FcmResource.orders_all",
+    "kalshi.resources.fcm.FcmResource.fills_all",
     "kalshi.resources.fcm.FcmResource.positions_all",
     "kalshi.resources.incentive_programs.IncentiveProgramsResource.list_all",
     "kalshi.resources.structured_targets.StructuredTargetsResource.list_all",
@@ -1383,6 +1398,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.AsyncPortfolioResource.fills_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.intra_exchange_transfers_all",
     "kalshi.resources.fcm.AsyncFcmResource.orders_all",
+    "kalshi.resources.fcm.AsyncFcmResource.fills_all",
     "kalshi.resources.fcm.AsyncFcmResource.positions_all",
     "kalshi.resources.incentive_programs.AsyncIncentiveProgramsResource.list_all",
     "kalshi.resources.structured_targets.AsyncStructuredTargetsResource.list_all",
@@ -1648,6 +1664,17 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.resources.fcm.FcmResource.delete_risk_controls",
         http_method="DELETE",
         path_template="/margin/fcm/subtraders/risk_controls",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.update_notional_risk_limit",
+        http_method="PUT",
+        path_template="/margin/fcm/notional_risk_limit",
+        request_body_schema="#/components/schemas/UpdateFCMNotionalRiskLimitRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.delete_notional_risk_limit",
+        http_method="DELETE",
+        path_template="/margin/fcm/notional_risk_limit",
     ),
     # ── perps exit triggers ──
     MethodEndpointEntry(

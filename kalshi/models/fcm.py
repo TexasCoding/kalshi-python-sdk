@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
-from kalshi.types import DollarDecimal
+from kalshi.models.orders import SideLiteral
+from kalshi.types import DollarDecimal, FixedPointCount
 
 
 class CreateFCMSubtraderRequest(BaseModel):
@@ -93,3 +94,41 @@ class UpdateFCMEventContractDailyCapRequest(BaseModel):
     limit: DollarDecimal
 
     model_config = {"extra": "forbid"}
+
+
+class FcmFill(BaseModel):
+    """One fill from GET /fcm/fills.
+
+    ``yes_price`` accepts the spec ``yes_price_dollars`` wire name and the
+    short Python name. ``count`` accepts ``count_fp`` and ``count``.
+    Maker/taker fee fields are fixed-point dollars under their spec names.
+    """
+
+    fill_id: str
+    exchange_index: int
+    ticker: str
+    taker_outcome_side: SideLiteral
+    count: FixedPointCount = Field(
+        validation_alias=AliasChoices("count_fp", "count"),
+    )
+    yes_price: DollarDecimal = Field(
+        validation_alias=AliasChoices("yes_price_dollars", "yes_price"),
+    )
+    created_time: AwareDatetime | None = None
+    maker_order_id: str | None = None
+    maker_subtrader_id: str | None = None
+    maker_fee_cost: DollarDecimal | None = None
+    taker_order_id: str | None = None
+    taker_subtrader_id: str | None = None
+    taker_fee_cost: DollarDecimal | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class GetFcmFillsResponse(BaseModel):
+    """Response from GET /fcm/fills. ``fills`` and ``cursor`` are required."""
+
+    fills: list[FcmFill]
+    cursor: str
+
+    model_config = {"extra": "allow"}

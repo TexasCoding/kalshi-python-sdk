@@ -6,6 +6,7 @@ import builtins
 from typing import Any, overload
 
 from kalshi.models.api_keys import (
+    ApiKeyTypeLiteral,
     CreateApiKeyRequest,
     CreateApiKeyResponse,
     GenerateApiKeyRequest,
@@ -60,6 +61,7 @@ def _build_generate_api_key_body(
     scopes: builtins.list[str] | None,
     subaccount: int | None,
     fcm_subtrader_id: str | None,
+    key_type: ApiKeyTypeLiteral | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -67,6 +69,7 @@ def _build_generate_api_key_body(
         scopes=scopes,
         subaccount=subaccount,
         fcm_subtrader_id=fcm_subtrader_id,
+        key_type=key_type,
     )
     if request is None:
         if name is None:
@@ -76,6 +79,7 @@ def _build_generate_api_key_body(
             scopes=scopes,
             subaccount=subaccount,
             fcm_subtrader_id=fcm_subtrader_id,
+            key_type=key_type,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -85,7 +89,9 @@ class ApiKeysResource(SyncResource):
 
     All endpoints require authentication. ``create`` takes a caller-minted
     RSA public key; ``generate`` has Kalshi mint a pair and returns the
-    private key once (see :class:`GenerateApiKeyResponse`).
+    private key once (see :class:`GenerateApiKeyResponse`). ``generate``
+    may request ``key_type="ed25519"``; :class:`kalshi.auth.KalshiAuth`
+    signs with RSA-PSS only.
     """
 
     def list(
@@ -152,6 +158,7 @@ class ApiKeysResource(SyncResource):
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
         fcm_subtrader_id: str | None = ...,
+        key_type: ApiKeyTypeLiteral | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     def generate(
@@ -162,8 +169,15 @@ class ApiKeysResource(SyncResource):
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
         fcm_subtrader_id: str | None = None,
+        key_type: ApiKeyTypeLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
+        """Mint a key pair. ``key_type`` defaults server-side to ``rsa``.
+
+        The SDK signer (:class:`kalshi.auth.KalshiAuth`) is RSA-PSS only;
+        an ``ed25519`` private key returned here cannot authenticate REST
+        calls through this client.
+        """
         self._require_auth()
         body = _build_generate_api_key_body(
             request,
@@ -171,6 +185,7 @@ class ApiKeysResource(SyncResource):
             scopes=scopes,
             subaccount=subaccount,
             fcm_subtrader_id=fcm_subtrader_id,
+            key_type=key_type,
         )
         data = self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)
@@ -247,6 +262,7 @@ class AsyncApiKeysResource(AsyncResource):
         scopes: builtins.list[str] | None = ...,
         subaccount: int | None = ...,
         fcm_subtrader_id: str | None = ...,
+        key_type: ApiKeyTypeLiteral | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse: ...
     async def generate(
@@ -257,8 +273,10 @@ class AsyncApiKeysResource(AsyncResource):
         scopes: builtins.list[str] | None = None,
         subaccount: int | None = None,
         fcm_subtrader_id: str | None = None,
+        key_type: ApiKeyTypeLiteral | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> GenerateApiKeyResponse:
+        """Async :meth:`ApiKeysResource.generate`. RSA-PSS signer only."""
         self._require_auth()
         body = _build_generate_api_key_body(
             request,
@@ -266,6 +284,7 @@ class AsyncApiKeysResource(AsyncResource):
             scopes=scopes,
             subaccount=subaccount,
             fcm_subtrader_id=fcm_subtrader_id,
+            key_type=key_type,
         )
         data = await self._post("/api_keys/generate", json=body, extra_headers=extra_headers)
         return GenerateApiKeyResponse.model_validate(data)

@@ -258,12 +258,13 @@ class TargetBalanceAllocationInput(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-RestingMarginReservationLiteral = Literal["max", "sum"]
+RestingMarginReservationLiteral = Literal["none", "max", "sum"]
 """Collateral an automatic rebalance leaves behind for resting orders.
 
-``max`` reserves the largest single market-side commitment. ``sum`` reserves
-the summed margin of every resting order. Spec defaults to ``sum`` when omitted
-on the write path; the GET response always includes the effective value.
+``none`` reserves no collateral for resting orders. ``max`` reserves the
+largest single market-side commitment. ``sum`` reserves the summed margin of
+every resting order. Spec defaults to ``sum`` when omitted on the write path;
+the GET response always includes the effective value.
 """
 
 

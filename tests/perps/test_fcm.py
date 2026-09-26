@@ -15,6 +15,7 @@ from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.fcm import (
     CreateMarginFCMSubtraderRequest,
     CreateMarginFCMSubtraderResponse,
+    UpdateFCMNotionalRiskLimitRequest,
     UpdateFCMSubtraderRiskControlsRequest,
 )
 
@@ -112,13 +113,22 @@ class TestFcmRiskControls:
                         {
                             "subtrader_id": "user_desk1",
                             "im_cap": "100.0000",
+                            "current_im": "40.0000",
                         },
                         {
                             "subtrader_id": "user_desk1",
                             "market_ticker": "BTC-PERP",
                             "im_cap": "25.5000",
+                            "current_im": "10.0000",
                         },
-                    ]
+                    ],
+                    "notional_limits": [
+                        {
+                            "subtrader_id": "user_desk1",
+                            "notional_value_risk_limit": "5000.0000",
+                            "current_notional": "1250.0000",
+                        }
+                    ],
                 },
             )
         )
@@ -126,13 +136,17 @@ class TestFcmRiskControls:
         assert len(resp.risk_controls) == 2
         assert resp.risk_controls[0].market_ticker is None
         assert resp.risk_controls[0].im_cap == Decimal("100.0000")
+        assert resp.risk_controls[0].current_im == Decimal("40.0000")
         assert resp.risk_controls[1].market_ticker == "BTC-PERP"
+        assert len(resp.notional_limits) == 1
+        assert resp.notional_limits[0].market_ticker is None
+        assert resp.notional_limits[0].current_notional == Decimal("1250.0000")
         assert dict(route.calls[0].request.url.params) == {"subtrader_id": "user_desk1"}
 
     @respx.mock
     def test_get_risk_controls_filters_market(self, perps_client: PerpsClient) -> None:
         route = respx.get(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
-            return_value=httpx.Response(200, json={"risk_controls": []})
+            return_value=httpx.Response(200, json={"risk_controls": [], "notional_limits": []})
         )
         perps_client.fcm.risk_controls(subtrader_id="user_desk1", market_ticker="ETH-PERP")
         assert dict(route.calls[0].request.url.params) == {
@@ -143,7 +157,7 @@ class TestFcmRiskControls:
     @respx.mock
     def test_get_risk_controls_filters_asset_class(self, perps_client: PerpsClient) -> None:
         route = respx.get(f"{BASE}/margin/fcm/subtraders/risk_controls").mock(
-            return_value=httpx.Response(200, json={"risk_controls": []})
+            return_value=httpx.Response(200, json={"risk_controls": [], "notional_limits": []})
         )
         perps_client.fcm.risk_controls(subtrader_id="user_desk1", asset_class="Crypto")
         assert dict(route.calls[0].request.url.params) == {
@@ -250,8 +264,13 @@ class TestAsyncFcmRiskControls:
                 200,
                 json={
                     "risk_controls": [
-                        {"subtrader_id": "user_desk1", "im_cap": "1.0000"},
-                    ]
+                        {
+                            "subtrader_id": "user_desk1",
+                            "im_cap": "1.0000",
+                            "current_im": "0.2500",
+                        },
+                    ],
+                    "notional_limits": [],
                 },
             )
         )
@@ -268,3 +287,105 @@ class TestAsyncFcmRiskControls:
             im_cap=Decimal("2.00"),
         )
         await async_perps_client.fcm.delete_risk_controls(subtrader_id="user_desk1")
+
+
+class TestUpdateFCMNotionalRiskLimitRequest:
+    def test_serializes(self) -> None:
+        req = UpdateFCMNotionalRiskLimitRequest(notional_value_risk_limit=Decimal("5000.0000"))
+        assert req.model_dump(exclude_none=True, by_alias=True, mode="json") == {
+            "notional_value_risk_limit": "5000.0000",
+        }
+
+    def test_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            UpdateFCMNotionalRiskLimitRequest(notional_value_risk_limit=Decimal("-1.00"))
+
+    def test_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            UpdateFCMNotionalRiskLimitRequest(  # type: ignore[call-arg]
+                notional_value_risk_limit=Decimal("1.00"),
+                phantom=1,
+            )
+
+
+class TestFcmNotionalRiskLimit:
+    @respx.mock
+    def test_update_kwargs(self, perps_client: PerpsClient) -> None:
+        route = respx.put(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        perps_client.fcm.update_notional_risk_limit(
+            notional_value_risk_limit=Decimal("5000.0000")
+        )
+        assert json.loads(route.calls[0].request.content) == {
+            "notional_value_risk_limit": "5000.0000",
+        }
+
+    @respx.mock
+    def test_update_request_model(self, perps_client: PerpsClient) -> None:
+        route = respx.put(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        req = UpdateFCMNotionalRiskLimitRequest(notional_value_risk_limit=Decimal("10.00"))
+        perps_client.fcm.update_notional_risk_limit(request=req)
+        assert json.loads(route.calls[0].request.content) == {
+            "notional_value_risk_limit": "10.00",
+        }
+
+    def test_update_requires_args(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(TypeError, match="update_notional_risk_limit"):
+            perps_client.fcm.update_notional_risk_limit()  # type: ignore[call-overload]
+
+    @respx.mock
+    def test_update_server_400(self, perps_client: PerpsClient) -> None:
+        respx.put(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(400, json={"message": "above Kalshi ceiling"})
+        )
+        with pytest.raises(Exception):  # noqa: B017 — mapped validation error
+            perps_client.fcm.update_notional_risk_limit(
+                notional_value_risk_limit=Decimal("999999.0000")
+            )
+
+    def test_update_unauthenticated(self) -> None:
+        client = PerpsClient(config=PerpsConfig.demo(max_retries=0))
+        with pytest.raises(AuthRequiredError):
+            client.fcm.update_notional_risk_limit(notional_value_risk_limit=Decimal("1"))
+
+    @respx.mock
+    def test_delete(self, perps_client: PerpsClient) -> None:
+        route = respx.delete(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        assert perps_client.fcm.delete_notional_risk_limit() is None
+        assert route.called
+        assert route.calls[0].request.content == b""
+
+    @respx.mock
+    def test_delete_server_401(self, perps_client: PerpsClient) -> None:
+        respx.delete(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(401, json={"message": "unauthorized"})
+        )
+        with pytest.raises(Exception):  # noqa: B017 — mapped auth error
+            perps_client.fcm.delete_notional_risk_limit()
+
+    def test_delete_unauthenticated(self) -> None:
+        client = PerpsClient(config=PerpsConfig.demo(max_retries=0))
+        with pytest.raises(AuthRequiredError):
+            client.fcm.delete_notional_risk_limit()
+
+    @respx.mock
+    async def test_async_roundtrip(self, async_perps_client: AsyncPerpsClient) -> None:
+        put = respx.put(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        delete = respx.delete(f"{BASE}/margin/fcm/notional_risk_limit").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await async_perps_client.fcm.update_notional_risk_limit(
+            notional_value_risk_limit=Decimal("2.00")
+        )
+        await async_perps_client.fcm.delete_notional_risk_limit()
+        assert json.loads(put.calls[0].request.content) == {
+            "notional_value_risk_limit": "2.00",
+        }
+        assert delete.called
