@@ -14,6 +14,7 @@ from kalshi.perps.models.fcm import (
     CreateMarginFCMSubtraderResponse,
     FCMAssetClassLiteral,
     GetFCMSubtraderRiskControlsResponse,
+    UpdateFCMNotionalRiskLimitRequest,
     UpdateFCMSubtraderRiskControlsRequest,
 )
 from kalshi.resources._base import (
@@ -24,6 +25,7 @@ from kalshi.resources._base import (
 )
 
 _RISK_CONTROLS_PATH = "/margin/fcm/subtraders/risk_controls"
+_NOTIONAL_RISK_LIMIT_PATH = "/margin/fcm/notional_risk_limit"
 
 
 def _build_create_subtrader_body(
@@ -67,6 +69,24 @@ def _build_update_risk_controls_body(
             im_cap=im_cap,
             market_ticker=market_ticker,
             asset_class=asset_class,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_update_notional_risk_limit_body(
+    request: UpdateFCMNotionalRiskLimitRequest | None,
+    *,
+    notional_value_risk_limit: Decimal | None,
+) -> dict[str, object]:
+    _check_request_exclusive(request, notional_value_risk_limit=notional_value_risk_limit)
+    if request is None:
+        if notional_value_risk_limit is None:
+            raise TypeError(
+                "update_notional_risk_limit() requires `notional_value_risk_limit` "
+                "(or pass `request=...`)"
+            )
+        request = UpdateFCMNotionalRiskLimitRequest(
+            notional_value_risk_limit=notional_value_risk_limit,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -178,6 +198,47 @@ class FcmResource(SyncResource):
         )
         self._delete(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)
 
+    @overload
+    def update_notional_risk_limit(
+        self,
+        *,
+        request: UpdateFCMNotionalRiskLimitRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    def update_notional_risk_limit(
+        self,
+        *,
+        notional_value_risk_limit: Decimal,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    def update_notional_risk_limit(
+        self,
+        *,
+        request: UpdateFCMNotionalRiskLimitRequest | None = None,
+        notional_value_risk_limit: Decimal | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``PUT /margin/fcm/notional_risk_limit`` — set the member's account limit.
+
+        Not retried. Returns no body (``EmptyResponse``).
+        """
+        self._require_auth()
+        body = _build_update_notional_risk_limit_body(
+            request, notional_value_risk_limit=notional_value_risk_limit
+        )
+        self._put(_NOTIONAL_RISK_LIMIT_PATH, json=body, extra_headers=extra_headers)
+
+    def delete_notional_risk_limit(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """``DELETE /margin/fcm/notional_risk_limit`` — clear the member-set limit.
+
+        Not retried. A Kalshi-set limit on the account stays in force.
+        """
+        self._require_auth()
+        self._delete(_NOTIONAL_RISK_LIMIT_PATH, extra_headers=extra_headers)
+
 
 class AsyncFcmResource(AsyncResource):
     """Async perps FCM API."""
@@ -281,3 +342,38 @@ class AsyncFcmResource(AsyncResource):
             asset_class=asset_class,
         )
         await self._delete(_RISK_CONTROLS_PATH, params=params, extra_headers=extra_headers)
+
+    @overload
+    async def update_notional_risk_limit(
+        self,
+        *,
+        request: UpdateFCMNotionalRiskLimitRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    @overload
+    async def update_notional_risk_limit(
+        self,
+        *,
+        notional_value_risk_limit: Decimal,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None: ...
+    async def update_notional_risk_limit(
+        self,
+        *,
+        request: UpdateFCMNotionalRiskLimitRequest | None = None,
+        notional_value_risk_limit: Decimal | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`FcmResource.update_notional_risk_limit`."""
+        self._require_auth()
+        body = _build_update_notional_risk_limit_body(
+            request, notional_value_risk_limit=notional_value_risk_limit
+        )
+        await self._put(_NOTIONAL_RISK_LIMIT_PATH, json=body, extra_headers=extra_headers)
+
+    async def delete_notional_risk_limit(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Async :meth:`FcmResource.delete_notional_risk_limit`."""
+        self._require_auth()
+        await self._delete(_NOTIONAL_RISK_LIMIT_PATH, extra_headers=extra_headers)

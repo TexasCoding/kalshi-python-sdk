@@ -1,5 +1,53 @@
 # Migration
 
+## v15.0 → v16.0.0
+
+Reconciles upstream OpenAPI **3.30.0 → 3.31.0** plus matching perps and
+AsyncAPI updates (Closes #519). **Breaking** only for code that constructs
+perps `FCMSubtraderRiskControls`, `GetFCMSubtraderRiskControlsResponse`, or
+`NotionalRiskLimitResponse` without the new required fields.
+
+### Response model field changes
+
+- **Perps** `FCMSubtraderRiskControls.current_im` — required `Decimal`.
+- **Perps** `GetFCMSubtraderRiskControlsResponse.notional_limits` —
+  required `list[FCMSubtraderNotionalRiskLimit]`.
+- **Perps** `NotionalRiskLimitResponse.total_current_usage` (required
+  `Decimal`) and `current_usage_by_market_ticker` (required
+  `dict[str, Decimal]`).
+
+```python
+# Before (constructors / test fixtures):
+# FCMSubtraderRiskControls(subtrader_id="u_desk1", im_cap="100.0000")
+# GetFCMSubtraderRiskControlsResponse(risk_controls=[...])
+# NotionalRiskLimitResponse(default_notional_value_risk_limit="5000.0000",
+#                           notional_value_risk_limits_by_market_ticker={})
+
+# After:
+FCMSubtraderRiskControls(subtrader_id="u_desk1", im_cap="100.0000", current_im="42.0000")
+GetFCMSubtraderRiskControlsResponse(risk_controls=[...], notional_limits=[])
+NotionalRiskLimitResponse(
+    default_notional_value_risk_limit="5000.0000",
+    notional_value_risk_limits_by_market_ticker={},
+    total_current_usage="0",
+    current_usage_by_market_ticker={},
+)
+```
+
+Live `perps.fcm.risk_controls()` / `perps.margin.notional_risk_limit()`
+callers are unaffected.
+
+### Added (non-breaking)
+
+- `historical.fills` / `fills_all` / `orders` / `orders_all(..., subaccount=)`
+- `markets.list` / `list_all(..., max_updated_ts=)`
+- `api_keys.generate(..., key_type=)` (the SDK signer stays RSA-only)
+- `fcm.fills()` / `fcm.fills_all()`
+- Perps `fcm.update_notional_risk_limit()` / `delete_notional_risk_limit()`
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v14.0 → v15.0.0
 
 Reconciles upstream OpenAPI **3.29.0 → 3.30.0** plus matching perps, Klear,

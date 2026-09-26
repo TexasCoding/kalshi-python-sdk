@@ -43,9 +43,11 @@ for market in page:
 for the wire (this endpoint uses comma-join form, **not** the explode form
 used by `bulk_orderbooks`).
 
-All seven `*_ts` filters (`min_created_ts`, `max_created_ts`, `min_updated_ts`,
-`min_close_ts`, `max_close_ts`, `min_settled_ts`, `max_settled_ts`) are
-Unix-second ints.
+All eight `*_ts` filters (`min_created_ts`, `max_created_ts`, `min_updated_ts`,
+`max_updated_ts`, `min_close_ts`, `max_close_ts`, `min_settled_ts`,
+`max_settled_ts`) are Unix-second ints. `max_updated_ts` mirrors
+`min_updated_ts`: metadata updated no later than that timestamp. It combines
+with `min_updated_ts` and `mve_filter=exclude` the same way.
 
 `list_all(...)` walks cursors and returns an iterator — see
 [Pagination](../pagination.md).

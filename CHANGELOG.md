@@ -2,6 +2,67 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 16.0.0 — 2026-09-26
+
+Reconciles upstream OpenAPI **3.30.0 → 3.31.0** plus matching perps and
+AsyncAPI updates after nightly contract failures (Closes #519).
+**Breaking** for constructors of perps `FCMSubtraderRiskControls`,
+`GetFCMSubtraderRiskControlsResponse`, and `NotionalRiskLimitResponse`
+that omit newly required fields.
+
+### Changed (breaking)
+
+- **Perps** `FCMSubtraderRiskControls.current_im` (`Decimal`, required) —
+  initial margin currently attributable to the cap's scope.
+- **Perps** `GetFCMSubtraderRiskControlsResponse.notional_limits`
+  (`list[FCMSubtraderNotionalRiskLimit]`, required) — the admin-set
+  notional value risk limits for the same subtrader.
+- **Perps** `NotionalRiskLimitResponse.total_current_usage` (`Decimal`) and
+  `current_usage_by_market_ticker` (`dict[str, Decimal]`), both required.
+  Live `perps.fcm.risk_controls()` / `perps.margin.notional_risk_limit()`
+  callers are unaffected; tests/mocks that construct these models must pass
+  the new fields.
+
+### Added
+
+- Optional **`subaccount=`** on `historical.fills` / `fills_all` /
+  `orders` / `orders_all` (sync + async). Subaccount-restricted keys see
+  only their own subaccount; a supplied value must match the restriction.
+- Optional **`max_updated_ts=`** on `markets.list` / `list_all`
+  (mirrors `min_updated_ts`).
+- Optional **`key_type=`** (`"rsa"` / `"ed25519"`) on `api_keys.generate`
+  and `GenerateApiKeyRequest`; optional `GenerateApiKeyResponse.key_type`.
+  The SDK request signer (`KalshiAuth`) remains RSA-PSS only.
+- **FCM fills** on `client.fcm`: `fills(min_ts=, max_ts=, cursor=)` →
+  `GetFcmFillsResponse`, and `fills_all(...)` yielding `FcmFill`
+  (`GET /fcm/fills`).
+- **Perps** `fcm.update_notional_risk_limit(notional_value_risk_limit=)`
+  (`PUT /margin/fcm/notional_risk_limit`) and
+  `fcm.delete_notional_risk_limit()` (`DELETE`), with
+  `UpdateFCMNotionalRiskLimitRequest`. Never retried.
+- **Perps** `FCMSubtraderNotionalRiskLimit` model; optional
+  `NotionalRiskLimitResponse.member_notional_value_risk_limit` and
+  `effective_account_notional_value_risk_limit`.
+
+### Changed (non-breaking)
+
+- `RestingMarginReservationLiteral` accepts `"none"`.
+- Perps `LastUpdateReason` / `LastUpdateReasonLiteral` / WS
+  `PerpsLastUpdateReason` accept `"ReduceOnlyCancel"`.
+
+### Spec notes
+
+- Core OpenAPI `info.version` **3.31.0** (117 operations; 116 mapped).
+  Still unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer`.
+- AsyncAPI still 15 channels. 12 typed `subscribe_*` helpers. The new
+  communications `user_filter` subscribe option and core user-order
+  `last_update_reason` field are not yet modeled.
+- Perps OpenAPI: 48 → 50 operations.
+- Upstream dropped the deprecated `Market.liquidity_dollars` and Klear
+  `prev_settlement_prices`; the SDK keeps its existing optional fields for
+  now.
+
 ## 15.0.0 — 2026-09-20
 
 Reconciles upstream OpenAPI **3.29.0 → 3.30.0** plus matching perps, Klear,

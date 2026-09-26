@@ -294,6 +294,22 @@ class TestOrderbookDelta:
         msg = MarginOrderbookDeltaMessage.model_validate(frame)
         assert msg.msg.last_update_reason == ""
 
+    def test_delta_last_update_reason_reduce_only_cancel(self) -> None:
+        frame = {
+            "type": "orderbook_delta",
+            "sid": 1,
+            "seq": 2,
+            "msg": {
+                "market_ticker": "BTC-PERP",
+                "price": "100.5000",
+                "delta": "3.00",
+                "side": "ask",
+                "last_update_reason": "ReduceOnlyCancel",
+            },
+        }
+        msg = MarginOrderbookDeltaMessage.model_validate(frame)
+        assert msg.msg.last_update_reason == "ReduceOnlyCancel"
+
 
 class TestTicker:
     def _full_frame(self) -> dict[str, Any]:

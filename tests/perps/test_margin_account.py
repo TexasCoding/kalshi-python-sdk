@@ -313,6 +313,10 @@ class TestNotionalRiskLimit:
                         "market-abc-123": "7500.0000",
                         "market-xyz-789": "1000.0000",
                     },
+                    "total_current_usage": "1250.0000",
+                    "current_usage_by_market_ticker": {"market-abc-123": "1250.0000"},
+                    "member_notional_value_risk_limit": "4000.0000",
+                    "effective_account_notional_value_risk_limit": "4000.0000",
                 },
             )
         )
@@ -323,6 +327,10 @@ class TestNotionalRiskLimit:
         overrides = resp.notional_value_risk_limits_by_market_ticker
         assert overrides["market-abc-123"] == Decimal("7500.0000")
         assert isinstance(overrides["market-xyz-789"], Decimal)
+        assert resp.total_current_usage == Decimal("1250.0000")
+        assert resp.current_usage_by_market_ticker["market-abc-123"] == Decimal("1250.0000")
+        assert resp.member_notional_value_risk_limit == Decimal("4000.0000")
+        assert resp.effective_account_notional_value_risk_limit == Decimal("4000.0000")
 
     @respx.mock
     def test_edge_empty_override_map(self, perps_client: PerpsClient) -> None:
@@ -332,11 +340,16 @@ class TestNotionalRiskLimit:
                 json={
                     "default_notional_value_risk_limit": "5000.0000",
                     "notional_value_risk_limits_by_market_ticker": {},
+                    "total_current_usage": "0.0000",
+                    "current_usage_by_market_ticker": {},
                 },
             )
         )
         resp = perps_client.margin.notional_risk_limit()
         assert resp.notional_value_risk_limits_by_market_ticker == {}
+        assert resp.current_usage_by_market_ticker == {}
+        assert resp.member_notional_value_risk_limit is None
+        assert resp.effective_account_notional_value_risk_limit is None
 
     @respx.mock
     def test_server_401_maps(self, perps_client: PerpsClient) -> None:
@@ -354,6 +367,8 @@ class TestNotionalRiskLimit:
                 json={
                     "default_notional_value_risk_limit": "0.0000",
                     "notional_value_risk_limits_by_market_ticker": {},
+                    "total_current_usage": "0.0000",
+                    "current_usage_by_market_ticker": {},
                 },
             )
         )
@@ -371,6 +386,8 @@ class TestNotionalRiskLimit:
                 json={
                     "default_notional_value_risk_limit": "5000.0000",
                     "notional_value_risk_limits_by_market_ticker": {"m-1": "1.0000"},
+                    "total_current_usage": "1.0000",
+                    "current_usage_by_market_ticker": {"m-1": "1.0000"},
                 },
             )
         )

@@ -384,6 +384,59 @@ class TestApiKeysGenerate:
         with pytest.raises(AuthRequiredError):
             unauth_api_keys.generate(name="bot")
 
+    def test_generate_request_serializes_key_type(self) -> None:
+        req = GenerateApiKeyRequest(name="bot", key_type="ed25519")
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["key_type"] == "ed25519"
+
+    def test_generate_request_omits_key_type(self) -> None:
+        req = GenerateApiKeyRequest(name="bot")
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "key_type" not in body
+
+    def test_generate_request_rejects_bad_key_type(self) -> None:
+        with pytest.raises(ValidationError):
+            GenerateApiKeyRequest(name="bot", key_type="dsa")  # type: ignore[arg-type]
+
+    @respx.mock
+    def test_generate_sends_key_type(self, api_keys: ApiKeysResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "api_key_id": "k-ed",
+                    "private_key": "-----BEGIN PRIVATE KEY-----",
+                    "key_type": "ed25519",
+                },
+            ),
+        )
+        resp = api_keys.generate(name="bot", key_type="ed25519")
+        assert json.loads(route.calls[0].request.content)["key_type"] == "ed25519"
+        assert resp.key_type == "ed25519"
+        assert resp.private_key.get_secret_value().startswith("-----BEGIN")
+
+    @respx.mock
+    def test_generate_response_key_type_absent(self, api_keys: ApiKeysResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(
+            return_value=httpx.Response(
+                201, json={"api_key_id": "k-auto", "private_key": "-----BEGIN..."}
+            ),
+        )
+        resp = api_keys.generate(name="bot")
+        assert resp.key_type is None
+
+    @respx.mock
+    def test_generate_server_400(self, api_keys: ApiKeysResource) -> None:
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(return_value=httpx.Response(400, json={"message": "bad name"}))
+        with pytest.raises(KalshiValidationError):
+            api_keys.generate(name="bot", key_type="rsa")
+
 
 class TestApiKeysDelete:
     @respx.mock
@@ -450,6 +503,28 @@ class TestAsyncApiKeys:
         )
         resp = await async_api_keys.generate(name="bot")
         assert resp.private_key.get_secret_value().startswith("-----BEGIN")
+        assert resp.key_type is None
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_generate_key_type(
+        self, async_api_keys: AsyncApiKeysResource,
+    ) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/api_keys/generate",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "api_key_id": "k-ed",
+                    "private_key": "-----BEGIN PRIVATE KEY-----",
+                    "key_type": "ed25519",
+                },
+            ),
+        )
+        resp = await async_api_keys.generate(name="bot", key_type="rsa")
+        assert json.loads(route.calls[0].request.content)["key_type"] == "rsa"
+        assert resp.key_type == "ed25519"
 
     @respx.mock
     @pytest.mark.asyncio

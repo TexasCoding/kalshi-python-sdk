@@ -84,12 +84,21 @@ class GetMarginRiskResponse(BaseModel):
 
 
 class NotionalRiskLimitResponse(BaseModel):
-    """Spec ``NotionalRiskLimitResponse`` — default limit + per-ticker overrides."""
+    """Spec ``NotionalRiskLimitResponse`` — default limit, usage, and overrides.
+
+    ``total_current_usage`` and ``current_usage_by_market_ticker`` are
+    spec-required. ``member_notional_value_risk_limit`` and
+    ``effective_account_notional_value_risk_limit`` are present only when set.
+    """
 
     model_config = ConfigDict(extra="allow")
 
     default_notional_value_risk_limit: DollarDecimal
     notional_value_risk_limits_by_market_ticker: dict[str, DollarDecimal]
+    total_current_usage: DollarDecimal
+    current_usage_by_market_ticker: dict[str, DollarDecimal]
+    member_notional_value_risk_limit: DollarDecimal | None = None
+    effective_account_notional_value_risk_limit: DollarDecimal | None = None
 
 
 class GetMarginFeeTiersResponse(BaseModel):

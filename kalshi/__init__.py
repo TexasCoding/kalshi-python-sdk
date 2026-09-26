@@ -37,6 +37,7 @@ from kalshi.models import (
     AmendOrderV2Response,
     Announcement,
     ApiKey,
+    ApiKeyTypeLiteral,
     ApiUsageLevelGrant,
     ApplySubaccountTransferRequest,
     AssociatedEvent,
@@ -84,6 +85,7 @@ from kalshi.models import (
     ExchangeIndexStatus,
     ExchangeInstanceLiteral,
     ExchangeStatus,
+    FcmFill,
     FCMSubtrader,
     Fill,
     ForecastPercentilesPoint,
@@ -94,6 +96,7 @@ from kalshi.models import (
     GetCommunicationsIDResponse,
     GetEventLiveDataResponse,
     GetFCMEventContractDailyCapResponse,
+    GetFcmFillsResponse,
     GetFCMSubtraderBlockedCategoriesResponse,
     GetFiltersBySportsResponse,
     GetGameStatsResponse,
@@ -223,6 +226,7 @@ __all__ = [
     "AmendOrderV2Response",
     "Announcement",
     "ApiKey",
+    "ApiKeyTypeLiteral",
     "ApiUsageLevelGrant",
     "ApplySubaccountTransferRequest",
     "AssociatedEvent",
@@ -279,6 +283,7 @@ __all__ = [
     "ExchangeInstanceLiteral",
     "ExchangeStatus",
     "FCMSubtrader",
+    "FcmFill",
     "Fill",
     "FixClient",
     "FixConfig",
@@ -293,6 +298,7 @@ __all__ = [
     "GetEventLiveDataResponse",
     "GetFCMEventContractDailyCapResponse",
     "GetFCMSubtraderBlockedCategoriesResponse",
+    "GetFcmFillsResponse",
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",
@@ -421,4 +427,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "15.0.0"
+__version__ = "16.0.0"

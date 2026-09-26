@@ -11,7 +11,7 @@ Auth required throughout (you need an existing key to manage keys).
 |---|---|
 | `list(*, fcm_subtrader_id=None)` | `GET /api_keys` |
 | `create(*, name, public_key, scopes=None, subaccount=None, fcm_subtrader_id=None)` | `POST /api_keys` |
-| `generate(*, name, scopes=None, subaccount=None, fcm_subtrader_id=None)` | `POST /api_keys/generate` |
+| `generate(*, name, scopes=None, subaccount=None, fcm_subtrader_id=None, key_type=None)` | `POST /api_keys/generate` |
 | `delete(api_key)` | `DELETE /api_keys/{api_key}` |
 
 !!! note "Subaccount-scoped keys (spec v3.23.0)"
@@ -44,9 +44,15 @@ The simplest path — Kalshi mints the keypair, you store the private key once:
 ```python
 resp = client.api_keys.generate(name="ci-bot-2026", scopes=["read", "write"])
 private_pem = resp.private_key.get_secret_value()   # SecretStr — see warning
-print(resp.api_key.api_key)                          # the key id
+print(resp.api_key_id)                               # the key id
 # Persist private_pem somewhere safe; you will not see it again.
 ```
+
+`key_type` is `"rsa"` or `"ed25519"`. Omit it and the server mints RSA, which
+is what `KalshiAuth` can sign with. An Ed25519 private key (`key_type="ed25519"`,
+PKCS#8 PEM) is returned the same way, but this SDK's request signer is
+RSA-PSS only — it cannot authenticate calls with that key. `resp.key_type`
+echoes the algorithm when the server sends it.
 
 !!! danger "`private_key` is a `SecretStr` — and you only see it once"
     `resp.private_key` is a `pydantic.SecretStr`. `print(resp.private_key)`

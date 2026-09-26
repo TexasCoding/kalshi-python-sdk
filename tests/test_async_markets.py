@@ -71,7 +71,7 @@ class TestAsyncMarketsList:
     @respx.mock
     @pytest.mark.asyncio
     async def test_list_with_all_new_filters(self, markets: AsyncMarketsResource) -> None:
-        """v0.7.0 ADDs: tickers, mve_filter, 7 *_ts filters."""
+        """v0.7.0 ADDs: tickers, mve_filter, *_ts filters (incl. max_updated_ts)."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
             return_value=httpx.Response(200, json={"markets": [], "cursor": None})
         )
@@ -84,6 +84,7 @@ class TestAsyncMarketsList:
             min_created_ts=1000,
             max_created_ts=2000,
             min_updated_ts=1500,
+            max_updated_ts=1600,
             min_close_ts=3000,
             max_close_ts=4000,
             min_settled_ts=5000,
@@ -100,6 +101,7 @@ class TestAsyncMarketsList:
         assert params["min_created_ts"] == "1000"
         assert params["max_created_ts"] == "2000"
         assert params["min_updated_ts"] == "1500"
+        assert params["max_updated_ts"] == "1600"
         assert params["min_close_ts"] == "3000"
         assert params["max_close_ts"] == "4000"
         assert params["min_settled_ts"] == "5000"
@@ -485,3 +487,40 @@ class TestAsyncMarketsListAllTradesRename:
             iterator = markets.list_trades_all(limit=1)
         items = [t async for t in iterator]
         assert [t.trade_id for t in items] == ["t-1"]
+
+
+class TestAsyncMaxUpdatedTs:
+    @respx.mock
+    async def test_list_sends_max_updated_ts(self, markets: AsyncMarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
+        )
+        await markets.list(max_updated_ts=1_700_000_000)
+        assert route.calls[0].request.url.params["max_updated_ts"] == "1700000000"
+
+    @respx.mock
+    async def test_list_omits_when_unset(self, markets: AsyncMarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": None})
+        )
+        await markets.list()
+        assert "max_updated_ts" not in route.calls[0].request.url.params
+
+    @respx.mock
+    async def test_list_server_400(self, markets: AsyncMarketsResource) -> None:
+        from kalshi.errors import KalshiError
+
+        respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(400, json={"message": "bad window"})
+        )
+        with pytest.raises(KalshiError):
+            await markets.list(max_updated_ts=-1)
+
+    @respx.mock
+    async def test_list_all_forwards_max_updated_ts(self, markets: AsyncMarketsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/markets").mock(
+            return_value=httpx.Response(200, json={"markets": [], "cursor": ""})
+        )
+        items = [m async for m in markets.list_all(max_updated_ts=42)]
+        assert items == []
+        assert route.calls[0].request.url.params["max_updated_ts"] == "42"

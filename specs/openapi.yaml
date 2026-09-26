@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.30.0
+  version: 3.31.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -398,7 +398,7 @@ paths:
         | min_created_ts, max_created_ts | `unopened`, `open`, *empty* | |
         | min_close_ts, max_close_ts | `closed`, *empty* | |
         | min_settled_ts, max_settled_ts | `settled`, *empty* | |
-        | min_updated_ts | *empty* | Incompatible with all filters besides `mve_filter=exclude`. May be combined with `series_ticker`, which requires `mve_filter=exclude` |
+        | min_updated_ts, max_updated_ts | *empty* | Incompatible with all filters besides `mve_filter=exclude`. May be combined with `series_ticker`, which requires `mve_filter=exclude` |
 
         Markets that settled before the historical cutoff are only available via `GET /historical/markets`. See [Historical Data](https://docs.kalshi.com/getting_started/historical_data) for details.
 
@@ -412,6 +412,7 @@ paths:
         - $ref: '#/components/parameters/MinCreatedTsQuery'
         - $ref: '#/components/parameters/MaxCreatedTsQuery'
         - $ref: '#/components/parameters/MinUpdatedTsQuery'
+        - $ref: '#/components/parameters/MaxUpdatedTsQuery'
         - $ref: '#/components/parameters/MaxCloseTsQuery'
         - $ref: '#/components/parameters/MinCloseTsQuery'
         - $ref: '#/components/parameters/MinSettledTsQuery'
@@ -2723,7 +2724,7 @@ paths:
     post:
       operationId: CreateApiKey
       summary: Create API Key
-      description: ' Endpoint for creating a new API key with a user-provided public key.  This endpoint allows users with Premier or Market Maker API usage levels to create API keys by providing their own RSA public key. The platform will use this public key to verify signatures on API requests.'
+      description: ' Endpoint for creating a new API key with a user-provided public key.  This endpoint allows users with Premier or Market Maker API usage levels to create API keys by providing their own RSA or Ed25519 public key in PEM format. The platform will use this public key to verify signatures on API requests: RSA-PSS with SHA-256 for RSA keys, Ed25519 for Ed25519 keys.'
       tags:
         - api-keys
       security:
@@ -2758,7 +2759,7 @@ paths:
     post:
       operationId: GenerateApiKey
       summary: Generate API Key
-      description: ' Endpoint for generating a new API key with an automatically created key pair.  This endpoint generates both a public and private RSA key pair. The public key is stored on the platform, while the private key is returned to the user and must be stored securely. The private key cannot be retrieved again.'
+      description: ' Endpoint for generating a new API key with an automatically created key pair.  This endpoint generates a key pair of the requested key_type (RSA when omitted). The public key is stored on the platform, while the private key is returned to the user and must be stored securely. The private key cannot be retrieved again.'
       tags:
         - api-keys
       security:
@@ -3624,6 +3625,38 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /fcm/fills:
+    get:
+      operationId: GetFCMFills
+      summary: Get FCM Fills
+      description: |
+        Returns fills across the authenticated FCM's subtraders. Requires FCM member access.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - $ref: '#/components/parameters/MinTsQuery'
+        - $ref: '#/components/parameters/MaxTsQuery'
+        - $ref: '#/components/parameters/CursorQuery'
+      responses:
+        '200':
+          description: Fills retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetFcmFillsResponse'
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires an unrestricted FCM member API key
+        '500':
+          description: Internal server error
+
   /fcm/orders:
     get:
       operationId: GetFCMOrders
@@ -4181,6 +4214,7 @@ paths:
       summary: Get Historical Fills
       description: |
         Endpoint for getting all historical fills for the member. A fill is when a trade you have is matched.
+        API keys restricted to a subaccount return only that subaccount's fills. If supplied, `subaccount` must match the key's restriction.
         Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - historical
@@ -4195,6 +4229,7 @@ paths:
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/SubaccountQuery'
       responses:
         '200':
           description: Fills retrieved successfully
@@ -4215,7 +4250,9 @@ paths:
     get:
       operationId: GetHistoricalOrders
       summary: Get Historical Orders
-      description:  ' Endpoint for getting orders that have been archived to the historical database.'
+      description: |
+        Endpoint for getting orders that have been archived to the historical database.
+        API keys restricted to a subaccount return only that subaccount's orders. If supplied, `subaccount` must match the key's restriction.
       tags:
         - historical
       security:
@@ -4228,6 +4265,7 @@ paths:
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/SubaccountQuery'
       responses:
         '200':
           description: Historical orders retrieved successfully
@@ -4364,7 +4402,7 @@ components:
       type: apiKey
       in: header
       name: KALSHI-ACCESS-SIGNATURE
-      description: RSA-PSS signature of the request
+      description: Base64 signature of the pre-sign text (timestamp + method + path) made with the API key's algorithm - RSA-PSS with SHA-256 for RSA keys, Ed25519 for Ed25519 keys
     kalshiAccessTimestamp:
       type: apiKey
       in: header
@@ -4679,7 +4717,15 @@ components:
     MinUpdatedTsQuery:
       name: min_updated_ts
       in: query
-      description: Return markets with metadata updated later than this Unix timestamp. Tracks non-trading changes only. Incompatible with any other filters except mve_filter=exclude. May be combined with series_ticker, which requires mve_filter=exclude.
+      description: Return markets with metadata updated later than this Unix timestamp (in seconds). Tracks non-trading changes only. May be combined with max_updated_ts and mve_filter=exclude. May also be combined with series_ticker, which requires mve_filter=exclude. Incompatible with other filters.
+      schema:
+        type: integer
+        format: int64
+
+    MaxUpdatedTsQuery:
+      name: max_updated_ts
+      in: query
+      description: Return markets with metadata updated at or before this Unix timestamp (in seconds). Tracks non-trading changes only. May be combined with min_updated_ts and mve_filter=exclude. May also be combined with series_ticker, which requires mve_filter=exclude. Incompatible with other filters.
       schema:
         type: integer
         format: int64
@@ -4936,6 +4982,12 @@ components:
       x-enum-varnames: ['ApiKeyScopeRead', 'ApiKeyScopeWrite', 'ApiKeyScopeReadBlockTradeAccept', 'ApiKeyScopeReadPortfolioBalance', 'ApiKeyScopeWriteTrade', 'ApiKeyScopeWriteTransfer', 'ApiKeyScopeWriteFCMRisk', 'ApiKeyScopeWriteBlockTradeAccept']
       description: Scope granted to an API key. Parent scopes grant broad access; for example, `read` grants all read endpoints and `write` grants all write endpoints. Child scopes such as `read::block_trade_accept`, `read::portfolio_balance`, `write::trade`, `write::transfer`, `write::fcm_risk` (FCM subtrader creation, trading blocks, daily premium caps, and margin caps), and `write::block_trade_accept` grant only their specific endpoint group and can be granted without the parent scope.
 
+    ApiKeyType:
+      type: string
+      enum: ['rsa', 'ed25519']
+      x-enum-varnames: ['ApiKeyTypeRsa', 'ApiKeyTypeEd25519']
+      description: Signature algorithm of an API key pair. `rsa` - 2048-bit RSA; requests are signed with RSA-PSS SHA-256. `ed25519` - Ed25519 (RFC 8032) signatures over the same pre-sign text, with lower client-side signing cost. Defaults to `rsa` when omitted from a generate request, for compatibility with existing clients.
+
     ApiKey:
       type: object
       required:
@@ -4992,7 +5044,7 @@ components:
           description: Name for the API key. This helps identify the key's purpose
         public_key:
           type: string
-          description: RSA public key in PEM format. This will be used to verify signatures on API requests
+          description: RSA or Ed25519 public key in PEM format (`-----BEGIN PUBLIC KEY-----`). This will be used to verify signatures on API requests - RSA-PSS with SHA-256 for RSA keys, Ed25519 for Ed25519 keys
         scopes:
           type: array
           description: List of scopes to grant to the API key. If the broad `write` parent scope is included, `read` must also be included. Child scopes may be granted without the broad parent scope. Defaults to full access (`read`, `write`) if not provided.
@@ -5028,6 +5080,8 @@ components:
         name:
           type: string
           description: Name for the API key. This helps identify the key's purpose
+        key_type:
+          $ref: '#/components/schemas/ApiKeyType'
         scopes:
           type: array
           description: List of scopes to grant to the API key. If the broad `write` parent scope is included, `read` must also be included. Child scopes may be granted without the broad parent scope. Defaults to full access (`read`, `write`) if not provided.
@@ -5051,9 +5105,11 @@ components:
         api_key_id:
           type: string
           description: Unique identifier for the newly generated API key
+        key_type:
+          $ref: '#/components/schemas/ApiKeyType'
         private_key:
           type: string
-          description: RSA private key in PEM format. This must be stored securely and cannot be retrieved again after this response
+          description: Private key in PEM format - PKCS#1 (`-----BEGIN RSA PRIVATE KEY-----`) for `rsa`, PKCS#8 (`-----BEGIN PRIVATE KEY-----`) for `ed25519`. This must be stored securely and cannot be retrieved again after this response
         warning:
           type: string
           nullable: true
@@ -6851,6 +6907,12 @@ components:
         cursor:
           type: string
 
+    OutcomeSide:
+      type: string
+      enum: ['yes', 'no']
+      x-enum-varnames: ['OutcomeSideYes', 'OutcomeSideNo']
+      description: Outcome side.
+
     Fill:
       type: object
       required:
@@ -6900,8 +6962,7 @@ components:
           description: |
             Deprecated. Use `outcome_side` (or `book_side`) instead. See [Order direction](/getting_started/order_direction). This field will not be removed before May 14, 2026.
         outcome_side:
-          type: string
-          enum: ['yes', 'no']
+          $ref: '#/components/schemas/OutcomeSide'
           description: |
             The outcome side this fill positioned the user for. buy-yes and sell-no produce 'yes'; buy-no and sell-yes produce 'no'.
 
@@ -6943,6 +7004,56 @@ components:
           format: int64
           description: Unix timestamp when this fill was executed (legacy field name)
 
+    FcmFill:
+      type: object
+      required:
+        - fill_id
+        - exchange_index
+        - ticker
+        - taker_outcome_side
+        - count_fp
+        - yes_price_dollars
+      properties:
+        fill_id:
+          type: string
+          description: Fill ID.
+        exchange_index:
+          $ref: '#/components/schemas/ExchangeIndex'
+        ticker:
+          type: string
+          description: Market ticker.
+        taker_outcome_side:
+          $ref: '#/components/schemas/OutcomeSide'
+          description: Taker outcome side. The maker has the opposite outcome.
+        count_fp:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: Filled contract count.
+        yes_price_dollars:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: YES price in dollars.
+        created_time:
+          type: string
+          format: date-time
+          description: Fill execution time.
+        maker_order_id:
+          type: string
+          description: Maker order ID when owned by the FCM.
+        maker_subtrader_id:
+          type: string
+          description: Maker subtrader ID when owned by the FCM.
+        maker_fee_cost:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Maker fee in dollars when owned by the FCM.
+        taker_order_id:
+          type: string
+          description: Taker order ID when owned by the FCM.
+        taker_subtrader_id:
+          type: string
+          description: Taker subtrader ID when owned by the FCM.
+        taker_fee_cost:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Taker fee in dollars when owned by the FCM.
+
     GetFillsResponse:
       type: object
       required:
@@ -6953,6 +7064,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Fill'
+        cursor:
+          type: string
+
+    GetFcmFillsResponse:
+      type: object
+      required:
+        - fills
+        - cursor
+      properties:
+        fills:
+          type: array
+          items:
+            $ref: '#/components/schemas/FcmFill'
         cursor:
           type: string
 
@@ -7178,10 +7302,11 @@ components:
 
     RestingMarginReservation:
       type: string
-      enum: [max, sum]
-      x-enum-varnames: [RestingMarginReservationMax, RestingMarginReservationSum]
+      enum: [none, max, sum]
+      x-enum-varnames: [RestingMarginReservationNone, RestingMarginReservationMax, RestingMarginReservationSum]
       description: |
-        Collateral an automatic rebalance leaves behind for resting orders. `max` reserves the
+        Collateral an automatic rebalance leaves behind for resting orders. `none` reserves no
+        collateral for resting orders. `max` reserves the
         largest single market-side commitment. `sum` reserves the summed margin of every resting order.
 
     GetTargetBalanceAllocationResponse:
@@ -7214,7 +7339,7 @@ components:
             - $ref: '#/components/schemas/RestingMarginReservation'
           description: Defaults to `sum` when omitted.
           x-oapi-codegen-extra-tags:
-            validate: omitempty,oneof=max sum
+            validate: omitempty,oneof=none max sum
           x-go-type-skip-optional-pointer: true
 
     IntraExchangeInstanceTransferRequest:
@@ -8406,7 +8531,7 @@ components:
           description: If this flag is set to true, the order will be canceled if the order is open and trading on the exchange is paused for any reason.
         reduce_only:
           type: boolean
-          description: Specifies whether the order place count should be capped by the member's current position.
+          description: Specifies whether the order place count should be capped by the member's current position. Orders with reduce_only set to true will be rejected unless time_in_force is immediate_or_cancel.
         subaccount:
           type: integer
           minimum: 0
@@ -9257,10 +9382,15 @@ components:
           description: Full title of the event.
         collateral_return_type:
           type: string
-          description: Specifies how collateral is returned when markets settle (e.g., 'binary' for standard yes/no markets).
+          description: |
+            Collateral-return netting type for this event: `MECNET` for mutually exclusive markets, `DIRECNET` for directional netting, or an empty string for no collateral-return netting.
+            Netting applies within this event, not across all events in its series, and also requires netting to be enabled for the trading account or subtrader.
+            Use `with_nested_markets=true` to retrieve the markets associated with each event.
         mutually_exclusive:
           type: boolean
-          description: If true, only one market in this event can resolve to 'yes'. If false, multiple markets can resolve to 'yes'.
+          description: |
+            True when `collateral_return_type` is `MECNET`: at most one market in this event can resolve to 'yes'.
+            False for both `DIRECNET` and an empty collateral-return type. A false value does not mean collateral-return netting is unavailable. Use `collateral_return_type` to distinguish these cases.
         category:
           type: string
           description: Event category (deprecated, use series-level category instead).
@@ -9668,12 +9798,6 @@ components:
         previous_price_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Price for the last traded YES contract on this market a day ago in dollars
-        liquidity_dollars:
-          allOf:
-            - $ref: '#/components/schemas/FixedPointDollars'
-          deprecated: true
-          x-go-type-skip-optional-pointer: true
-          description: 'DEPRECATED: This field is deprecated and will always return "0.0000".'
         settlement_value_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           nullable: true

@@ -1,8 +1,10 @@
 """FCM resource — Futures Commission Merchant endpoints.
 
 Orders/positions filter by ``subtrader_id`` and reuse the existing Order and
-PositionsResponse shapes. Subtrader admin routes (list/create, blocked
-categories, event-contract daily cap) live on ``/fcm/subtraders*``.
+PositionsResponse shapes. ``fills`` lists fills across the member's
+subtraders (``min_ts`` / ``max_ts`` / ``cursor``). Subtrader admin routes
+(list/create, blocked categories, event-contract daily cap) live on
+``/fcm/subtraders*``.
 
 Non-FCM accounts receive 401/403 on these routes. Demo does service them
 (per Path B audit 2026-04-18) but typically returns empty lists for an
@@ -20,7 +22,9 @@ from kalshi.models.common import Page
 from kalshi.models.fcm import (
     CreateFCMSubtraderRequest,
     CreateFCMSubtraderResponse,
+    FcmFill,
     GetFCMEventContractDailyCapResponse,
+    GetFcmFillsResponse,
     GetFCMSubtraderBlockedCategoriesResponse,
     ListFCMSubtradersResponse,
     UpdateFCMEventContractDailyCapRequest,
@@ -83,6 +87,15 @@ def _fcm_orders_params(
         limit=limit,
         cursor=cursor,
     )
+
+
+def _fcm_fills_params(
+    *,
+    min_ts: int | None,
+    max_ts: int | None,
+    cursor: str | None,
+) -> dict[str, Any]:
+    return _params(min_ts=min_ts, max_ts=max_ts, cursor=cursor)
 
 
 def _fcm_positions_params(
@@ -226,6 +239,41 @@ class FcmResource(SyncResource):
             "/fcm/orders",
             Order,
             "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    def fills(
+        self,
+        *,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetFcmFillsResponse:
+        """``GET /fcm/fills`` — fills across the authenticated FCM's subtraders."""
+        self._require_auth()
+        params = _fcm_fills_params(min_ts=min_ts, max_ts=max_ts, cursor=cursor)
+        data = self._get("/fcm/fills", params=params, extra_headers=extra_headers)
+        return GetFcmFillsResponse.model_validate(data)
+
+    def fills_all(
+        self,
+        *,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[FcmFill]:
+        """Auto-paginate ``GET /fcm/fills``, yielding each :class:`FcmFill`."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fcm_fills_params(min_ts=min_ts, max_ts=max_ts, cursor=None)
+        return self._list_all(
+            "/fcm/fills",
+            FcmFill,
+            "fills",
             params=params,
             max_pages=max_pages,
             extra_headers=extra_headers,
@@ -499,6 +547,41 @@ class AsyncFcmResource(AsyncResource):
             "/fcm/orders",
             Order,
             "orders",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    async def fills(
+        self,
+        *,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetFcmFillsResponse:
+        """Async :meth:`FcmResource.fills`."""
+        self._require_auth()
+        params = _fcm_fills_params(min_ts=min_ts, max_ts=max_ts, cursor=cursor)
+        data = await self._get("/fcm/fills", params=params, extra_headers=extra_headers)
+        return GetFcmFillsResponse.model_validate(data)
+
+    def fills_all(
+        self,
+        *,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[FcmFill]:
+        """Async counterpart of :meth:`FcmResource.fills_all`. Use ``async for``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _fcm_fills_params(min_ts=min_ts, max_ts=max_ts, cursor=None)
+        return self._list_all(
+            "/fcm/fills",
+            FcmFill,
+            "fills",
             params=params,
             max_pages=max_pages,
             extra_headers=extra_headers,

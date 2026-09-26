@@ -77,6 +77,7 @@ class LastUpdateReason(StrEnum):
     EXPIRY_CANCEL = "ExpiryCancel"
     TRADE = "Trade"
     POST_ONLY_CROSS_CANCEL = "PostOnlyCrossCancel"
+    REDUCE_ONLY_CANCEL = "ReduceOnlyCancel"
 
 
 class OrderSource(StrEnum):

@@ -530,7 +530,7 @@ paths:
       summary: Create Subtrader-Bound API Key
       description: >-
         FCM clearing members only. Mint an API key bound to one of your margin
-        subtraders using an RSA public key you supply. The binding is set at
+        subtraders using an RSA or Ed25519 public key you supply. The binding is set at
         mint and immutable; the resulting key is the institution's trading
         credential for that subtrader and cannot reach any REST endpoint,
         including key management.
@@ -713,6 +713,12 @@ components:
             - cash_activity_daily
             - daily_financial_summary
             - interest_on_collateral_monthly
+            - daily_statement
+          description: >-
+            Report file type. Every type is a CSV except `daily_statement`,
+            the end-of-day PDF statement that lays out the same date's
+            position, trade, settlement, funding, and cash files with an
+            account summary.
         url: { type: string, description: Presigned download URL (omitted from logs). }
         date:
           type: string
@@ -1092,10 +1098,6 @@ components:
           additionalProperties: { $ref: '#/components/schemas/SettlementEstimate' }
         omitted_subtrader_count: { type: integer, format: int64, description: Number of subtraders omitted from subtrader_breakdowns. Their amounts are still included in user_breakdown. }
         omitted_group_count: { type: integer, format: int64, description: Number of groups omitted from group_breakdowns. Their amounts are still included in user_breakdown. }
-        prev_settlement_prices:
-          type: object
-          description: Map of market ticker to that market's most recent settlement (mark) price, in centicents.
-          additionalProperties: { type: integer, format: int64 }
         next_runtime: { type: string, format: date-time, description: Next settlement time for this asset class. }
 
     GetSettlementEstimateByAssetClassResponse:
@@ -1280,7 +1282,7 @@ components:
           description: Name identifying the key's purpose, e.g. the institution it is issued to.
         public_key:
           type: string
-          description: RSA public key in PEM format. Signatures on the institution's requests verify against it.
+          description: RSA or Ed25519 public key in PEM format. Signatures on the institution's requests verify against it with the key's algorithm.
         fcm_subtrader_id:
           type: string
           description: The subtrader to bind, spelled {your_account_id}_{suffix} with a suffix of 1-16 characters of [a-z0-9]. Must already exist and belong to you.

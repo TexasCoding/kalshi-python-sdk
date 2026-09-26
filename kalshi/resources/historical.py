@@ -69,9 +69,22 @@ def _historical_fills_or_orders_params(
     ticker: str | None,
     min_ts: int | None,
     max_ts: int | None,
+    subaccount: int | None,
 ) -> dict[str, Any]:
+    """Query params for GET /historical/fills and GET /historical/orders.
+
+    ``subaccount`` is ``SubaccountQuery``: omit it to include every subaccount
+    (a subaccount-restricted API key still sees only its own).
+    """
     limit = _validate_limit(limit, hi=1000)
-    return _params(limit=limit, cursor=cursor, ticker=ticker, min_ts=min_ts, max_ts=max_ts)
+    return _params(
+        limit=limit,
+        cursor=cursor,
+        ticker=ticker,
+        min_ts=min_ts,
+        max_ts=max_ts,
+        subaccount=subaccount,
+    )
 
 
 def _historical_trades_params(
@@ -213,6 +226,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         self._require_auth()
@@ -222,6 +236,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list(
             "/historical/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -234,6 +249,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
@@ -245,6 +261,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/fills",
@@ -263,6 +280,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
@@ -272,6 +290,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list(
             "/historical/orders", Order, "orders", params=params, extra_headers=extra_headers
@@ -284,6 +303,7 @@ class HistoricalResource(SyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Order]:
@@ -295,6 +315,7 @@ class HistoricalResource(SyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/orders",
@@ -516,6 +537,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
         self._require_auth()
@@ -525,6 +547,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return await self._list(
             "/historical/fills", Fill, "fills", params=params, extra_headers=extra_headers
@@ -537,6 +560,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
@@ -548,6 +572,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/fills",
@@ -566,6 +591,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Order]:
         self._require_auth()
@@ -575,6 +601,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return await self._list(
             "/historical/orders", Order, "orders", params=params, extra_headers=extra_headers
@@ -587,6 +614,7 @@ class AsyncHistoricalResource(AsyncResource):
         ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
+        subaccount: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Order]:
@@ -598,6 +626,7 @@ class AsyncHistoricalResource(AsyncResource):
             ticker=ticker,
             min_ts=min_ts,
             max_ts=max_ts,
+            subaccount=subaccount,
         )
         return self._list_all(
             "/historical/orders",

@@ -636,7 +636,7 @@ components:
 
     lastUpdateReason:
       type: string
-      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel"]
+      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel"]
       description: Margin order update reason when the delta corresponds to the authenticated user's order. CloseCancel and HaltCancel are reserved; the current orderbook stream filters out these operations. The field is omitted when no reason applies.
 
     tickerPrice:
@@ -1006,7 +1006,7 @@ components:
               type: string
               description: Total notional value of one sided open interest in dollars.
             reference_price:
-              description: Reference price of underlying asset, when available.
+              description: Underlying reference index value scaled to one contract, when available (CF Benchmarks for crypto perps; Pyth for metals, commodities, and other Pyth-indexed perps). ts_ms is the index source timestamp.
               allOf:
                 - $ref: '#/components/schemas/tickerPrice'
             settlement_mark_price:
@@ -1147,6 +1147,9 @@ components:
               type: integer
               format: int64
               description: Unix timestamp in milliseconds.
+            last_update_reason:
+              $ref: '#/components/schemas/lastUpdateReason'
+              description: Margin order update reason; ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
             subaccount_number:
               type: integer
             order_source:

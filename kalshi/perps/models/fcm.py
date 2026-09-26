@@ -47,12 +47,30 @@ class FCMSubtraderRiskControls(BaseModel):
     """One initial-margin cap for an FCM subtrader.
 
     A missing ``market_ticker`` means the cap applies across all markets.
+    ``current_im`` is the initial margin currently attributable to the cap's
+    scope (spec-required).
     """
 
     subtrader_id: str
     im_cap: DollarDecimal
+    current_im: DollarDecimal
     market_ticker: str | None = None
     asset_class: FCMAssetClassLiteral | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class FCMSubtraderNotionalRiskLimit(BaseModel):
+    """One admin-set notional value risk limit for an FCM subtrader.
+
+    A missing ``market_ticker`` is the whole-subtrader (all-markets) limit.
+    Dollar fields are fixed-point US dollar strings (``FixedPointDollars``).
+    """
+
+    subtrader_id: str
+    notional_value_risk_limit: DollarDecimal
+    current_notional: DollarDecimal
+    market_ticker: str | None = None
 
     model_config = {"extra": "allow"}
 
@@ -61,6 +79,7 @@ class GetFCMSubtraderRiskControlsResponse(BaseModel):
     """Response from GET /margin/fcm/subtraders/risk_controls."""
 
     risk_controls: list[FCMSubtraderRiskControls]
+    notional_limits: list[FCMSubtraderNotionalRiskLimit]
 
     model_config = {"extra": "allow"}
 
@@ -75,5 +94,18 @@ class UpdateFCMSubtraderRiskControlsRequest(BaseModel):
     im_cap: OrderPrice
     market_ticker: str | None = None
     asset_class: FCMAssetClassLiteral | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class UpdateFCMNotionalRiskLimitRequest(BaseModel):
+    """Body for PUT /margin/fcm/notional_risk_limit.
+
+    ``notional_value_risk_limit`` is a non-negative fixed-point dollar amount
+    (max 4 decimals). The exchange enforces the smaller of this member-set
+    value and the Kalshi-set account limit.
+    """
+
+    notional_value_risk_limit: OrderPrice
 
     model_config = {"extra": "forbid"}

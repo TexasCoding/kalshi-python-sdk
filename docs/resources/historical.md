@@ -13,8 +13,8 @@ analytics; live trading needs the real-time surfaces.
 | `market(ticker)` | `GET /historical/markets/{ticker}` | no |
 | `candlesticks(ticker, *, start_ts, end_ts, period_interval)` | `GET /historical/markets/{ticker}/candlesticks` | no |
 | `trades(...)` / `trades_all(...)` | `GET /historical/trades` | no |
-| `fills(...)` / `fills_all(...)` | `GET /historical/fills` | **yes** |
-| `orders(...)` / `orders_all(...)` | `GET /historical/orders` | **yes** |
+| `fills(..., subaccount=None)` / `fills_all(..., subaccount=None)` | `GET /historical/fills` | **yes** |
+| `orders(..., subaccount=None)` / `orders_all(..., subaccount=None)` | `GET /historical/orders` | **yes** |
 | `positions(*, subaccount=None, ...)` / `positions_all(*, subaccount=None, ...)` | `GET /historical/positions` | **yes** |
 
 ## Cutoff
@@ -67,12 +67,20 @@ trades = client.historical.trades(
 Both require auth — these are your own trade history.
 
 ```python
-for fill in client.historical.fills_all(ticker="KXPRES-24-DJT", min_ts=1_600_000_000):
-    print(fill.fill_id, fill.price, fill.count)
+for fill in client.historical.fills_all(
+    ticker="KXPRES-24-DJT",
+    min_ts=1_600_000_000,
+    subaccount=1,  # omit to include every subaccount
+):
+    print(fill.fill_id, fill.count)
 
 for order in client.historical.orders_all(ticker="KXPRES-24-DJT", min_ts=1_600_000_000):
     print(order.order_id, order.client_order_id)
 ```
+
+`subaccount` is optional on both fills and orders (`0` is the primary subaccount).
+Omit it to include every subaccount. A key restricted to one subaccount still
+sees only that subaccount, and a supplied value must match the restriction.
 
 ## Historical positions
 
