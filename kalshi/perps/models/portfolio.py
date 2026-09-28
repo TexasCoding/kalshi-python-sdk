@@ -207,8 +207,22 @@ class SetCrossExitTriggerRequest(BaseModel):
     anchor_order_id: str | None = None
     client_trigger_id: str | None = None
     kind: ExitTriggerKindLiteral | None = None
-    stop_loss_price: DollarDecimal | None = None
-    take_profit_price: DollarDecimal | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the stop-loss leg fires. "
+            "Bracket only; must be strictly positive when supplied."
+        ),
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the take-profit leg fires. "
+            "Bracket only; must be strictly positive when supplied."
+        ),
+    )
     trail_amount: DollarDecimal | None = None
     trail_bps: int | None = Field(default=None, ge=1, le=9999)
 
@@ -219,8 +233,22 @@ class SetIsolatedExitTriggerRequest(BaseModel):
     """Body for PUT /margin/isolated/positions/{ticker}/exit_trigger."""
 
     kind: ExitTriggerKindLiteral | None = None
-    stop_loss_price: DollarDecimal | None = None
-    take_profit_price: DollarDecimal | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the stop-loss leg fires. "
+            "Bracket only; must be strictly positive when supplied."
+        ),
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the take-profit leg fires. "
+            "Bracket only; must be strictly positive when supplied."
+        ),
+    )
     trail_amount: DollarDecimal | None = None
     trail_bps: int | None = Field(default=None, ge=1, le=9999)
 
@@ -230,7 +258,21 @@ class SetIsolatedExitTriggerRequest(BaseModel):
 class UpdateExitTriggerRequest(BaseModel):
     """Body for PUT /margin/cross/positions/{ticker}/exit_trigger/{trigger_id}."""
 
-    stop_loss_price: DollarDecimal | None = None
-    take_profit_price: DollarDecimal | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the stop-loss leg fires. "
+            "Must be strictly positive when supplied."
+        ),
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Mark price at which the take-profit leg fires. "
+            "Must be strictly positive when supplied."
+        ),
+    )
 
     model_config = {"extra": "forbid"}

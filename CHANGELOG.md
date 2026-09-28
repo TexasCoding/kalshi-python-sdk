@@ -2,6 +2,29 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 16.0.1 — 2026-09-28
+
+Reconciles upstream perps OpenAPI description-only drift on exit-trigger
+price fields (Closes #521). Re-vendored `specs/perps_openapi.yaml` (hash
+`ebed03affc8ec5dd6dcd3fc4f789551f096532084a0fd639ab56d0cef0f80090`).
+Core OpenAPI and AsyncAPI are unchanged. The client now rejects zero and
+negative `stop_loss_price` / `take_profit_price` on the three request
+models; the server already enforced this constraint. Valid positive
+callers are unchanged.
+
+### Changed (non-breaking)
+
+- **Perps** `UpdateExitTriggerRequest`, `SetCrossExitTriggerRequest`, and
+  `SetIsolatedExitTriggerRequest`: `stop_loss_price` and
+  `take_profit_price` now use `Field(default=None, gt=0)`. Omitting the
+  field (`None`) remains valid; zero and negatives raise
+  `ValidationError` at construction. Response `ExitTrigger` is unchanged.
+
+### Spec notes
+
+- Perps OpenAPI re-vendored; description-only constraint that bracket
+  exit-trigger prices must be strictly positive when supplied.
+
 ## 16.0.0 — 2026-09-26
 
 Reconciles upstream OpenAPI **3.30.0 → 3.31.0** plus matching perps and
