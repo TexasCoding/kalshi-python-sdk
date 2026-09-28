@@ -2187,10 +2187,10 @@ components:
       properties:
         stop_loss_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the stop-loss leg fires.
+          description: Mark price at which the stop-loss leg fires. Must be strictly positive when supplied.
         take_profit_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the take-profit leg fires.
+          description: Mark price at which the take-profit leg fires. Must be strictly positive when supplied.
     SetCrossExitTriggerRequest:
       type: object
       description: >-
@@ -2231,10 +2231,10 @@ components:
           description: Which trigger family this write targets. Defaults to `bracket`.
         stop_loss_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the stop-loss leg fires. Bracket only.
+          description: Mark price at which the stop-loss leg fires. Bracket only; must be strictly positive when supplied.
         take_profit_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the take-profit leg fires. Bracket only.
+          description: Mark price at which the take-profit leg fires. Bracket only; must be strictly positive when supplied.
         trail_amount:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Absolute trailing distance in dollars. Trailing only; mutually exclusive with `trail_bps`.
@@ -2259,10 +2259,10 @@ components:
           description: Which trigger family this write targets. Defaults to `bracket`.
         stop_loss_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the stop-loss leg fires. Bracket only.
+          description: Mark price at which the stop-loss leg fires. Bracket only; must be strictly positive when supplied.
         take_profit_price:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Mark price at which the take-profit leg fires. Bracket only.
+          description: Mark price at which the take-profit leg fires. Bracket only; must be strictly positive when supplied.
         trail_amount:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Absolute trailing distance in dollars. Trailing only; mutually exclusive with `trail_bps`.

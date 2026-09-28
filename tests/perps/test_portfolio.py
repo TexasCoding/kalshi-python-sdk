@@ -18,7 +18,14 @@ from kalshi.errors import (
     KalshiValidationError,
 )
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
-from kalshi.perps.models.portfolio import MarginFill, MarginPosition, MarginTrade
+from kalshi.perps.models.portfolio import (
+    MarginFill,
+    MarginPosition,
+    MarginTrade,
+    SetCrossExitTriggerRequest,
+    SetIsolatedExitTriggerRequest,
+    UpdateExitTriggerRequest,
+)
 
 BASE = "https://external-api.demo.kalshi.co/trade-api/v2"
 
@@ -604,3 +611,55 @@ class TestExitTriggers:
         resp = await async_perps_client.portfolio.cross_exit_triggers("BTC-PERP")
         assert resp.exit_triggers[0].kind == "bracket"
         await async_perps_client.close()
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            SetCrossExitTriggerRequest,
+            SetIsolatedExitTriggerRequest,
+            UpdateExitTriggerRequest,
+        ],
+    )
+    @pytest.mark.parametrize("field", ["stop_loss_price", "take_profit_price"])
+    @pytest.mark.parametrize("bad", [Decimal("0"), Decimal("-1")])
+    def test_bracket_price_rejects_zero_and_negative(
+        self,
+        model: (
+            type[SetCrossExitTriggerRequest]
+            | type[SetIsolatedExitTriggerRequest]
+            | type[UpdateExitTriggerRequest]
+        ),
+        field: str,
+        bad: Decimal,
+    ) -> None:
+        with pytest.raises(ValidationError):
+            model(**{field: bad})
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            SetCrossExitTriggerRequest,
+            SetIsolatedExitTriggerRequest,
+            UpdateExitTriggerRequest,
+        ],
+    )
+    def test_bracket_price_none_and_positive_ok(
+        self,
+        model: (
+            type[SetCrossExitTriggerRequest]
+            | type[SetIsolatedExitTriggerRequest]
+            | type[UpdateExitTriggerRequest]
+        ),
+    ) -> None:
+        omitted = model()
+        assert omitted.stop_loss_price is None
+        assert omitted.take_profit_price is None
+        explicit_none = model(stop_loss_price=None, take_profit_price=None)
+        assert explicit_none.stop_loss_price is None
+        assert explicit_none.take_profit_price is None
+        ok = model(
+            stop_loss_price=Decimal("50000.0000"),
+            take_profit_price=Decimal("70000.0000"),
+        )
+        assert ok.stop_loss_price == Decimal("50000.0000")
+        assert ok.take_profit_price == Decimal("70000.0000")

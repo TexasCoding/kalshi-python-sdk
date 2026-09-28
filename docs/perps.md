@@ -108,7 +108,9 @@ the same subtrader). Each `FCMSubtraderRiskControls` row includes required
 `member_notional_value_risk_limit` and
 `effective_account_notional_value_risk_limit`.
 
-Exit triggers (stop-loss / take-profit / trailing) sit on a position slot:
+Exit triggers (stop-loss / take-profit / trailing) sit on a position slot.
+Bracket `stop_loss_price` / `take_profit_price` must be strictly positive when
+supplied; the client rejects zero and negative values.
 
 ```python
 from decimal import Decimal
