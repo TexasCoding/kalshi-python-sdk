@@ -535,6 +535,32 @@ class TestAmend:
         assert resp.average_fill_price == Decimal("0.5700")
 
     @respx.mock
+    def test_expiration_time_zero_is_sent(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/margin/orders/ord-1/amend").mock(
+            return_value=httpx.Response(200, json={"order_id": "ord-1"})
+        )
+        perps_client.orders.amend(
+            "ord-1",
+            ticker="BTC-PERP",
+            side="bid",
+            price="0.57",
+            count="80",
+            expiration_time=0,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["expiration_time"] == 0
+
+    def test_expiration_time_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            AmendMarginOrderRequest(
+                ticker="BTC-PERP",
+                side="bid",
+                price="0.57",
+                count="80",
+                expiration_time=-1,
+            )
+
+    @respx.mock
     def test_subaccount_query_param(self, perps_client: PerpsClient) -> None:
         route = respx.post(f"{BASE}/margin/orders/ord-1/amend").mock(
             return_value=httpx.Response(200, json={"order_id": "ord-1"})

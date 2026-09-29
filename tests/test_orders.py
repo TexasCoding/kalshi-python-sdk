@@ -9,6 +9,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi._base_client import SyncTransport
 from kalshi.auth import KalshiAuth
@@ -596,6 +597,27 @@ class TestAmendOrderV2:
             ),
         )
         assert result.order_id == "ord-1"
+
+    def test_expiration_time_zero_clears_expiry(self) -> None:
+        req = AmendOrderV2Request(
+            ticker="MKT-A",
+            side="bid",
+            price=Decimal("0.55"),
+            count=Decimal("10"),
+            expiration_time=0,
+        )
+        body = req.model_dump(exclude_none=True, mode="json")
+        assert body["expiration_time"] == 0
+
+    def test_expiration_time_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            AmendOrderV2Request(
+                ticker="MKT-A",
+                side="bid",
+                price=Decimal("0.55"),
+                count=Decimal("10"),
+                expiration_time=-1,
+            )
 
     def test_side_must_be_bid_or_ask(self) -> None:
         with pytest.raises(ValueError):

@@ -172,6 +172,7 @@ resp = client.orders.amend_v2(
         price=Decimal("0.66"),
         count=Decimal("12"),               # total/max fillable count
         exchange_index=0,                  # body field
+        expiration_time=0,                 # optional; 0 clears expiry (GTC)
     ),
 )
 print(resp.old_order.order_id, resp.order.order_id)

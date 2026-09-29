@@ -49,6 +49,7 @@ rfq = client.communications.rfqs.create(
     contracts=500,
     rest_remainder=True,
     target_cost_excludes_fees=True,  # optional; principal-only target cost
+    obscure_creator_id=True,  # optional; hide creator id until execution
 )
 print(rfq.rfq.rfq_id)
 

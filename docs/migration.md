@@ -1,5 +1,40 @@
 # Migration
 
+## v16.0 → v17.0.0
+
+Reconciles upstream OpenAPI **3.31.0** content drift plus matching perps and
+AsyncAPI updates (Closes #522). **Breaking** only for code that constructs
+`Market` without `settlement_bounds_type`.
+
+### Response model field changes
+
+- **`Market.settlement_bounds_type`** — required `"default"` or `"floor"`.
+  `floor` markets may also include optional `settlement_floor` (parsed from
+  `settlement_floor_dollars`). Live `markets.list` / `markets.get` callers
+  are unaffected; constructors and fixtures must pass the new field.
+
+```python
+# Before (constructors / test fixtures):
+# Market(...)  # settlement_bounds_type omitted
+
+# After:
+Market(..., settlement_bounds_type="default")
+# or "floor", optionally with settlement_floor="0.1000"
+```
+
+### Added (non-breaking)
+
+- `CreateRFQRequest.obscure_creator_id` and
+  `communications.rfqs.create(..., obscure_creator_id=)` — hide the RFQ
+  creator ID from other users until successful execution.
+- `AmendOrderV2Request.expiration_time` — int64 Unix seconds; omit keeps
+  the current expiry, `0` clears it (good-till-canceled).
+- Perps `orders.amend(..., expiration_time=)` /
+  `AmendMarginOrderRequest.expiration_time` — same semantics.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v15.0 → v16.0.0
 
 Reconciles upstream OpenAPI **3.30.0 → 3.31.0** plus matching perps and

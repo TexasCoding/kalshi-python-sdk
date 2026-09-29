@@ -2,6 +2,54 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 17.0.0 — 2026-09-29
+
+Reconciles upstream OpenAPI **3.31.0** content drift plus matching perps and
+AsyncAPI updates after nightly contract failures (Closes #522).
+**Breaking** for constructors of `Market` that omit the new required
+`settlement_bounds_type`. Re-vendored `specs/openapi.yaml` (hash
+`dde105932d49e4ea6e197068b82741178ea87edbc991d8fd7676c101162c1c1e`),
+`specs/asyncapi.yaml` (hash
+`49ea4f5b4f35feba19ba2109e554f6bbcb0a1e123e58feb64e5cfd8182bc72e7`), and
+`specs/perps_openapi.yaml` (hash
+`bfeb993d2a270e9a319b61d520facacd624e72039c8fe79e45fded10f0578eb7`).
+
+### Changed (breaking)
+
+- **`Market.settlement_bounds_type`** (`"default"` / `"floor"`, required) —
+  which settlement bounds apply. `default` means none. Live
+  `markets.list` / `markets.get` callers are unaffected; tests/mocks that
+  construct `Market` must pass the field.
+
+### Added
+
+- Optional **`Market.settlement_floor`** (`Decimal | None`), parsed from
+  `settlement_floor_dollars`. Only filled when `settlement_bounds_type` is
+  `floor`.
+- Optional **`CreateRFQRequest.obscure_creator_id`** and the same kwarg on
+  `communications.rfqs.create` / deprecated `create_rfq` (sync + async).
+  Hides the RFQ creator ID from other users until successful execution.
+  Omit to keep the server default (`false`).
+- Optional **`AmendOrderV2Request.expiration_time`** (`int | None`,
+  minimum 0). int64 Unix seconds. Omit preserves the current expiry; `0`
+  removes it (good-till-canceled). A nonzero value must be in the future.
+- Optional **`AmendMarginOrderRequest.expiration_time`** and
+  `perps.orders.amend(..., expiration_time=)` (sync + async) — same
+  semantics as the event-market amend.
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.31.0** (content-only). Still
+  unimplemented on the core client:
+  `POST /portfolio/intra_exchange_instance_transfer`.
+- `GET /markets/{ticker}/orderbook` and `GET /markets/orderbooks` dropped
+  their `security` block upstream. The SDK methods still call
+  `_require_auth()`; unauthenticated orderbook reads are unchanged.
+- AsyncAPI still 15 channels. Description-only updates on communications
+  creator ids (`"0"` when `obscure_creator_id` is enabled).
+- Perps OpenAPI: still 50 operations. Amend-order description now covers
+  expiration time; queue position is preserved for an expiry-only amend.
+
 ## 16.0.1 — 2026-09-28
 
 Reconciles upstream perps OpenAPI description-only drift on exit-trigger

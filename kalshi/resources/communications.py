@@ -146,6 +146,7 @@ def _build_create_rfq_body(
     subtrader_id: str | None,
     subaccount: int | None,
     target_cost_excludes_fees: bool | None,
+    obscure_creator_id: bool | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -157,6 +158,7 @@ def _build_create_rfq_body(
         subtrader_id=subtrader_id,
         subaccount=subaccount,
         target_cost_excludes_fees=target_cost_excludes_fees,
+        obscure_creator_id=obscure_creator_id,
     )
     if request is None:
         if market_ticker is None or rest_remainder is None:
@@ -172,6 +174,7 @@ def _build_create_rfq_body(
             subtrader_id=subtrader_id,
             subaccount=subaccount,
             target_cost_excludes_fees=target_cost_excludes_fees,
+            obscure_creator_id=obscure_creator_id,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -426,6 +429,7 @@ class RFQsResource(SyncResource):
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
         target_cost_excludes_fees: bool | None = ...,
+        obscure_creator_id: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     def create(
@@ -440,6 +444,7 @@ class RFQsResource(SyncResource):
         subtrader_id: str | None = None,
         subaccount: int | None = None,
         target_cost_excludes_fees: bool | None = None,
+        obscure_creator_id: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
@@ -453,6 +458,7 @@ class RFQsResource(SyncResource):
             subtrader_id=subtrader_id,
             subaccount=subaccount,
             target_cost_excludes_fees=target_cost_excludes_fees,
+            obscure_creator_id=obscure_creator_id,
         )
         data = self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
@@ -1011,6 +1017,7 @@ class CommunicationsResource(SyncResource):
         subtrader_id: str | None = None,
         subaccount: int | None = None,
         target_cost_excludes_fees: bool | None = None,
+        obscure_creator_id: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
@@ -1024,6 +1031,7 @@ class CommunicationsResource(SyncResource):
             subtrader_id=subtrader_id,
             subaccount=subaccount,
             target_cost_excludes_fees=target_cost_excludes_fees,
+            obscure_creator_id=obscure_creator_id,
             extra_headers=extra_headers,
         )
 
@@ -1250,6 +1258,7 @@ class AsyncRFQsResource(AsyncResource):
         subtrader_id: str | None = ...,
         subaccount: int | None = ...,
         target_cost_excludes_fees: bool | None = ...,
+        obscure_creator_id: bool | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse: ...
     async def create(
@@ -1264,6 +1273,7 @@ class AsyncRFQsResource(AsyncResource):
         subtrader_id: str | None = None,
         subaccount: int | None = None,
         target_cost_excludes_fees: bool | None = None,
+        obscure_creator_id: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         self._require_auth()
@@ -1277,6 +1287,7 @@ class AsyncRFQsResource(AsyncResource):
             subtrader_id=subtrader_id,
             subaccount=subaccount,
             target_cost_excludes_fees=target_cost_excludes_fees,
+            obscure_creator_id=obscure_creator_id,
         )
         data = await self._post("/communications/rfqs", json=body, extra_headers=extra_headers)
         return CreateRFQResponse.model_validate(data)
@@ -1827,6 +1838,7 @@ class AsyncCommunicationsResource(AsyncResource):
         subtrader_id: str | None = None,
         subaccount: int | None = None,
         target_cost_excludes_fees: bool | None = None,
+        obscure_creator_id: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQResponse:
         """.. deprecated:: 3.0.0  Use :meth:`client.communications.rfqs.create` instead."""
@@ -1840,6 +1852,7 @@ class AsyncCommunicationsResource(AsyncResource):
             subtrader_id=subtrader_id,
             subaccount=subaccount,
             target_cost_excludes_fees=target_cost_excludes_fees,
+            obscure_creator_id=obscure_creator_id,
             extra_headers=extra_headers,
         )
 

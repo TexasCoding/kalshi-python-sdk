@@ -269,6 +269,8 @@ class AmendOrderV2Request(BaseModel):
     count: FixedPointCount
     client_order_id: str | None = None
     updated_client_order_id: str | None = None
+    # Unix seconds. Omit preserves the current expiry; 0 removes it (GTC).
+    expiration_time: StrictInt | None = Field(default=None, ge=0)
     exchange_index: StrictInt | None = None
 
     model_config = {"extra": "forbid"}
