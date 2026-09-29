@@ -102,6 +102,12 @@ class Market(BaseModel):
     expected_expiration_time: AwareDatetime | None = None
     expiration_time: AwareDatetime | None = None
     settlement_ts: AwareDatetime | None = None
+    # ``floor`` markets may also send settlement_floor_dollars.
+    settlement_bounds_type: Literal["default", "floor"]
+    settlement_floor: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("settlement_floor_dollars", "settlement_floor"),
+    )
     occurrence_datetime: AwareDatetime | None = None
 
     # Metadata

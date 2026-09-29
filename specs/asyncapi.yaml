@@ -3753,7 +3753,7 @@ components:
               description: Unique identifier for the RFQ
             creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized).
+              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
             market_ticker:
               type: string
               description: Market ticker for the RFQ
@@ -3815,7 +3815,7 @@ components:
               description: Unique identifier for the RFQ
             creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized)
+              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
             market_ticker:
               type: string
               description: Market ticker for the RFQ
@@ -3859,7 +3859,7 @@ components:
               description: Public communications ID of the quote creator (anonymized)
             rfq_creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized)
+              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
             market_ticker:
               type: string
               description: Market ticker for the quote
@@ -3917,7 +3917,7 @@ components:
               description: Public communications ID of the quote creator (anonymized)
             rfq_creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized)
+              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
             market_ticker:
               type: string
               description: Market ticker for the quote

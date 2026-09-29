@@ -92,6 +92,25 @@ class TestDollarDecimalField:
         assert o.no_price == Decimal("0.35")
 
 
+class TestMarketSettlementBounds:
+    """Spec-required settlement_bounds_type plus optional settlement floor."""
+
+    def test_default_bounds_and_absent_floor(self) -> None:
+        m = Market.model_validate(market_dict(settlement_bounds_type="default"))
+        assert m.settlement_bounds_type == "default"
+        assert m.settlement_floor is None
+
+    def test_floor_parses_settlement_floor_dollars(self) -> None:
+        m = Market.model_validate(
+            market_dict(
+                settlement_bounds_type="floor",
+                settlement_floor_dollars="0.1000",
+            )
+        )
+        assert m.settlement_bounds_type == "floor"
+        assert m.settlement_floor == Decimal("0.1000")
+
+
 class TestMarketOccurrenceDatetime:
     """Round-trip the `occurrence_datetime` field added in spec v3.13.x.
 

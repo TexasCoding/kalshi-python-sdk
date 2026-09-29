@@ -222,10 +222,6 @@ paths:
       description: ' Endpoint for getting the current order book for a specific market.  The order book shows all active bid orders for both yes and no sides of a binary market. It returns yes bids and no bids only (no asks are returned). This is because in binary markets, a bid for yes at price X is equivalent to an ask for no at price (100-X). For example, a yes bid at 7¢ is the same as a no ask at 93¢, with identical contract sizes.  Each side shows price levels with their corresponding quantities and order counts, organized from best to worst prices.'
       tags:
         - market
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
       parameters:
         - $ref: '#/components/parameters/TickerPath'
         - name: depth
@@ -260,10 +256,6 @@ paths:
       description: 'Endpoint for getting the current order books for multiple markets in a single request. The order book shows all active bid orders for both yes and no sides of a binary market. It returns yes bids and no bids only (no asks are returned). This is because in binary markets, a bid for yes at price X is equivalent to an ask for no at price (100-X). For example, a yes bid at 7¢ is the same as a no ask at 93¢, with identical contract sizes. Each side shows price levels with their corresponding quantities and order counts, organized from best to worst prices. Returns one orderbook per requested market ticker.'
       tags:
         - market
-      security:
-        - kalshiAccessKey: []
-          kalshiAccessSignature: []
-          kalshiAccessTimestamp: []
       parameters:
         - name: tickers
           in: query
@@ -1220,11 +1212,11 @@ paths:
     post:
       operationId: AmendOrderV2
       summary: Amend Order (V2)
-      description: 'Endpoint for amending the price and/or max fillable count of an existing event-market order using the V2 request/response shape. The request `count` is the updated total/max fillable count, equal to already filled count plus desired resting remaining count. This behavior matches the v1 amend endpoints; only the request/response shape differs.'
+      description: 'Endpoint for amending the price, max fillable count, and/or expiration time of an existing event-market order. The request `count` is the updated total/max fillable count, equal to already filled count plus desired resting remaining count. This behavior matches the v1 amend endpoints; only the request/response shape differs.'
       x-mint:
         content: |
           <Note>
-          Amending a resting order preserves queue position only when the amendment decreases size. All other amendments — like increasing size or changing price forfeit queue position and place the order at the back of the queue.
+          Amending only expiry or decreasing size preserves queue position. Increasing size or changing price forfeits queue position and places the order at the back of the queue.
           </Note>
       tags:
         - orders
@@ -7812,7 +7804,7 @@ components:
           description: UUID of the RFQ. Preserve the exact returned string.
         creator_id:
           type: string
-          description: Public communications ID of the RFQ creator.
+          description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
         market_ticker:
           type: string
           description: The ticker of the market this RFQ is for
@@ -7930,6 +7922,11 @@ components:
             Kalshi fees, and quote sizes are reduced to make room for the fees.
             Only valid together with a target cost.
           x-go-type-skip-optional-pointer: true
+        obscure_creator_id:
+          type: boolean
+          description: Hide the RFQ creator ID from other users until successful execution. The creator always sees their own ID.
+          default: false
+          x-go-type-skip-optional-pointer: true
         rest_remainder:
           type: boolean
           description: Whether to rest the remainder of the RFQ after execution
@@ -7981,7 +7978,7 @@ components:
           description: Public communications ID of the quote creator
         rfq_creator_id:
           type: string
-          description: Public communications ID of the RFQ creator
+          description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
           x-go-type-skip-optional-pointer: true
         market_ticker:
           type: string
@@ -8693,6 +8690,15 @@ components:
           type: string
           description: The new client-specified order ID after amendment
           x-go-type-skip-optional-pointer: true
+        expiration_time:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            New Unix expiration timestamp in seconds. Omit to preserve the current
+            expiry, or use 0 to remove it (good-till-canceled). A nonzero expiry
+            must be in the future. Send the current price and total quantity for
+            an expiry-only amendment; this preserves queue position.
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
@@ -9693,6 +9699,7 @@ components:
         - rules_secondary
         - price_level_structure
         - price_ranges
+        - settlement_bounds_type
       properties:
         ticker:
           type: string
@@ -9809,6 +9816,15 @@ components:
           nullable: true
           x-omitempty: true
           description: Timestamp when the market was settled. Only filled for settled markets
+        settlement_bounds_type:
+          type: string
+          enum: [default, floor]
+          description: Which settlement bounds apply to this market. default means the market has no settlement bounds
+        settlement_floor_dollars:
+          $ref: '#/components/schemas/FixedPointDollars'
+          nullable: true
+          x-omitempty: true
+          description: The lowest value the YES/LONG side of the contract can settle at in dollars. Only filled when settlement_bounds_type is floor
         expiration_value:
           type: string
           description: The value that was considered for the settlement

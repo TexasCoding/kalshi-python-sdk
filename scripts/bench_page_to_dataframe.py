@@ -53,6 +53,7 @@ def _market_dict(ticker: str) -> dict[str, Any]:
         "close_time": "2026-12-31T23:59:59Z",
         "latest_expiration_time": "2026-12-31T23:59:59Z",
         "settlement_timer_seconds": 0,
+        "settlement_bounds_type": "default",
         "result": "",
         "can_close_early": False,
         "fractional_trading_enabled": False,

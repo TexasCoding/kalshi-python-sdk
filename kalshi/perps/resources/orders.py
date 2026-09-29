@@ -162,6 +162,7 @@ def _build_amend_body(
     count: int | float | str | None,
     client_order_id: str | None,
     updated_client_order_id: str | None,
+    expiration_time: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -171,6 +172,7 @@ def _build_amend_body(
         count=count,
         client_order_id=client_order_id,
         updated_client_order_id=updated_client_order_id,
+        expiration_time=expiration_time,
     )
     if request is None:
         if ticker is None or side is None or price is None or count is None:
@@ -185,6 +187,7 @@ def _build_amend_body(
             count=to_decimal(count),
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
+            expiration_time=expiration_time,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -472,6 +475,7 @@ class MarginOrdersResource(SyncResource):
         count: int | float | str,
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
+        expiration_time: int | None = ...,
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse: ...
@@ -486,6 +490,7 @@ class MarginOrdersResource(SyncResource):
         count: int | float | str | None = None,
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
+        expiration_time: int | None = None,
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse:
@@ -493,6 +498,10 @@ class MarginOrdersResource(SyncResource):
 
         ``subaccount`` is a query param. Increasing size or changing price
         forfeits queue position (server-side). Not retried.
+
+        ``expiration_time`` is int64 Unix seconds. Omit it to preserve the
+        current expiry; ``0`` removes the expiry (good-till-canceled). A
+        nonzero value must be in the future.
         """
         self._require_auth()
         body = _build_amend_body(
@@ -503,6 +512,7 @@ class MarginOrdersResource(SyncResource):
             count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
+            expiration_time=expiration_time,
         )
         params = _params(subaccount=subaccount)
         data = self._post(
@@ -813,6 +823,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         count: int | float | str,
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
+        expiration_time: int | None = ...,
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse: ...
@@ -827,6 +838,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         count: int | float | str | None = None,
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
+        expiration_time: int | None = None,
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse:
@@ -840,6 +852,7 @@ class AsyncMarginOrdersResource(AsyncResource):
             count=count,
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
+            expiration_time=expiration_time,
         )
         params = _params(subaccount=subaccount)
         data = await self._post(

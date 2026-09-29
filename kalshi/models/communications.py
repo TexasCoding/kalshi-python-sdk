@@ -170,6 +170,9 @@ class CreateRFQRequest(BaseModel):
     subtrader_id: str | None = None
     subaccount: StrictInt | None = Field(default=None, ge=0)
     target_cost_excludes_fees: bool | None = None
+    # Hide the creator id from other users until the RFQ executes. Omit keeps
+    # the server default (false).
+    obscure_creator_id: bool | None = None
 
     model_config = {"extra": "forbid"}
 

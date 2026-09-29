@@ -191,6 +191,24 @@ class TestCommunicationsRequestModels:
         body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
         assert body == {"market_ticker": "MKT-1", "rest_remainder": False}
 
+    def test_create_rfq_request_serializes_obscure_creator_id(self) -> None:
+        req = CreateRFQRequest(
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            obscure_creator_id=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["obscure_creator_id"] is True
+
+    def test_create_rfq_request_omits_obscure_creator_id_when_none(self) -> None:
+        req = CreateRFQRequest(
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            obscure_creator_id=None,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "obscure_creator_id" not in body
+
     def test_create_rfq_request_serializes_target_cost_excludes_fees(self) -> None:
         req = CreateRFQRequest(
             market_ticker="MKT-1",
@@ -371,6 +389,26 @@ class TestCreateRfq:
             "target_cost_dollars": "5.00",
             "subaccount": 2,
         }
+
+    @respx.mock
+    def test_sends_obscure_creator_id(self, comms: CommunicationsResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/communications/rfqs",
+        ).mock(return_value=httpx.Response(201, json={"id": "rfq-new"}))
+        comms.rfqs.create(
+            market_ticker="MKT-1",
+            rest_remainder=True,
+            obscure_creator_id=True,
+        )
+        with pytest.warns(DeprecationWarning):
+            comms.create_rfq(
+                market_ticker="MKT-1",
+                rest_remainder=True,
+                obscure_creator_id=True,
+            )
+        for call in route.calls:
+            body = json.loads(call.request.content)
+            assert body["obscure_creator_id"] is True
 
     @respx.mock
     def test_sends_target_cost_excludes_fees(self, comms: CommunicationsResource) -> None:
