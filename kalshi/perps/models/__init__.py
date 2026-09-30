@@ -34,9 +34,11 @@ from kalshi.perps.models.fcm import (
     UpdateFCMSubtraderRiskControlsRequest,
 )
 from kalshi.perps.models.funding import (
+    GetMarginPremiumIndexResponse,
     MarginFundingHistoryEntry,
     MarginFundingRate,
     MarginFundingRateEstimate,
+    MarginPremiumIndexPoint,
 )
 from kalshi.perps.models.margin_account import (
     FeeScheduleLiteral,
@@ -147,6 +149,7 @@ __all__ = [
     "GetMarginOrderResponse",
     "GetMarginOrdersResponse",
     "GetMarginPositionsResponse",
+    "GetMarginPremiumIndexResponse",
     "GetMarginRiskParametersResponse",
     "GetMarginRiskResponse",
     "GetMarginTradesResponse",
@@ -170,6 +173,7 @@ __all__ = [
     "MarginOrderbook",
     "MarginOrderbookLevel",
     "MarginPosition",
+    "MarginPremiumIndexPoint",
     "MarginRiskPosition",
     "MarginSubaccountBalance",
     "MarginTrade",

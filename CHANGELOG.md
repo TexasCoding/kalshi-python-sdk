@@ -2,6 +2,40 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 17.1.0 — 2026-09-30
+
+Reconciles upstream OpenAPI **3.31.0 → 3.32.0** content drift plus matching
+perps and AsyncAPI updates after nightly contract failures (Closes #525).
+**Non-breaking**: every addition is an optional parameter or a new method.
+Re-vendored `specs/openapi.yaml` (hash
+`b8a5c773e8f5bf1f9836fe29dc5449bbded8c8510e11e3471df86e552bbfe507`),
+`specs/asyncapi.yaml` (hash
+`902d9a36fdf52821eac5577caa1d8f694baa1788144c76b5527731e851089522`), and
+`specs/perps_openapi.yaml` (hash
+`e3b906ebbb3eb26cbb555b778ee52ef08843f174bc78b0b6d1052dfb3589a6ef`).
+
+### Added
+
+- Optional **`settlement_status`** (`"unsettled"` / `"settled"` / `"all"`) on
+  `portfolio.positions` and `portfolio.positions_all` (sync + async). This
+  kwarg was a phantom removed in v0.7.0; OpenAPI 3.32.0 adds it as a real
+  query param on `GET /portfolio/positions`. Omit it to keep the server
+  default (`unsettled`).
+- Perps **`funding.premium_index(*, ticker, start_ts, end_ts)`** (sync +
+  async), public `GET /margin/funding_rates/premium_index`. Returns
+  `list[MarginPremiumIndexPoint]`. `MarginFundingRateEstimate` gains optional
+  `premium_index` (`Decimal | None`) and `premium_index_ts`
+  (`datetime | None`).
+
+### Spec notes
+
+- Core OpenAPI `info.version` is **3.32.0**. Still unimplemented on the core
+  client: `POST /portfolio/intra_exchange_instance_transfer`.
+- AsyncAPI and perps AsyncAPI (`specs/perps_asyncapi.yaml`, hash
+  `e5cc0f026b8e306e917860b870e23c9152d0d782c33137d42698f051a9dbe824`) add
+  optional `sending_ts_ms` on message envelopes (when Kalshi queued the
+  frame). Response models keep `extra="allow"` and do not surface the field.
+
 ## 17.0.0 — 2026-09-29
 
 Reconciles upstream OpenAPI **3.31.0** content drift plus matching perps and

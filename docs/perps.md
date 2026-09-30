@@ -64,7 +64,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()` |
-| `funding` | `rate_estimate()`, `historical_rates()`, `history()` |
+| `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 | `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
 
@@ -185,6 +185,10 @@ user's per-payment history:
 ```python
 est = perps.funding.rate_estimate(ticker="BTC-PERP")
 print(est.funding_rate, est.next_funding_time)        # in-progress estimate
+print(est.premium_index, est.premium_index_ts)        # optional final-second premium
+points = perps.funding.premium_index(
+    ticker="BTC-PERP", start_ts=1_700_000_000, end_ts=1_700_003_600
+)
 rows = perps.funding.history(start_date="2026-01-01", end_date="2026-02-01")
 ```
 

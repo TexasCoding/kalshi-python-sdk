@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.31.0
+  version: 3.32.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -1802,7 +1802,9 @@ paths:
       operationId: GetPositions
       summary: Get Positions
       description: |
-        Restricts the positions to those with any of following fields with non-zero values, as a comma separated list. The following values are accepted: position, total_traded.
+        Returns unsettled positions by default. Set `settlement_status=settled` to page through settled positions that are still in the live data set, or `settlement_status=all` for both live states. Positions already archived are available via `GET /historical/positions`.
+        Settled and all-state positions are paginated by event ticker to keep large histories bounded. Cursors are specific to the selected settlement status.
+        `count_filter` restricts positions to those with a non-zero position or total traded count.
         Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
@@ -1815,6 +1817,7 @@ paths:
         - $ref: '#/components/parameters/PositionsCursorQuery'
         - $ref: '#/components/parameters/PositionsLimitQuery'
         - $ref: '#/components/parameters/CountFilterQuery'
+        - $ref: '#/components/parameters/PositionSettlementStatusQuery'
         - $ref: '#/components/parameters/TickerQuery'
         - $ref: '#/components/parameters/SingleEventTickerQuery'
         - $ref: '#/components/parameters/SubaccountQueryDefaultPrimary'
@@ -1837,7 +1840,7 @@ paths:
     get:
       operationId: GetSettlements
       summary: Get Settlements
-      description: ' Endpoint for getting the member''s settlements historical track.'
+      description: 'Returns settlement records still in the live data set. Archived positions are available via `GET /historical/positions`, which has different fields; this endpoint does not return archived settlement records.'
       tags:
         - portfolio
       security:
@@ -4130,13 +4133,13 @@ paths:
       operationId: GetHistoricalCutoff
       summary: Get Historical Cutoff Timestamps
       description: |
-        Returns the cutoff timestamps that define the boundary between **live** and **historical** data.
+        Returns the archive's cutoff timestamps. For positions, the cutoff is the backfill horizon; visibility in the historical API waits for a buffered, whole-event handoff.
 
         ## Cutoff fields
         - `market_settled_ts` : Markets that **settled** before this timestamp, and their candlesticks, must be accessed via `GET /historical/markets` and `GET /historical/markets/{ticker}/candlesticks`.
         - `trades_created_ts` : Trades that were **filled** before this timestamp must be accessed via `GET /historical/fills`.
         - `orders_updated_ts` : Orders that were **canceled or fully executed** before this timestamp must be accessed via `GET /historical/orders`. Resting (active) orders are always available in `GET /portfolio/orders`.
-        - `market_positions_last_updated_ts` : Settled positions **archived from the live data set** before this timestamp must be accessed via `GET /historical/positions`. Unsettled positions are always available in `GET /portfolio/positions`.
+        - `market_positions_last_updated_ts` : Backfill horizon for settled positions, not a guaranteed archive-visibility boundary. An event moves to `GET /historical/positions` only after its buffered handoff completes. Until then, its settled positions remain available via `GET /portfolio/positions?settlement_status=settled`. Unsettled positions remain available in `GET /portfolio/positions`.
       tags:
         - historical
       responses:
@@ -4276,7 +4279,7 @@ paths:
     get:
       operationId: GetHistoricalPositions
       summary: Get Historical Positions
-      description: ' Endpoint for getting settled market positions that have been archived to the historical database. Positions whose markets were archived before `market_positions_last_updated_ts` on `GET /historical/cutoff` are available via this endpoint. Positions are archived per whole event: a settled event''s positions move here together and are never split between this endpoint and `GET /portfolio/positions`. Unsettled positions are always available via `GET /portfolio/positions`.'
+      description: 'Returns settled market positions after their event completes the live-to-historical handoff. Until then, settled positions remain available via `GET /portfolio/positions?settlement_status=settled`. The `market_positions_last_updated_ts` value on `GET /historical/cutoff` is the backfill horizon, not a guarantee that every older position has moved. Unsettled positions are available via `GET /portfolio/positions`.'
       tags:
         - historical
       security:
@@ -4608,6 +4611,15 @@ components:
       description: Restricts the positions to those with any of following fields with non-zero values, as a comma separated list. The following values are accepted - position, total_traded
       schema:
         type: string
+
+    PositionSettlementStatusQuery:
+      name: settlement_status
+      in: query
+      description: Return unsettled positions by default, settled positions that have not yet been archived, or all positions in the live data set.
+      schema:
+        type: string
+        enum: [unsettled, settled, all]
+        default: unsettled
 
     OrderIdQuery:
       name: order_id

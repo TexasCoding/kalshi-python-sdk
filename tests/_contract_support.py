@@ -1620,6 +1620,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/funding_rates/historical",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.funding.FundingResource.premium_index",
+        http_method="GET",
+        path_template="/margin/funding_rates/premium_index",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.funding.FundingResource.history",
         http_method="GET",
         path_template="/margin/funding_history",

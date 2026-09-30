@@ -1430,6 +1430,7 @@ components:
           payload:
             id: 1
             type: subscribed
+            sending_ts_ms: 1669149841234
             msg:
               channel: orderbook_delta
               sid: 1
@@ -1449,6 +1450,7 @@ components:
             sid: 2
             seq: 7
             type: unsubscribed
+            sending_ts_ms: 1669149841234
 
     subscribedIndicesResponse:
       name: ok
@@ -1481,6 +1483,7 @@ components:
             sid: 456
             seq: 222
             type: ok
+            sending_ts_ms: 1669149841234
             msg:
               market_tickers: ["MARKET-1", "MARKET-2", "MARKET-3"]
 
@@ -1497,6 +1500,7 @@ components:
           payload:
             id: 3
             type: ok
+            sending_ts_ms: 1669149841234
             msg:
               - channel: "orderbook_delta"
                 sid: 1
@@ -1553,6 +1557,7 @@ components:
           payload:
             id: 123
             type: error
+            sending_ts_ms: 1669149841234
             msg:
               code: 7
               msg: "Unknown subscription ID"
@@ -1561,6 +1566,7 @@ components:
           payload:
             id: 124
             type: error
+            sending_ts_ms: 1669149841234
             msg:
               code: 8
               msg: "Unknown channel name"
@@ -1569,6 +1575,7 @@ components:
           payload:
             id: 125
             type: error
+            sending_ts_ms: 1669149841234
             msg:
               code: 2
               msg: "Params required"
@@ -1577,6 +1584,7 @@ components:
           payload:
             id: 126
             type: error
+            sending_ts_ms: 1669149841234
             msg:
               code: 9
               msg: "Authentication required"
@@ -1585,6 +1593,7 @@ components:
           payload:
             id: 127
             type: error
+            sending_ts_ms: 1669149841234
             msg:
               code: 14
               msg: "Market Ticker required"
@@ -1629,6 +1638,7 @@ components:
           summary: Orderbook snapshot with yes and no sides
           payload:
             type: orderbook_snapshot
+            sending_ts_ms: 1669149841234
             sid: 2
             seq: 2
             msg:
@@ -1649,6 +1659,7 @@ components:
           summary: Orderbook price level update
           payload:
             type: orderbook_delta
+            sending_ts_ms: 1669149841123
             sid: 2
             seq: 3
             msg:
@@ -1672,6 +1683,7 @@ components:
           summary: CF Benchmarks value update with 60s and final-minute quarter-hour averages
           payload:
             type: cfbenchmarks_value
+            sending_ts_ms: 1669149841234
             sid: 1
             seq: 42
             msg:
@@ -1701,6 +1713,7 @@ components:
           summary: Example available index IDs (illustrative subset)
           payload:
             type: cfbenchmarks_value_indexlist
+            sending_ts_ms: 1669149841234
             id: 2
             sid: 1
             seq: 1
@@ -1719,6 +1732,7 @@ components:
           summary: CF Benchmarks 5Hz value update (raw tick, no averages)
           payload:
             type: cfbenchmarks_value_5hz
+            sending_ts_ms: 1669149841234
             sid: 1
             seq: 42
             msg:
@@ -1740,6 +1754,7 @@ components:
           summary: Index IDs streaming on the 5Hz channel
           payload:
             type: cfbenchmarks_value_5hz_indexlist
+            sending_ts_ms: 1669149841234
             id: 2
             sid: 1
             seq: 1
@@ -1757,6 +1772,7 @@ components:
         - name: pythValueUpdate
           payload:
             type: pyth_value
+            sending_ts_ms: 1669149841234
             sid: 1
             seq: 42
             msg:
@@ -1776,6 +1792,7 @@ components:
         - name: underlyingListResponse
           payload:
             type: pyth_value_underlying_list
+            sending_ts_ms: 1669149841234
             id: 2
             sid: 1
             seq: 1
@@ -1794,6 +1811,7 @@ components:
           summary: Ticker update
           payload:
             type: ticker
+            sending_ts_ms: 1669149841123
             sid: 11
             msg:
               market_id: "9b0f6b43-5b68-4f9f-9f02-9a2d1b8ac1a1"
@@ -1824,6 +1842,7 @@ components:
           summary: Trade notification
           payload:
             type: trade
+            sending_ts_ms: 1669149841123
             sid: 11
             seq: 2
             msg:
@@ -1851,6 +1870,7 @@ components:
           summary: User fill notification
           payload:
             type: fill
+            sending_ts_ms: 1671899397123
             sid: 13
             msg:
               trade_id: "d91bc706-ee49-470d-82d8-11418bda6fed"
@@ -1884,6 +1904,7 @@ components:
           summary: Market created event
           payload:
             type: market_lifecycle_v2
+            sending_ts_ms: 1669149841234
             sid: 13
             seq: 3
             msg:
@@ -1910,6 +1931,7 @@ components:
           summary: Price level structure updated event
           payload:
             type: market_lifecycle_v2
+            sending_ts_ms: 1669149841234
             sid: 13
             seq: 4
             msg:
@@ -1933,6 +1955,7 @@ components:
           summary: Market metadata updated event
           payload:
             type: market_lifecycle_v2
+            sending_ts_ms: 1669149841234
             sid: 13
             seq: 5
             msg:
@@ -1945,6 +1968,7 @@ components:
           summary: Market metadata updated event (subtitle)
           payload:
             type: market_lifecycle_v2
+            sending_ts_ms: 1669149841234
             sid: 13
             seq: 6
             msg:
@@ -1964,6 +1988,7 @@ components:
           summary: Multivariate market created event
           payload:
             type: multivariate_market_lifecycle
+            sending_ts_ms: 1669149841234
             sid: 14
             seq: 7
             msg:
@@ -1995,6 +2020,7 @@ components:
           summary: Event created
           payload:
             type: event_lifecycle
+            sending_ts_ms: 1669149841234
             sid: 5
             seq: 8
             msg:
@@ -2018,6 +2044,7 @@ components:
           summary: Event fee override set
           payload:
             type: event_fee_update
+            sending_ts_ms: 1669149841234
             sid: 5
             seq: 9
             msg:
@@ -2028,6 +2055,7 @@ components:
           summary: Event fee override cleared
           payload:
             type: event_fee_update
+            sending_ts_ms: 1669149841234
             sid: 5
             seq: 10
             msg:
@@ -2047,6 +2075,7 @@ components:
           summary: User position update
           payload:
             type: market_position
+            sending_ts_ms: 1669149841234
             sid: 14
             msg:
               user_id: "user123"
@@ -2070,6 +2099,7 @@ components:
           summary: Order group limit updated
           payload:
             type: order_group_updates
+            sending_ts_ms: 1733047200123
             sid: 21
             seq: 7
             msg:
@@ -2090,6 +2120,7 @@ components:
           summary: User order created notification
           payload:
             type: user_order
+            sending_ts_ms: 1669149841234
             sid: 22
             msg:
               order_id: "ee587a1c-8b87-4dcf-b721-9f6f790619fa"
@@ -2130,6 +2161,7 @@ components:
           summary: RFQ created notification
           payload:
             type: rfq_created
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 11
             msg:
@@ -2143,6 +2175,7 @@ components:
           summary: MVE RFQ created notification
           payload:
             type: rfq_created
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 11
             msg:
@@ -2174,6 +2207,7 @@ components:
           summary: RFQ deleted notification
           payload:
             type: rfq_deleted
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 12
             msg:
@@ -2197,6 +2231,7 @@ components:
           summary: Quote created notification
           payload:
             type: quote_created
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 13
             msg:
@@ -2226,6 +2261,7 @@ components:
           summary: Quote accepted notification
           payload:
             type: quote_accepted
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 14
             msg:
@@ -2260,6 +2296,7 @@ components:
           summary: Quote executed notification
           payload:
             type: quote_executed
+            sending_ts_ms: 1669149841234
             sid: 15
             seq: 15
             msg:
@@ -2274,6 +2311,11 @@ components:
               subaccount: 3
 
   schemas:
+    sendingTimestampMs:
+      type: integer
+      format: int64
+      description: Unix timestamp in milliseconds when Kalshi queued this message at the network layer.
+
     # Base schemas
     commandId:
       type: integer
@@ -2574,6 +2616,8 @@ components:
               type: string
             sid:
               $ref: '#/components/schemas/subscriptionId'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     unsubscribedResponsePayload:
       type: object
@@ -2588,6 +2632,8 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     subscribedIndicesResponsePayload:
       type: object
@@ -2611,6 +2657,8 @@ components:
               description: Current CF Benchmarks index filter after an update; all-mode is ["all"]
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     subscribedUnderlyingsResponsePayload:
       type: object
@@ -2634,6 +2682,8 @@ components:
               description: Current Pyth underlying ticker filter after an update; all-mode is ["all"]
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     okResponsePayload:
       type: object
@@ -2661,6 +2711,8 @@ components:
               description: Full list of market IDs after update
               items:
                 $ref: '#/components/schemas/marketId'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     errorResponsePayload:
       type: object
@@ -2725,6 +2777,8 @@ components:
               description: Optional market tickers associated with the error
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     listSubscriptionsCommandPayload:
       type: object
@@ -2759,6 +2813,8 @@ components:
                 $ref: '#/components/schemas/subscriptionId'
 
     # Channel message payloads
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
     cfbenchmarksAvgData:
       type: object
       description: Windowed-average metadata for a CF Benchmarks index value.
@@ -2815,6 +2871,8 @@ components:
                 The accumulation window is `(quarter_close_ts_ms - 60000, quarter_close_ts_ms]` (start boundary
                 tick excluded, close tick included), producing second-indexed counts up to 60 at close. Omitted
                 outside that final-minute window.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     cfbenchmarksIndexListPayload:
       type: object
@@ -2838,6 +2896,8 @@ components:
               description: Available CF Benchmarks index IDs
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     cfbenchmarksValue5HzPayload:
       type: object
@@ -2869,6 +2929,8 @@ components:
             data:
               type: string
               description: The raw CF Benchmarks JSON frame, as a string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     cfbenchmarks5HzIndexListPayload:
       type: object
@@ -2892,6 +2954,8 @@ components:
               description: Index IDs recently observed on the 5Hz stream
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     pythValuePayload:
       type: object
@@ -2920,6 +2984,8 @@ components:
             received_at:
               type: integer
               description: When Kalshi received the Pyth update (unix ms)
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     pythUnderlyingListPayload:
       type: object
@@ -2943,6 +3009,8 @@ components:
               description: Underlying tickers observed on the Pyth stream in the last two hours
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     orderbookSnapshotPayload:
       type: object
@@ -2990,6 +3058,8 @@ components:
                   type: string
                 minItems: 2
                 maxItems: 2
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     orderbookDeltaPayload:
       type: object
@@ -3026,7 +3096,7 @@ components:
             ts:
               type: string
               deprecated: true
-              description: Deprecated - Optional timestamp for when the orderbook change was recorded (RFC3339). Use ts_ms instead.
+              description: Deprecated - Optional timestamp for when the orderbook change was recorded (RFC3339, truncated to milliseconds). Use ts_ms instead.
               format: date-time
             ts_ms:
               type: integer
@@ -3037,6 +3107,8 @@ components:
               description: |
                 Optional - Present only when you caused this orderbook change and are using subaccounts.
                 Contains the subaccount number of your order that triggered this delta.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     tickerPayload:
       type: object
@@ -3099,6 +3171,8 @@ components:
               deprecated: true
               description: Deprecated - Timestamp for when the update happened (RFC3339). Use ts_ms instead.
               format: date-time
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     tradePayload:
       type: object
@@ -3161,6 +3235,8 @@ components:
               type: integer
               description: Unix timestamp in milliseconds
               format: int64
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     fillPayload:
       type: object
@@ -3248,6 +3324,8 @@ components:
             subaccount:
               type: integer
               description: Optional subaccount number for the fill
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marketLifecycleV2Payload:
       type: object
@@ -3332,6 +3410,8 @@ components:
                   step:
                     type: string
                     description: Tick size (minimum price increment) within this band, in dollars
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     multivariateMarketLifecyclePayload:
       type: object
@@ -3396,6 +3476,8 @@ components:
             price_level_structure:
               $ref: '#/components/schemas/lifecyclePriceLevelStructure'
               description: Optional - The market price level structure on creation
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     lifecycleAdditionalMetadata:
       type: object
@@ -3470,6 +3552,8 @@ components:
             yes_sub_title:
               type: string
               description: Optional - This key will ONLY exist for metadata_updated events. The updated yes subtitle for the market
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     eventLifecyclePayload:
       type: object
@@ -3512,6 +3596,8 @@ components:
             strike_period:
               type: string
               description: Optional - String to indicate the strike period of the event if there is one
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     eventFeeUpdatePayload:
       type: object
@@ -3538,6 +3624,8 @@ components:
             fee_multiplier_override:
               type: [number, "null"]
               description: Event fee multiplier override. `null` when the override has been cleared.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marketPositionPayload:
       type: object
@@ -3579,6 +3667,8 @@ components:
             subaccount:
               type: integer
               description: Optional subaccount number for the position
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     orderGroupUpdatesPayload:
       type: object
@@ -3609,6 +3699,8 @@ components:
               type: integer
               format: int64
               description: Matching engine timestamp at which the event was processed, as Unix epoch milliseconds.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     userOrderPayload:
       type: object
@@ -3732,6 +3824,8 @@ components:
             subaccount_number:
               type: integer
               description: Subaccount number (0 for primary, 1-63 for subaccounts)
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     rfqCreatedPayload:
       type: object
@@ -3794,6 +3888,8 @@ components:
                   yes_settlement_value_dollars:
                     type: string
                     description: Yes settlement value in dollars for the selected leg. Omitted when unavailable.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     rfqDeletedPayload:
       type: object
@@ -3832,6 +3928,8 @@ components:
               type: string
               description: Timestamp when the RFQ was deleted
               format: date-time
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     quoteCreatedPayload:
       type: object
@@ -3890,6 +3988,8 @@ components:
               description: |
                 Optional - Present only when your side of this quote used a subaccount.
                 Contains your own subaccount number; the counterparty's subaccount is never shared.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     quoteAcceptedPayload:
       type: object
@@ -3951,6 +4051,8 @@ components:
               description: |
                 Optional - Present only when your side of this quote used a subaccount.
                 Contains your own subaccount number; the counterparty's subaccount is never shared.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     quoteExecutedPayload:
       type: object
@@ -3997,6 +4099,9 @@ components:
               description: |
                 Optional - Present only when your side of this quote used a subaccount.
                 Contains your own subaccount number; the counterparty's subaccount is never shared.
+
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
   securitySchemes:
     apiKey:

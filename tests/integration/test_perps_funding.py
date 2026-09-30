@@ -1,8 +1,9 @@
 """Integration tests for the perps (margin) funding resource — live demo.
 
-Covers ``rate_estimate`` / ``historical_rates`` / ``history``. ``rate_estimate``
-and ``historical_rates`` are public; ``history`` is auth-gated (per-user payment
-history) and requires a margin-enabled demo account.
+Covers ``rate_estimate`` / ``historical_rates`` / ``premium_index`` / ``history``.
+``rate_estimate``, ``historical_rates``, and ``premium_index`` are public;
+``history`` is auth-gated (per-user payment history) and requires a
+margin-enabled demo account.
 
 Field-type note: ``funding_rate`` is a spec ``number/format: double`` and is a
 plain ``float`` (NOT a price ``DollarDecimal``) on every funding model.
@@ -21,13 +22,14 @@ from kalshi.perps.models.funding import (
     MarginFundingHistoryEntry,
     MarginFundingRate,
     MarginFundingRateEstimate,
+    MarginPremiumIndexPoint,
 )
 from tests.integration.conftest import skip_if_not_margin_enabled
 from tests.integration.coverage_harness import register_perps
 
 register_perps(
     "FundingResource",
-    ["history", "historical_rates", "rate_estimate"],
+    ["history", "historical_rates", "premium_index", "rate_estimate"],
 )
 
 
@@ -42,6 +44,20 @@ class TestPerpsFundingSync:
         if est.funding_rate is not None:
             assert isinstance(est.funding_rate, float)
         assert isinstance(est.next_funding_time, datetime)
+
+    def test_premium_index(
+        self, perps_sync_client: PerpsClient, perps_market_ticker: str
+    ) -> None:
+        now = int(time.time())
+        points = perps_sync_client.funding.premium_index(
+            ticker=perps_market_ticker,
+            start_ts=now - 60,
+            end_ts=now,
+        )
+        assert isinstance(points, list)
+        for point in points:
+            assert isinstance(point, MarginPremiumIndexPoint)
+            assert isinstance(point.second_ts, datetime)
 
     def test_historical_rates(self, perps_sync_client: PerpsClient) -> None:
         rates = perps_sync_client.funding.historical_rates()
@@ -78,6 +94,21 @@ class TestPerpsFundingAsync:
         if est.funding_rate is not None:
             assert isinstance(est.funding_rate, float)
         assert isinstance(est.next_funding_time, datetime)
+
+    async def test_premium_index(self, perps_async_client: AsyncPerpsClient) -> None:
+        markets = await perps_async_client.markets.list()
+        if not markets:
+            pytest.skip("No margin markets on demo server")
+        now = int(time.time())
+        points = await perps_async_client.funding.premium_index(
+            ticker=markets[0].ticker,
+            start_ts=now - 60,
+            end_ts=now,
+        )
+        assert isinstance(points, list)
+        for point in points:
+            assert isinstance(point, MarginPremiumIndexPoint)
+            assert isinstance(point.second_ts, datetime)
 
     async def test_historical_rates(
         self, perps_async_client: AsyncPerpsClient

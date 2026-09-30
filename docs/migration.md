@@ -1,5 +1,21 @@
 # Migration
 
+## v17.0 → v17.1.0
+
+Reconciles upstream OpenAPI **3.32.0** (Closes #525). **Non-breaking**
+additive APIs.
+
+### Added
+
+- `portfolio.positions` / `positions_all(..., settlement_status=)` on the
+  sync and async clients. Values are `"unsettled"`, `"settled"`, and
+  `"all"`. This filter was removed in v0.7.0 because it was not in the spec;
+  OpenAPI 3.32.0 adds it for real. Omit the kwarg to keep the server default
+  (`unsettled`).
+- Perps `funding.premium_index(*, ticker, start_ts, end_ts)` (public, no
+  auth) plus `MarginPremiumIndexPoint`. `MarginFundingRateEstimate` gains
+  optional `premium_index` and `premium_index_ts`.
+
 ## v16.0 → v17.0.0
 
 Reconciles upstream OpenAPI **3.31.0** content drift plus matching perps and

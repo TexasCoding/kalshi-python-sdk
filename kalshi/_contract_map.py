@@ -880,6 +880,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.perps.models.funding.GetMarginFundingHistoryResponse",
         spec_schema="GetMarginFundingHistoryResponse",
     ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.MarginPremiumIndexPoint",
+        spec_schema="MarginPremiumIndexPoint",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.funding.GetMarginPremiumIndexResponse",
+        spec_schema="GetMarginPremiumIndexResponse",
+    ),
     # ── perps transfers (#396) ──
     ContractEntry(
         sdk_model="kalshi.perps.models.transfers.IntraExchangeInstanceTransferResponse",
