@@ -69,6 +69,7 @@ if bal.balance_breakdown is not None:
 resp = client.portfolio.positions(
     limit=200,
     count_filter="position",        # only return rows with non-zero `position` (etc.)
+    settlement_status="unsettled",  # "unsettled" (server default) | "settled" | "all"
     ticker="KXPRES-24-DJT",
     event_ticker="KXPRES-24",
 )
@@ -108,6 +109,10 @@ for ep in resp.event_positions:
 
 `count_filter` filters which fields the response **includes a row for** —
 filtering by `"position"` returns only markets where your position is non-zero.
+
+`settlement_status` (`SettlementStatusLiteral`: `"unsettled"`, `"settled"`,
+`"all"`) selects which live positions to return. Omit it to keep the server
+default (`unsettled`). Archived positions stay on `GET /historical/positions`.
 
 ## Settlements
 

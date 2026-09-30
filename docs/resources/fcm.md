@@ -89,8 +89,9 @@ for mp in client.fcm.positions_all(subtrader_id="st_alpha", settlement_status="u
 # async: `async for mp in client.fcm.positions_all(...)`
 ```
 
-`settlement_status` is the FCM-specific kwarg that does **not** exist on
-`portfolio.positions()`.
+`settlement_status` is also accepted on
+[`portfolio.positions`](portfolio.md#positions) / `positions_all` (OpenAPI
+3.32.0). Both endpoints default to `unsettled` when the kwarg is omitted.
 
 ## Subtrader admin
 

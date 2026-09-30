@@ -1,11 +1,12 @@
-"""Perps (margin) funding models — rate estimate, historical rates, payment history.
+"""Perps (margin) funding models — rate estimate, historical rates, premium index, payment history.
 
-Response models for the three read-only perps **funding** endpoints (#395):
+Response models for the four read-only perps **funding** endpoints (#395):
 
 - :class:`MarginFundingRate` — a single applied historical funding rate.
 - :class:`MarginFundingHistoryEntry` — one row of the authenticated user's
   per-payment funding history (the rate joined with the realized payment).
 - :class:`MarginFundingRateEstimate` — the current in-progress rate estimate.
+- :class:`MarginPremiumIndexPoint` — one per-second informational premium index.
 
 Field-type rules (verified against ``specs/perps_openapi.yaml``):
 
@@ -16,9 +17,11 @@ Field-type rules (verified against ``specs/perps_openapi.yaml``):
 - ``mark_price`` / ``funding_amount`` are ``$ref FixedPointDollars`` strings →
   :data:`~kalshi.types.DollarDecimal`.
 - ``quantity`` is ``$ref FixedPointCount`` → :data:`~kalshi.types.FixedPointCount`.
-- ``funding_time`` / ``computed_time`` / ``next_funding_time`` are RFC3339
-  ``format: date-time`` REST timestamps → :class:`~pydantic.AwareDatetime`
-  (NOT ``_ms`` epoch ints).
+- ``funding_time`` / ``computed_time`` / ``next_funding_time`` /
+  ``premium_index_ts`` / ``second_ts`` are RFC3339 ``format: date-time`` REST
+  timestamps → :class:`~pydantic.AwareDatetime` (NOT ``_ms`` epoch ints).
+- ``premium_index`` is a signed decimal fraction (spec ``type: string``) →
+  :data:`~kalshi.types.MultiplierDecimal`.
 
 These are response models only — this issue has no request bodies, so every
 model uses ``extra="allow"`` (tolerate additive server fields) and never
@@ -102,6 +105,38 @@ class MarginFundingRateEstimate(BaseModel):
         validation_alias=AliasChoices("mark_price_dollars", "mark_price"),
     )
     next_funding_time: AwareDatetime
+    # Final-second premium captured with this estimate. Omitted when that
+    # second has no available premium (spec optional).
+    premium_index: MultiplierDecimal | None = None
+    premium_index_ts: AwareDatetime | None = None
+
+
+class MarginPremiumIndexPoint(BaseModel):
+    """Spec ``MarginPremiumIndexPoint`` — one per-second informational premium.
+
+    Both properties are spec-required. ``premium_index`` is a signed decimal
+    fraction of the index price (``"0"`` when no premium was measurable), not
+    basis points. Informational only — it may not match the premium used in
+    the actual funding calculation.
+    """
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+    second_ts: AwareDatetime
+    premium_index: MultiplierDecimal
+
+
+class GetMarginPremiumIndexResponse(BaseModel):
+    """Spec ``GetMarginPremiumIndexResponse`` — premium-index envelope.
+
+    ``points`` is spec-required and uses
+    :data:`~kalshi.types.NullableList`: a missing key raises ``ValidationError``
+    (surfacing drift), while a ``null`` array coerces to ``[]``.
+    """
+
+    points: NullableList[MarginPremiumIndexPoint]
+
+    model_config = {"extra": "allow"}
 
 
 class GetMarginHistoricalFundingRatesResponse(BaseModel):

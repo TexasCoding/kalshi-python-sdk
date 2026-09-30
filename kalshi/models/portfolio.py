@@ -9,7 +9,10 @@ from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, StrictInt
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList, UnixSecondsTimestamp
 
 SettlementStatusLiteral = Literal["all", "unsettled", "settled"]
-"""Position settlement status filter for GET /fcm/positions. Spec: settlement_status query enum."""
+"""Position settlement status filter for GET /portfolio/positions and GET /fcm/positions.
+
+Spec: ``settlement_status`` query enum.
+"""
 
 
 class IndexedBalance(BaseModel):

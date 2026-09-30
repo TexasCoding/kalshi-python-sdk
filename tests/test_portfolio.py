@@ -237,20 +237,24 @@ class TestPortfolioPositions:
         assert route.calls[0].request.url.params["limit"] == "10"
         assert resp.has_next is False  # empty cursor string
 
-    def test_settlement_status_kwarg_removed(self, portfolio: PortfolioResource) -> None:
-        """Regression: v0.7.0 dropped phantom settlement_status kwarg.
+    @respx.mock
+    def test_settlement_status_forwarded(self, portfolio: PortfolioResource) -> None:
+        """OpenAPI 3.32.0: settlement_status is a real /portfolio/positions query param.
 
-        It is NOT a valid /portfolio/positions param per spec lines 1055-1090
-        (only /fcm/positions has it). NO direct replacement: count_filter is
-        a different filter (non-zero numeric fields, not settlement state).
-        Migration: filter client-side, OR use /fcm/positions if FCM member.
+        The kwarg was a phantom removed in v0.7.0. The spec now accepts
+        unsettled (server default), settled, or all.
         """
-        with pytest.raises(TypeError, match="settlement_status"):
-            portfolio.positions(settlement_status="unsettled")  # type: ignore[call-arg]
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        portfolio.positions(settlement_status="unsettled")
+        assert route.calls[0].request.url.params["settlement_status"] == "unsettled"
 
     @respx.mock
     def test_positions_with_all_new_filters(self, portfolio: PortfolioResource) -> None:
-        """v0.7.0 ADDs: count_filter, ticker, subaccount."""
+        """v0.7.0 ADDs: count_filter, ticker, subaccount. v17.1.0: settlement_status."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200, json={"market_positions": [], "event_positions": [], "cursor": ""}
@@ -260,6 +264,7 @@ class TestPortfolioPositions:
             limit=50,
             cursor="abc",
             count_filter="position",
+            settlement_status="settled",
             ticker="MKT-A",
             event_ticker="EVT-X",
             subaccount=7,
@@ -269,6 +274,7 @@ class TestPortfolioPositions:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["count_filter"] == "position"
+        assert params["settlement_status"] == "settled"
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "7"
@@ -317,6 +323,7 @@ class TestPortfolioPositionsAll:
             portfolio.positions_all(
                 limit=100,
                 count_filter="position",
+                settlement_status="all",
                 ticker="MKT-A",
                 event_ticker="EVT-X",
                 subaccount=3,
@@ -326,6 +333,7 @@ class TestPortfolioPositionsAll:
         params = dict(route.calls[0].request.url.params)
         assert params["limit"] == "100"
         assert params["count_filter"] == "position"
+        assert params["settlement_status"] == "all"
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "3"
@@ -785,20 +793,26 @@ class TestAsyncPortfolioPositions:
         assert resp.market_positions == []
         assert resp.has_next is False
 
+    @respx.mock
     @pytest.mark.asyncio
-    async def test_settlement_status_kwarg_removed(
+    async def test_settlement_status_forwarded(
         self, async_portfolio: AsyncPortfolioResource
     ) -> None:
-        """Regression: v0.7.0 dropped phantom settlement_status kwarg."""
-        with pytest.raises(TypeError, match="settlement_status"):
-            await async_portfolio.positions(settlement_status="unsettled")  # type: ignore[call-arg]
+        """OpenAPI 3.32.0: async positions forwards settlement_status."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        await async_portfolio.positions(settlement_status="unsettled")
+        assert route.calls[0].request.url.params["settlement_status"] == "unsettled"
 
     @respx.mock
     @pytest.mark.asyncio
     async def test_positions_with_all_new_filters(
         self, async_portfolio: AsyncPortfolioResource
     ) -> None:
-        """v0.7.0 ADDs: count_filter, ticker, subaccount."""
+        """v0.7.0 ADDs: count_filter, ticker, subaccount. v17.1.0: settlement_status."""
         route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
             return_value=httpx.Response(
                 200, json={"market_positions": [], "event_positions": [], "cursor": ""}
@@ -808,6 +822,7 @@ class TestAsyncPortfolioPositions:
             limit=50,
             cursor="abc",
             count_filter="position",
+            settlement_status="settled",
             ticker="MKT-A",
             event_ticker="EVT-X",
             subaccount=7,
@@ -817,6 +832,7 @@ class TestAsyncPortfolioPositions:
         assert params["limit"] == "50"
         assert params["cursor"] == "abc"
         assert params["count_filter"] == "position"
+        assert params["settlement_status"] == "settled"
         assert params["ticker"] == "MKT-A"
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "7"
@@ -1141,6 +1157,21 @@ class TestAsyncPortfolioPositionsAll:
         )
         tickers = [p.ticker async for p in async_portfolio.positions_all()]
         assert tickers == ["A", "B"]
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_positions_all_forwards_settlement_status(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        async for _ in async_portfolio.positions_all(settlement_status="settled"):
+            pass
+        assert route.calls[0].request.url.params["settlement_status"] == "settled"
+        assert "cursor" not in route.calls[0].request.url.params
 
     @pytest.mark.asyncio
     async def test_positions_all_requires_auth(

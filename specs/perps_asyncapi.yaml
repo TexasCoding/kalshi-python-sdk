@@ -597,6 +597,7 @@ components:
           summary: Order group limit updated
           payload:
             type: order_group_updates
+            sending_ts_ms: 1700000000246
             sid: 21
             seq: 7
             msg:
@@ -606,6 +607,11 @@ components:
               ts_ms: 1700000000123
 
   schemas:
+    sendingTimestampMs:
+      type: integer
+      format: int64
+      description: Unix timestamp in milliseconds when Kalshi queued this message at the network layer.
+
     commandId:
       type: integer
       minimum: 0
@@ -792,6 +798,8 @@ components:
               type: string
             sid:
               $ref: '#/components/schemas/subscriptionId'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     unsubscribedResponsePayload:
       type: object
@@ -806,6 +814,8 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     okResponsePayload:
       type: object
@@ -833,6 +843,8 @@ components:
               items:
                 type: string
                 format: uuid
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     listSubscriptionsResponsePayload:
       type: object
@@ -853,6 +865,8 @@ components:
                 type: string
               sid:
                 $ref: '#/components/schemas/subscriptionId'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     errorResponsePayload:
       type: object
@@ -893,6 +907,8 @@ components:
               description: Optional market tickers associated with the error
               items:
                 type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginOrderbookSnapshotPayload:
       type: object
@@ -922,6 +938,8 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/priceLevelDollarsCountFp'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginOrderbookDeltaPayload:
       type: object
@@ -956,6 +974,8 @@ components:
               description: Unix timestamp in milliseconds.
             subaccount:
               type: integer
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginTickerPayload:
       type: object
@@ -1019,6 +1039,8 @@ components:
               type: integer
               format: int64
               description: Unix timestamp in milliseconds.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginTradePayload:
       type: object
@@ -1050,6 +1072,8 @@ components:
               type: integer
               format: int64
               description: Unix timestamp in milliseconds.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginFillPayload:
       type: object
@@ -1098,6 +1122,8 @@ components:
               description: |
                 `system` for liquidations and margin exit or trailing-stop
                 triggers. `user` for every other order.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     marginUserOrderPayload:
       type: object
@@ -1158,6 +1184,8 @@ components:
               description: |
                 `system` for liquidations and margin exit or trailing-stop
                 triggers. `user` for every other order.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
     orderGroupUpdatesPayload:
       type: object
@@ -1188,6 +1216,9 @@ components:
               type: integer
               format: int64
               description: Matching engine timestamp at which the event was processed, as Unix epoch milliseconds.
+
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
 
   securitySchemes:
     apiKey:

@@ -1,7 +1,8 @@
 """Tests for the perps funding resource (#395).
 
-Covers ``rate_estimate``, ``historical_rates``, and ``history`` (sync + async):
-happy path, edge cases, error mapping, and the auth gate on ``history``.
+Covers ``rate_estimate``, ``historical_rates``, ``premium_index``, and ``history``
+(sync + async): happy path, edge cases, error mapping, and the auth gate on
+``history``.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.funding import (
     MarginFundingHistoryEntry,
     MarginFundingRate,
+    MarginPremiumIndexPoint,
 )
 
 BASE = "https://external-api.demo.kalshi.co/trade-api/v2"
@@ -44,6 +46,8 @@ class TestRateEstimate:
                     "funding_rate": 0.000125,
                     "mark_price_dollars": "65000.50",
                     "next_funding_time": "2026-06-04T16:00:00Z",
+                    "premium_index": "0.000125",
+                    "premium_index_ts": "2026-06-04T11:59:59Z",
                 },
             )
         )
@@ -55,6 +59,9 @@ class TestRateEstimate:
         assert est.funding_rate == Decimal("0.000125")
         assert isinstance(est.next_funding_time, datetime)
         assert est.next_funding_time.tzinfo is not None
+        assert est.premium_index == Decimal("0.000125")
+        assert isinstance(est.premium_index_ts, datetime)
+        assert est.premium_index_ts.tzinfo is not None
         assert est.market_ticker == "BTC-PERP"
         # ticker propagated to the query string.
         assert route.calls.last.request.url.params["ticker"] == "BTC-PERP"
@@ -71,6 +78,8 @@ class TestRateEstimate:
         assert est.computed_time is None
         assert est.funding_rate is None
         assert est.mark_price is None
+        assert est.premium_index is None
+        assert est.premium_index_ts is None
         assert isinstance(est.next_funding_time, datetime)
 
     @respx.mock
@@ -104,6 +113,124 @@ class TestRateEstimate:
         est = await async_perps_client.funding.rate_estimate("ETH-PERP")
         assert est.mark_price == Decimal("100.0000")
         assert isinstance(est.next_funding_time, datetime)
+        await async_perps_client.close()
+
+
+# ── premium_index ─────────────────────────────────────────────────────────────
+
+
+class TestPremiumIndex:
+    @respx.mock
+    def test_happy(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "points": [
+                        {
+                            "second_ts": "2026-06-04T12:00:00Z",
+                            "premium_index": "0.000125",
+                        },
+                        {
+                            "second_ts": "2026-06-04T12:00:01Z",
+                            "premium_index": "0",
+                        },
+                    ]
+                },
+            )
+        )
+        points = perps_client.funding.premium_index(
+            ticker="BTC-PERP", start_ts=1_000, end_ts=2_000
+        )
+        assert len(points) == 2
+        assert all(isinstance(p, MarginPremiumIndexPoint) for p in points)
+        assert isinstance(points[0].second_ts, datetime)
+        assert points[0].second_ts.tzinfo is not None
+        assert points[0].premium_index == Decimal("0.000125")
+        assert points[1].premium_index == Decimal("0")
+        params = route.calls.last.request.url.params
+        assert params["ticker"] == "BTC-PERP"
+        assert params["start_ts"] == "1000"
+        assert params["end_ts"] == "2000"
+
+    @respx.mock
+    def test_public_without_auth(self) -> None:
+        route = respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(200, json={"points": []})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        assert client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2) == []
+        assert route.called
+        client.close()
+
+    @respx.mock
+    def test_edge_empty_array(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(200, json={"points": []})
+        )
+        assert (
+            perps_client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2) == []
+        )
+
+    @respx.mock
+    def test_missing_key_raises_but_null_tolerated(self, perps_client: PerpsClient) -> None:
+        # `points` is spec-required: MISSING hard-fails, NULL -> [] (NullableList).
+        route = respx.get(f"{BASE}/margin/funding_rates/premium_index")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            perps_client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2)
+        route.mock(return_value=httpx.Response(200, json={"points": None}))
+        assert perps_client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2) == []
+
+    @respx.mock
+    def test_point_missing_required_raises(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(
+                200, json={"points": [{"second_ts": "2026-06-04T12:00:00Z"}]}
+            )
+        )
+        with pytest.raises(ValidationError):
+            perps_client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2)
+
+    @respx.mock
+    def test_error_400_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            perps_client.funding.premium_index(ticker="BTC-PERP", start_ts=1, end_ts=2)
+
+    @respx.mock
+    async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "points": [
+                        {
+                            "second_ts": "2026-06-04T12:00:00Z",
+                            "premium_index": "-0.0002",
+                        }
+                    ]
+                },
+            )
+        )
+        points = await async_perps_client.funding.premium_index(
+            ticker="ETH-PERP", start_ts=10, end_ts=20
+        )
+        assert len(points) == 1
+        assert points[0].premium_index == Decimal("-0.0002")
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_error_500_maps(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/funding_rates/premium_index").mock(
+            return_value=httpx.Response(500)
+        )
+        with pytest.raises(KalshiServerError):
+            await async_perps_client.funding.premium_index(
+                ticker="ETH-PERP", start_ts=10, end_ts=20
+            )
         await async_perps_client.close()
 
 
