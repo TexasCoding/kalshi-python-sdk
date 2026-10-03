@@ -98,6 +98,29 @@ class TestCreate:
         # wire names are the short keys, not _dollars/_fp suffixed
         assert "price_dollars" not in body
         assert "count_fp" not in body
+        # unset optional market_version is omitted (exclude_none), not sent as 0
+        assert "market_version" not in body
+
+    @respx.mock
+    def test_market_version_serialized(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/margin/orders").mock(
+            return_value=httpx.Response(
+                201,
+                json={"order_id": "ord-9", "fill_count": "0.00", "remaining_count": "100.00"},
+            )
+        )
+        perps_client.orders.create(
+            ticker="BTC-PERP",
+            client_order_id="cid-9",
+            side="bid",
+            count="100",
+            price="0.56",
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+            market_version=1,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["market_version"] == 1
 
     @respx.mock
     def test_conflict_maps(self, perps_client: PerpsClient) -> None:

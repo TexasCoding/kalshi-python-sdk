@@ -245,6 +245,8 @@ class PortfolioResource(SyncResource):
     ) -> Page[Fill]:
         """List trade fills (``GET /portfolio/fills``).
 
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+
         Moved from :class:`OrdersResource` in v3.0.0 (issue #351) to group
         with the rest of the ``/portfolio/*`` family (``settlements``,
         ``deposits``, ``withdrawals``).
@@ -277,7 +279,10 @@ class PortfolioResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
-        """Auto-paginate trade fills. Moved from :class:`OrdersResource` in v3.0.0."""
+        """Auto-paginate trade fills. Moved from :class:`OrdersResource` in v3.0.0.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -656,6 +661,8 @@ class AsyncPortfolioResource(AsyncResource):
     ) -> Page[Fill]:
         """List trade fills (``GET /portfolio/fills``, async).
 
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+
         Moved from :class:`AsyncOrdersResource` in v3.0.0 (issue #351).
         """
         self._require_auth()
@@ -687,6 +694,8 @@ class AsyncPortfolioResource(AsyncResource):
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
         """Auto-paginate trade fills (async). Use ``async for``.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
 
         Moved from :class:`AsyncOrdersResource` in v3.0.0 (issue #351).
         """

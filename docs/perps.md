@@ -72,6 +72,10 @@ The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
 `orders.amend(..., expiration_time=)` is int64 Unix seconds: omit it to keep
 the current expiry, or pass `0` to clear it (good-till-canceled).
+`orders.create(..., market_version=)` is the expected market version (starts
+at 1 on `MarginMarket.market_version`). If set and the market's current
+version differs, the server rejects with HTTP 409 / `market_version_mismatch`.
+Omit to skip the check.
 
 !!! warning "Deprecated in v7.2.0 — `list_fcm` / `list_all_fcm`"
     Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI. The SDK

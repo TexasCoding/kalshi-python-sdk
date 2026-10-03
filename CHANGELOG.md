@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 18.0.0 — 2026-10-03
+
+Reconciles upstream OpenAPI **3.32.0** content drift plus perps/AsyncAPI
+updates after nightly contract failures (Closes #527). **Breaking** for
+constructors of perps `MarginMarket` that omit the new required
+`market_version`. Re-vendored `specs/openapi.yaml` (hash
+`fc70d406efd7a27dfff117ae1e509d44c2d01db57c1c9613a3fbb1a69caf2c88`),
+`specs/asyncapi.yaml` (hash
+`304956d30c986b02e8a375b004f30f6bca07e484a0a6cf3c45eb32bf01c4ba19`), and
+`specs/perps_openapi.yaml` (hash
+`d13cb9c5c18cbb9ab2fe60d173c74511dea627a89321d17f7b0505a88f82aeb0`).
+
+### Changed (breaking)
+
+- Perps **`MarginMarket.market_version`** (required `int`) — market version
+  counter (starts at 1; increases on corporate actions). Live list/get callers
+  are unaffected; tests/mocks that construct `MarginMarket` must pass it.
+
+### Added
+
+- Optional **`market_version`** on perps `CreateMarginOrderRequest` / `orders.create`
+  (sync + async). If set and the market's current version differs, server rejects
+  with HTTP 409 / `market_version_mismatch`. Omit or leave unset to skip the check
+  (server default 0).
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.32.0** (fills ticker description now allows
+  comma-separated list up to 100; RFQ obscure_creator_id docs clarified).
+- AsyncAPI `lastUpdateReason` adds `SettlementBoundsCancel`.
+
 ## 17.1.0 — 2026-09-30
 
 Reconciles upstream OpenAPI **3.31.0 → 3.32.0** content drift plus matching

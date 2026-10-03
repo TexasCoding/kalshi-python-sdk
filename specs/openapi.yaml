@@ -1964,7 +1964,12 @@ paths:
           kalshiAccessTimestamp: []
         - kalshiOauthAccessToken: []
       parameters:
-        - $ref: '#/components/parameters/TickerQuery'
+        - name: ticker
+          in: query
+          description: Filter by market ticker. Accepts a comma-separated list of up to 100 market tickers.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
         - $ref: '#/components/parameters/OrderIdQuery'
         - $ref: '#/components/parameters/MinTsQuery'
         - $ref: '#/components/parameters/MaxTsQuery'
@@ -7816,7 +7821,7 @@ components:
           description: UUID of the RFQ. Preserve the exact returned string.
         creator_id:
           type: string
-          description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+          description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID. After successful quote execution, subsequent RFQ responses show the normal public communications ID to all viewers.
         market_ticker:
           type: string
           description: The ticker of the market this RFQ is for
@@ -7936,7 +7941,7 @@ components:
           x-go-type-skip-optional-pointer: true
         obscure_creator_id:
           type: boolean
-          description: Hide the RFQ creator ID from other users until successful execution. The creator always sees their own ID.
+          description: Replace the RFQ creator's public communications ID with a shared empty-input SHA-256 hash for other users. Applies to RFQ responses and broadcasts, and to quotes before successful execution. Successful execution reveals the normal ID in subsequent RFQ responses and in the executed quote. Accepting or confirming a quote does not reveal the ID. The creator always sees their normal ID. See the RFQ guide for the placeholder and visibility rules.
           default: false
           x-go-type-skip-optional-pointer: true
         rest_remainder:
@@ -7990,7 +7995,7 @@ components:
           description: Public communications ID of the quote creator
         rfq_creator_id:
           type: string
-          description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+          description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID. After this quote executes successfully, its counterparty sees the normal public communications ID.
           x-go-type-skip-optional-pointer: true
         market_ticker:
           type: string

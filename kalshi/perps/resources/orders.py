@@ -86,6 +86,7 @@ def _build_create_body(
     reduce_only: bool | None,
     subaccount: int | None,
     order_group_id: str | None,
+    market_version: int | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -102,6 +103,7 @@ def _build_create_body(
         reduce_only=reduce_only,
         subaccount=subaccount,
         order_group_id=order_group_id,
+        market_version=market_version,
     )
     if request is None:
         if (
@@ -132,6 +134,7 @@ def _build_create_body(
             reduce_only=reduce_only,
             subaccount=subaccount,
             order_group_id=order_group_id,
+            market_version=market_version,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -260,6 +263,7 @@ class MarginOrdersResource(SyncResource):
         reduce_only: bool | None = ...,
         subaccount: int | None = ...,
         order_group_id: str | None = ...,
+        market_version: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse: ...
     def create(
@@ -279,12 +283,16 @@ class MarginOrdersResource(SyncResource):
         reduce_only: bool | None = None,
         subaccount: int | None = None,
         order_group_id: str | None = None,
+        market_version: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse:
         """Place a new margin order (POST /margin/orders). Not retried.
 
         ``expiration_time`` is int64 Unix seconds per spec. ``subaccount``
-        is carried in the request *body* (0 = primary).
+        is carried in the request *body* (0 = primary). ``market_version``
+        is the expected market version; if set and the market's current
+        version differs, the server rejects with HTTP 409 /
+        ``market_version_mismatch``. Omit to skip the check (server default 0).
         """
         self._require_auth()
         body = _build_create_body(
@@ -302,6 +310,7 @@ class MarginOrdersResource(SyncResource):
             reduce_only=reduce_only,
             subaccount=subaccount,
             order_group_id=order_group_id,
+            market_version=market_version,
         )
         data = self._post("/margin/orders", json=body, extra_headers=extra_headers)
         return CreateMarginOrderResponse.model_validate(data)
@@ -621,6 +630,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         reduce_only: bool | None = ...,
         subaccount: int | None = ...,
         order_group_id: str | None = ...,
+        market_version: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse: ...
     async def create(
@@ -640,6 +650,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         reduce_only: bool | None = None,
         subaccount: int | None = None,
         order_group_id: str | None = None,
+        market_version: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse:
         """Place a new margin order. See :meth:`MarginOrdersResource.create`."""
@@ -659,6 +670,7 @@ class AsyncMarginOrdersResource(AsyncResource):
             reduce_only=reduce_only,
             subaccount=subaccount,
             order_group_id=order_group_id,
+            market_version=market_version,
         )
         data = await self._post("/margin/orders", json=body, extra_headers=extra_headers)
         return CreateMarginOrderResponse.model_validate(data)
