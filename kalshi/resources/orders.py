@@ -193,7 +193,10 @@ class OrdersResource(SyncResource):
         exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
-        """List trade fills."""
+        """List trade fills.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -225,7 +228,10 @@ class OrdersResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
-        """Auto-paginate trade fills."""
+        """Auto-paginate trade fills.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(
@@ -505,7 +511,10 @@ class AsyncOrdersResource(AsyncResource):
         exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
-        """List trade fills (async)."""
+        """List trade fills (async).
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         params = _fills_params(
             ticker=ticker,
@@ -537,7 +546,10 @@ class AsyncOrdersResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
-        """Auto-paginate trade fills (async). Use ``async for``."""
+        """Auto-paginate trade fills (async). Use ``async for``.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _fills_params(

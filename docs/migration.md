@@ -1,5 +1,39 @@
 # Migration
 
+## v17.1 → v18.0.0
+
+Reconciles upstream OpenAPI **3.32.0** content drift plus matching perps and
+AsyncAPI updates (Closes #527). **Breaking** only for code that constructs
+perps `MarginMarket` without `market_version`.
+
+### Response model field changes
+
+- **Perps `MarginMarket.market_version`** — required `int`. Starts at 1 and
+  can increase on corporate actions (e.g. a stock split). Pass it as
+  `market_version` when creating an order so the server rejects with HTTP
+  409 / `market_version_mismatch` if the market changed since you read it.
+  Live `markets.list` / `markets.get` callers are unaffected; constructors
+  and fixtures must pass the new field.
+
+```python
+# Before (constructors / test fixtures):
+# MarginMarket(..., exchange_index=0)
+
+# After:
+MarginMarket(..., exchange_index=0, market_version=1)
+```
+
+### Added (non-breaking)
+
+- Optional `CreateMarginOrderRequest.market_version` and
+  `perps.orders.create(..., market_version=)` (sync + async). If set and
+  the market's current version differs, the server rejects with HTTP 409 /
+  `market_version_mismatch`. Omit or leave unset to skip the check (server
+  default 0).
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v17.0 → v17.1.0
 
 Reconciles upstream OpenAPI **3.32.0** (Closes #525). **Non-breaking**

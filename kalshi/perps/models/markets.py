@@ -90,6 +90,9 @@ class MarginMarket(BaseModel):
     # Required exchange shard for order-group membership (markets and order
     # groups must share the same exchange_index).
     exchange_index: int
+    # Required market version (corporate-action counter). Pass to create() as
+    # market_version so the server rejects with 409 if the market changed.
+    market_version: int
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars

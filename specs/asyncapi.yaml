@@ -2361,7 +2361,7 @@ components:
     lastUpdateReason:
       type: string
       description: Order update reason. ReduceOnlyCancel means reduce_only capped the order at placement.
-      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel"]
+      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel", "SettlementBoundsCancel"]
 
     orderAction:
       type: string
@@ -3847,7 +3847,7 @@ components:
               description: Unique identifier for the RFQ
             creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+              description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID.
             market_ticker:
               type: string
               description: Market ticker for the RFQ
@@ -3911,7 +3911,7 @@ components:
               description: Unique identifier for the RFQ
             creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+              description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID.
             market_ticker:
               type: string
               description: Market ticker for the RFQ
@@ -3957,7 +3957,7 @@ components:
               description: Public communications ID of the quote creator (anonymized)
             rfq_creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+              description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID.
             market_ticker:
               type: string
               description: Market ticker for the quote
@@ -4017,7 +4017,7 @@ components:
               description: Public communications ID of the quote creator (anonymized)
             rfq_creator_id:
               type: string
-              description: Public communications ID of the RFQ creator (anonymized). Set to "0" for other users when obscure_creator_id is enabled.
+              description: Public communications ID of the RFQ creator (pseudonymous). When obscure_creator_id is enabled, other users receive the shared placeholder "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" (SHA-256 of empty input). The creator sees their normal ID.
             market_ticker:
               type: string
               description: Market ticker for the quote

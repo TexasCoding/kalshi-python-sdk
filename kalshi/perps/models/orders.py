@@ -89,6 +89,10 @@ class CreateMarginOrderRequest(BaseModel):
     reduce_only: bool | None = None
     subaccount: StrictInt | None = Field(default=None, ge=0)
     order_group_id: str | None = None
+    # Expected market version. If set and the market's current version differs,
+    # the server rejects with HTTP 409 / market_version_mismatch. Omit (None)
+    # to skip the check — do not default to 0 so exclude_none omits the key.
+    market_version: StrictInt | None = None
 
 
 class DecreaseMarginOrderRequest(BaseModel):
