@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from kalshi.models.multivariate import (
     CreateMarketResponse,
     MultivariateEventCollection,
@@ -53,6 +56,8 @@ class TestMultivariateEventCollectionModel:
         assert c.associated_events[0].is_yes_only is True
         assert c.is_ordered is True
         assert c.size_min == 2
+        assert c.price_level_structure == "binary"
+        assert c.price_ranges == []
 
     def test_extra_fields_allowed(self) -> None:
         c = MultivariateEventCollection.model_validate(
@@ -74,6 +79,38 @@ class TestMultivariateEventCollectionModel:
             }
         )
         assert c.collection_ticker == "T"
+
+    def test_parses_price_level_structure_and_price_ranges(self) -> None:
+        c = MultivariateEventCollection.model_validate(
+            multivariate_event_collection_dict(
+                collection_ticker="MVC-1",
+                price_level_structure="linear_cent",
+                price_ranges=[
+                    {"start": "0.01", "end": "0.99", "step": "0.01"},
+                ],
+            )
+        )
+        assert c.price_level_structure == "linear_cent"
+        assert c.price_ranges is not None
+        assert c.price_ranges[0]["step"] == "0.01"
+
+    def test_missing_price_level_structure_raises(self) -> None:
+        payload = multivariate_event_collection_dict()
+        del payload["price_level_structure"]
+        with pytest.raises(ValidationError):
+            MultivariateEventCollection.model_validate(payload)
+
+    def test_missing_price_ranges_raises(self) -> None:
+        payload = multivariate_event_collection_dict()
+        del payload["price_ranges"]
+        with pytest.raises(ValidationError):
+            MultivariateEventCollection.model_validate(payload)
+
+    def test_null_price_ranges_coerces_to_empty(self) -> None:
+        c = MultivariateEventCollection.model_validate(
+            multivariate_event_collection_dict(price_ranges=None)
+        )
+        assert c.price_ranges == []
 
 
 class TestTickerPairModel:

@@ -8981,6 +8981,8 @@ components:
         - size_min
         - size_max
         - functional_description
+        - price_level_structure
+        - price_ranges
       properties:
         collection_ticker:
           type: string
@@ -9038,6 +9040,14 @@ components:
         functional_description:
           type: string
           description: A functional description of the collection describing how inputs affect the output.
+        price_level_structure:
+          type: string
+          description: Price level structure used for new markets created in this collection. Existing markets may differ; use the market's price_level_structure and price_ranges for its current pricing.
+        price_ranges:
+          type: array
+          description: Price bands and tick sizes in fixed-point dollars for new markets created in this collection. Use these ranges to determine valid prices rather than hardcoding the structure name.
+          items:
+            $ref: '#/components/schemas/PriceRange'
 
     GetMultivariateEventCollectionResponse:
       type: object

@@ -2,6 +2,41 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 19.0.0 — 2026-10-06
+
+Reconciles upstream OpenAPI **3.32.0** content drift plus perps/AsyncAPI
+updates after nightly contract failures (Closes #529). **Breaking** for
+constructors of `MultivariateEventCollection` that omit the new required
+`price_level_structure` and `price_ranges`. Re-vendored `specs/openapi.yaml` (hash
+`f93ce4d0bff2c0db4de1b0eb6194f8d315b41d9ce336c2d5ed8ef3254fd77dfe`),
+`specs/asyncapi.yaml` (hash
+`eaf754def77f36cd016f1e852a5ce76f11b635140e879bee7a3f9cad40716f9f`), and
+`specs/perps_openapi.yaml` (hash
+`7edea6f0db672a1e8110cb699ff3cfd84af85d926f08610e4a6a73d51607e37e`).
+
+### Changed (breaking)
+
+- **`MultivariateEventCollection.price_level_structure`** (required `str`) and
+  **`MultivariateEventCollection.price_ranges`** (required list of
+  `{start, end, step}` dicts; JSON `null` coerces to `[]`) — pricing used for
+  new markets created in the collection. Same wire shape as
+  `Market.price_ranges`. Live list/get callers are unaffected; tests/mocks that
+  construct `MultivariateEventCollection` must pass both.
+
+### Added
+
+- Optional **`market_id`** (stable exchange market UUID) on perps
+  `CreateMarginOrderRequest` / `AmendMarginOrderRequest` and the
+  `orders.create` / `orders.amend` kwargs (sync + async). Ticker takes
+  precedence when both are set. Omitted from the body when unset.
+
+### Spec notes
+
+- Core OpenAPI `info.version` still **3.32.0**.
+- Perps spec now accepts `market_id` as an alternative to `ticker` on create
+  and amend; the SDK keeps `ticker` required for now.
+- AsyncAPI adds the `Metal.Index.1OZGOLD/USD` (3712) price index to the docs table.
+
 ## 18.0.0 — 2026-10-03
 
 Reconciles upstream OpenAPI **3.32.0** content drift plus perps/AsyncAPI

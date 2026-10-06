@@ -93,6 +93,10 @@ class CreateMarginOrderRequest(BaseModel):
     # the server rejects with HTTP 409 / market_version_mismatch. Omit (None)
     # to skip the check — do not default to 0 so exclude_none omits the key.
     market_version: StrictInt | None = None
+    # Stable exchange market UUID. May be supplied instead of ticker;
+    # ticker takes precedence when both are provided. Omit (None) so
+    # exclude_none drops the key.
+    market_id: str | None = None
 
 
 class DecreaseMarginOrderRequest(BaseModel):
@@ -143,6 +147,10 @@ class AmendMarginOrderRequest(BaseModel):
     updated_client_order_id: str | None = None
     # Unix seconds. Omit preserves the current expiry; 0 removes it (GTC).
     expiration_time: StrictInt | None = Field(default=None, ge=0)
+    # Stable exchange market UUID. May be supplied instead of ticker;
+    # ticker takes precedence when both are provided. Omit (None) so
+    # exclude_none drops the key.
+    market_id: str | None = None
 
 
 # ── Response models (extra="allow") ──────────────────────────────────────────
