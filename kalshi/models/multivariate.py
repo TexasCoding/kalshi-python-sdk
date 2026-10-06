@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel
 
@@ -51,6 +51,13 @@ class MultivariateEventCollection(BaseModel):
     size_min: int
     size_max: int
     functional_description: str
+    # Spec-required. Used for new markets created in this collection;
+    # existing markets may differ — use Market.price_level_structure /
+    # Market.price_ranges for a minted market's current pricing.
+    # price_ranges is list[PriceRange] on the wire — kept as list[dict]
+    # here to match Market.price_ranges (no nested model yet).
+    price_level_structure: str
+    price_ranges: NullableList[dict[str, Any]]
     # Optional: exchange shard inherited from the collection's series.
     exchange_index: int | None = None
 

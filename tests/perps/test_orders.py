@@ -100,6 +100,8 @@ class TestCreate:
         assert "count_fp" not in body
         # unset optional market_version is omitted (exclude_none), not sent as 0
         assert "market_version" not in body
+        # unset optional market_id is omitted (exclude_none)
+        assert "market_id" not in body
 
     @respx.mock
     def test_market_version_serialized(self, perps_client: PerpsClient) -> None:
@@ -121,6 +123,54 @@ class TestCreate:
         )
         body = json.loads(route.calls[0].request.content)
         assert body["market_version"] == 1
+
+    @respx.mock
+    def test_market_id_serialized(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/margin/orders").mock(
+            return_value=httpx.Response(
+                201,
+                json={"order_id": "ord-9", "fill_count": "0.00", "remaining_count": "100.00"},
+            )
+        )
+        perps_client.orders.create(
+            ticker="BTC-PERP",
+            client_order_id="cid-9",
+            side="bid",
+            count="100",
+            price="0.56",
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+            market_id="11111111-1111-1111-1111-111111111111",
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["market_id"] == "11111111-1111-1111-1111-111111111111"
+        assert body["ticker"] == "BTC-PERP"
+
+    def test_market_id_omitted_from_dump_when_none(self) -> None:
+        req = CreateMarginOrderRequest(
+            ticker="BTC-PERP",
+            client_order_id="cid-9",
+            side="bid",
+            count="100",
+            price="0.56",
+            time_in_force="good_till_canceled",
+            self_trade_prevention_type="taker_at_cross",
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "market_id" not in body
+
+    def test_market_id_rejects_non_string(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateMarginOrderRequest(
+                ticker="BTC-PERP",
+                client_order_id="cid-9",
+                side="bid",
+                count="100",
+                price="0.56",
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                market_id={"not": "a-uuid"},  # type: ignore[arg-type]
+            )
 
     @respx.mock
     def test_conflict_maps(self, perps_client: PerpsClient) -> None:
@@ -236,7 +286,7 @@ class TestCreate:
 
     @respx.mock
     async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
-        respx.post(f"{BASE}/margin/orders").mock(
+        route = respx.post(f"{BASE}/margin/orders").mock(
             return_value=httpx.Response(
                 201,
                 json={"order_id": "ord-9", "fill_count": "0.00", "remaining_count": "100.00"},
@@ -250,8 +300,11 @@ class TestCreate:
             price="0.56",
             time_in_force="good_till_canceled",
             self_trade_prevention_type="taker_at_cross",
+            market_id="11111111-1111-1111-1111-111111111111",
         )
         assert resp.remaining_count == Decimal("100.00")
+        body = json.loads(route.calls[0].request.content)
+        assert body["market_id"] == "11111111-1111-1111-1111-111111111111"
         await async_perps_client.close()
 
 
@@ -537,6 +590,7 @@ class TestAmend:
         assert body["price"] == "0.57"
         assert body["count"] == "80"
         assert body["side"] == "bid"
+        assert "market_id" not in body
 
     @respx.mock
     def test_happy_with_fills(self, perps_client: PerpsClient) -> None:
@@ -572,6 +626,40 @@ class TestAmend:
         )
         body = json.loads(route.calls[0].request.content)
         assert body["expiration_time"] == 0
+
+    @respx.mock
+    def test_market_id_serialized(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/margin/orders/ord-1/amend").mock(
+            return_value=httpx.Response(200, json={"order_id": "ord-1"})
+        )
+        perps_client.orders.amend(
+            "ord-1",
+            ticker="BTC-PERP",
+            side="bid",
+            price="0.57",
+            count="80",
+            market_id="11111111-1111-1111-1111-111111111111",
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["market_id"] == "11111111-1111-1111-1111-111111111111"
+        assert body["ticker"] == "BTC-PERP"
+
+    def test_market_id_omitted_from_dump_when_none(self) -> None:
+        req = AmendMarginOrderRequest(
+            ticker="BTC-PERP", side="bid", price="0.57", count="80"
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert "market_id" not in body
+
+    def test_market_id_rejects_non_string(self) -> None:
+        with pytest.raises(ValidationError):
+            AmendMarginOrderRequest(
+                ticker="BTC-PERP",
+                side="bid",
+                price="0.57",
+                count="80",
+                market_id=["not-a-uuid"],  # type: ignore[arg-type]
+            )
 
     def test_expiration_time_rejects_negative(self) -> None:
         with pytest.raises(ValidationError):
@@ -620,16 +708,22 @@ class TestAmend:
 
     @respx.mock
     async def test_async(self, async_perps_client: AsyncPerpsClient) -> None:
-        respx.post(f"{BASE}/margin/orders/ord-1/amend").mock(
+        route = respx.post(f"{BASE}/margin/orders/ord-1/amend").mock(
             return_value=httpx.Response(200, json={"order_id": "ord-1"})
         )
         resp = await async_perps_client.orders.amend(
             "ord-1",
             request=AmendMarginOrderRequest(
-                ticker="BTC-PERP", side="bid", price="0.57", count="80"
+                ticker="BTC-PERP",
+                side="bid",
+                price="0.57",
+                count="80",
+                market_id="11111111-1111-1111-1111-111111111111",
             ),
         )
         assert resp.order_id == "ord-1"
+        body = json.loads(route.calls[0].request.content)
+        assert body["market_id"] == "11111111-1111-1111-1111-111111111111"
         await async_perps_client.close()
 
 

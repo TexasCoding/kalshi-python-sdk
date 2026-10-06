@@ -76,6 +76,9 @@ the current expiry, or pass `0` to clear it (good-till-canceled).
 at 1 on `MarginMarket.market_version`). If set and the market's current
 version differs, the server rejects with HTTP 409 / `market_version_mismatch`.
 Omit to skip the check.
+`orders.create(..., market_id=)` / `orders.amend(..., market_id=)` is a
+stable exchange market UUID. It may be supplied with `ticker` (ticker takes
+precedence when both are set). Omit so the key is not sent.
 
 !!! warning "Deprecated in v7.2.0 — `list_fcm` / `list_all_fcm`"
     Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI. The SDK

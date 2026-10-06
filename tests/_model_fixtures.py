@@ -267,6 +267,8 @@ def multivariate_event_collection_dict(**overrides: Any) -> dict[str, Any]:
         "size_min": 0,
         "size_max": 0,
         "functional_description": "",
+        "price_level_structure": "binary",
+        "price_ranges": [],
     }
     base.update(overrides)
     return base

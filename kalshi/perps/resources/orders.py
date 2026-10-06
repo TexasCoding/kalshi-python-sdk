@@ -87,6 +87,7 @@ def _build_create_body(
     subaccount: int | None,
     order_group_id: str | None,
     market_version: int | None,
+    market_id: str | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -104,6 +105,7 @@ def _build_create_body(
         subaccount=subaccount,
         order_group_id=order_group_id,
         market_version=market_version,
+        market_id=market_id,
     )
     if request is None:
         if (
@@ -135,6 +137,7 @@ def _build_create_body(
             subaccount=subaccount,
             order_group_id=order_group_id,
             market_version=market_version,
+            market_id=market_id,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -166,6 +169,7 @@ def _build_amend_body(
     client_order_id: str | None,
     updated_client_order_id: str | None,
     expiration_time: int | None,
+    market_id: str | None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -176,6 +180,7 @@ def _build_amend_body(
         client_order_id=client_order_id,
         updated_client_order_id=updated_client_order_id,
         expiration_time=expiration_time,
+        market_id=market_id,
     )
     if request is None:
         if ticker is None or side is None or price is None or count is None:
@@ -191,6 +196,7 @@ def _build_amend_body(
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             expiration_time=expiration_time,
+            market_id=market_id,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -264,6 +270,7 @@ class MarginOrdersResource(SyncResource):
         subaccount: int | None = ...,
         order_group_id: str | None = ...,
         market_version: int | None = ...,
+        market_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse: ...
     def create(
@@ -284,6 +291,7 @@ class MarginOrdersResource(SyncResource):
         subaccount: int | None = None,
         order_group_id: str | None = None,
         market_version: int | None = None,
+        market_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse:
         """Place a new margin order (POST /margin/orders). Not retried.
@@ -293,6 +301,9 @@ class MarginOrdersResource(SyncResource):
         is the expected market version; if set and the market's current
         version differs, the server rejects with HTTP 409 /
         ``market_version_mismatch``. Omit to skip the check (server default 0).
+        ``market_id`` is a stable exchange market UUID; it may be supplied
+        with ``ticker`` (ticker takes precedence when both are set). Omit
+        so the key is not sent.
         """
         self._require_auth()
         body = _build_create_body(
@@ -311,6 +322,7 @@ class MarginOrdersResource(SyncResource):
             subaccount=subaccount,
             order_group_id=order_group_id,
             market_version=market_version,
+            market_id=market_id,
         )
         data = self._post("/margin/orders", json=body, extra_headers=extra_headers)
         return CreateMarginOrderResponse.model_validate(data)
@@ -485,6 +497,7 @@ class MarginOrdersResource(SyncResource):
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
         expiration_time: int | None = ...,
+        market_id: str | None = ...,
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse: ...
@@ -500,6 +513,7 @@ class MarginOrdersResource(SyncResource):
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
         expiration_time: int | None = None,
+        market_id: str | None = None,
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse:
@@ -510,7 +524,9 @@ class MarginOrdersResource(SyncResource):
 
         ``expiration_time`` is int64 Unix seconds. Omit it to preserve the
         current expiry; ``0`` removes the expiry (good-till-canceled). A
-        nonzero value must be in the future.
+        nonzero value must be in the future. ``market_id`` is a stable
+        exchange market UUID; it may be supplied with ``ticker`` (ticker
+        takes precedence when both are set). Omit so the key is not sent.
         """
         self._require_auth()
         body = _build_amend_body(
@@ -522,6 +538,7 @@ class MarginOrdersResource(SyncResource):
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             expiration_time=expiration_time,
+            market_id=market_id,
         )
         params = _params(subaccount=subaccount)
         data = self._post(
@@ -631,6 +648,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         subaccount: int | None = ...,
         order_group_id: str | None = ...,
         market_version: int | None = ...,
+        market_id: str | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse: ...
     async def create(
@@ -651,6 +669,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         subaccount: int | None = None,
         order_group_id: str | None = None,
         market_version: int | None = None,
+        market_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginOrderResponse:
         """Place a new margin order. See :meth:`MarginOrdersResource.create`."""
@@ -671,6 +690,7 @@ class AsyncMarginOrdersResource(AsyncResource):
             subaccount=subaccount,
             order_group_id=order_group_id,
             market_version=market_version,
+            market_id=market_id,
         )
         data = await self._post("/margin/orders", json=body, extra_headers=extra_headers)
         return CreateMarginOrderResponse.model_validate(data)
@@ -836,6 +856,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         client_order_id: str | None = ...,
         updated_client_order_id: str | None = ...,
         expiration_time: int | None = ...,
+        market_id: str | None = ...,
         subaccount: int | None = ...,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse: ...
@@ -851,6 +872,7 @@ class AsyncMarginOrdersResource(AsyncResource):
         client_order_id: str | None = None,
         updated_client_order_id: str | None = None,
         expiration_time: int | None = None,
+        market_id: str | None = None,
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AmendMarginOrderResponse:
@@ -865,6 +887,7 @@ class AsyncMarginOrdersResource(AsyncResource):
             client_order_id=client_order_id,
             updated_client_order_id=updated_client_order_id,
             expiration_time=expiration_time,
+            market_id=market_id,
         )
         params = _params(subaccount=subaccount)
         data = await self._post(

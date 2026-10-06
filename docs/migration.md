@@ -1,5 +1,48 @@
 # Migration
 
+## v18.0 → v19.0.0
+
+Reconciles upstream OpenAPI **3.32.0** content drift plus matching perps
+updates (Closes #529). **Breaking** for constructors of
+`MultivariateEventCollection` that omit the new required
+`price_level_structure` and `price_ranges`.
+
+### Response model field changes
+
+- **`MultivariateEventCollection.price_level_structure`** — required `str`.
+  Price level structure used for new markets created in this collection.
+  Existing markets may differ; use the minted `Market`'s
+  `price_level_structure` / `price_ranges` for its current pricing.
+- **`MultivariateEventCollection.price_ranges`** — required list of
+  `{start, end, step}` dicts (empty list allowed; JSON `null` coerces to
+  `[]`). Price bands and tick sizes in fixed-point dollars for new markets
+  created in this collection. Same wire shape as `Market.price_ranges`.
+
+Live `multivariate_collections.list` / `get` callers are unaffected;
+constructors and fixtures must pass the new fields.
+
+```python
+# Before (constructors / test fixtures):
+# MultivariateEventCollection(..., functional_description="")
+
+# After:
+MultivariateEventCollection(
+    ...,
+    functional_description="",
+    price_level_structure="binary",
+    price_ranges=[],
+)
+```
+
+### Added (non-breaking)
+
+- Optional `CreateMarginOrderRequest.market_id` /
+  `AmendMarginOrderRequest.market_id` and
+  `perps.orders.create(..., market_id=)` /
+  `perps.orders.amend(..., market_id=)` (sync + async). Stable exchange
+  market UUID; may be supplied with `ticker` (ticker takes precedence when
+  both are set). Omit or leave unset so the key is not sent.
+
 ## v17.1 → v18.0.0
 
 Reconciles upstream OpenAPI **3.32.0** content drift plus matching perps and

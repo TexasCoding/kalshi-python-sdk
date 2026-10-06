@@ -44,8 +44,13 @@ page = client.multivariate_collections.list(
     limit=100,
 )
 for c in page:
-    print(c.collection_ticker, c.title, c.exchange_index)
+    print(c.collection_ticker, c.title, c.price_level_structure, c.exchange_index)
 ```
+
+Each collection includes required `price_level_structure` (`str`) and
+`price_ranges` (list of `{start, end, step}` dicts) describing the price
+bands used for **new** markets created in the collection. Existing markets
+may differ — use the minted `Market`'s fields for its current pricing.
 
 ## Select legs
 

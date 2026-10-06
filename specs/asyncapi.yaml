@@ -515,6 +515,7 @@ channels:
       | 3086 | `Commodities.SOX6/USD` | Soybeans futures (Nov 2026) in USD |
       | 3063 | `Commodities.Index.PYTHOIL/USD` | Blended Oil Index in USD |
       | 3153 | `Metal.Index.GOLD/USD` | Blended Gold Index in USD |
+      | 3712 | `Metal.Index.1OZGOLD/USD` | 1-Ounce Gold Index in USD |
       | 3154 | `Metal.Index.SILVER/USD` | Blended Silver Index in USD |
       | 3045 | `Commodities.BRENTX6/USD` | Brent Crude futures (Nov 2026) in USD |
       | 3525 | `Commodities.Index.CU/USD` | Copper Index in USD |
