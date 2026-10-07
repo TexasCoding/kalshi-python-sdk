@@ -66,7 +66,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
-| `fcm` | `create_subtrader(subtrader_suffix=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
+| `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -86,6 +86,11 @@ precedence when both are set). Omit so the key is not sent.
     404 against the live API. They will be removed in a future major release
     once the removal is confirmed permanent. Prediction-API FCM
     (`client.fcm.*` on `/fcm/*`) is unchanged.
+
+`fcm.create_subtrader(..., require_category_cap=)` is required (`True` or
+`False`). When true, ordinary orders need an explicit asset-class IM cap;
+subtrader-wide and market caps do not satisfy this. Dedicated liquidation
+remains allowed. The flag is set at create time and cannot be changed.
 
 FCM members can set per-subtrader initial-margin caps. A cap with no
 `market_ticker` applies across all markets; a ticker scopes it to one

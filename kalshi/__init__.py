@@ -427,4 +427,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "19.0.0"
+__version__ = "20.0.0"

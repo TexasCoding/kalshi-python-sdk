@@ -2,6 +2,34 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 20.0.0 — 2026-10-07
+
+Reconciles perps OpenAPI drift after nightly contract failures (Closes #531).
+**Breaking** for `perps.fcm.create_subtrader` / `CreateMarginFCMSubtraderRequest`
+callers that omit the new required `require_category_cap`. Re-vendored
+`specs/openapi.yaml` (hash
+`87f122efdfed4371a926ead54d64f044b0538c4b9e745cbd2a03ac983bcd7b0c`),
+`specs/asyncapi.yaml` (hash
+`eaf754def77f36cd016f1e852a5ce76f11b635140e879bee7a3f9cad40716f9f`), and
+`specs/perps_openapi.yaml` (hash
+`819fb5f56e0a4d57577ceb344c3e1b1ad12e79c8a5d8eb82922283892e99c139`).
+
+### Changed (breaking)
+
+- Perps **`CreateMarginFCMSubtraderRequest.require_category_cap`** (required
+  `bool`) and **`fcm.create_subtrader(..., require_category_cap=)`** (sync +
+  async). When true, ordinary orders require an explicit asset-class
+  initial-margin cap. Subtrader-wide and market caps do not satisfy this.
+  Dedicated liquidation remains allowed. Set at create time and cannot be
+  changed afterward. Callers must pass `True` or `False`.
+
+### Spec notes
+
+- Core OpenAPI `info.version` is **3.33.0** (version bump only; no schema
+  changes).
+- Perps `MarginMarket.market_version` description now says the version
+  increases when trading resumes after a corporate action.
+
 ## 19.0.0 — 2026-10-06
 
 Reconciles upstream OpenAPI **3.32.0** content drift plus perps/AsyncAPI

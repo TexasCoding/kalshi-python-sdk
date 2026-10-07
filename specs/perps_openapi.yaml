@@ -1891,11 +1891,17 @@ components:
       type: object
       required:
         - subtrader_suffix
+        - require_category_cap
       properties:
         subtrader_suffix:
           type: string
           pattern: '^[A-Za-z0-9]{1,16}$'
           description: Suffix for the new subtrader. The full subtrader id is composed server-side as {user_id}_{subtrader_suffix}.
+
+        require_category_cap:
+          type: boolean
+          x-go-type: "*bool"
+          description: Required. Explicitly choose true or false. When true, ordinary orders require an explicit asset-class initial margin cap. Subtrader-wide and market caps do not satisfy this requirement. Dedicated liquidation remains allowed. Set only when explicitly creating a subtrader and cannot be changed afterward.
 
     CreateMarginFCMSubtraderResponse:
       type: object
@@ -2929,7 +2935,7 @@ components:
         market_version:
           type: integer
           format: int32
-          description: The market's current version. It starts at 1 and can increase when there is a corporate action, such as a stock split. Pass it as market_version when creating an order to have the order rejected if the version has changed since you read it.
+          description: The market's current version. It starts at 1 and increases when trading resumes after a corporate action, such as a stock split. Pass it as market_version when creating an order to have the order rejected if the version has changed since you read it.
         exchange_index:
           type: integer
           description: The group of markets this market belongs to for order groups. Order groups may only reference markets whose exchange_index matches theirs.
