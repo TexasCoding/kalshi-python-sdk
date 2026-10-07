@@ -32,14 +32,23 @@ def _build_create_subtrader_body(
     request: CreateMarginFCMSubtraderRequest | None,
     *,
     subtrader_suffix: str | None,
+    require_category_cap: bool | None,
 ) -> dict[str, object]:
-    _check_request_exclusive(request, subtrader_suffix=subtrader_suffix)
+    _check_request_exclusive(
+        request,
+        subtrader_suffix=subtrader_suffix,
+        require_category_cap=require_category_cap,
+    )
     if request is None:
-        if subtrader_suffix is None:
+        if subtrader_suffix is None or require_category_cap is None:
             raise TypeError(
-                "create_subtrader() requires `subtrader_suffix` (or pass `request=...`)"
+                "create_subtrader() requires `subtrader_suffix` and "
+                "`require_category_cap` (or pass `request=...`)"
             )
-        request = CreateMarginFCMSubtraderRequest(subtrader_suffix=subtrader_suffix)
+        request = CreateMarginFCMSubtraderRequest(
+            subtrader_suffix=subtrader_suffix,
+            require_category_cap=require_category_cap,
+        )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
@@ -106,6 +115,7 @@ class FcmResource(SyncResource):
         self,
         *,
         subtrader_suffix: str,
+        require_category_cap: bool,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginFCMSubtraderResponse: ...
     def create_subtrader(
@@ -113,15 +123,21 @@ class FcmResource(SyncResource):
         *,
         request: CreateMarginFCMSubtraderRequest | None = None,
         subtrader_suffix: str | None = None,
+        require_category_cap: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginFCMSubtraderResponse:
         """``POST /margin/fcm/subtraders`` — create a margin FCM subtrader.
 
         The full ``subtrader_id`` is composed server-side as
-        ``{user_id}_{subtrader_suffix}``.
+        ``{user_id}_{subtrader_suffix}``. ``require_category_cap`` is required:
+        when true, ordinary orders need an explicit asset-class IM cap.
         """
         self._require_auth()
-        body = _build_create_subtrader_body(request, subtrader_suffix=subtrader_suffix)
+        body = _build_create_subtrader_body(
+            request,
+            subtrader_suffix=subtrader_suffix,
+            require_category_cap=require_category_cap,
+        )
         data = self._post("/margin/fcm/subtraders", json=body, extra_headers=extra_headers)
         return CreateMarginFCMSubtraderResponse.model_validate(data)
 
@@ -255,6 +271,7 @@ class AsyncFcmResource(AsyncResource):
         self,
         *,
         subtrader_suffix: str,
+        require_category_cap: bool,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginFCMSubtraderResponse: ...
     async def create_subtrader(
@@ -262,11 +279,16 @@ class AsyncFcmResource(AsyncResource):
         *,
         request: CreateMarginFCMSubtraderRequest | None = None,
         subtrader_suffix: str | None = None,
+        require_category_cap: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateMarginFCMSubtraderResponse:
         """Async :meth:`FcmResource.create_subtrader`."""
         self._require_auth()
-        body = _build_create_subtrader_body(request, subtrader_suffix=subtrader_suffix)
+        body = _build_create_subtrader_body(
+            request,
+            subtrader_suffix=subtrader_suffix,
+            require_category_cap=require_category_cap,
+        )
         data = await self._post("/margin/fcm/subtraders", json=body, extra_headers=extra_headers)
         return CreateMarginFCMSubtraderResponse.model_validate(data)
 

@@ -28,9 +28,15 @@ class CreateMarginFCMSubtraderRequest(BaseModel):
     ``subtrader_suffix`` is the client-chosen suffix; the server composes the
     full id as ``{user_id}_{subtrader_suffix}``. Spec pattern: 1-16 lowercase
     alphanumeric characters.
+
+    ``require_category_cap`` is required. When true, ordinary orders need an
+    explicit asset-class initial-margin cap; subtrader-wide and market caps
+    do not satisfy this. Dedicated liquidation remains allowed. Set at create
+    time and cannot be changed afterward.
     """
 
     subtrader_suffix: str = Field(min_length=1, max_length=16, pattern=r"^[a-z0-9]{1,16}$")
+    require_category_cap: bool
 
     model_config = {"extra": "forbid"}
 

@@ -1,5 +1,34 @@
 # Migration
 
+## v19.0 → v20.0.0
+
+Reconciles perps OpenAPI drift (Closes #531). **Breaking** for
+`perps.fcm.create_subtrader(...)` and constructors of
+`CreateMarginFCMSubtraderRequest` that omit the new required
+`require_category_cap`.
+
+### Request model field changes
+
+- **Perps `CreateMarginFCMSubtraderRequest.require_category_cap`** — required
+  `bool`. When true, ordinary orders require an explicit asset-class
+  initial-margin cap. Subtrader-wide and market caps do not satisfy this
+  requirement. Dedicated liquidation remains allowed. Set at create time and
+  cannot be changed afterward. Also required on
+  `perps.fcm.create_subtrader(..., require_category_cap=)` (sync + async).
+
+```python
+# Before:
+# perps.fcm.create_subtrader(subtrader_suffix="desk1")
+# CreateMarginFCMSubtraderRequest(subtrader_suffix="desk1")
+
+# After:
+perps.fcm.create_subtrader(subtrader_suffix="desk1", require_category_cap=False)
+CreateMarginFCMSubtraderRequest(subtrader_suffix="desk1", require_category_cap=False)
+```
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v18.0 → v19.0.0
 
 Reconciles upstream OpenAPI **3.32.0** content drift plus matching perps
