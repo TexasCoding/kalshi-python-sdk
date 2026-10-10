@@ -2,6 +2,59 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 21.0.0 — 2026-10-10
+
+Reconciles OpenAPI 3.33.0 → 3.34.0 and perps spec drift after nightly
+contract failures (Closes #533). **Breaking** for constructors of
+`MarginMarket` that omit the new required funding-limit fields.
+Re-vendored `specs/openapi.yaml` (hash
+`091f171718a0376b0c1a2e9348b02b1ce003d0786dd04d772dd11005ca414bf4`),
+`specs/perps_openapi.yaml` (hash
+`27e4b0b76a686f797342f1526a08df5b8f60d8104a81b65c94073d3d89b54308`), and
+`specs/perps_scm_openapi.yaml` (hash
+`3ac27696d43bffbb5e993daa7106e62872028b7630980a492438d1d0043202e8`).
+
+### Changed (breaking)
+
+- Perps **`MarginMarket.funding_deadband`** / **`funding_cap`** (required
+  `Decimal`, JSON numbers) and **`funding_limit_unit`** (required
+  `"percentage"` / `"dollar"`). Funding limits configured at market
+  creation, expressed in `funding_limit_unit`. Live `markets.list` /
+  `markets.get` callers are unaffected; constructors and fixtures must
+  pass the new fields.
+
+### Added
+
+- **`fcm.create_position_transfer(...)`** (sync + async) —
+  `POST /fcm/positions/transfers`. Moves a market position from a source
+  subtrader into a subtrader under the FCM's error account. Kalshi must
+  enable the endpoint for the FCM; until then the server returns 400.
+  Request body `CreateFCMPositionTransferRequest`: `source_subtrader_id`,
+  `target_subtrader_id`, `market_ticker`, `position_centicount` (contracts
+  × 100, non-zero; positive YES, negative NO), `price_centicents` (YES
+  price, 0–10000). Returns `CreateFCMPositionTransferResponse`. POST is
+  never retried; requests are not idempotent.
+- Perps **`transfers.transfer_instance(..., client_transfer_id=)`** (sync +
+  async): optional UUID for duplicate prevention on
+  `IntraExchangeInstanceTransferRequest`. Omitted from the body when `None`.
+  Only supported for primary accounts.
+- Perps **`MarginMarket.bid_size` / `ask_size`** (optional, `bid_size_fp` /
+  `ask_size_fp` on the wire): contracts resting at the best bid and ask.
+
+### Changed
+
+- Perps **`portfolio.trades` / `trades_all`**: `ticker` is now optional. Omit
+  it to fetch public margin trades across all markets. Existing calls that
+  pass `ticker` are unchanged.
+- Perps fills, positions, and order `subaccount` no longer have a spec default
+  of `0`; the SDK already omits `subaccount` when `None`, which now means all
+  subaccounts (or the key's locked subaccount). Docs and tests updated.
+
+### Spec notes
+
+- Perps SCM large-trader positions rows gain `reportable_threshold`; that
+  surveillance endpoint is not part of the SDK surface.
+
 ## 20.0.0 — 2026-10-07
 
 Reconciles perps OpenAPI drift after nightly contract failures (Closes #531).

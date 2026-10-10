@@ -137,6 +137,11 @@ with KalshiClient.from_env() as client:
 Same pattern as `client_order_id`, but for inter-subaccount money movement.
 Reconcile via `subaccounts.list_transfers()`.
 
+`PerpsClient.transfers.transfer_instance(..., client_transfer_id=)` is the
+same UUID idempotency key for intra-exchange instance transfers. It is
+optional: omit so the key is not sent and each request creates a new
+transfer. Only supported for primary accounts.
+
 ### Cancels
 
 `client.orders.cancel_v2(order_id)` and `client.orders.batch_cancel_v2(...)`

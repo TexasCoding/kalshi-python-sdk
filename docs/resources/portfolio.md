@@ -210,7 +210,9 @@ New in v10.0.0. History and detail for fund moves between the
 `event_contract` and `margined` exchange instances. **Creating** a transfer
 is still on the perps surface
 (`PerpsClient.transfers.transfer_instance()`); these GETs are on the core
-portfolio API.
+portfolio API. The perps create body accepts an optional
+`client_transfer_id` (UUID) for duplicate prevention; omit so the key is
+not sent.
 
 ```python
 page = client.portfolio.intra_exchange_transfers(limit=50)

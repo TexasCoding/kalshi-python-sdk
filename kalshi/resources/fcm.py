@@ -2,9 +2,11 @@
 
 Orders/positions filter by ``subtrader_id`` and reuse the existing Order and
 PositionsResponse shapes. ``fills`` lists fills across the member's
-subtraders (``min_ts`` / ``max_ts`` / ``cursor``). Subtrader admin routes
-(list/create, blocked categories, event-contract daily cap) live on
-``/fcm/subtraders*``.
+subtraders (``min_ts`` / ``max_ts`` / ``cursor``). ``create_position_transfer``
+moves a market position from a source subtrader into the FCM error account
+(``POST /fcm/positions/transfers``; must be enabled by Kalshi). Subtrader
+admin routes (list/create, blocked categories, event-contract daily cap) live
+on ``/fcm/subtraders*``.
 
 Non-FCM accounts receive 401/403 on these routes. Demo does service them
 (per Path B audit 2026-04-18) but typically returns empty lists for an
@@ -20,6 +22,8 @@ from typing import Any, overload
 
 from kalshi.models.common import Page
 from kalshi.models.fcm import (
+    CreateFCMPositionTransferRequest,
+    CreateFCMPositionTransferResponse,
     CreateFCMSubtraderRequest,
     CreateFCMSubtraderResponse,
     FcmFill,
@@ -118,6 +122,46 @@ def _fcm_positions_params(
         limit=limit,
         cursor=cursor,
     )
+
+
+def _build_create_position_transfer_body(
+    request: CreateFCMPositionTransferRequest | None,
+    *,
+    source_subtrader_id: str | None,
+    target_subtrader_id: str | None,
+    market_ticker: str | None,
+    position_centicount: int | None,
+    price_centicents: int | None,
+) -> dict[str, object]:
+    _check_request_exclusive(
+        request,
+        source_subtrader_id=source_subtrader_id,
+        target_subtrader_id=target_subtrader_id,
+        market_ticker=market_ticker,
+        position_centicount=position_centicount,
+        price_centicents=price_centicents,
+    )
+    if request is None:
+        if (
+            source_subtrader_id is None
+            or target_subtrader_id is None
+            or market_ticker is None
+            or position_centicount is None
+            or price_centicents is None
+        ):
+            raise TypeError(
+                "create_position_transfer() requires `source_subtrader_id`, "
+                "`target_subtrader_id`, `market_ticker`, `position_centicount`, "
+                "and `price_centicents` (or pass `request=...`)"
+            )
+        request = CreateFCMPositionTransferRequest(
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            market_ticker=market_ticker,
+            position_centicount=position_centicount,
+            price_centicents=price_centicents,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
 def _build_create_fcm_subtrader_body(
@@ -341,6 +385,54 @@ class FcmResource(SyncResource):
             max_pages=max_pages,
             extra_headers=extra_headers,
         )
+
+    @overload
+    def create_position_transfer(
+        self,
+        *,
+        request: CreateFCMPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse: ...
+    @overload
+    def create_position_transfer(
+        self,
+        *,
+        source_subtrader_id: str,
+        target_subtrader_id: str,
+        market_ticker: str,
+        position_centicount: int,
+        price_centicents: int,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse: ...
+    def create_position_transfer(
+        self,
+        *,
+        request: CreateFCMPositionTransferRequest | None = None,
+        source_subtrader_id: str | None = None,
+        target_subtrader_id: str | None = None,
+        market_ticker: str | None = None,
+        position_centicount: int | None = None,
+        price_centicents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse:
+        """``POST /fcm/positions/transfers``. Not retried.
+
+        Moves a position in one market from ``source_subtrader_id`` into
+        ``target_subtrader_id`` under the FCM's error account. Kalshi must
+        enable this endpoint for the FCM; until then the server returns 400.
+        Requests are not idempotent.
+        """
+        self._require_auth()
+        body = _build_create_position_transfer_body(
+            request,
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            market_ticker=market_ticker,
+            position_centicount=position_centicount,
+            price_centicents=price_centicents,
+        )
+        data = self._post("/fcm/positions/transfers", json=body, extra_headers=extra_headers)
+        return CreateFCMPositionTransferResponse.model_validate(data)
 
     def list_subtraders(
         self, *, extra_headers: dict[str, str] | None = None
@@ -644,6 +736,50 @@ class AsyncFcmResource(AsyncResource):
             max_pages=max_pages,
             extra_headers=extra_headers,
         )
+
+    @overload
+    async def create_position_transfer(
+        self,
+        *,
+        request: CreateFCMPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse: ...
+    @overload
+    async def create_position_transfer(
+        self,
+        *,
+        source_subtrader_id: str,
+        target_subtrader_id: str,
+        market_ticker: str,
+        position_centicount: int,
+        price_centicents: int,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse: ...
+    async def create_position_transfer(
+        self,
+        *,
+        request: CreateFCMPositionTransferRequest | None = None,
+        source_subtrader_id: str | None = None,
+        target_subtrader_id: str | None = None,
+        market_ticker: str | None = None,
+        position_centicount: int | None = None,
+        price_centicents: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFCMPositionTransferResponse:
+        """Async :meth:`FcmResource.create_position_transfer`."""
+        self._require_auth()
+        body = _build_create_position_transfer_body(
+            request,
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            market_ticker=market_ticker,
+            position_centicount=position_centicount,
+            price_centicents=price_centicents,
+        )
+        data = await self._post(
+            "/fcm/positions/transfers", json=body, extra_headers=extra_headers
+        )
+        return CreateFCMPositionTransferResponse.model_validate(data)
 
     async def list_subtraders(
         self, *, extra_headers: dict[str, str] | None = None

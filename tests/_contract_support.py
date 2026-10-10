@@ -858,6 +858,12 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/fcm/positions",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.fcm.FcmResource.create_position_transfer",
+        http_method="POST",
+        path_template="/fcm/positions/transfers",
+        request_body_schema="#/components/schemas/CreateFCMPositionTransferRequest",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.fcm.FcmResource.list_subtraders",
         http_method="GET",
         path_template="/fcm/subtraders",

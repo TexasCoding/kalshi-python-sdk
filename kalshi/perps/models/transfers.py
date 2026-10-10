@@ -43,6 +43,8 @@ class IntraExchangeInstanceTransferRequest(BaseModel):
     Shard fields default to ``0`` (only ``0`` is currently supported); because
     the body is serialized with ``exclude_none=True`` (not ``exclude_defaults``),
     shard ``0`` values are emitted on the wire, which is fine.
+    ``client_transfer_id`` is optional duplicate-prevention; omit (``None``)
+    so ``exclude_none`` drops the key. Only supported for primary accounts.
     """
 
     source: ExchangeInstanceLiteral
@@ -50,6 +52,9 @@ class IntraExchangeInstanceTransferRequest(BaseModel):
     amount: StrictInt = Field(gt=0)
     source_exchange_shard: StrictInt = Field(default=0, ge=0)
     destination_exchange_shard: StrictInt = Field(default=0, ge=0)
+    # Client UUID for duplicate prevention. Omit (None) so exclude_none
+    # drops the key; each request then creates a new transfer.
+    client_transfer_id: UUID | None = None
 
     model_config = {"extra": "forbid"}
 

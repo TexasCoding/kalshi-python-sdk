@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.33.0
+  version: 3.34.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -4133,6 +4133,98 @@ paths:
         '500':
           description: Internal server error
 
+  /fcm/positions/transfers:
+    post:
+      operationId: CreateFCMPositionTransfer
+      summary: Create FCM Position Transfer
+      description: |
+        Endpoint for FCM members to move a position in one market from one of their subtraders into a
+        subtrader under their FCM's error account.
+
+        **This endpoint must be enabled for your FCM by Kalshi.** Kalshi enables it by configuring the
+        error account that receives transferred positions and gives you that account's user id, which
+        prefixes `target_subtrader_id`. Contact Kalshi to enable it; until then, requests return 400.
+
+        - The destination is always your FCM's error account. `target_subtrader_id` picks the subtrader
+          under it, which is created on first use.
+        - Each request moves one market for one source subtrader. To move many positions, send one
+          request per subtrader and market.
+        - The transfer is booked like a trade at `price_centicents`, which is always the YES price, even
+          when moving NO. No fee is charged and no fill is created. For YES, the error account pays the
+          price per contract; for NO, it pays $1 minus the price per contract. The FCM receives the same
+          amount. Use 0 for YES or 10000 for NO to move no cash. These amounts assume the source holds
+          the side being moved and the target subtrader holds no opposite position in that market;
+          otherwise the positions net like a trade and the balance changes differ.
+        - The source's current position is not checked. A request for more than the source holds, or
+          with the opposite sign, flips or grows the source's position.
+        - Requests are not idempotent. After a timeout or 5xx, check the position before retrying.
+        - The market must be open, neither account may be blocked, and the error account must have
+          enough available balance on the market's exchange index to pay for the transfer. Otherwise
+          the request returns 409.
+
+        **Example: moving YES.** A customer subtrader holds 10 YES contracts. Send
+        `position_centicount` 1000 and `price_centicents` 4500 (YES at 45 cents):
+        - The customer subtrader goes from 10 YES to 0, and the error account subtrader from 0 to 10 YES.
+        - The error account pays 10 x $0.45 = $4.50 and the FCM receives $4.50.
+        - Sending `price_centicents` 0 instead moves the position with no cash.
+
+        **Example: moving NO.** A customer subtrader holds 5 NO contracts. Send `position_centicount`
+        -500 and `price_centicents` 7000 (YES at 70 cents, so NO at 30 cents):
+        - The customer subtrader goes from 5 NO to 0, and the error account subtrader from 0 to 5 NO.
+        - The error account pays 5 x $0.30 = $1.50 and the FCM receives $1.50.
+        - Sending `price_centicents` 10000 instead moves the position with no cash. Sending 0 makes the
+          error account pay the full $1 per contract ($5.00).
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFCMPositionTransferRequest'
+            examples:
+              move_yes:
+                summary: Move 10 YES at 45 cents
+                value:
+                  source_subtrader_id: 3f2a8c1e-5b7d-4e9a-8c6f-1d2b3a4e5f60_CUST123
+                  target_subtrader_id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e_ERR1
+                  market_ticker: KXEXAMPLE-26DEC31
+                  position_centicount: 1000
+                  price_centicents: 4500
+              move_no:
+                summary: Move 5 NO at 30 cents (YES price 70 cents)
+                value:
+                  source_subtrader_id: 3f2a8c1e-5b7d-4e9a-8c6f-1d2b3a4e5f60_CUST123
+                  target_subtrader_id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e_ERR1
+                  market_ticker: KXEXAMPLE-26DEC31
+                  position_centicount: -500
+                  price_centicents: 7000
+      responses:
+        '201':
+          description: Position transferred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFCMPositionTransferResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /historical/cutoff:
     get:
       operationId: GetHistoricalCutoff
@@ -7192,6 +7284,54 @@ components:
           type: string
           description: The full id of the created subtrader.
 
+    CreateFCMPositionTransferRequest:
+      type: object
+      required:
+        - source_subtrader_id
+        - target_subtrader_id
+        - market_ticker
+        - position_centicount
+        - price_centicents
+      properties:
+        source_subtrader_id:
+          type: string
+          description: Full id of the FCM subtrader giving up the position, as returned by `GET /fcm/subtraders`.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        target_subtrader_id:
+          type: string
+          description: Subtrader under your error account that receives the position, `{error_account_id}_{suffix}` with a 1-16 character alphanumeric suffix. Created if it does not exist.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        market_ticker:
+          type: string
+          description: Ticker of the market whose position is moved.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        position_centicount:
+          type: integer
+          format: int64
+          description: Contracts to move, in centicounts (contracts x 100). Positive moves YES, negative moves NO. Must be a non-zero whole number of contracts, e.g. 1000 for 10 YES or -500 for 5 NO.
+          x-oapi-codegen-extra-tags:
+            validate: required,ne=0
+        price_centicents:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10000
+          description: YES price per contract in centicents (cents x 100), in whole cents, even when moving NO. For example, 4500 is 45 cents.
+          x-oapi-codegen-extra-tags:
+            validate: gte=0,lte=10000
+
+    CreateFCMPositionTransferResponse:
+      type: object
+      required:
+        - position_transfer_id
+      properties:
+        position_transfer_id:
+          type: string
+          description: Id of the executed transfer. Store it; no Trade API endpoint lists past transfers.
+
     GetFCMEventContractDailyCapResponse:
       type: object
       required:
@@ -7358,6 +7498,12 @@ components:
         - destination
         - amount
       properties:
+        client_transfer_id:
+          type: string
+          format: uuid
+          description: |
+            Client ID for duplicate prevention. Reuse only for identical requests. Scoped to the user and both exchange instances and shards. Accepted transfers cannot be repeated with the same ID on the same route.
+            Only supported for primary accounts. Transfers involving numbered subaccounts reject this field. If omitted, each request creates a new transfer.
         source:
           $ref: '#/components/schemas/ExchangeInstance'
           description: The source exchange instance

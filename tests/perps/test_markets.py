@@ -46,6 +46,9 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         },
         "exchange_index": 0,
         "market_version": 1,
+        "funding_deadband": 0.0,
+        "funding_cap": 1.0,
+        "funding_limit_unit": "percentage",
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "long_leverage_estimates": {"1000": 2.4, "10000": 1.9},
@@ -123,6 +126,8 @@ class TestList:
             "10000": Decimal("2.1"),
         }
         assert m.volume == Decimal("1000.00")
+        assert m.bid_size is None
+        assert m.ask_size is None
         assert m.volume_notional_value == Decimal("560.0000")
         assert m.volume_24h_notional_value == Decimal("140.0000")
         assert m.open_interest_notional_value == Decimal("280.0000")
@@ -133,6 +138,54 @@ class TestList:
         assert m.schedule.next_open_ts is None
         assert m.exchange_index == 0
         assert m.market_version == 1
+        assert m.funding_deadband == Decimal("0.0")
+        assert m.funding_cap == Decimal("1.0")
+        assert m.funding_limit_unit == "percentage"
+        assert isinstance(m.funding_deadband, Decimal)
+        assert isinstance(m.funding_cap, Decimal)
+
+    @respx.mock
+    def test_bid_ask_size_fp_parsed(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets").mock(
+            return_value=httpx.Response(
+                200,
+                json={"markets": [_market_dict(bid_size_fp="10.00", ask_size_fp="12.50")]},
+            )
+        )
+        m = perps_client.markets.list()[0]
+        assert m.bid_size == Decimal("10.00")
+        assert m.ask_size == Decimal("12.50")
+        assert isinstance(m.bid_size, Decimal)
+        assert isinstance(m.ask_size, Decimal)
+
+    def test_bid_ask_size_accepts_bare_alias(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(bid_size="3.00", ask_size="4.00"))
+        assert m.bid_size == Decimal("3.00")
+        assert m.ask_size == Decimal("4.00")
+
+    def test_bid_ask_size_omitted_when_missing(self) -> None:
+        m = MarginMarket.model_validate(_market_dict())
+        assert m.bid_size is None
+        assert m.ask_size is None
+
+    def test_funding_fields_required(self) -> None:
+        for key in ("funding_deadband", "funding_cap", "funding_limit_unit"):
+            payload = _market_dict()
+            del payload[key]
+            with pytest.raises(ValidationError):
+                MarginMarket.model_validate(payload)
+
+    def test_funding_limit_unit_dollar(self) -> None:
+        m = MarginMarket.model_validate(
+            _market_dict(funding_deadband=0.25, funding_cap=5.0, funding_limit_unit="dollar")
+        )
+        assert m.funding_deadband == Decimal("0.25")
+        assert m.funding_cap == Decimal("5.0")
+        assert m.funding_limit_unit == "dollar"
+
+    def test_funding_limit_unit_rejects_unknown(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginMarket.model_validate(_market_dict(funding_limit_unit="bps"))
 
     @respx.mock
     def test_status_filter(self, perps_client: PerpsClient) -> None:
@@ -161,6 +214,9 @@ class TestList:
                             "schedule": None,
                             "exchange_index": 0,
                             "market_version": 1,
+                            "funding_deadband": 0.0,
+                            "funding_cap": 1.0,
+                            "funding_limit_unit": "percentage",
                             "leverage_estimate": None,
                         }
                     ]
@@ -172,7 +228,9 @@ class TestList:
         assert m.leverage_estimate is None
         assert m.price is None
         assert m.bid is None
+        assert m.bid_size is None
         assert m.ask is None
+        assert m.ask_size is None
         assert m.volume is None
         assert m.volume_24h is None
         assert m.open_interest is None

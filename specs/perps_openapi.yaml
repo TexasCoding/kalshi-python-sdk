@@ -736,10 +736,9 @@ paths:
         - name: subaccount
           in: query
           required: false
-          description: Subaccount number (0 for primary, 1-63 for subaccounts)
+          description: Subaccount number (0 for primary, 1-63 for subaccounts). If omitted, returns fills across all subaccounts for the authenticated user. Subaccount-restricted API keys must omit this or pass their locked subaccount, and read only that subaccount's fills.
           schema:
             type: integer
-            default: 0
         - name: limit
           in: query
           required: false
@@ -803,7 +802,7 @@ paths:
         - name: subaccount
           in: query
           required: false
-          description: Subaccount number (0 for primary, 1-63 for subaccounts)
+          description: Subaccount number (0 for primary, 1-63 for subaccounts). If omitted, returns positions for all subaccounts. Subaccount-restricted API keys must omit this or pass their locked subaccount, and read only that subaccount's positions.
           schema:
             type: integer
         - name: ticker
@@ -831,16 +830,17 @@ paths:
     get:
       operationId: GetMarginTrades
       summary: Get Trades
-      description: 'Endpoint for retrieving public margin trades for a given market ticker. Returns a paginated response. Use the cursor value from the previous response to get the next page.'
+      description: 'Endpoint for retrieving public margin trades across all markets or filtered by market ticker. Returns a paginated response. Use the cursor value from the previous response to get the next page.'
       tags:
         - market
       parameters:
         - name: ticker
           in: query
-          required: true
+          required: false
           schema:
             type: string
-          description: Market ticker to retrieve trades for
+          x-go-type-skip-optional-pointer: true
+          description: Optional market ticker to filter trades. Omit to retrieve trades across all margin markets.
         - name: limit
           in: query
           required: false
@@ -2459,6 +2459,12 @@ components:
         - destination
         - amount
       properties:
+        client_transfer_id:
+          type: string
+          format: uuid
+          description: |
+            Client ID for duplicate prevention. Reuse only for identical requests. Scoped to the user and both exchange instances and shards. Accepted transfers cannot be repeated with the same ID on the same route.
+            Only supported for primary accounts. Transfers involving numbered subaccounts reject this field. If omitted, each request creates a new transfer.
         source:
           $ref: '#/components/schemas/ExchangeInstance'
           description: The source exchange instance
@@ -2642,9 +2648,7 @@ components:
         subaccount:
           type: integer
           minimum: 0
-          default: 0
-          description: The subaccount number to use for this margin order. 0 is the primary subaccount.
-          x-go-type-skip-optional-pointer: true
+          description: The subaccount number to use for this margin order. 0 is the primary subaccount. Subaccount-restricted API keys must omit this field or pass their locked subaccount.
         order_group_id:
           type: string
           description: The order group this order is part of
@@ -2927,6 +2931,9 @@ components:
         - schedule
         - exchange_index
         - market_version
+        - funding_deadband
+        - funding_cap
+        - funding_limit_unit
       properties:
         ticker:
           type: string
@@ -3009,9 +3016,15 @@ components:
         bid:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Best bid price in dollars.
+        bid_size_fp:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: Total number of contracts resting at the best bid price, as a fixed-point count string. Zero when there is no bid. Omitted when market stats are unavailable.
         ask:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Best ask price in dollars.
+        ask_size_fp:
+          $ref: '#/components/schemas/FixedPointCount'
+          description: Total number of contracts resting at the best ask price, as a fixed-point count string. Zero when there is no ask. Omitted when market stats are unavailable.
         settlement_mark_price:
           $ref: '#/components/schemas/TickerPrice'
           description: Mark price used for settlement and funding.
@@ -3037,6 +3050,21 @@ components:
               markdown: "**Important information:** Review this market's trading schedule."
         schedule:
           $ref: '#/components/schemas/MarginMarketSchedule'
+        funding_deadband:
+          type: number
+          format: double
+          minimum: 0
+          description: Funding deadband configured at market creation, expressed in funding_limit_unit.
+        funding_cap:
+          type: number
+          format: double
+          minimum: 0
+          description: Funding cap configured at market creation, expressed in funding_limit_unit.
+        funding_limit_unit:
+          type: string
+          enum: [percentage, dollar]
+          x-go-type-skip-optional-pointer: true
+          description: Unit for the funding limits configured at market creation.
 
     MarginMarketSchedule:
       type: object
@@ -3852,11 +3880,10 @@ components:
       name: subaccount
       in: query
       required: false
-      description: Subaccount number (0 for primary, 1-63 for subaccounts). Defaults to 0.
+      description: Subaccount number (0 for primary, 1-63 for subaccounts). Defaults to 0. Subaccount-restricted API keys default to their locked subaccount and must omit this parameter or pass their locked subaccount.
       schema:
         type: integer
         minimum: 0
-        default: 0
     ExitTriggerTickerPath:
       name: ticker
       in: path

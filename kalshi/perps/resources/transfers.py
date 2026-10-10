@@ -46,6 +46,7 @@ def _build_instance_transfer_body(
     amount: int | None,
     source_exchange_shard: int | None,
     destination_exchange_shard: int | None,
+    client_transfer_id: UUID | str | None = None,
 ) -> dict[str, Any]:
     # Shards are part of the kwargs path — included in the exclusivity check so
     # `request=...` together with an explicit shard raises instead of silently
@@ -57,6 +58,7 @@ def _build_instance_transfer_body(
         amount=amount,
         source_exchange_shard=source_exchange_shard,
         destination_exchange_shard=destination_exchange_shard,
+        client_transfer_id=client_transfer_id,
     )
     if request is None:
         if source is None or destination is None or amount is None:
@@ -64,12 +66,22 @@ def _build_instance_transfer_body(
                 "transfer_instance() requires `source`, `destination`, and "
                 "`amount` (or pass `request=...`)"
             )
+        # Accept str for caller ergonomics; coerce once to surface a clean
+        # ValueError on malformed strings before the model validator sees them.
+        uid = None
+        if client_transfer_id is not None:
+            uid = (
+                client_transfer_id
+                if isinstance(client_transfer_id, UUID)
+                else UUID(client_transfer_id)
+            )
         request = IntraExchangeInstanceTransferRequest(
             source=source,
             destination=destination,
             amount=amount,
             source_exchange_shard=source_exchange_shard or 0,
             destination_exchange_shard=destination_exchange_shard or 0,
+            client_transfer_id=uid,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -134,6 +146,7 @@ class TransfersResource(SyncResource):
         amount: int,
         source_exchange_shard: int = 0,
         destination_exchange_shard: int = 0,
+        client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse: ...
     def transfer_instance(
@@ -145,12 +158,16 @@ class TransfersResource(SyncResource):
         amount: int | None = None,
         source_exchange_shard: int | None = None,
         destination_exchange_shard: int | None = None,
+        client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
         """Move funds between exchange instances.
 
         Spec marks this endpoint "currently not available" — it is implemented
         forward-compatibly and may return an error until the server enables it.
+        ``client_transfer_id`` is optional duplicate-prevention (UUID or str).
+        Omit so the key is not sent; each request then creates a new transfer.
+        Only supported for primary accounts.
         """
         self._require_auth()
         body = _build_instance_transfer_body(
@@ -160,6 +177,7 @@ class TransfersResource(SyncResource):
             amount=amount,
             source_exchange_shard=source_exchange_shard,
             destination_exchange_shard=destination_exchange_shard,
+            client_transfer_id=client_transfer_id,
         )
         data = self._post(
             "/portfolio/intra_exchange_instance_transfer",
@@ -242,6 +260,7 @@ class AsyncTransfersResource(AsyncResource):
         amount: int,
         source_exchange_shard: int = 0,
         destination_exchange_shard: int = 0,
+        client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse: ...
     async def transfer_instance(
@@ -253,12 +272,16 @@ class AsyncTransfersResource(AsyncResource):
         amount: int | None = None,
         source_exchange_shard: int | None = None,
         destination_exchange_shard: int | None = None,
+        client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
         """Move funds between exchange instances.
 
         Spec marks this endpoint "currently not available" — it is implemented
         forward-compatibly and may return an error until the server enables it.
+        ``client_transfer_id`` is optional duplicate-prevention (UUID or str).
+        Omit so the key is not sent; each request then creates a new transfer.
+        Only supported for primary accounts.
         """
         self._require_auth()
         body = _build_instance_transfer_body(
@@ -268,6 +291,7 @@ class AsyncTransfersResource(AsyncResource):
             amount=amount,
             source_exchange_shard=source_exchange_shard,
             destination_exchange_shard=destination_exchange_shard,
+            client_transfer_id=client_transfer_id,
         )
         data = await self._post(
             "/portfolio/intra_exchange_instance_transfer",

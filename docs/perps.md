@@ -79,6 +79,13 @@ Omit to skip the check.
 `orders.create(..., market_id=)` / `orders.amend(..., market_id=)` is a
 stable exchange market UUID. It may be supplied with `ticker` (ticker takes
 precedence when both are set). Omit so the key is not sent.
+`orders.create(..., subaccount=)` is optional (0 = primary). Omit so the
+key is not sent.
+`portfolio.fills()` / `portfolio.positions()` omit `subaccount` to return
+rows across all subaccounts (subaccount-restricted API keys still only
+see their locked subaccount). Pass `subaccount=0` for the primary.
+`portfolio.trades()` / `trades_all()` take an optional `ticker`; omit it
+to retrieve public trades across all margin markets.
 
 !!! warning "Deprecated in v7.2.0 — `list_fcm` / `list_all_fcm`"
     Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI. The SDK
@@ -160,7 +167,13 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   carries the same fields as **required** (inherent to a settled historical
   record). `MarginMarket.leverage_estimates` maps notional position sizes
   (`"1000"`, `"10000"`, …) to `MultiplierDecimal` leverage, or `None` when margin
-  config / price data is unavailable.
+  config / price data is unavailable. `MarginMarket.bid_size` / `ask_size`
+  (`FixedPointCount | None`) are the resting size at the best bid/ask
+  (`bid_size_fp` / `ask_size_fp` on the wire); omitted when market stats are
+  unavailable. `MarginMarket.funding_deadband` / `funding_cap`
+  (`MultiplierDecimal`) and `funding_limit_unit` (`"percentage"` /
+  `"dollar"`) are required; they are the funding limits configured at
+  market creation, expressed in `funding_limit_unit`.
 - **Mark prices** (since the v3.21.0 spec sync) — `MarginMarket` carries three
   optional reference-price objects: `settlement_mark_price`,
   `liquidation_mark_price`, and `reference_price`, each a nested `TickerPrice`

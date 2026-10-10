@@ -135,6 +135,14 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="ListFCMSubtradersResponse",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.fcm.CreateFCMPositionTransferRequest",
+        spec_schema="CreateFCMPositionTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.fcm.CreateFCMPositionTransferResponse",
+        spec_schema="CreateFCMPositionTransferResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.fcm.CreateFCMSubtraderRequest",
         spec_schema="CreateFCMSubtraderRequest",
     ),

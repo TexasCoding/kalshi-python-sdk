@@ -3,12 +3,15 @@
 Three margin read endpoints on the standalone perps client:
 
 - ``positions`` — ``GET /margin/positions``: auth required, single
-  non-paginated array (no ``_all()``).
+  non-paginated array (no ``_all()``). Omit ``subaccount`` to return
+  positions across all subaccounts.
 - ``fills`` / ``fills_all`` — ``GET /margin/fills``: auth required,
-  cursor-paginated (the authenticated user's margin fills).
+  cursor-paginated (the authenticated user's margin fills). Omit
+  ``subaccount`` to return fills across all subaccounts.
 - ``trades`` / ``trades_all`` — ``GET /margin/trades``: **public** (no spec
   ``security`` block, tag ``market``) — like ``MarketsResource.list_trades`` it
-  does **not** call ``_require_auth()``. ``ticker`` is required. Cursor-paginated.
+  does **not** call ``_require_auth()``. ``ticker`` is optional (omit for
+  trades across all margin markets). Cursor-paginated.
 
 All three are GET, so they reuse the transport's retry/error machinery
 unchanged (retry on 429/502/503/504).
@@ -63,13 +66,17 @@ def _margin_fills_params(
 
 def _margin_trades_params(
     *,
-    ticker: str,
+    ticker: str | None,
     min_ts: int | None,
     max_ts: int | None,
     limit: int | None,
     cursor: str | None,
 ) -> dict[str, Any]:
-    """Build query params for ``GET /margin/trades`` (``ticker`` is required)."""
+    """Build query params for ``GET /margin/trades``.
+
+    ``ticker`` is optional — omit (``None``) to retrieve trades across all
+    margin markets. ``_params`` drops ``None`` so the query key is not sent.
+    """
     limit = _validate_limit(limit, hi=1000)
     return _params(
         ticker=ticker,
@@ -149,14 +156,18 @@ class PerpsPortfolioResource(SyncResource):
     def trades(
         self,
         *,
-        ticker: str,
+        ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[MarginTrade]:
-        """Public margin trades for ``ticker`` (no auth required)."""
+        """Public margin trades (no auth required).
+
+        ``ticker`` filters to one market. Omit to retrieve trades across all
+        margin markets.
+        """
         params = _margin_trades_params(
             ticker=ticker,
             min_ts=min_ts,
@@ -171,14 +182,18 @@ class PerpsPortfolioResource(SyncResource):
     def trades_all(
         self,
         *,
-        ticker: str,
+        ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarginTrade]:
-        """Auto-paginate public margin trades for ``ticker`` (no auth required)."""
+        """Auto-paginate public margin trades (no auth required).
+
+        ``ticker`` filters to one market. Omit to retrieve trades across all
+        margin markets.
+        """
         _validate_max_pages(max_pages)
         params = _margin_trades_params(
             ticker=ticker,
@@ -418,14 +433,18 @@ class AsyncPerpsPortfolioResource(AsyncResource):
     async def trades(
         self,
         *,
-        ticker: str,
+        ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[MarginTrade]:
-        """Public margin trades for ``ticker`` (no auth required)."""
+        """Public margin trades (no auth required).
+
+        ``ticker`` filters to one market. Omit to retrieve trades across all
+        margin markets.
+        """
         params = _margin_trades_params(
             ticker=ticker,
             min_ts=min_ts,
@@ -440,14 +459,18 @@ class AsyncPerpsPortfolioResource(AsyncResource):
     def trades_all(
         self,
         *,
-        ticker: str,
+        ticker: str | None = None,
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarginTrade]:
-        """Returns an async iterator over public margin trades — use ``async for`` (no auth)."""
+        """Returns an async iterator over public margin trades — use ``async for`` (no auth).
+
+        ``ticker`` filters to one market. Omit to retrieve trades across all
+        margin markets.
+        """
         _validate_max_pages(max_pages)
         params = _margin_trades_params(
             ticker=ticker,

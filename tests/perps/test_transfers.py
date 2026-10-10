@@ -40,6 +40,26 @@ class TestModels:
             "source_exchange_shard": 0,
             "destination_exchange_shard": 0,
         }
+        assert "client_transfer_id" not in body
+
+    def test_instance_request_serializes_client_transfer_id(self) -> None:
+        req = IntraExchangeInstanceTransferRequest(
+            source="event_contract",
+            destination="margined",
+            amount=100,
+            client_transfer_id=_XFER_ID,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["client_transfer_id"] == _XFER_ID
+
+    def test_instance_request_rejects_malformed_client_transfer_id(self) -> None:
+        with pytest.raises(ValidationError):
+            IntraExchangeInstanceTransferRequest(
+                source="event_contract",
+                destination="margined",
+                amount=1,
+                client_transfer_id="not-a-uuid",
+            )
 
     def test_instance_request_forbids_extra(self) -> None:
         with pytest.raises(ValidationError):
@@ -143,6 +163,46 @@ class TestTransferInstance:
             "source_exchange_shard": 0,
             "destination_exchange_shard": 0,
         }
+        assert "client_transfer_id" not in body
+
+    @respx.mock
+    def test_client_transfer_id_serialized(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "abc"})
+        )
+        perps_client.transfers.transfer_instance(
+            source="event_contract",
+            destination="margined",
+            amount=100,
+            client_transfer_id=_XFER_ID,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["client_transfer_id"] == _XFER_ID
+
+    @respx.mock
+    def test_client_transfer_id_accepts_uuid(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "abc"})
+        )
+        perps_client.transfers.transfer_instance(
+            source="event_contract",
+            destination="margined",
+            amount=100,
+            client_transfer_id=UUID(_XFER_ID),
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["client_transfer_id"] == _XFER_ID
+
+    def test_client_transfer_id_malformed_raises_before_http(
+        self, perps_client: PerpsClient
+    ) -> None:
+        with pytest.raises(ValueError):
+            perps_client.transfers.transfer_instance(
+                source="event_contract",
+                destination="margined",
+                amount=100,
+                client_transfer_id="not-a-uuid",
+            )
 
     @respx.mock
     def test_request_object_overload_identical_body(self, perps_client: PerpsClient) -> None:
@@ -239,6 +299,24 @@ class TestTransferInstance:
         assert resp.transfer_id == "zzz"
         body = json.loads(route.calls[0].request.content)
         assert body["amount"] == 42
+        assert "client_transfer_id" not in body
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_client_transfer_id_serialized(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "zzz"})
+        )
+        await async_perps_client.transfers.transfer_instance(
+            source="margined",
+            destination="event_contract",
+            amount=42,
+            client_transfer_id=_XFER_ID,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["client_transfer_id"] == _XFER_ID
         await async_perps_client.close()
 
     @respx.mock
