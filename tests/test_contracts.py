@@ -1450,6 +1450,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/SetTargetBalanceAllocationRequest": (
         "kalshi.models.portfolio.SetTargetBalanceAllocationRequest"
     ),
+    "#/components/schemas/CreateFCMPositionTransferRequest": (
+        "kalshi.models.fcm.CreateFCMPositionTransferRequest"
+    ),
     "#/components/schemas/CreateFCMSubtraderRequest": (
         "kalshi.models.fcm.CreateFCMSubtraderRequest"
     ),

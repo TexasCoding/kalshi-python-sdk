@@ -56,6 +56,8 @@ from kalshi.models import (
     Candlestick,
     CreateApiKeyRequest,
     CreateApiKeyResponse,
+    CreateFCMPositionTransferRequest,
+    CreateFCMPositionTransferResponse,
     CreateFCMSubtraderRequest,
     CreateFCMSubtraderResponse,
     CreateMarketInMultivariateEventCollectionRequest,
@@ -253,6 +255,8 @@ __all__ = [
     "Candlestick",
     "CreateApiKeyRequest",
     "CreateApiKeyResponse",
+    "CreateFCMPositionTransferRequest",
+    "CreateFCMPositionTransferResponse",
     "CreateFCMSubtraderRequest",
     "CreateFCMSubtraderResponse",
     "CreateMarketInMultivariateEventCollectionRequest",
@@ -427,4 +431,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "20.0.0"
+__version__ = "21.0.0"

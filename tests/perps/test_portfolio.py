@@ -378,7 +378,6 @@ class TestTrades:
         assert trade.count == Decimal("5.00")
         assert isinstance(trade.created_time, datetime)
         assert page.has_next is False
-        # ticker always present on /margin/trades.
         assert route.calls.last.request.url.params["ticker"] == "BTC-PERP"
 
     @respx.mock
@@ -393,13 +392,23 @@ class TestTrades:
         assert route.called
         client.close()
 
-    def test_ticker_required(self, perps_client: PerpsClient) -> None:
-        with pytest.raises(TypeError):
-            perps_client.portfolio.trades()  # type: ignore[call-arg]
+    @respx.mock
+    def test_ticker_omitted_not_sent(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        page = perps_client.portfolio.trades()
+        assert len(page.items) == 1
+        assert "ticker" not in route.calls.last.request.url.params
 
-    def test_trades_all_ticker_required(self, perps_client: PerpsClient) -> None:
-        with pytest.raises(TypeError):
-            list(perps_client.portfolio.trades_all())  # type: ignore[call-arg]
+    @respx.mock
+    def test_trades_all_ticker_omitted_not_sent(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        items = list(perps_client.portfolio.trades_all())
+        assert len(items) == 1
+        assert "ticker" not in route.calls.last.request.url.params
 
     @respx.mock
     def test_query_params(self, perps_client: PerpsClient) -> None:
@@ -470,9 +479,22 @@ class TestTrades:
         )
         client = AsyncPerpsClient(config=PerpsConfig.demo())
         page = await client.portfolio.trades(ticker="BTC-PERP")
+        assert len(page.items) == 1
         assert page.items[0].taker_side == "ask"
         assert route.called
         await client.close()
+
+    @respx.mock
+    async def test_async_ticker_omitted_not_sent(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        page = await async_perps_client.portfolio.trades()
+        assert len(page.items) == 1
+        assert "ticker" not in route.calls.last.request.url.params
+        await async_perps_client.close()
 
     @respx.mock
     async def test_async_trades_all_paginates(

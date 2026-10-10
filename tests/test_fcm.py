@@ -8,11 +8,18 @@ from decimal import Decimal
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import AuthRequiredError, KalshiAuthError
+from kalshi.errors import (
+    AuthRequiredError,
+    KalshiAuthError,
+    KalshiConflictError,
+    KalshiValidationError,
+)
+from kalshi.models.fcm import CreateFCMPositionTransferRequest
 from kalshi.resources.fcm import AsyncFcmResource, FcmResource
 from tests._model_fixtures import market_position_dict, order_dict
 
@@ -506,3 +513,128 @@ class TestFills:
         )
         ids = [fill.fill_id async for fill in async_fcm.fills_all()]
         assert ids == ["fill-1"]
+
+
+_TRANSFER_KWARGS = {
+    "source_subtrader_id": "3f2a8c1e-5b7d-4e9a-8c6f-1d2b3a4e5f60_CUST123",
+    "target_subtrader_id": "9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e_ERR1",
+    "market_ticker": "KXEXAMPLE-26DEC31",
+    "position_centicount": 1000,
+    "price_centicents": 4500,
+}
+
+
+class TestCreatePositionTransfer:
+    @respx.mock
+    def test_happy_path(self, fcm: FcmResource) -> None:
+        route = respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(201, json={"position_transfer_id": "pt-1"})
+        )
+        resp = fcm.create_position_transfer(**_TRANSFER_KWARGS)
+        assert resp.position_transfer_id == "pt-1"
+        assert json.loads(route.calls[0].request.content) == _TRANSFER_KWARGS
+
+    @respx.mock
+    def test_request_model_same_body_as_kwargs(self, fcm: FcmResource) -> None:
+        route = respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(201, json={"position_transfer_id": "pt-1"})
+        )
+        fcm.create_position_transfer(**_TRANSFER_KWARGS)
+        kwarg_body = json.loads(route.calls[0].request.content)
+        fcm.create_position_transfer(request=CreateFCMPositionTransferRequest(**_TRANSFER_KWARGS))
+        model_body = json.loads(route.calls[1].request.content)
+        assert kwarg_body == model_body
+
+    def test_missing_required_kwargs(self, fcm: FcmResource) -> None:
+        with pytest.raises(TypeError, match="create_position_transfer"):
+            fcm.create_position_transfer()  # type: ignore[call-overload]
+
+    def test_request_and_kwargs_exclusive(self, fcm: FcmResource) -> None:
+        req = CreateFCMPositionTransferRequest(**_TRANSFER_KWARGS)
+        with pytest.raises(TypeError, match="not both"):
+            fcm.create_position_transfer(
+                request=req,
+                market_ticker="OTHER",
+            )
+
+    def test_requires_auth(self, unauth_fcm: FcmResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_fcm.create_position_transfer(**_TRANSFER_KWARGS)
+
+    @respx.mock
+    def test_server_401(self, fcm: FcmResource) -> None:
+        respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            fcm.create_position_transfer(**_TRANSFER_KWARGS)
+
+    @respx.mock
+    def test_server_400_not_enabled(self, fcm: FcmResource) -> None:
+        respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(400, json={"error": "not enabled"})
+        )
+        with pytest.raises(KalshiValidationError):
+            fcm.create_position_transfer(**_TRANSFER_KWARGS)
+
+    @respx.mock
+    def test_server_409_conflict(self, fcm: FcmResource) -> None:
+        respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(409, json={"error": "market not open"})
+        )
+        with pytest.raises(KalshiConflictError):
+            fcm.create_position_transfer(**_TRANSFER_KWARGS)
+
+    def test_rejects_zero_position_centicount(self) -> None:
+        with pytest.raises(ValidationError, match="non-zero"):
+            CreateFCMPositionTransferRequest(
+                source_subtrader_id="src",
+                target_subtrader_id="tgt",
+                market_ticker="MKT",
+                position_centicount=0,
+                price_centicents=0,
+            )
+
+    def test_rejects_price_out_of_range(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateFCMPositionTransferRequest(
+                source_subtrader_id="src",
+                target_subtrader_id="tgt",
+                market_ticker="MKT",
+                position_centicount=100,
+                price_centicents=10001,
+            )
+
+    def test_rejects_phantom_body_key(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateFCMPositionTransferRequest(
+                **_TRANSFER_KWARGS,
+                extra_field="nope",  # type: ignore[call-arg]
+            )
+
+    @respx.mock
+    def test_move_no_negative_centicount(self, fcm: FcmResource) -> None:
+        route = respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(201, json={"position_transfer_id": "pt-no"})
+        )
+        resp = fcm.create_position_transfer(
+            source_subtrader_id=_TRANSFER_KWARGS["source_subtrader_id"],
+            target_subtrader_id=_TRANSFER_KWARGS["target_subtrader_id"],
+            market_ticker=_TRANSFER_KWARGS["market_ticker"],
+            position_centicount=-500,
+            price_centicents=7000,
+        )
+        assert resp.position_transfer_id == "pt-no"
+        body = json.loads(route.calls[0].request.content)
+        assert body["position_centicount"] == -500
+        assert body["price_centicents"] == 7000
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_happy_path(self, async_fcm: AsyncFcmResource) -> None:
+        route = respx.post(f"{_FCM}/fcm/positions/transfers").mock(
+            return_value=httpx.Response(201, json={"position_transfer_id": "pt-a"})
+        )
+        resp = await async_fcm.create_position_transfer(**_TRANSFER_KWARGS)
+        assert resp.position_transfer_id == "pt-a"
+        assert json.loads(route.calls[0].request.content) == _TRANSFER_KWARGS

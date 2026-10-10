@@ -2,10 +2,43 @@
 
 from __future__ import annotations
 
-from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, field_validator
 
 from kalshi.models.orders import SideLiteral
-from kalshi.types import DollarDecimal, FixedPointCount
+from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
+
+
+class CreateFCMPositionTransferRequest(BaseModel):
+    """Body for POST /fcm/positions/transfers.
+
+    Moves a position in one market from a source subtrader into a subtrader
+    under the FCM's error account. ``position_centicount`` is contracts x 100
+    (positive = YES, negative = NO) and must be non-zero. ``price_centicents``
+    is the YES price per contract in centicents (cents x 100), 0-10000.
+    """
+
+    source_subtrader_id: str
+    target_subtrader_id: str
+    market_ticker: str
+    position_centicount: StrictInt
+    price_centicents: StrictInt = Field(ge=0, le=10000)
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("position_centicount")
+    @classmethod
+    def _position_centicount_nonzero(cls, value: int) -> int:
+        if value == 0:
+            raise ValueError("position_centicount must be non-zero")
+        return value
+
+
+class CreateFCMPositionTransferResponse(BaseModel):
+    """Response from POST /fcm/positions/transfers."""
+
+    position_transfer_id: str
+
+    model_config = {"extra": "allow"}
 
 
 class CreateFCMSubtraderRequest(BaseModel):

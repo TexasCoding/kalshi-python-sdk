@@ -297,7 +297,8 @@ class MarginOrdersResource(SyncResource):
         """Place a new margin order (POST /margin/orders). Not retried.
 
         ``expiration_time`` is int64 Unix seconds per spec. ``subaccount``
-        is carried in the request *body* (0 = primary). ``market_version``
+        is carried in the request *body* (0 = primary); omit so the key is
+        not sent. ``market_version``
         is the expected market version; if set and the market's current
         version differs, the server rejects with HTTP 409 /
         ``market_version_mismatch``. Omit to skip the check (server default 0).

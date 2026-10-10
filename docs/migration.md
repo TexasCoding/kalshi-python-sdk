@@ -1,5 +1,53 @@
 # Migration
 
+## v20.0 → v21.0.0
+
+Reconciles OpenAPI 3.33.0 → 3.34.0 and perps spec drift (Closes #533).
+**Breaking** for constructors of `MarginMarket` that omit the new required
+funding-limit fields.
+
+### Response model field changes
+
+- **Perps `MarginMarket.funding_deadband`** — required `Decimal` (JSON
+  number). Funding deadband configured at market creation, expressed in
+  `funding_limit_unit`.
+- **Perps `MarginMarket.funding_cap`** — required `Decimal` (JSON number).
+  Funding cap configured at market creation, expressed in
+  `funding_limit_unit`.
+- **Perps `MarginMarket.funding_limit_unit`** — required `"percentage"` or
+  `"dollar"`. Unit for the funding limits.
+
+Live `markets.list` / `markets.get` callers are unaffected; constructors
+and fixtures must pass the new fields.
+
+```python
+# Before (constructors / test fixtures):
+# MarginMarket(..., exchange_index=0, market_version=1)
+
+# After:
+MarginMarket(
+    ...,
+    exchange_index=0,
+    market_version=1,
+    funding_deadband=0,
+    funding_cap=1,
+    funding_limit_unit="percentage",
+)
+```
+
+### Added (non-breaking)
+
+- `fcm.create_position_transfer(...)` (sync + async) —
+  `POST /fcm/positions/transfers`, plus `CreateFCMPositionTransferRequest` /
+  `CreateFCMPositionTransferResponse`.
+- Optional `IntraExchangeInstanceTransferRequest.client_transfer_id` and
+  `perps.transfers.transfer_instance(..., client_transfer_id=)`.
+- Optional `MarginMarket.bid_size` / `ask_size`.
+- Perps `portfolio.trades` / `trades_all`: `ticker` is now optional.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v19.0 → v20.0.0
 
 Reconciles perps OpenAPI drift (Closes #531). **Breaking** for

@@ -117,6 +117,19 @@ class TestTransferShardExclusivity:
         )
         assert body["source_exchange_shard"] == 0
         assert body["destination_exchange_shard"] == 0
+        assert "client_transfer_id" not in body
+
+    def test_request_plus_client_transfer_id_raises(self) -> None:
+        with pytest.raises(TypeError):
+            _build_instance_transfer_body(
+                self._req(),
+                source=None,
+                destination=None,
+                amount=None,
+                source_exchange_shard=None,
+                destination_exchange_shard=None,
+                client_transfer_id="550e8400-e29b-41d4-a716-446655440000",
+            )
 
 
 # ── partial-credential fail-fast ─────────────────────────────────────────────

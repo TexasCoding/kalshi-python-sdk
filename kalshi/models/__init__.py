@@ -62,6 +62,8 @@ from kalshi.models.exchange import (
     WeeklySchedule,
 )
 from kalshi.models.fcm import (
+    CreateFCMPositionTransferRequest,
+    CreateFCMPositionTransferResponse,
     CreateFCMSubtraderRequest,
     CreateFCMSubtraderResponse,
     FcmFill,
@@ -236,6 +238,8 @@ __all__ = [
     "Candlestick",
     "CreateApiKeyRequest",
     "CreateApiKeyResponse",
+    "CreateFCMPositionTransferRequest",
+    "CreateFCMPositionTransferResponse",
     "CreateFCMSubtraderRequest",
     "CreateFCMSubtraderResponse",
     "CreateMarketInMultivariateEventCollectionRequest",

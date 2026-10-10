@@ -71,7 +71,8 @@ class CreateMarginOrderRequest(BaseModel):
     ``price``/``count`` wire names match the field names (no ``_dollars``/``_fp``
     suffix), so ``by_alias=True`` is a no-op for them — confirmed against the spec.
     ``subaccount`` is carried in the *body* here (the cancel/decrease/amend
-    endpoints route it as a query param instead).
+    endpoints route it as a query param instead). Omit (``None``) so
+    ``exclude_none`` drops the key; do not default to ``0``.
     """
 
     model_config = ConfigDict(extra="forbid")

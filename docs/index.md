@@ -3,8 +3,8 @@
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API.
 
-- **Full REST coverage** — 116 mapped of 117 operations across 19 resources
-  (OpenAPI v3.31.0), every kwarg drift-tested against the spec.
+- **Full REST coverage** — 117 mapped of 118 operations across 19 resources
+  (OpenAPI v3.34.0), every kwarg drift-tested against the spec.
 - **V2 event-market orders** — new `create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` / `cancel_all_v2` family on `/portfolio/events/orders/*`. Legacy `/portfolio/orders`
   keeps working; deprecation no earlier than May 6, 2026.

@@ -15,6 +15,7 @@ calls come back 401/403. Auth required throughout.
 | `fills(*, min_ts=None, max_ts=None, cursor=None)` | `GET /fcm/fills` |
 | `fills_all(*, min_ts=None, max_ts=None, max_pages=None)` | walks `fills` |
 | `positions(*, subtrader_id, ...)` | `GET /fcm/positions` |
+| `create_position_transfer(*, source_subtrader_id, target_subtrader_id, market_ticker, position_centicount, price_centicents)` | `POST /fcm/positions/transfers` |
 | `list_subtraders()` | `GET /fcm/subtraders` |
 | `create_subtrader(*, subtrader_suffix)` | `POST /fcm/subtraders` |
 | `blocked_categories(*, subtrader_id)` | `GET /fcm/subtraders/blocked_categories` |
@@ -92,6 +93,29 @@ for mp in client.fcm.positions_all(subtrader_id="st_alpha", settlement_status="u
 `settlement_status` is also accepted on
 [`portfolio.positions`](portfolio.md#positions) / `positions_all` (OpenAPI
 3.32.0). Both endpoints default to `unsettled` when the kwarg is omitted.
+
+## Position transfer
+
+Move a position in one market from a source subtrader into a subtrader under
+the FCM's error account. **Kalshi must enable this endpoint for your FCM**;
+until then the server returns 400. POST is never retried. Requests are not
+idempotent — after a timeout or 5xx, check the position before retrying.
+
+`position_centicount` is contracts × 100 (positive moves YES, negative moves
+NO) and must be non-zero. `price_centicents` is the YES price per contract
+in centicents (0–10000), even when moving NO. Use `0` for YES or `10000`
+for NO to move no cash.
+
+```python
+resp = client.fcm.create_position_transfer(
+    source_subtrader_id="acct_CUST123",
+    target_subtrader_id="erracct_ERR1",
+    market_ticker="KXEXAMPLE-26DEC31",
+    position_centicount=1000,   # 10 YES
+    price_centicents=4500,      # 45 cents
+)
+print(resp.position_transfer_id)
+```
 
 ## Subtrader admin
 

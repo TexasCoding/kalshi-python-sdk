@@ -197,8 +197,9 @@ paths:
       description: >-
         Positions of the authenticated clearing member that meet the CFTC
         large-trader reporting levels for a settlement day (17 CFR 15.03(b);
-        currently 25 contracts for crypto), plus exit-day positions that were
-        reportable on the prior settlement day and are now below the threshold.
+        each row's reportable_threshold is its market's level), plus exit-day
+        positions that were reportable on the prior settlement day and are now
+        below the threshold.
         Members with reportable positions are subject to their own CFTC Part 17
         large-trader reporting obligations; this endpoint provides the position
         data needed to meet them. Empty when no positions meet the reporting
@@ -903,6 +904,7 @@ components:
               market_ticker: { type: string }
               position: { type: integer, description: Signed contract count; positive long, negative short. Can be below the reportable threshold when exit_day is true. }
               exit_day: { type: boolean, description: True when this row is included because the same market was reportable on the prior settlement day but is now below the reportable threshold. }
+              reportable_threshold: { type: integer, format: int64, description: 'CFTC reporting level for this market, in contracts (17 CFR 15.03(b)). A position of at least this size in either direction is reportable.' }
     EstimatePortfolioMaintenanceMarginPosition:
       type: object
       required: [market_ticker, quantity, price]

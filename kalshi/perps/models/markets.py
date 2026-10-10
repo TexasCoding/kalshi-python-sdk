@@ -93,6 +93,12 @@ class MarginMarket(BaseModel):
     # Required market version (corporate-action counter). Pass to create() as
     # market_version so the server rejects with 409 if the market changed.
     market_version: int
+    # Funding limits configured at market creation. Spec-required JSON
+    # numbers (``type: number, format: double``); ``funding_limit_unit``
+    # is the unit those numbers are expressed in.
+    funding_deadband: MultiplierDecimal = Field(ge=0)
+    funding_cap: MultiplierDecimal = Field(ge=0)
+    funding_limit_unit: Literal["percentage", "dollar"]
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars
@@ -103,7 +109,15 @@ class MarginMarket(BaseModel):
     short_leverage_estimates: dict[str, MultiplierDecimal] | None = None
     price: DollarDecimal | None = None
     bid: DollarDecimal | None = None
+    bid_size: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("bid_size_fp", "bid_size"),
+    )
     ask: DollarDecimal | None = None
+    ask_size: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ask_size_fp", "ask_size"),
+    )
     volume: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("volume_fp", "volume"),
