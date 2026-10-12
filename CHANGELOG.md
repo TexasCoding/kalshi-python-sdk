@@ -2,6 +2,23 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 21.1.0 — 2026-10-12
+
+Widens the optional `polars` dependency to allow Polars 2.x (#538). No
+SDK API changes.
+
+### Changed
+
+- The `polars` and `all` extras now accept **`polars>=1,<3`** (was
+  `<2`), so `pip install 'kalshi-sdk[polars]'` can resolve Polars 2.0.
+  `Page.to_polars()` is unchanged and is tested against both Polars
+  1.x and 2.0.
+
+### Internal
+
+- CI: bump `actions/download-artifact` 8.0.1 → 8.0.2 (#535); dev
+  dependency `ast-serialize` allowed up to `<0.13` (#536).
+
 ## 21.0.0 — 2026-10-10
 
 Reconciles OpenAPI 3.33.0 → 3.34.0 and perps spec drift after nightly
