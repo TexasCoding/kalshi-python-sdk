@@ -1,9 +1,10 @@
 """Integration tests for the perps (margin) markets resource — live demo.
 
-Covers ``list`` / ``get`` / ``orderbook`` / ``candlesticks``. All four are public
-read-only GETs; no margin-enabled account is required, only that the demo server
-exposes at least one margin market (guarded by the ``perps_market_ticker``
-fixture, which skips when the demo has no margin markets).
+Covers ``list`` / ``get`` / ``orderbook`` / ``bulk_orderbooks`` / ``candlesticks``.
+All five are public read-only GETs; no margin-enabled account is required, only
+that the demo server exposes at least one margin market (guarded by the
+``perps_market_ticker`` fixture, which skips when the demo has no margin
+markets).
 
 Margin market prices are NOT binary [0, 1] like the prediction API — they are
 plain ``DollarDecimal`` and may exceed $1 — so these tests assert types/values
@@ -30,7 +31,7 @@ from tests.integration.coverage_harness import register_perps
 
 register_perps(
     "PerpsMarketsResource",
-    ["candlesticks", "get", "list", "orderbook"],
+    ["bulk_orderbooks", "candlesticks", "get", "list", "orderbook"],
 )
 
 
@@ -64,6 +65,18 @@ class TestPerpsMarketsSync:
             assert isinstance(level, MarginOrderbookLevel)
             assert isinstance(level.price, Decimal)
             assert isinstance(level.quantity, Decimal)
+
+    def test_bulk_orderbooks(
+        self, perps_sync_client: PerpsClient, perps_market_ticker: str
+    ) -> None:
+        books = perps_sync_client.markets.bulk_orderbooks(tickers=[perps_market_ticker])
+        assert isinstance(books, list)
+        assert len(books) == 1
+        ob = books[0]
+        assert isinstance(ob, MarginOrderbook)
+        assert ob.ticker == perps_market_ticker
+        assert isinstance(ob.bids, list)
+        assert isinstance(ob.asks, list)
 
     def test_candlesticks(
         self, perps_sync_client: PerpsClient, perps_market_ticker: str
@@ -106,3 +119,14 @@ class TestPerpsMarketsAsync:
         ob = await perps_async_client.markets.orderbook(markets[0].ticker)
         assert isinstance(ob, MarginOrderbook)
         assert ob.ticker == markets[0].ticker
+
+    async def test_bulk_orderbooks(self, perps_async_client: AsyncPerpsClient) -> None:
+        markets = await perps_async_client.markets.list()
+        if not markets:
+            pytest.skip("No margin markets on demo server")
+        ticker = markets[0].ticker
+        books = await perps_async_client.markets.bulk_orderbooks(tickers=[ticker])
+        assert isinstance(books, list)
+        assert len(books) == 1
+        assert isinstance(books[0], MarginOrderbook)
+        assert books[0].ticker == ticker

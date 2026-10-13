@@ -16,7 +16,7 @@ The orderbook side is ``bids``/``asks`` (margin), **not** the prediction API's
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, Field
 
@@ -99,6 +99,10 @@ class MarginMarket(BaseModel):
     funding_deadband: MultiplierDecimal = Field(ge=0)
     funding_cap: MultiplierDecimal = Field(ge=0)
     funding_limit_unit: Literal["percentage", "dollar"]
+    # How funding averages a second with no premium (no orderbook sample, no
+    # index price, or a trading halt), configured at market creation.
+    # ``dampen`` counts the second as premium 0; ``exclude`` omits it.
+    funding_invalid_premium_handling: Literal["dampen", "exclude"]
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars
@@ -275,6 +279,19 @@ class GetMarginMarketsResponse(BaseModel):
     """
 
     markets: NullableList[MarginMarket]
+
+    model_config = {"extra": "allow"}
+
+
+class GetMarginMarketOrderbooksResponse(BaseModel):
+    """Spec ``GetMarginMarketOrderbooksResponse`` — bulk-orderbooks envelope.
+
+    ``orderbooks`` is spec-required (NullableList: missing key -> error, null ->
+    []). Items stay raw dicts — the resource transforms each via
+    ``_orderbook_from_item`` into :class:`MarginOrderbook`.
+    """
+
+    orderbooks: NullableList[dict[str, Any]]
 
     model_config = {"extra": "allow"}
 

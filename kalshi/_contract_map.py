@@ -760,6 +760,10 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetMarginMarketsResponse",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.markets.GetMarginMarketOrderbooksResponse",
+        spec_schema="GetMarginMarketOrderbooksResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.models.markets.GetMarginMarketCandlesticksResponse",
         spec_schema="GetMarginMarketCandlesticksResponse",
     ),

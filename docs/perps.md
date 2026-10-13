@@ -59,7 +59,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | Attribute | Endpoints |
 |---|---|
 | `exchange` | `status()`, `enabled()` (per-member access gate), `risk_parameters()` |
-| `markets` | `list()`, `get()`, `orderbook()`, `candlesticks()` |
+| `markets` | `list()`, `get()`, `orderbook()`, `bulk_orderbooks(*, tickers)`, `candlesticks()` |
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
@@ -67,6 +67,17 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 | `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
+
+`markets.bulk_orderbooks(*, tickers)` fetches up to 100 margin orderbooks
+in one call (`GET /margin/markets/orderbooks`). `tickers` is required
+(1–100) and serializes as a comma-separated query string. A ticker that
+is not a margin market returns 404.
+
+```python
+books = perps.markets.bulk_orderbooks(tickers=["BTC-PERP", "ETH-PERP"])
+for ob in books:
+    print(ob.ticker, len(ob.bids), len(ob.asks))
+```
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -174,6 +185,11 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   (`MultiplierDecimal`) and `funding_limit_unit` (`"percentage"` /
   `"dollar"`) are required; they are the funding limits configured at
   market creation, expressed in `funding_limit_unit`.
+  `MarginMarket.funding_invalid_premium_handling` is required
+  (`"dampen"` / `"exclude"`): how funding averages a second with no
+  premium (no orderbook sample, no index price, or a trading halt).
+  `dampen` counts that second as a premium of 0; `exclude` leaves it
+  out of the average.
 - **Mark prices** (since the v3.21.0 spec sync) — `MarginMarket` carries three
   optional reference-price objects: `settlement_mark_price`,
   `liquidation_mark_price`, and `reference_price`, each a nested `TickerPrice`

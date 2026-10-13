@@ -1,8 +1,9 @@
 """Tests for the perps markets resource (#390).
 
-All four endpoints (``list`` / ``get`` / ``orderbook`` / ``candlesticks``) are
-public margin market data — the spec marks no ``security`` block on any of them,
-so an unauthenticated client must reach the wire (no ``AuthRequiredError``).
+All five endpoints (``list`` / ``get`` / ``orderbook`` / ``bulk_orderbooks`` /
+``candlesticks``) are public margin market data — the spec marks no
+``security`` block on any of them, so an unauthenticated client must reach
+the wire (no ``AuthRequiredError``).
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import pytest
 import respx
 from pydantic import ValidationError
 
-from kalshi.errors import KalshiNotFoundError, KalshiServerError
+from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiServerError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
@@ -49,6 +50,7 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         "funding_deadband": 0.0,
         "funding_cap": 1.0,
         "funding_limit_unit": "percentage",
+        "funding_invalid_premium_handling": "dampen",
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "long_leverage_estimates": {"1000": 2.4, "10000": 1.9},
@@ -141,6 +143,7 @@ class TestList:
         assert m.funding_deadband == Decimal("0.0")
         assert m.funding_cap == Decimal("1.0")
         assert m.funding_limit_unit == "percentage"
+        assert m.funding_invalid_premium_handling == "dampen"
         assert isinstance(m.funding_deadband, Decimal)
         assert isinstance(m.funding_cap, Decimal)
 
@@ -169,11 +172,26 @@ class TestList:
         assert m.ask_size is None
 
     def test_funding_fields_required(self) -> None:
-        for key in ("funding_deadband", "funding_cap", "funding_limit_unit"):
+        for key in (
+            "funding_deadband",
+            "funding_cap",
+            "funding_limit_unit",
+            "funding_invalid_premium_handling",
+        ):
             payload = _market_dict()
             del payload[key]
             with pytest.raises(ValidationError):
                 MarginMarket.model_validate(payload)
+
+    def test_funding_invalid_premium_handling_parse(self) -> None:
+        m = MarginMarket.model_validate(
+            _market_dict(funding_invalid_premium_handling="exclude")
+        )
+        assert m.funding_invalid_premium_handling == "exclude"
+
+    def test_funding_invalid_premium_handling_rejects_unknown(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginMarket.model_validate(_market_dict(funding_invalid_premium_handling="skip"))
 
     def test_funding_limit_unit_dollar(self) -> None:
         m = MarginMarket.model_validate(
@@ -217,6 +235,7 @@ class TestList:
                             "funding_deadband": 0.0,
                             "funding_cap": 1.0,
                             "funding_limit_unit": "percentage",
+                            "funding_invalid_premium_handling": "dampen",
                             "leverage_estimate": None,
                         }
                     ]
@@ -396,6 +415,131 @@ class TestOrderbook:
         )
         ob = await async_perps_client.markets.orderbook("BTC-PERP")
         assert ob.bids[0].price == Decimal("0.15")
+        await async_perps_client.close()
+
+
+# ── bulk orderbooks ───────────────────────────────────────────────────────────
+
+
+_UNSET: object = object()
+
+
+def _bulk_orderbook_item(
+    ticker: str,
+    *,
+    bids: object = _UNSET,
+    asks: object = _UNSET,
+) -> dict[str, object]:
+    return {
+        "ticker": ticker,
+        "orderbook": {
+            "bids": [["0.1500", "100.00"]] if bids is _UNSET else bids,
+            "asks": [["0.1600", "50.00"]] if asks is _UNSET else asks,
+        },
+    }
+
+
+class TestBulkOrderbooks:
+    @respx.mock
+    def test_happy(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/markets/orderbooks").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "orderbooks": [
+                        _bulk_orderbook_item("BTC-PERP"),
+                        _bulk_orderbook_item(
+                            "ETH-PERP",
+                            bids=[["0.2500", "10.00"]],
+                            asks=[],
+                        ),
+                    ]
+                },
+            )
+        )
+        books = perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP", "ETH-PERP"])
+        assert len(books) == 2
+        assert all(isinstance(b, MarginOrderbook) for b in books)
+        assert books[0].ticker == "BTC-PERP"
+        assert books[0].bids[0].price == Decimal("0.15")
+        assert books[0].bids[0].quantity == Decimal("100.00")
+        assert books[0].asks[0].price == Decimal("0.16")
+        assert books[1].ticker == "ETH-PERP"
+        assert books[1].bids[0].price == Decimal("0.25")
+        assert books[1].asks == []
+        assert dict(route.calls[0].request.url.params)["tickers"] == "BTC-PERP,ETH-PERP"
+
+    @respx.mock
+    def test_not_found_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/orderbooks").mock(return_value=httpx.Response(404))
+        with pytest.raises(KalshiNotFoundError):
+            perps_client.markets.bulk_orderbooks(tickers=["NOPE"])
+
+    def test_rejects_empty_list(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            perps_client.markets.bulk_orderbooks(tickers=[])
+
+    def test_rejects_over_100(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValueError, match="at most 100"):
+            perps_client.markets.bulk_orderbooks(tickers=[f"T-{i}" for i in range(101)])
+
+    @respx.mock
+    def test_missing_orderbooks_raises_but_null_tolerated(
+        self, perps_client: PerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/markets/orderbooks")
+        route.mock(return_value=httpx.Response(200, json={}))
+        with pytest.raises(ValidationError):
+            perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP"])
+        route.mock(return_value=httpx.Response(200, json={"orderbooks": None}))
+        assert perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP"]) == []
+
+    @respx.mock
+    def test_item_missing_ticker_raises(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/orderbooks").mock(
+            return_value=httpx.Response(
+                200,
+                json={"orderbooks": [{"orderbook": {"bids": [], "asks": []}}]},
+            )
+        )
+        with pytest.raises(KalshiError, match="empty or missing 'ticker'"):
+            perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP"])
+
+    @respx.mock
+    def test_null_bids_asks(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/orderbooks").mock(
+            return_value=httpx.Response(
+                200,
+                json={"orderbooks": [_bulk_orderbook_item("BTC-PERP", bids=None, asks=None)]},
+            )
+        )
+        ob = perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP"])[0]
+        assert ob.bids == []
+        assert ob.asks == []
+
+    @respx.mock
+    async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/orderbooks").mock(
+            return_value=httpx.Response(
+                200, json={"orderbooks": [_bulk_orderbook_item("BTC-PERP")]}
+            )
+        )
+        books = await async_perps_client.markets.bulk_orderbooks(tickers=["BTC-PERP"])
+        assert books[0].ticker == "BTC-PERP"
+        assert books[0].bids[0].price == Decimal("0.15")
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_not_found(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/orderbooks").mock(return_value=httpx.Response(404))
+        with pytest.raises(KalshiNotFoundError):
+            await async_perps_client.markets.bulk_orderbooks(tickers=["NOPE"])
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_rejects_empty(self, async_perps_client: AsyncPerpsClient) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            await async_perps_client.markets.bulk_orderbooks(tickers=[])
         await async_perps_client.close()
 
 
