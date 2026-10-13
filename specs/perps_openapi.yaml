@@ -582,6 +582,45 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /margin/markets/orderbooks:
+    get:
+      operationId: GetMarginMarketOrderbooks
+      summary: Get Multiple Market Orderbooks
+      description: Endpoint for getting the current orderbooks of several margin markets in a single request. Returns one entry per requested ticker, in request order, each carrying the same bid and ask levels as the single-market orderbook endpoint. A ticker that is not a margin market returns 404.
+      tags:
+        - market
+      parameters:
+        - name: tickers
+          in: query
+          required: true
+          description: Comma-separated list of margin market tickers (maximum 100)
+          schema:
+            type: array
+            items:
+              type: string
+              maxLength: 200
+            minItems: 1
+            maxItems: 100
+          style: form
+          explode: false
+          x-oapi-codegen-extra-tags:
+            validate: required,min=1,max=100,dive,max=200
+      responses:
+        '200':
+          description: Orderbooks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMarginMarketOrderbooksResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /margin/markets/{ticker}:
     get:
       operationId: GetMarginMarket
@@ -2918,6 +2957,29 @@ components:
         orderbook:
           $ref: '#/components/schemas/MarginOrderbookCount'
 
+    MarginMarketOrderbook:
+      type: object
+      required:
+        - ticker
+        - orderbook
+      properties:
+        ticker:
+          type: string
+          description: The requested market ticker.
+        orderbook:
+          $ref: '#/components/schemas/MarginOrderbookCount'
+
+    GetMarginMarketOrderbooksResponse:
+      type: object
+      required:
+        - orderbooks
+      properties:
+        orderbooks:
+          type: array
+          description: One entry per requested ticker, in request order.
+          items:
+            $ref: '#/components/schemas/MarginMarketOrderbook'
+
     MarginMarket:
       type: object
       required:
@@ -2934,7 +2996,11 @@ components:
         - funding_deadband
         - funding_cap
         - funding_limit_unit
+        - funding_invalid_premium_handling
       properties:
+        market_id:
+          type: string
+          description: Stable market UUID. Remains unchanged when the market ticker is renamed.
         ticker:
           type: string
         title:
@@ -3065,6 +3131,14 @@ components:
           enum: [percentage, dollar]
           x-go-type-skip-optional-pointer: true
           description: Unit for the funding limits configured at market creation.
+        funding_invalid_premium_handling:
+          type: string
+          enum: [dampen, exclude]
+          x-enum-varnames: [MarginMarketFundingInvalidPremiumHandlingDampen, MarginMarketFundingInvalidPremiumHandlingExclude]
+          x-go-type-skip-optional-pointer: true
+          description: >-
+            How funding averages a second with no premium (no orderbook sample, no index price, or a trading halt),
+            configured at market creation. dampen counts the second as a premium of 0; exclude leaves it out of the average.
 
     MarginMarketSchedule:
       type: object

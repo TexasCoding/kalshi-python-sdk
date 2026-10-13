@@ -1467,6 +1467,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/margin/markets/{ticker}/orderbook",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.bulk_orderbooks",
+        http_method="GET",
+        path_template="/margin/markets/orderbooks",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.candlesticks",
         http_method="GET",
         path_template="/margin/markets/{ticker}/candlesticks",

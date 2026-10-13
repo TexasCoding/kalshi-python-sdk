@@ -1,5 +1,50 @@
 # Migration
 
+## v21.1.0 → Unreleased
+
+Reconciles perps spec drift (Closes #540). **Breaking** for constructors
+of `MarginMarket` that omit the new required
+`funding_invalid_premium_handling`.
+
+### Response model field changes
+
+- **Perps `MarginMarket.funding_invalid_premium_handling`** — required
+  `"dampen"` or `"exclude"`. How funding averages a second with no
+  premium (no orderbook sample, no index price, or a trading halt),
+  configured at market creation. `dampen` counts that second as a
+  premium of 0; `exclude` leaves it out of the average.
+
+Live `markets.list` / `markets.get` callers are unaffected; constructors
+and fixtures must pass the new field.
+
+```python
+# Before (constructors / test fixtures):
+# MarginMarket(
+#     ...,
+#     funding_deadband=0,
+#     funding_cap=1,
+#     funding_limit_unit="percentage",
+# )
+
+# After:
+MarginMarket(
+    ...,
+    funding_deadband=0,
+    funding_cap=1,
+    funding_limit_unit="percentage",
+    funding_invalid_premium_handling="dampen",
+)
+```
+
+### Added (non-breaking)
+
+- `perps.markets.bulk_orderbooks(*, tickers)` (sync + async) —
+  `GET /margin/markets/orderbooks`. Required `tickers` (1–100),
+  comma-joined on the wire. Returns `list[MarginOrderbook]`.
+
+See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
+for the full list.
+
 ## v20.0 → v21.0.0
 
 Reconciles OpenAPI 3.33.0 → 3.34.0 and perps spec drift (Closes #533).

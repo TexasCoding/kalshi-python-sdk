@@ -2,6 +2,34 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## Unreleased
+
+Reconciles perps spec drift after nightly contract failures (Closes #540).
+**Breaking** for constructors of `MarginMarket` that omit the new required
+`funding_invalid_premium_handling`. Re-vendored `specs/perps_openapi.yaml`
+(hash
+`0a1cf0e32c7e0bf4def095c72736593ae07d1616ab3024615fe942a516c40937`).
+Core OpenAPI remains 3.34.0.
+
+### Changed (breaking)
+
+- Perps **`MarginMarket.funding_invalid_premium_handling`** (required
+  `"dampen"` / `"exclude"`). How funding averages a second with no
+  premium (no orderbook sample, no index price, or a trading halt),
+  configured at market creation. `dampen` counts that second as a
+  premium of 0; `exclude` leaves it out of the average. Live
+  `markets.list` / `markets.get` callers are unaffected; constructors
+  and fixtures must pass the new field.
+
+### Added
+
+- Perps **`markets.bulk_orderbooks(*, tickers)`** (sync + async) —
+  `GET /margin/markets/orderbooks`. Fetches up to 100 margin orderbooks
+  in one call. `tickers` is required (1–100) and serializes as a
+  comma-separated query string (`style: form, explode: false`). Returns
+  `list[MarginOrderbook]` in request order. Public market data (no
+  auth). A ticker that is not a margin market returns 404.
+
 ## 21.1.0 — 2026-10-12
 
 Widens the optional `polars` dependency to allow Polars 2.x (#538). No
