@@ -23,6 +23,15 @@ Core OpenAPI remains 3.34.0.
 
 ### Added
 
+- **`events.get(..., exclude_markets=)`** (sync + async) — optional
+  boolean query param on `GET /events/{event_ticker}`. When true,
+  returns event metadata without loading child markets. Use
+  `GET /markets` with `event_ticker`, `limit`, and `cursor` for
+  bounded market pages. Cannot be combined with
+  `with_nested_markets=true` (API returns 400). Default `None` does
+  not emit the param; explicit `False` serializes as `false`.
+  (Closes #542).
+
 - Perps **`markets.bulk_orderbooks(*, tickers)`** (sync + async) —
   `GET /margin/markets/orderbooks`. Fetches up to 100 margin orderbooks
   in one call. `tickers` is required (1–100) and serializes as a

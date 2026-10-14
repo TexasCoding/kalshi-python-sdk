@@ -198,10 +198,12 @@ class EventsResource(SyncResource):
         event_ticker: str,
         *,
         with_nested_markets: bool | None = None,
+        exclude_markets: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
+            exclude_markets=_bool_param(exclude_markets),
         )
         data = self._get(
             f"/events/{_seg(event_ticker, name='event_ticker')}",
@@ -384,10 +386,12 @@ class AsyncEventsResource(AsyncResource):
         event_ticker: str,
         *,
         with_nested_markets: bool | None = None,
+        exclude_markets: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Event:
         params = _params(
             with_nested_markets=_bool_param(with_nested_markets),
+            exclude_markets=_bool_param(exclude_markets),
         )
         data = await self._get(
             f"/events/{_seg(event_ticker, name='event_ticker')}",
