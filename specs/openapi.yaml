@@ -754,6 +754,13 @@ paths:
           description: Event ticker
           schema:
             type: string
+        - name: exclude_markets
+          in: query
+          description: Return event metadata without loading child markets. Use GET /markets with event_ticker, limit and cursor for bounded market pages. Cannot be combined with with_nested_markets=true.
+          required: false
+          schema:
+            type: boolean
+            default: false
         - name: with_nested_markets
           in: query
           required: false

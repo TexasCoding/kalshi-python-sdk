@@ -11,7 +11,7 @@ more markets that share a resolution.
 | `list_all(...)` | walks `list` | no |
 | `list_multivariate(...)` | `GET /events/multivariate` | no |
 | `list_all_multivariate(...)` | walks `list_multivariate` | no |
-| `get(event_ticker, *, with_nested_markets=False)` | `GET /events/{event_ticker}` | no |
+| `get(event_ticker, *, with_nested_markets=False, exclude_markets=False)` | `GET /events/{event_ticker}` | no |
 | `metadata(event_ticker)` | `GET /events/{event_ticker}/metadata` | no |
 | `fee_changes(...)` | `GET /events/fee_changes` | no |
 | `fee_changes_all(...)` | walks `fee_changes` | no |
@@ -58,6 +58,11 @@ for market in event.markets:
 
 `with_nested_markets` defaults to `False` — you'll get the event metadata only
 unless you opt in.
+
+`exclude_markets=True` returns event metadata without loading child markets
+(use `client.markets.list(event_ticker=..., limit=..., cursor=...)` for
+bounded market pages). It cannot be combined with `with_nested_markets=True`
+(the API returns 400). Default `None` omits the query param.
 
 ## Event metadata
 

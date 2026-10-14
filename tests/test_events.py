@@ -183,6 +183,45 @@ class TestEventsGet:
         assert route.calls[0].request.url.params["with_nested_markets"] == "false"
 
     @respx.mock
+    def test_get_exclude_markets_true(self, events: EventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/EVT-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": event_dict(event_ticker="EVT-1", title="T", series_ticker="S")},
+            )
+        )
+        events.get("EVT-1", exclude_markets=True)
+        assert route.calls[0].request.url.params["exclude_markets"] == "true"
+
+    @respx.mock
+    def test_get_exclude_markets_default_does_not_send_param(
+        self, events: EventsResource
+    ) -> None:
+        """Default `exclude_markets=None` MUST NOT emit the query param (#542)."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/EVT-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": event_dict(event_ticker="EVT-1", title="T", series_ticker="S")},
+            )
+        )
+        events.get("EVT-1")
+        assert "exclude_markets" not in route.calls[0].request.url.params
+
+    @respx.mock
+    def test_get_exclude_markets_explicit_false_still_serializes(
+        self, events: EventsResource
+    ) -> None:
+        """Explicit `exclude_markets=False` MUST still emit `?exclude_markets=false`."""
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/EVT-1").mock(
+            return_value=httpx.Response(
+                200,
+                json={"event": event_dict(event_ticker="EVT-1", title="T", series_ticker="S")},
+            )
+        )
+        events.get("EVT-1", exclude_markets=False)
+        assert route.calls[0].request.url.params["exclude_markets"] == "false"
+
+    @respx.mock
     def test_not_found(self, events: EventsResource) -> None:
         respx.get("https://test.kalshi.com/trade-api/v2/events/FAKE").mock(
             return_value=httpx.Response(404, json={"message": "event not found"})
