@@ -106,6 +106,26 @@ def _funding_payment(**overrides: object) -> dict[str, object]:
     return base
 
 
+def _corporate_action_payment(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "cap1",
+        "type": "cash_dividend",
+        "ca_id": "ca-1",
+        "market_id": "00000000-0000-0000-0000-000000000001",
+        "market_ticker": "AAPL-PERP",
+        "asset_class": "Equities",
+        "subtrader_id": "st1",
+        "position_quantity_fp": "1.25",
+        "post_position_quantity_fp": "2.50",
+        "payment_amount_centicents": 400,
+        "payment_time": "2026-06-01T12:00:00Z",
+        "settlement_execution_time": "2026-06-01T16:00:00Z",
+        "created_ts": "2026-06-01T16:00:01Z",
+    }
+    base.update(overrides)
+    return base
+
+
 def _obligation(amount: int = -12345) -> dict[str, object]:
     return {
         "id": "ob1",
@@ -117,6 +137,7 @@ def _obligation(amount: int = -12345) -> dict[str, object]:
         "execution_time": "2026-06-01T00:00:00Z",
         "last_updated_ts": "2026-06-01T01:00:00Z",
         "asset_class": "Crypto",
+        "corporate_action_payments": [],
         "receives": [
             {
                 "id": "r1",
@@ -551,6 +572,127 @@ class TestObligationDetailPages:
         )
         page = await auth_async_klear_client.margin.funding_payments("ob1")
         assert page.items[0].id == "fp-async"
+        await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
+# corporate_action_payments
+# --------------------------------------------------------------------------- #
+
+
+class TestCorporateActionPayments:
+    @respx.mock
+    def test_page_parses_payment(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/obligations/ob1/corporate_action_payments").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "corporate_action_payments": [
+                        _corporate_action_payment(
+                            pre_split_price_centicents=68000,
+                            post_split_price_centicents=34000,
+                        )
+                    ],
+                    "cursor": "c1",
+                },
+            )
+        )
+        page = auth_klear_client.margin.corporate_action_payments("ob1", limit=10, cursor="prev")
+        row = page.items[0]
+        assert row.asset_class == "Equities"
+        assert row.position_quantity_fp == Decimal("1.25")
+        assert row.post_position_quantity_fp == Decimal("2.50")
+        assert row.payment_amount_centicents == 400
+        assert isinstance(row.payment_amount_centicents, int)
+        assert not isinstance(row.payment_amount_centicents, bool)
+        assert row.pre_split_price_centicents == 68000
+        assert row.post_split_price_centicents == 34000
+        assert row.payment_time is not None
+        assert row.payment_time.tzinfo is not None
+        assert page.cursor == "c1"
+        params = route.calls[0].request.url.params
+        assert params["limit"] == "10"
+        assert params["cursor"] == "prev"
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_limit_over_max_raises_before_http(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/obligations/ob1/corporate_action_payments").mock(
+            return_value=httpx.Response(200, json={"corporate_action_payments": []})
+        )
+        with pytest.raises(ValueError):
+            auth_klear_client.margin.corporate_action_payments("ob1", limit=1001)
+        assert not route.called
+        auth_klear_client.close()
+
+    def test_rejects_unknown_asset_class_and_missing_payments(self) -> None:
+        from kalshi.perps.klear.models.margin import CorporateActionPaymentDetail
+
+        with pytest.raises(ValidationError):
+            CorporateActionPaymentDetail.model_validate(
+                _corporate_action_payment(asset_class="FX")
+            )
+        payload = _obligation()
+        del payload["corporate_action_payments"]
+        with pytest.raises(ValidationError):
+            ObligationEntry.model_validate(payload)
+
+    @respx.mock
+    def test_null_payment_time_and_paginator(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/corporate_action_payments").mock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json={
+                        "corporate_action_payments": [
+                            _corporate_action_payment(payment_time=None, type="split")
+                        ],
+                        "cursor": "c1",
+                    },
+                ),
+                httpx.Response(200, json={"corporate_action_payments": []}),
+            ]
+        )
+        rows = list(auth_klear_client.margin.corporate_action_payments_all("ob1"))
+        assert len(rows) == 1
+        assert rows[0].payment_time is None
+        assert rows[0].type == "split"
+        assert rows[0].exchange_ts is None
+        assert rows[0].pre_split_price_centicents is None
+        auth_klear_client.close()
+
+    def test_obligation_new_asset_classes_and_truncated_flag(self) -> None:
+        bare = ObligationEntry.model_validate(_obligation())
+        assert bare.corporate_action_payments == []
+        assert bare.corporate_action_payments_truncated is None
+        nulled = _obligation() | {"corporate_action_payments": None}
+        assert ObligationEntry.model_validate(nulled).corporate_action_payments == []
+        for asset_class in ("Crypto", "Equities", "Metals", "Indices", "Energy"):
+            parsed = ObligationEntry.model_validate(
+                _obligation()
+                | {
+                    "asset_class": asset_class,
+                    "corporate_action_payments": [_corporate_action_payment(payment_time=None)],
+                    "corporate_action_payments_truncated": True,
+                }
+            )
+            assert parsed.asset_class == asset_class
+            assert parsed.corporate_action_payments_truncated is True
+            assert parsed.corporate_action_payments[0].payment_time is None
+        with pytest.raises(ValidationError):
+            ObligationEntry.model_validate(_obligation() | {"asset_class": "FX"})
+
+    @respx.mock
+    async def test_async_page(self, auth_async_klear_client: AsyncKlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligations/ob1/corporate_action_payments").mock(
+            return_value=httpx.Response(
+                200,
+                json={"corporate_action_payments": [_corporate_action_payment(id="cap-async")]},
+            )
+        )
+        page = await auth_async_klear_client.margin.corporate_action_payments("ob1")
+        assert page.items[0].id == "cap-async"
+        assert page.items[0].payment_amount_centicents == 400
         await auth_async_klear_client.close()
 
 
@@ -1017,6 +1159,25 @@ class TestEstimateMaintenanceMargin:
         with pytest.raises(TypeError, match="estimate_maintenance_margin"):
             auth_klear_client.margin.estimate_maintenance_margin()
         auth_klear_client.close()
+
+    def test_accepts_expanded_asset_class(self) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+            EstimatePortfolioMaintenanceMarginRequest,
+        )
+
+        position = EstimatePortfolioMaintenanceMarginPosition(
+            market_ticker="CL-PERP",
+            quantity=1,
+            price=Decimal("70.0000"),
+        )
+        request = EstimatePortfolioMaintenanceMarginRequest(
+            asset_class="Energy",
+            positions=[position],
+        )
+        assert request.asset_class == "Energy"
+        with pytest.raises(ValidationError):
+            EstimatePortfolioMaintenanceMarginRequest(asset_class="FX", positions=[position])
 
     @respx.mock
     @pytest.mark.asyncio

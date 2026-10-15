@@ -4,6 +4,45 @@ All notable changes to kalshi-sdk will be documented in this file.
 
 ## Unreleased
 
+Reconciles nightly spec drift (Closes #544). **Breaking** for constructors
+of `ObligationEntry` that omit the new required `corporate_action_payments`.
+Re-vendored `specs/openapi.yaml` (hash
+`3877d38d095f4004e325aaa8766f24dabeb1c2dc3fb8d37b9ccac82ca5734d8a`),
+`specs/asyncapi.yaml` (hash
+`3c86bae7d89b44baba1119b3a097a54054c1d851e1dcd8ad894c7cb35b9890b6`;
+channel description only — no WebSocket payload schema change), and
+`specs/perps_scm_openapi.yaml` (hash
+`1f58b54b6bef44852b4a9a3fd7ad707668258a2516801a076ffe468a1807806f`).
+Core OpenAPI remains 3.34.0.
+
+### Changed (breaking)
+
+- Klear **`ObligationEntry.corporate_action_payments`** (required
+  `list[CorporateActionPaymentDetail]`, may be empty). Cash and split
+  corporate-action payments already reflected in settlement PnL; do not
+  add them to the obligation total. Live responses include the array;
+  constructors and fixtures must pass it (use `[]` when none apply).
+
+### Added
+
+- **`events.list_multivariate` / `list_all_multivariate(..., tickers=)`**
+  (sync + async) — optional event-ticker filter on
+  `GET /events/multivariate`. A `list[str]` or a comma-separated string is
+  sent as one comma-separated query value. Empty elements and embedded
+  commas are rejected before the request. `None` and `[]` omit the param.
+
+- Klear **`margin.corporate_action_payments` /
+  `corporate_action_payments_all`** (sync + async) —
+  `GET /margin/obligations/{obligation_id}/corporate_action_payments`.
+  Pages the full set when `corporate_action_payments_truncated` is set.
+  Limit max 1000.
+
+- Klear **`ObligationEntry.corporate_action_payments_truncated`**
+  (`bool | None`).
+
+- Klear **`AssetClassLiteral`** also accepts `"Equities"`, `"Metals"`,
+  `"Indices"`, and `"Energy"` (alongside `"Crypto"`).
+
 Reconciles perps spec drift after nightly contract failures (Closes #540).
 **Breaking** for constructors of `MarginMarket` that omit the new required
 `funding_invalid_premium_handling`. Re-vendored `specs/perps_openapi.yaml`

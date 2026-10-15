@@ -500,29 +500,36 @@ channels:
 
       ## Commodities and underlying tickers
 
-      The reference table below includes spot metals, commodity futures, and indices. The gold and silver examples are only a subset of the feed coverage.
+      The reference table below lists the underlyings currently streaming in production: spot metals, metal and commodity indices, an equity index, and FX pairs. Index descriptions note Pyth's publishing schedule (24/7, 24/5, or 23/5); spot metals and FX pairs follow their market sessions.
 
-      | Pyth feed ID | Pyth symbol | Description |
-      |--------------|-------------|-------------|
-      | 345 | `Metal.XAG/USD` | Silver price in USD |
-      | 346 | `Metal.XAU/USD` | Gold price in USD |
-      | 2937 | `Commodities.CCU6/USD` | Cocoa futures (Sept 2026) in USD |
-      | 3052 | `Commodities.COU6/USD` | Crude Oil futures (Sept 2026) in USD |
-      | 3053 | `Commodities.COZ6/USD` | Crude Oil futures (Dec 2026) in USD |
-      | 3080 | `Commodities.WHU6/USD` | Wheat futures (Sept 2026) in USD |
-      | 3081 | `Commodities.WHZ6/USD` | Wheat futures (Dec 2026) in USD |
-      | 3085 | `Commodities.SOU6/USD` | Soybeans futures (Sept 2026) in USD |
-      | 3086 | `Commodities.SOX6/USD` | Soybeans futures (Nov 2026) in USD |
-      | 3063 | `Commodities.Index.PYTHOIL/USD` | Blended Oil Index in USD |
-      | 3153 | `Metal.Index.GOLD/USD` | Blended Gold Index in USD |
-      | 3712 | `Metal.Index.1OZGOLD/USD` | 1-Ounce Gold Index in USD |
-      | 3154 | `Metal.Index.SILVER/USD` | Blended Silver Index in USD |
-      | 3045 | `Commodities.BRENTX6/USD` | Brent Crude futures (Nov 2026) in USD |
-      | 3525 | `Commodities.Index.CU/USD` | Copper Index in USD |
-      | 3265 | `Commodities.Index.NATGAS/USD` | Natural Gas Index in USD |
-      | 3446 | `Commodities.Index.BRENT/USD` | Blended Brent Crude Index in USD |
-      | 1781 | `Metal.XPT/USD` | Platinum price in USD |
-      | 1780 | `Metal.XPD/USD` | Palladium price in USD |
+      | Pyth feed ID | Pyth symbol                     | Description                                             |
+      |--------------|---------------------------------|---------------------------------------------------------|
+      | 345          | `Metal.XAG/USD`                 | Silver price in USD                                     |
+      | 346          | `Metal.XAU/USD`                 | Gold price in USD                                       |
+      | 1780         | `Metal.XPD/USD`                 | Palladium price in USD                                  |
+      | 1781         | `Metal.XPT/USD`                 | Platinum price in USD                                   |
+      | 3153         | `Metal.Index.GOLD/USD`          | Blended Gold Index in USD (24/7)                        |
+      | 3712         | `Metal.Index.1OZGOLD/USD`       | 1-Ounce Gold Index in USD (24/7)                        |
+      | 3154         | `Metal.Index.SILVER/USD`        | Blended Silver Index in USD (24/7)                      |
+      | 3063         | `Commodities.Index.PYTHOIL/USD` | Blended Oil Index in USD (24/7)                         |
+      | 3707         | `Commodities.Index.WTI1M/USD`   | Constant 1-Month WTI Crude Index in USD (23/5)          |
+      | 3446         | `Commodities.Index.BRENT/USD`   | Blended Brent Crude Index in USD (24/7)                 |
+      | 3265         | `Commodities.Index.NATGAS/USD`  | Natural Gas Index in USD (24/7)                         |
+      | 3525         | `Commodities.Index.CU/USD`      | Copper Index in USD (24/7)                              |
+      | 3266         | `Commodities.Index.COPPER/USD`  | Copper Index in USD (23/5)                              |
+      | 3292         | `Equity.Index.US30/USD`         | US30 (Dow Jones Industrial Average) Index in USD (24/5) |
+      | 327          | `FX.EUR/USD`                    | Euro / US Dollar                                        |
+      | 333          | `FX.GBP/USD`                    | British Pound / US Dollar                               |
+      | 315          | `FX.AUD/USD`                    | Australian Dollar / US Dollar                           |
+      | 337          | `FX.NZD/USD`                    | New Zealand Dollar / US Dollar                          |
+      | 340          | `FX.USD/JPY`                    | US Dollar / Japanese Yen                                |
+      | 338          | `FX.USD/CAD`                    | US Dollar / Canadian Dollar                             |
+      | 339          | `FX.USD/CHF`                    | US Dollar / Swiss Franc                                 |
+      | 1514         | `FX.USD/NOK`                    | US Dollar / Norwegian Krone                             |
+      | 1517         | `FX.USD/SEK`                    | US Dollar / Swedish Krona                               |
+      | 341          | `FX.USD/MXN`                    | US Dollar / Mexican Peso                                |
+      | 1512         | `FX.USD/INR`                    | US Dollar / Indian Rupee (offshore spot)                |
+      | 1506         | `FX.USD/BRL`                    | US Dollar / Brazilian Real                              |
 
       Pass the exact **Pyth symbol** in `underlying_tickers`. The numeric Pyth feed IDs are reference information and are not subscription parameters for this channel. Kalshi market tickers are not Pyth underlying tickers.
 

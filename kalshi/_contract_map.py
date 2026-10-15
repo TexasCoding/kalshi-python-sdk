@@ -987,6 +987,10 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="FundingPaymentDetail",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.klear.models.margin.CorporateActionPaymentDetail",
+        spec_schema="CorporateActionPaymentDetail",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.ObligationEntry",
         spec_schema="ObligationEntry",
         notes="Folds spec allOf[ObligationInfo, inline] into one model",
@@ -1006,6 +1010,12 @@ PERPS_SCM_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.GetObligationFundingPaymentsResponse",
         spec_schema="GetObligationFundingPaymentsResponse",
+    ),
+    ContractEntry(
+        sdk_model=(
+            "kalshi.perps.klear.models.margin.GetObligationCorporateActionPaymentsResponse"
+        ),
+        spec_schema="GetObligationCorporateActionPaymentsResponse",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.klear.models.margin.MarketSettlementEstimate",

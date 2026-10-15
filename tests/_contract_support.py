@@ -1811,6 +1811,20 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     ),
     MethodEndpointEntry(
         sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource.corporate_action_payments"
+        ),
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/corporate_action_payments",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
+            "kalshi.perps.klear.resources.margin.MarginResource.corporate_action_payments_all"
+        ),
+        http_method="GET",
+        path_template="/margin/obligations/{obligation_id}/corporate_action_payments",
+    ),
+    MethodEndpointEntry(
+        sdk_method=(
             "kalshi.perps.klear.resources.margin.MarginResource.settlement_estimate_by_asset_class"
         ),
         http_method="GET",
@@ -2047,6 +2061,20 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     (
         "kalshi.perps.klear.resources.margin.MarginResource.funding_payments_all",
+        "max_pages",
+    ): Exclusion(
+        reason="client-side page cap, no wire counterpart",
+        kind="client_only",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.corporate_action_payments_all",
+        "cursor",
+    ): Exclusion(
+        reason="cursor consumed by _list_all paginator, not a caller kwarg",
+        kind="paginator_handled",
+    ),
+    (
+        "kalshi.perps.klear.resources.margin.MarginResource.corporate_action_payments_all",
         "max_pages",
     ): Exclusion(
         reason="client-side page cap, no wire counterpart",

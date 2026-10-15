@@ -45,8 +45,15 @@ one comma-separated value).
 ## Multivariate events
 
 `list_multivariate(...)` returns only events that participate in a
-multivariate event collection. Same kwargs as `list`. See
-[Multivariate](multivariate.md) for the surrounding API.
+multivariate event collection. See [Multivariate](multivariate.md) for the
+surrounding API.
+
+`tickers` (optional on `list_multivariate` and `list_all_multivariate`)
+restricts the page to specific event tickers, same wire format as
+[`list`](#list-events): a `list[str]` or a comma-separated string, sent as
+one comma-separated query value. Individual tickers must be non-empty and
+must not contain commas. Omit `tickers`, or pass `None` or `[]`, to leave
+the filter off.
 
 ## Get one event
 

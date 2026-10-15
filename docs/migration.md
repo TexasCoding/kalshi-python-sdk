@@ -42,6 +42,40 @@ MarginMarket(
   `GET /margin/markets/orderbooks`. Required `tickers` (1–100),
   comma-joined on the wire. Returns `list[MarginOrderbook]`.
 
+### Klear corporate-action payments (Closes #544)
+
+**Breaking** for constructors and `model_validate` fixtures of
+`ObligationEntry` that omit the new required `corporate_action_payments`.
+
+- **`ObligationEntry.corporate_action_payments`** — required
+  `list[CorporateActionPaymentDetail]` (may be empty). Cash and split
+  corporate-action payments already reflected in settlement PnL. Do not
+  add them to the obligation total. Live responses include the array;
+  constructors and fixtures must pass it.
+
+```python
+# Before (constructors / test fixtures):
+# ObligationEntry(
+#     ...,
+#     funding_payments=[],
+# )
+
+# After:
+ObligationEntry(
+    ...,
+    funding_payments=[],
+    corporate_action_payments=[],
+)
+```
+
+`corporate_action_payments_truncated` is optional. Page the full set with
+`klear.margin.corporate_action_payments` / `corporate_action_payments_all`
+(sync + async) when the flag is set.
+
+`AssetClassLiteral` also accepts `"Equities"`, `"Metals"`, `"Indices"`, and
+`"Energy"` (previously `"Crypto"` only). Existing `"Crypto"` callers are
+unchanged.
+
 See the [changelog](https://github.com/TexasCoding/kalshi-python-sdk/blob/main/CHANGELOG.md)
 for the full list.
 

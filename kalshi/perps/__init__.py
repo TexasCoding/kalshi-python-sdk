@@ -31,10 +31,12 @@ from kalshi.perps.klear import (
     KlearConfig,
 )
 from kalshi.perps.klear.models.margin import (
+    CorporateActionPaymentDetail,
     FundingPaymentDetail,
     GetActiveMarginObligationsResponse,
     GetGuarantyFundBalanceResponse,
     GetMarginReportsResponse,
+    GetObligationCorporateActionPaymentsResponse,
     GetObligationFundingPaymentsResponse,
     GetObligationHistoryResponse,
     GetObligationMaintenanceMarginDetailsResponse,
@@ -249,6 +251,7 @@ __all__ = [
     "BookSideLiteral",
     "CancelMarginOrderResponse",
     "ConnectionState",
+    "CorporateActionPaymentDetail",
     "CreateMarginOrderRequest",
     "CreateMarginOrderResponse",
     "CreateOrderGroupRequest",
@@ -291,6 +294,7 @@ __all__ = [
     "GetMarginRiskParametersResponse",
     "GetMarginRiskResponse",
     "GetMarginTradesResponse",
+    "GetObligationCorporateActionPaymentsResponse",
     "GetObligationFundingPaymentsResponse",
     "GetObligationHistoryResponse",
     "GetObligationMaintenanceMarginDetailsResponse",

@@ -395,6 +395,43 @@ class TestEventsListMultivariate:
         items = list(events.list_all_multivariate())
         assert len(items) == 2
 
+    @respx.mock
+    def test_list_multivariate_tickers_joined(self, events: EventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
+        events.list_multivariate(tickers=["MVE-A", "MVE-B"])
+        assert route.calls[0].request.url.params["tickers"] == "MVE-A,MVE-B"
+
+    @respx.mock
+    def test_list_multivariate_tickers_rejects_bad_elements(self, events: EventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
+        with pytest.raises(ValueError, match=r"tickers\[1\] is empty"):
+            events.list_multivariate(tickers=["MVE-A", ""])
+        with pytest.raises(ValueError, match="contains a comma"):
+            events.list_all_multivariate(tickers=["MVE-A,MVE-B"])
+        assert not route.called
+
+    @respx.mock
+    def test_list_multivariate_tickers_empty_omitted_string_passthrough(
+        self, events: EventsResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
+            return_value=httpx.Response(
+                200,
+                json={"events": [event_dict(event_ticker="MVE-1")], "cursor": ""},
+            )
+        )
+        events.list_multivariate(tickers=[])
+        assert "tickers" not in route.calls[0].request.url.params
+        events.list_multivariate(tickers="MVE-A,MVE-B")
+        assert route.calls[1].request.url.params["tickers"] == "MVE-A,MVE-B"
+        items = list(events.list_all_multivariate(tickers=["MVE-1"]))
+        assert [event.event_ticker for event in items] == ["MVE-1"]
+        assert route.calls[2].request.url.params["tickers"] == "MVE-1"
+
 
 class TestEventsListDriftFix:
     @respx.mock
@@ -527,6 +564,15 @@ class TestAsyncEventsListMultivariate:
         )
         tickers = [e.event_ticker async for e in async_events.list_all_multivariate()]
         assert tickers == ["A", "B"]
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_list_multivariate_tickers(self, async_events: AsyncEventsResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/events/multivariate").mock(
+            return_value=httpx.Response(200, json={"events": [], "cursor": ""})
+        )
+        await async_events.list_multivariate(tickers=["MVE-A", "MVE-B"])
+        assert route.calls[0].request.url.params["tickers"] == "MVE-A,MVE-B"
 
 
 class TestAsyncEventsFeeChanges:

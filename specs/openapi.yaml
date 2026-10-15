@@ -661,7 +661,7 @@ paths:
     get:
       operationId: GetMultivariateEvents
       summary: Get Multivariate Events
-      description: 'Retrieve multivariate (combo) events. These are dynamically created events from multivariate event collections. Supports filtering by series and collection ticker.'
+      description: 'Retrieve multivariate (combo) events. These are dynamically created events from multivariate event collections. Supports filtering by series ticker, collection ticker, or a comma-separated list of event tickers.'
       tags:
         - events
       parameters:
@@ -687,6 +687,7 @@ paths:
           description: Filter events by collection ticker. Returns only multivariate events belonging to the specified collection. Cannot be used together with series_ticker.
           schema:
             type: string
+        - $ref: '#/components/parameters/EventTickersQuery'
         - name: with_nested_markets
           in: query
           required: false
