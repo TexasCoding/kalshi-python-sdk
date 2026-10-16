@@ -299,7 +299,8 @@ next-settlement estimates keyed by asset class. (The singular
 `active_obligation()` / `settlement_estimate()` endpoints were removed upstream
 in the v11.0.0 reconcile.)
 
-`klear.margin.settlement_prices(asset_class="Crypto", settlement_time=...)`
+`AssetClassLiteral` is `"Crypto"`, `"Equities"`, `"Metals"`, `"Indices"`,
+or `"Energy"`. `klear.margin.settlement_prices(asset_class="Crypto", settlement_time=...)`
 returns a ticker → centicents map at a settlement cycle.
 `klear.margin.estimate_maintenance_margin(asset_class="Crypto", positions=[...])`
 margins a hypothetical portfolio. Optional `date=` (YYYY-MM-DD) and
@@ -329,7 +330,17 @@ klear.margin.delete_fcm_api_key(created.api_key_id)
 ```
 
 When an `ObligationEntry` inline detail array is capped at 1000 rows, the
-matching `*_truncated` flag is set; page the full set via:
+matching `*_truncated` flag is set; page the full set via the methods below.
+
+`corporate_action_payments` is required and may be empty. Those rows are
+cash and split corporate-action payments already included in settlement PnL
+— do not add them to the obligation total.
+`CorporateActionPaymentDetail.payment_time` is always present and is `null`
+for splits. Centicents fields on that model are plain integers;
+`position_quantity_fp` and `post_position_quantity_fp` are fixed-point
+contract counts. `corporate_action_payments` / `corporate_action_payments_all`
+page the full set when `corporate_action_payments_truncated` is true (limit
+max 1000):
 
 ```python
 for row in klear.margin.settlement_details_all(ob.id):
@@ -337,6 +348,8 @@ for row in klear.margin.settlement_details_all(ob.id):
 for row in klear.margin.maintenance_margin_details_all(ob.id):
     ...
 for row in klear.margin.funding_payments_all(ob.id):
+    ...
+for row in klear.margin.corporate_action_payments_all(ob.id):
     ...
 ```
 

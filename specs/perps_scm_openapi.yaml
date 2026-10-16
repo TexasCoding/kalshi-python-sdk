@@ -141,6 +141,33 @@ paths:
         '404': { $ref: '#/components/responses/NotFoundError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
+  /margin/obligations/{obligation_id}/corporate_action_payments:
+    get:
+      operationId: GetObligationCorporateActionPayments
+      summary: Get Obligation Corporate Action Payments
+      description: >-
+        Pages the cash and split corporate-action payments settled by one
+        obligation owned by the authenticated clearing member. The inline
+        corporate_action_payments array is capped at 1000 rows;
+        corporate_action_payments_truncated indicates when to use this endpoint
+        for the complete set. These rows explain amounts already included in
+        settlement PnL and must not be added to the obligation total again.
+      parameters:
+        - { name: obligation_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 1000, maximum: 1000 }, description: Number of rows per page. }
+        - { name: cursor, in: query, required: false, schema: { type: string }, description: Opaque cursor from a previous response to fetch the next page. }
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GetObligationCorporateActionPaymentsResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
   /margin/obligations/{obligation_id}/maintenance_margin_details:
     get:
       operationId: GetObligationMaintenanceMarginDetails
@@ -210,7 +237,7 @@ paths:
         (https://www.ecfr.gov/current/title-17/chapter-I/part-15).
 
       parameters:
-        - { name: report_date, in: query, required: false, schema: { type: string, format: date }, description: ET settlement day to report, YYYY-MM-DD. Defaults to the most recent ET settlement day whose settlement window has closed. }
+        - { name: report_date, in: query, required: false, schema: { type: string, format: date }, description: "ET settlement day to report, YYYY-MM-DD. Defaults to the most recent ET settlement day whose settlement window has closed." }
       responses:
         '200':
           description: Successful response
@@ -345,7 +372,7 @@ paths:
 
       parameters:
         - { name: asset_class, in: query, required: true, schema: { $ref: '#/components/schemas/AssetClass' } }
-        - { name: settlement_time, in: query, required: true, schema: { type: string, format: date-time }, description: Settlement cycle time, RFC3339. }
+        - { name: settlement_time, in: query, required: true, schema: { type: string, format: date-time }, description: "Settlement cycle time, RFC3339." }
       responses:
         '200':
           description: Successful response
@@ -747,7 +774,7 @@ components:
     AssetClass:
       type: string
       # TODO(randy): add other enums once SCMs should be aware of other asset classes
-      enum: [Crypto]
+      enum: [Crypto, Equities, Metals, Indices, Energy]
       description: Asset class of the margin markets covered by this entry.
 
     ObligationInfo:
@@ -807,7 +834,7 @@ components:
         market_ticker: { type: string }
         subtrader_id: { type: string }
         position_quantity_fp: { type: string, description: "Signed position at settlement as a fixed-point contract count (e.g. \"1.25\")." }
-        pnl_centicents: { type: integer, format: int64, description: Total PnL for this market and subtrader over the settlement period, including the market's net funding (itemized per funding period in the entry's funding_payments). }
+        pnl_centicents: { type: integer, format: int64, description: "Total PnL for this market and subtrader over the settlement period, including the market's net funding (itemized per funding period in the entry's funding_payments)." }
         total_fees_centicents: { type: integer, format: int64, description: Total fees. }
         total_amount_centicents: { type: integer, format: int64, description: Total amount. }
 
@@ -828,7 +855,42 @@ components:
         funding_time: { type: string, format: date-time, description: The funding period this payment applies to. }
         position_quantity_fp: { type: string, description: "Signed position at funding time as a fixed-point contract count (e.g. \"1.25\")." }
         notional_value_centicents: { type: integer, format: int64, description: Signed notional value (position times mark price) the funding payment was computed from. }
-        funding_amount_centicents: { type: integer, format: int64, description: Signed funding amount; positive when received, negative when paid. }
+        funding_amount_centicents: { type: integer, format: int64, description: "Signed funding amount; positive when received, negative when paid." }
+
+    CorporateActionPaymentDetail:
+      type: object
+      description: Cash distributions and split adjustments already reflected in settlement PnL; these are not additional amounts to add to the obligation total.
+      required:
+        - id
+        - type
+        - ca_id
+        - market_id
+        - market_ticker
+        - asset_class
+        - subtrader_id
+        - position_quantity_fp
+        - post_position_quantity_fp
+        - payment_amount_centicents
+        - payment_time
+        - settlement_execution_time
+        - created_ts
+      properties:
+        id: { type: string }
+        type: { type: string, description: Corporate-action type. }
+        ca_id: { type: string, description: Identifier of the corporate action that generated this payment. }
+        market_id: { type: string, format: uuid }
+        market_ticker: { type: string }
+        asset_class: { $ref: '#/components/schemas/AssetClass' }
+        subtrader_id: { type: string }
+        position_quantity_fp: { type: string, description: Signed position before the action as a fixed-point contract count. }
+        post_position_quantity_fp: { type: string, description: Signed position after the action as a fixed-point contract count; unchanged for cash distributions. }
+        payment_amount_centicents: { type: integer, format: int64, description: Signed cash amount; positive when received and negative when paid. For splits this is cash in lieu and excludes position revaluation. }
+        payment_time: { type: string, format: date-time, nullable: true, description: Scheduled cash payment time; null for splits. }
+        settlement_execution_time: { type: string, format: date-time, description: Settlement cycle that carries this payment. }
+        pre_split_price_centicents: { type: integer, format: int64, description: Mark price before the split; omitted when not applicable. }
+        post_split_price_centicents: { type: integer, format: int64, description: Mark price after the split; omitted when not applicable. }
+        exchange_ts: { type: string, format: date-time, description: Exchange event timestamp when available. }
+        created_ts: { type: string, format: date-time, description: Time the payment row was created. }
 
     MaintenanceMarginDetail:
       type: object
@@ -848,7 +910,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/ObligationInfo'
         - type: object
-          required: [receives, settlement_details, maintenance_margin_details, funding_payments]
+          required: [receives, settlement_details, maintenance_margin_details, funding_payments, corporate_action_payments]
           properties:
             receives:
               type: array
@@ -872,6 +934,13 @@ components:
               description: |
                 Per-market, per-subtrader, per-funding-period breakdown of the
                 funding payments settled by this obligation.
+            corporate_action_payments:
+              type: array
+              items: { $ref: '#/components/schemas/CorporateActionPaymentDetail' }
+              description: Cash and split corporate-action payments settled by this obligation, already reflected in settlement PnL. Empty when no corporate-action payments apply.
+            corporate_action_payments_truncated:
+              type: boolean
+              description: Set when corporate_action_payments was capped at the 1000-row inline limit; page the full set via /margin/obligations/{obligation_id}/corporate_action_payments.
             settlement_details_truncated:
               type: boolean
               description: Set when settlement_details was capped at the 1000-row inline limit; page the full set via /margin/obligations/{obligation_id}/settlement_details.
@@ -902,7 +971,7 @@ components:
             type: object
             properties:
               market_ticker: { type: string }
-              position: { type: integer, description: Signed contract count; positive long, negative short. Can be below the reportable threshold when exit_day is true. }
+              position: { type: integer, description: "Signed contract count; positive long, negative short. Can be below the reportable threshold when exit_day is true." }
               exit_day: { type: boolean, description: True when this row is included because the same market was reportable on the prior settlement day but is now below the reportable threshold. }
               reportable_threshold: { type: integer, format: int64, description: 'CFTC reporting level for this market, in contracts (17 CFR 15.03(b)). A position of at least this size in either direction is reportable.' }
     EstimatePortfolioMaintenanceMarginPosition:
@@ -910,7 +979,7 @@ components:
       required: [market_ticker, quantity, price]
       properties:
         market_ticker: { type: string, description: Market to include in the hypothetical portfolio. Must belong to the request's asset class. }
-        quantity: { type: integer, format: int64, description: Signed whole contract count; positive long, negative short. Must be non-zero. }
+        quantity: { type: integer, format: int64, description: "Signed whole contract count; positive long, negative short. Must be non-zero." }
         price: { type: string, description: 'Price of one contract in USD, to at most four decimal places (e.g. "6.8000"). Must be positive.' }
 
     EstimatePortfolioMaintenanceMarginRequest:
@@ -947,7 +1016,7 @@ components:
       type: object
       required: [market_tickers, returns]
       properties:
-        market_tickers: { type: array, items: { type: string }, description: Markets covered by the matrix, in column order. }
+        market_tickers: { type: array, items: { type: string }, description: "Markets covered by the matrix, in column order." }
         returns:
           type: array
           items: { type: array, items: { type: number, format: double } }
@@ -1022,6 +1091,17 @@ components:
           type: string
           description: Opaque cursor; pass as the `cursor` query param to fetch the next page. Absent when there are no more results.
 
+    GetObligationCorporateActionPaymentsResponse:
+      type: object
+      required: [corporate_action_payments]
+      properties:
+        corporate_action_payments:
+          type: array
+          items: { $ref: '#/components/schemas/CorporateActionPaymentDetail' }
+        cursor:
+          type: string
+          description: Opaque cursor; pass as the `cursor` query param to fetch the next page until it is absent. The final page may be empty.
+
     MemberFundingPayment:
       allOf:
         - $ref: '#/components/schemas/FundingPaymentDetail'
@@ -1062,7 +1142,7 @@ components:
         quantity_centicount: { type: integer, format: int64, description: Position quantity in centicounts. }
         variation_margin_centicents: { type: integer, format: int64, description: Variation margin for this market. }
         notional_value_centicents: { type: integer, format: int64, description: Notional value for this market. }
-        session_avg_price_fp: { type: string, description: Average entry price for the current settlement session, as a fixed-point dollar string. Omitted when the position quantity is zero. }
+        session_avg_price_fp: { type: string, description: "Average entry price for the current settlement session, as a fixed-point dollar string. Omitted when the position quantity is zero." }
 
     SettlementEstimate:
       type: object

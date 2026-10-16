@@ -14,8 +14,10 @@ with a ``_centicents`` field-name suffix. Those are **plain ``int``** — they a
 NOT :data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the
 integer-cents precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
 ``Deposit.amount_cents``). Fixed-point **count** strings appear on
-:attr:`SettlementDetail.position_quantity_fp` and
-:attr:`FundingPaymentDetail.position_quantity_fp`. The fixed-point
+:attr:`SettlementDetail.position_quantity_fp`,
+:attr:`FundingPaymentDetail.position_quantity_fp`, and
+:attr:`CorporateActionPaymentDetail.position_quantity_fp` /
+:attr:`CorporateActionPaymentDetail.post_position_quantity_fp`. The fixed-point
 **dollar-string** fields are :attr:`WithdrawSettlementBalanceRequest.amount`,
 :attr:`GetSettlementBalanceWithdrawalResponse.amount`, and
 :attr:`MarketSettlementEstimate.session_avg_price_fp` (e.g. ``"500.00"``);
@@ -79,10 +81,10 @@ MarginReportTypeLiteral = Literal[
 # Spec ``GetSettlementBalanceWithdrawalResponse.status`` enum.
 WithdrawalStatusLiteral = Literal["pending", "processing", "processed", "failed"]
 
-# Spec ``AssetClass`` enum (single value today). Named alias mirrors the other
-# *Literal aliases; shared by ObligationEntry.asset_class and the settlement
-# estimates keyed by asset class (spec sync 3.24.0).
-AssetClassLiteral = Literal["Crypto"]
+# Spec ``AssetClass`` enum. Named alias mirrors the other *Literal aliases;
+# shared by ObligationEntry.asset_class, corporate-action payments, and the
+# settlement / funding estimates keyed by asset class.
+AssetClassLiteral = Literal["Crypto", "Equities", "Metals", "Indices", "Energy"]
 """Spec withdrawal ``status`` — lifecycle of an async settlement-balance withdrawal."""
 
 
@@ -181,6 +183,40 @@ class FundingPaymentDetail(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class CorporateActionPaymentDetail(BaseModel):
+    """Spec ``CorporateActionPaymentDetail`` — cash or split already in settlement PnL.
+
+    These rows explain amounts included in the obligation's settlement PnL.
+    They are not additional amounts to add to the obligation total.
+
+    ``position_quantity_fp`` / ``post_position_quantity_fp`` are fixed-point
+    contract counts. Centicents fields are plain ``int``. ``payment_time`` is
+    a required key that is ``null`` for splits (no scheduled cash time).
+    ``pre_split_price_centicents`` / ``post_split_price_centicents`` /
+    ``exchange_ts`` are omitted when they do not apply.
+    """
+
+    id: str
+    type: str
+    ca_id: str
+    market_id: str
+    market_ticker: str
+    asset_class: AssetClassLiteral
+    subtrader_id: str
+    position_quantity_fp: FixedPointCount
+    post_position_quantity_fp: FixedPointCount
+    payment_amount_centicents: int
+    # Required key; null for splits.
+    payment_time: AwareDatetime | None
+    settlement_execution_time: AwareDatetime
+    created_ts: AwareDatetime
+    pre_split_price_centicents: int | None = None
+    post_split_price_centicents: int | None = None
+    exchange_ts: AwareDatetime | None = None
+
+    model_config = {"extra": "allow"}
+
+
 class ObligationEntry(BaseModel):
     """Spec ``ObligationEntry`` — a settlement obligation (flattened ``allOf``).
 
@@ -212,9 +248,11 @@ class ObligationEntry(BaseModel):
     settlement_details: NullableList[SettlementDetail]
     maintenance_margin_details: NullableList[MaintenanceMarginDetail]
     funding_payments: NullableList[FundingPaymentDetail]
+    corporate_action_payments: NullableList[CorporateActionPaymentDetail]
     settlement_details_truncated: bool | None = None
     maintenance_margin_details_truncated: bool | None = None
     funding_payments_truncated: bool | None = None
+    corporate_action_payments_truncated: bool | None = None
 
     model_config = {"extra": "allow"}
 
@@ -266,6 +304,19 @@ class GetObligationFundingPaymentsResponse(BaseModel):
     """Spec ``GetObligationFundingPaymentsResponse`` — paged funding payments."""
 
     funding_payments: NullableList[FundingPaymentDetail]
+    cursor: str | None = None
+
+    @property
+    def has_next(self) -> bool:
+        return bool(self.cursor)
+
+    model_config = {"extra": "allow"}
+
+
+class GetObligationCorporateActionPaymentsResponse(BaseModel):
+    """Spec ``GetObligationCorporateActionPaymentsResponse`` — paged corporate actions."""
+
+    corporate_action_payments: NullableList[CorporateActionPaymentDetail]
     cursor: str | None = None
 
     @property

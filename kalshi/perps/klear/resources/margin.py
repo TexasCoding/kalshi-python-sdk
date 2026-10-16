@@ -11,8 +11,9 @@ authenticated with a **Bearer** token (not RSA-PSS):
   /margin/obligation_history``: cursor-paginated (limit max 100).
 - ``settlement_details`` / ``settlement_details_all``,
   ``maintenance_margin_details`` / ``maintenance_margin_details_all``,
-  ``funding_payments`` / ``funding_payments_all`` — paged detail rows for one
-  obligation (limit max 1000) when the inline arrays on
+  ``funding_payments`` / ``funding_payments_all``,
+  ``corporate_action_payments`` / ``corporate_action_payments_all`` — paged
+  detail rows for one obligation (limit max 1000) when the inline arrays on
   :class:`~kalshi.perps.klear.models.margin.ObligationEntry` are truncated.
 - ``settlement_estimate_by_asset_class`` —
   ``GET /margin/settlement_estimate_by_asset_class``.
@@ -41,6 +42,7 @@ from kalshi.models.common import Page
 from kalshi.perps.klear.models.margin import (
     AssetClassLiteral,
     ClearingTypeLiteral,
+    CorporateActionPaymentDetail,
     CreateMarginFcmApiKeyRequest,
     CreateMarginFcmApiKeyResponse,
     CreateMarginSubtraderGroupRequest,
@@ -302,6 +304,55 @@ class MarginResource(KlearSyncResource):
             f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
             FundingPaymentDetail,
             "funding_payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def corporate_action_payments(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[CorporateActionPaymentDetail]:
+        """``GET /margin/obligations/{obligation_id}/corporate_action_payments``.
+
+        Limit max 1000. Rows are already included in settlement PnL.
+        """
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return self._list(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                "/corporate_action_payments"
+            ),
+            CorporateActionPaymentDetail,
+            "corporate_action_payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def corporate_action_payments_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[CorporateActionPaymentDetail]:
+        """Auto-paginate corporate-action payments for one obligation."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                "/corporate_action_payments"
+            ),
+            CorporateActionPaymentDetail,
+            "corporate_action_payments",
             params=params,
             max_pages=max_pages,
             cursor_key="cursor",
@@ -858,6 +909,52 @@ class AsyncMarginResource(KlearAsyncResource):
             f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}/funding_payments",
             FundingPaymentDetail,
             "funding_payments",
+            params=params,
+            max_pages=max_pages,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    async def corporate_action_payments(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[CorporateActionPaymentDetail]:
+        """Async :meth:`MarginResource.corporate_action_payments`."""
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=cursor)
+        return await self._list(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                "/corporate_action_payments"
+            ),
+            CorporateActionPaymentDetail,
+            "corporate_action_payments",
+            params=params,
+            cursor_key="cursor",
+            extra_headers=extra_headers,
+        )
+
+    def corporate_action_payments_all(
+        self,
+        obligation_id: str,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[CorporateActionPaymentDetail]:
+        """Async iterator over corporate-action payments — use ``async for``."""
+        _validate_max_pages(max_pages)
+        params = _params(limit=_validate_limit(limit, hi=1000), cursor=None)
+        return self._list_all(
+            (
+                f"/margin/obligations/{_seg(obligation_id, name='obligation_id')}"
+                "/corporate_action_payments"
+            ),
+            CorporateActionPaymentDetail,
+            "corporate_action_payments",
             params=params,
             max_pages=max_pages,
             cursor_key="cursor",
