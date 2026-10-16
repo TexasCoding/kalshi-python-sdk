@@ -2,20 +2,23 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
-## Unreleased
+## 22.0.0 — 2026-10-16
 
-Reconciles nightly spec drift (Closes #544). **Breaking** for constructors
-of `ObligationEntry` that omit the new required `corporate_action_payments`.
-Re-vendored `specs/openapi.yaml` (hash
-`3877d38d095f4004e325aaa8766f24dabeb1c2dc3fb8d37b9ccac82ca5734d8a`),
-`specs/asyncapi.yaml` (hash
-`3c86bae7d89b44baba1119b3a097a54054c1d851e1dcd8ad894c7cb35b9890b6`;
-channel description only — no WebSocket payload schema change), and
-`specs/perps_scm_openapi.yaml` (hash
-`1f58b54b6bef44852b4a9a3fd7ad707668258a2516801a076ffe468a1807806f`).
-Core OpenAPI remains 3.34.0.
+Reconciles three rounds of nightly spec drift (#540, #542, #544).
+**Breaking** for constructors and fixtures of perps `MarginMarket` that omit
+the new required `funding_invalid_premium_handling`, and of Klear
+`ObligationEntry` that omit the new required `corporate_action_payments`.
+Live API callers are unaffected. See `docs/migration.md`.
 
 ### Changed (breaking)
+
+- Perps **`MarginMarket.funding_invalid_premium_handling`** (required
+  `"dampen"` / `"exclude"`). How funding averages a second with no
+  premium (no orderbook sample, no index price, or a trading halt),
+  configured at market creation. `dampen` counts that second as a
+  premium of 0; `exclude` leaves it out of the average. Live
+  `markets.list` / `markets.get` callers are unaffected; constructors
+  and fixtures must pass the new field.
 
 - Klear **`ObligationEntry.corporate_action_payments`** (required
   `list[CorporateActionPaymentDetail]`, may be empty). Cash and split
@@ -24,6 +27,22 @@ Core OpenAPI remains 3.34.0.
   constructors and fixtures must pass it (use `[]` when none apply).
 
 ### Added
+
+- **`events.get(..., exclude_markets=)`** (sync + async) — optional
+  boolean query param on `GET /events/{event_ticker}`. When true,
+  returns event metadata without loading child markets. Use
+  `GET /markets` with `event_ticker`, `limit`, and `cursor` for
+  bounded market pages. Cannot be combined with
+  `with_nested_markets=true` (API returns 400). Default `None` does
+  not emit the param; explicit `False` serializes as `false`.
+  (Closes #542).
+
+- Perps **`markets.bulk_orderbooks(*, tickers)`** (sync + async) —
+  `GET /margin/markets/orderbooks`. Fetches up to 100 margin orderbooks
+  in one call. `tickers` is required (1–100) and serializes as a
+  comma-separated query string (`style: form, explode: false`). Returns
+  `list[MarginOrderbook]` in request order. Public market data (no
+  auth). A ticker that is not a margin market returns 404.
 
 - **`events.list_multivariate` / `list_all_multivariate(..., tickers=)`**
   (sync + async) — optional event-ticker filter on
@@ -43,40 +62,20 @@ Core OpenAPI remains 3.34.0.
 - Klear **`AssetClassLiteral`** also accepts `"Equities"`, `"Metals"`,
   `"Indices"`, and `"Energy"` (alongside `"Crypto"`).
 
-Reconciles perps spec drift after nightly contract failures (Closes #540).
-**Breaking** for constructors of `MarginMarket` that omit the new required
-`funding_invalid_premium_handling`. Re-vendored `specs/perps_openapi.yaml`
-(hash
-`0a1cf0e32c7e0bf4def095c72736593ae07d1616ab3024615fe942a516c40937`).
-Core OpenAPI remains 3.34.0.
+### Spec notes
 
-### Changed (breaking)
-
-- Perps **`MarginMarket.funding_invalid_premium_handling`** (required
-  `"dampen"` / `"exclude"`). How funding averages a second with no
-  premium (no orderbook sample, no index price, or a trading halt),
-  configured at market creation. `dampen` counts that second as a
-  premium of 0; `exclude` leaves it out of the average. Live
-  `markets.list` / `markets.get` callers are unaffected; constructors
-  and fixtures must pass the new field.
-
-### Added
-
-- **`events.get(..., exclude_markets=)`** (sync + async) — optional
-  boolean query param on `GET /events/{event_ticker}`. When true,
-  returns event metadata without loading child markets. Use
-  `GET /markets` with `event_ticker`, `limit`, and `cursor` for
-  bounded market pages. Cannot be combined with
-  `with_nested_markets=true` (API returns 400). Default `None` does
-  not emit the param; explicit `False` serializes as `false`.
-  (Closes #542).
-
-- Perps **`markets.bulk_orderbooks(*, tickers)`** (sync + async) —
-  `GET /margin/markets/orderbooks`. Fetches up to 100 margin orderbooks
-  in one call. `tickers` is required (1–100) and serializes as a
-  comma-separated query string (`style: form, explode: false`). Returns
-  `list[MarginOrderbook]` in request order. Public market data (no
-  auth). A ticker that is not a margin market returns 404.
+- Re-vendored `specs/perps_openapi.yaml` (hash
+  `0a1cf0e32c7e0bf4def095c72736593ae07d1616ab3024615fe942a516c40937`) for
+  #540.
+- Re-vendored `specs/openapi.yaml` (hash
+  `3877d38d095f4004e325aaa8766f24dabeb1c2dc3fb8d37b9ccac82ca5734d8a`),
+  `specs/asyncapi.yaml` (hash
+  `3c86bae7d89b44baba1119b3a097a54054c1d851e1dcd8ad894c7cb35b9890b6`;
+  channel description only, no WebSocket payload schema change), and
+  `specs/perps_scm_openapi.yaml` (hash
+  `1f58b54b6bef44852b4a9a3fd7ad707668258a2516801a076ffe468a1807806f`) for
+  #544.
+- Core OpenAPI remains 3.34.0.
 
 ## 21.1.0 — 2026-10-12
 

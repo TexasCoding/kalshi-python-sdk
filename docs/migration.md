@@ -1,6 +1,6 @@
 # Migration
 
-## v21.1.0 → Unreleased
+## v21.1.0 → v22.0.0
 
 Reconciles perps spec drift (Closes #540). **Breaking** for constructors
 of `MarginMarket` that omit the new required
