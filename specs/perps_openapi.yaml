@@ -1193,7 +1193,7 @@ paths:
       description: |
         Returns the estimated funding rate for the current, in-progress funding period. The value is a time-weighted average of the premium index computed over `[last_funding_time, now)`, so it continues to move as new data accumulates through the window and is only finalized at `next_funding_time`.
 
-        The returned `premium_index` is the premium for the final second evaluated by this estimate, captured from the same calculation inputs. Its observation timestamp can lag the computation time when input feeds are delayed. It is omitted when that second has no available premium. The estimate remains provisional until funding is finalized.
+        Funding measures the premium over clock-aligned bars of one second or longer, depending on the market. The returned `premium_index` is the premium of the final bar evaluated by this estimate, captured from the same calculation inputs. Its observation timestamp can lag the computation time when input feeds are delayed. It is omitted when that bar has no available premium. The estimate remains provisional until funding is finalized.
       tags:
         - funding
       parameters:
@@ -1271,13 +1271,13 @@ paths:
     post:
       operationId: IntraExchangeInstanceTransfer
       summary: Intra Account Transfer
-      description: 'Endpoint for transferring funds within the same account.'
+      description: "Endpoint for transferring funds within the same account."
       tags:
         - portfolio
       security:
         - kalshiAccessKey: []
-        - kalshiAccessSignature: []
-        - kalshiAccessTimestamp: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
       requestBody:
         required: true
         content:
@@ -1975,6 +1975,13 @@ components:
           type: integer
           format: int64
           description: Amount to transfer in cents.
+        exchange_index:
+          allOf:
+            - $ref: '#/components/schemas/ExchangeIndex'
+          description: "Identifier for an exchange shard. Perps subaccount transfers ignore this field."
+          x-go-type-skip-optional-pointer: true
+          x-oapi-codegen-extra-tags:
+            validate: "gte=0"
     ApplySubaccountTransferResponse:
       type: object
       description: Empty response indicating successful transfer.
@@ -2021,6 +2028,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           x-go-type-skip-optional-pointer: true
+          x-omitempty: false
     CreateSubaccountResponse:
       type: object
       required:
@@ -2483,6 +2491,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           x-go-type-skip-optional-pointer: true
+          x-omitempty: false
     GetOrderGroupsResponse:
       type: object
       properties:
@@ -2532,6 +2541,20 @@ components:
           description: Destination exchange shard index (default 0)
           x-oapi-codegen-extra-tags:
             validate: "gte=0,lte=100"
+        source_subaccount:
+          type: integer
+          default: 0
+          x-go-type-skip-optional-pointer: true
+          description: Source subaccount number (default 0 for the primary account). Only supported for event contract to event contract transfers.
+          x-oapi-codegen-extra-tags:
+            validate: "gte=0"
+        destination_subaccount:
+          type: integer
+          default: 0
+          x-go-type-skip-optional-pointer: true
+          description: Destination subaccount number (default 0 for the primary account). Only supported for event contract to event contract transfers.
+          x-oapi-codegen-extra-tags:
+            validate: "gte=0"
     IntraExchangeInstanceTransferResponse:
       type: object
       required:
@@ -2562,6 +2585,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           x-go-type-skip-optional-pointer: true
+          x-omitempty: false
     # Market Orderbook schemas
     PriceLevelDollarsCountFp:
       type: array
@@ -2603,6 +2627,43 @@ components:
         trading_active:
           type: boolean
           description: True if trading is currently permitted on the exchange. False outside exchange hours or during pauses.
+        intra_exchange_transfers_active:
+          type: boolean
+          description: "True if intra-exchange transfers are currently permitted. False when transfers are temporarily blocked. The Perps exchange status never includes this field."
+        exchange_estimated_resume_time:
+          type: string
+          format: date-time
+          description: Estimated downtime for the current exchange maintenance window. However, this is not guaranteed and can be extended.
+          nullable: true
+        exchange_index_statuses:
+          type: array
+          description: "Status of each exchange index. The top-level fields above reflect the default exchange index (0). The Perps exchange status never includes this field."
+          items:
+            $ref: '#/components/schemas/ExchangeIndexStatus'
+
+    ExchangeIndexStatus:
+      type: object
+      required:
+        - exchange_index
+        - description
+        - exchange_active
+        - trading_active
+        - intra_exchange_transfers_active
+      properties:
+        exchange_index:
+          $ref: '#/components/schemas/ExchangeIndex'
+        description:
+          type: string
+          description: Description of this exchange shard.
+        exchange_active:
+          type: boolean
+          description: False if this exchange index is no longer taking any state changes at all. True unless under maintenance.
+        trading_active:
+          type: boolean
+          description: True if trading is currently permitted on this exchange index. False outside exchange hours or during pauses.
+        intra_exchange_transfers_active:
+          type: boolean
+          description: True if intra-exchange transfers are currently permitted on this exchange index. False when transfers are temporarily blocked.
 
     GetMarginRiskParametersResponse:
       type: object
@@ -3137,8 +3198,8 @@ components:
           x-enum-varnames: [MarginMarketFundingInvalidPremiumHandlingDampen, MarginMarketFundingInvalidPremiumHandlingExclude]
           x-go-type-skip-optional-pointer: true
           description: >-
-            How funding averages a second with no premium (no orderbook sample, no index price, or a trading halt),
-            configured at market creation. dampen counts the second as a premium of 0; exclude leaves it out of the average.
+            How funding averages a bar with no premium (no orderbook sample or no index price anywhere in the bar, or a trading
+            halt during it), configured at market creation. dampen counts the bar as a premium of 0; exclude leaves it out of the average.
 
     MarginMarketSchedule:
       type: object
@@ -3722,11 +3783,11 @@ components:
           description: Timestamp of the next scheduled funding event
         premium_index:
           type: string
-          description: Premium index for the final second evaluated by this funding estimate, as a signed decimal fraction before time weighting. Captured with the estimate from the same calculation inputs. Omitted when that second has no available premium.
+          description: Premium index of the final bar evaluated by this funding estimate, as a signed decimal fraction before time weighting. Captured with the estimate from the same calculation inputs. Omitted when that bar has no available premium.
         premium_index_ts:
           type: string
           format: date-time
-          description: Timestamp of the final second evaluated by the funding estimate. Can precede computed_time when input feeds are delayed.
+          description: Timestamp of the last second of the final bar evaluated by the funding estimate. Can precede computed_time when input feeds are delayed.
 
     MarginPremiumIndexPoint:
       type: object

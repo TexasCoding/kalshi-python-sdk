@@ -43,6 +43,9 @@ class IntraExchangeInstanceTransferRequest(BaseModel):
     Shard fields default to ``0`` (only ``0`` is currently supported); because
     the body is serialized with ``exclude_none=True`` (not ``exclude_defaults``),
     shard ``0`` values are emitted on the wire, which is fine.
+    ``source_subaccount`` / ``destination_subaccount`` default to ``None`` so
+    ``exclude_none`` drops them (an explicit ``0`` is still sent). Only
+    supported for event contract to event contract transfers.
     ``client_transfer_id`` is optional duplicate-prevention; omit (``None``)
     so ``exclude_none`` drops the key. Only supported for primary accounts.
     """
@@ -52,6 +55,8 @@ class IntraExchangeInstanceTransferRequest(BaseModel):
     amount: StrictInt = Field(gt=0)
     source_exchange_shard: StrictInt = Field(default=0, ge=0)
     destination_exchange_shard: StrictInt = Field(default=0, ge=0)
+    source_subaccount: StrictInt | None = Field(default=None, ge=0)
+    destination_subaccount: StrictInt | None = Field(default=None, ge=0)
     # Client UUID for duplicate prevention. Omit (None) so exclude_none
     # drops the key; each request then creates a new transfer.
     client_transfer_id: UUID | None = None
@@ -69,12 +74,15 @@ class ApplySubaccountTransferRequest(BaseModel):
     primary account and a positive integer for numbered subaccounts. Spec prose
     says ``1-63`` but defines no JSON-schema maximum, so only the lower bound is
     validated (``ge=0``) — server-assigned numbers always round-trip.
+    ``exchange_index`` is optional (spec ``ExchangeIndex``, ``ge=0``). Perps
+    subaccount transfers ignore this field; omit so ``exclude_none`` drops it.
     """
 
     client_transfer_id: UUID
     from_subaccount: StrictInt = Field(ge=0)
     to_subaccount: StrictInt = Field(ge=0)
     amount_cents: StrictInt = Field(gt=0)
+    exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
 

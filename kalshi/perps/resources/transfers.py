@@ -46,11 +46,15 @@ def _build_instance_transfer_body(
     amount: int | None,
     source_exchange_shard: int | None,
     destination_exchange_shard: int | None,
+    source_subaccount: int | None = None,
+    destination_subaccount: int | None = None,
     client_transfer_id: UUID | str | None = None,
 ) -> dict[str, Any]:
-    # Shards are part of the kwargs path — included in the exclusivity check so
-    # `request=...` together with an explicit shard raises instead of silently
-    # dropping the shard. They default to 0 only when building from kwargs.
+    # Shards and optional subaccount fields are part of the kwargs path —
+    # included in the exclusivity check so `request=...` together with an
+    # explicit value raises instead of silently dropping it. Shards default
+    # to 0 only when building from kwargs; subaccount fields stay None
+    # (exclude_none drops them) unless the caller passed an explicit int.
     _check_request_exclusive(
         request,
         source=source,
@@ -59,6 +63,8 @@ def _build_instance_transfer_body(
         source_exchange_shard=source_exchange_shard,
         destination_exchange_shard=destination_exchange_shard,
         client_transfer_id=client_transfer_id,
+        source_subaccount=source_subaccount,
+        destination_subaccount=destination_subaccount,
     )
     if request is None:
         if source is None or destination is None or amount is None:
@@ -81,6 +87,8 @@ def _build_instance_transfer_body(
             amount=amount,
             source_exchange_shard=source_exchange_shard or 0,
             destination_exchange_shard=destination_exchange_shard or 0,
+            source_subaccount=source_subaccount,
+            destination_subaccount=destination_subaccount,
             client_transfer_id=uid,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
@@ -93,6 +101,7 @@ def _build_subaccount_transfer_body(
     from_subaccount: int | None,
     to_subaccount: int | None,
     amount_cents: int | None,
+    exchange_index: int | None = None,
 ) -> dict[str, Any]:
     _check_request_exclusive(
         request,
@@ -100,6 +109,7 @@ def _build_subaccount_transfer_body(
         from_subaccount=from_subaccount,
         to_subaccount=to_subaccount,
         amount_cents=amount_cents,
+        exchange_index=exchange_index,
     )
     if request is None:
         if (
@@ -123,6 +133,7 @@ def _build_subaccount_transfer_body(
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
+            exchange_index=exchange_index,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -146,6 +157,8 @@ class TransfersResource(SyncResource):
         amount: int,
         source_exchange_shard: int = 0,
         destination_exchange_shard: int = 0,
+        source_subaccount: int | None = None,
+        destination_subaccount: int | None = None,
         client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse: ...
@@ -158,6 +171,8 @@ class TransfersResource(SyncResource):
         amount: int | None = None,
         source_exchange_shard: int | None = None,
         destination_exchange_shard: int | None = None,
+        source_subaccount: int | None = None,
+        destination_subaccount: int | None = None,
         client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
@@ -165,6 +180,9 @@ class TransfersResource(SyncResource):
 
         Spec marks this endpoint "currently not available" — it is implemented
         forward-compatibly and may return an error until the server enables it.
+        ``source_subaccount`` / ``destination_subaccount`` are optional; only
+        supported for event contract to event contract transfers. Omit so the
+        keys are not sent; an explicit ``0`` is emitted.
         ``client_transfer_id`` is optional duplicate-prevention (UUID or str).
         Omit so the key is not sent; each request then creates a new transfer.
         Only supported for primary accounts.
@@ -178,6 +196,8 @@ class TransfersResource(SyncResource):
             source_exchange_shard=source_exchange_shard,
             destination_exchange_shard=destination_exchange_shard,
             client_transfer_id=client_transfer_id,
+            source_subaccount=source_subaccount,
+            destination_subaccount=destination_subaccount,
         )
         data = self._post(
             "/portfolio/intra_exchange_instance_transfer",
@@ -213,6 +233,7 @@ class TransfersResource(SyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     def transfer_subaccount(
@@ -223,9 +244,14 @@ class TransfersResource(SyncResource):
         from_subaccount: int | None = None,
         to_subaccount: int | None = None,
         amount_cents: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
-        """Move funds between margin subaccounts (returns ``None``)."""
+        """Move funds between margin subaccounts (returns ``None``).
+
+        ``exchange_index`` is optional; perps subaccount transfers ignore this
+        field. Omit so the key is not sent; an explicit ``0`` is emitted.
+        """
         self._require_auth()
         body = _build_subaccount_transfer_body(
             request,
@@ -233,6 +259,7 @@ class TransfersResource(SyncResource):
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
+            exchange_index=exchange_index,
         )
         self._post(
             "/portfolio/margin/subaccounts/transfer",
@@ -260,6 +287,8 @@ class AsyncTransfersResource(AsyncResource):
         amount: int,
         source_exchange_shard: int = 0,
         destination_exchange_shard: int = 0,
+        source_subaccount: int | None = None,
+        destination_subaccount: int | None = None,
         client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse: ...
@@ -272,6 +301,8 @@ class AsyncTransfersResource(AsyncResource):
         amount: int | None = None,
         source_exchange_shard: int | None = None,
         destination_exchange_shard: int | None = None,
+        source_subaccount: int | None = None,
+        destination_subaccount: int | None = None,
         client_transfer_id: UUID | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> IntraExchangeInstanceTransferResponse:
@@ -279,6 +310,9 @@ class AsyncTransfersResource(AsyncResource):
 
         Spec marks this endpoint "currently not available" — it is implemented
         forward-compatibly and may return an error until the server enables it.
+        ``source_subaccount`` / ``destination_subaccount`` are optional; only
+        supported for event contract to event contract transfers. Omit so the
+        keys are not sent; an explicit ``0`` is emitted.
         ``client_transfer_id`` is optional duplicate-prevention (UUID or str).
         Omit so the key is not sent; each request then creates a new transfer.
         Only supported for primary accounts.
@@ -292,6 +326,8 @@ class AsyncTransfersResource(AsyncResource):
             source_exchange_shard=source_exchange_shard,
             destination_exchange_shard=destination_exchange_shard,
             client_transfer_id=client_transfer_id,
+            source_subaccount=source_subaccount,
+            destination_subaccount=destination_subaccount,
         )
         data = await self._post(
             "/portfolio/intra_exchange_instance_transfer",
@@ -327,6 +363,7 @@ class AsyncTransfersResource(AsyncResource):
         from_subaccount: int,
         to_subaccount: int,
         amount_cents: int,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None: ...
     async def transfer_subaccount(
@@ -337,9 +374,14 @@ class AsyncTransfersResource(AsyncResource):
         from_subaccount: int | None = None,
         to_subaccount: int | None = None,
         amount_cents: int | None = None,
+        exchange_index: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> None:
-        """Move funds between margin subaccounts (returns ``None``)."""
+        """Move funds between margin subaccounts (returns ``None``).
+
+        ``exchange_index`` is optional; perps subaccount transfers ignore this
+        field. Omit so the key is not sent; an explicit ``0`` is emitted.
+        """
         self._require_auth()
         body = _build_subaccount_transfer_body(
             request,
@@ -347,6 +389,7 @@ class AsyncTransfersResource(AsyncResource):
             from_subaccount=from_subaccount,
             to_subaccount=to_subaccount,
             amount_cents=amount_cents,
+            exchange_index=exchange_index,
         )
         await self._post(
             "/portfolio/margin/subaccounts/transfer",
