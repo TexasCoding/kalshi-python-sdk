@@ -2,6 +2,32 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.1.0 — 2026-10-17
+
+Reconciles nightly spec drift (#547). Additive and optional only — no
+breaking changes.
+
+### Added
+
+- Perps **`transfers.transfer_instance(..., source_subaccount=,
+  destination_subaccount=)`** (sync + async) and the matching optional
+  fields on `IntraExchangeInstanceTransferRequest` (`int | None`, `>= 0`).
+  Upstream only supports these for event contract to event contract
+  transfers. Default `None` omits the keys; an explicit `0` is sent.
+
+- Perps **`transfers.transfer_subaccount(..., exchange_index=)`** (sync +
+  async) and the matching optional field on the perps
+  `ApplySubaccountTransferRequest` (`int | None`, `>= 0`). Upstream notes
+  that perps subaccount transfers ignore this field. Default `None` omits
+  the key.
+
+### Changed
+
+- Re-vendored `specs/` (OpenAPI 3.34.0, perps OpenAPI, AsyncAPI, perps
+  AsyncAPI). Besides the fields above the upstream changes are
+  description, example, vendor-extension, and response-side additive
+  optional fields only.
+
 ## 22.0.0 — 2026-10-16
 
 Reconciles three rounds of nightly spec drift (#540, #542, #544).

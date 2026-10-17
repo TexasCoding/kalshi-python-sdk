@@ -82,6 +82,66 @@ class TestModels:
                 source_exchange_shard=-1,
             )
 
+    def test_instance_request_serializes_subaccounts(self) -> None:
+        req = IntraExchangeInstanceTransferRequest(
+            source="event_contract",
+            destination="event_contract",
+            amount=100,
+            source_subaccount=1,
+            destination_subaccount=2,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["source_subaccount"] == 1
+        assert body["destination_subaccount"] == 2
+
+    def test_instance_request_serializes_explicit_zero_subaccounts(self) -> None:
+        req = IntraExchangeInstanceTransferRequest(
+            source="event_contract",
+            destination="event_contract",
+            amount=100,
+            source_subaccount=0,
+            destination_subaccount=0,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["source_subaccount"] == 0
+        assert body["destination_subaccount"] == 0
+
+    def test_instance_request_rejects_negative_source_subaccount(self) -> None:
+        with pytest.raises(ValidationError):
+            IntraExchangeInstanceTransferRequest(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                source_subaccount=-1,
+            )
+
+    def test_instance_request_rejects_negative_destination_subaccount(self) -> None:
+        with pytest.raises(ValidationError):
+            IntraExchangeInstanceTransferRequest(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                destination_subaccount=-1,
+            )
+
+    def test_instance_request_rejects_bool_source_subaccount(self) -> None:
+        with pytest.raises(ValidationError):
+            IntraExchangeInstanceTransferRequest(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                source_subaccount=True,  # type: ignore[arg-type]
+            )
+
+    def test_instance_request_rejects_bool_destination_subaccount(self) -> None:
+        with pytest.raises(ValidationError):
+            IntraExchangeInstanceTransferRequest(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                destination_subaccount=False,  # type: ignore[arg-type]
+            )
+
     def test_instance_request_rejects_bad_instance(self) -> None:
         with pytest.raises(ValidationError):
             IntraExchangeInstanceTransferRequest(
@@ -101,6 +161,18 @@ class TestModels:
             "to_subaccount": 3,
             "amount_cents": 500,
         }
+        assert "exchange_index" not in body
+
+    def test_subaccount_request_serializes_exchange_index(self) -> None:
+        req = ApplySubaccountTransferRequest(
+            client_transfer_id=_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=3,
+            amount_cents=500,
+            exchange_index=0,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["exchange_index"] == 0
 
     def test_subaccount_request_forbids_extra(self) -> None:
         with pytest.raises(ValidationError):
@@ -122,6 +194,26 @@ class TestModels:
         with pytest.raises(ValidationError):
             ApplySubaccountTransferRequest(
                 client_transfer_id=_XFER_ID, from_subaccount=0, to_subaccount=1, amount_cents=0
+            )
+
+    def test_subaccount_request_rejects_negative_exchange_index(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountTransferRequest(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=-1,
+            )
+
+    def test_subaccount_request_rejects_bool_exchange_index(self) -> None:
+        with pytest.raises(ValidationError):
+            ApplySubaccountTransferRequest(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=True,  # type: ignore[arg-type]
             )
 
     def test_subaccount_request_accepts_above_32(self) -> None:
@@ -164,6 +256,24 @@ class TestTransferInstance:
             "destination_exchange_shard": 0,
         }
         assert "client_transfer_id" not in body
+        assert "source_subaccount" not in body
+        assert "destination_subaccount" not in body
+
+    @respx.mock
+    def test_subaccounts_sent_on_wire_including_zero(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "abc"})
+        )
+        perps_client.transfers.transfer_instance(
+            source="event_contract",
+            destination="event_contract",
+            amount=100,
+            source_subaccount=0,
+            destination_subaccount=3,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["source_subaccount"] == 0
+        assert body["destination_subaccount"] == 3
 
     @respx.mock
     def test_client_transfer_id_serialized(self, perps_client: PerpsClient) -> None:
@@ -221,6 +331,25 @@ class TestTransferInstance:
             "source_exchange_shard": 0,
             "destination_exchange_shard": 0,
         }
+        assert "source_subaccount" not in body
+        assert "destination_subaccount" not in body
+
+    @respx.mock
+    def test_request_object_with_subaccounts(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "abc"})
+        )
+        req = IntraExchangeInstanceTransferRequest(
+            source="event_contract",
+            destination="event_contract",
+            amount=100,
+            source_subaccount=0,
+            destination_subaccount=4,
+        )
+        perps_client.transfers.transfer_instance(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["source_subaccount"] == 0
+        assert body["destination_subaccount"] == 4
 
     @respx.mock
     def test_403_not_available_maps(self, perps_client: PerpsClient) -> None:
@@ -275,6 +404,24 @@ class TestTransferInstance:
                 source="event_contract", destination="margined", amount=0
             )
 
+    def test_edge_negative_source_subaccount_raises(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValidationError):
+            perps_client.transfers.transfer_instance(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                source_subaccount=-1,
+            )
+
+    def test_edge_bool_destination_subaccount_raises(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValidationError):
+            perps_client.transfers.transfer_instance(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                destination_subaccount=True,  # type: ignore[arg-type]
+            )
+
     @respx.mock
     def test_unauthenticated_raises_before_http(self) -> None:
         route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
@@ -300,6 +447,71 @@ class TestTransferInstance:
         body = json.loads(route.calls[0].request.content)
         assert body["amount"] == 42
         assert "client_transfer_id" not in body
+        assert "source_subaccount" not in body
+        assert "destination_subaccount" not in body
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_subaccounts_sent_on_wire_including_zero(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "zzz"})
+        )
+        await async_perps_client.transfers.transfer_instance(
+            source="event_contract",
+            destination="event_contract",
+            amount=42,
+            source_subaccount=2,
+            destination_subaccount=0,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["source_subaccount"] == 2
+        assert body["destination_subaccount"] == 0
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_request_object_with_subaccounts(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.post(f"{BASE}/portfolio/intra_exchange_instance_transfer").mock(
+            return_value=httpx.Response(200, json={"transfer_id": "zzz"})
+        )
+        req = IntraExchangeInstanceTransferRequest(
+            source="event_contract",
+            destination="event_contract",
+            amount=42,
+            source_subaccount=0,
+            destination_subaccount=1,
+        )
+        await async_perps_client.transfers.transfer_instance(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["source_subaccount"] == 0
+        assert body["destination_subaccount"] == 1
+        await async_perps_client.close()
+
+    async def test_async_negative_destination_subaccount_raises(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        with pytest.raises(ValidationError):
+            await async_perps_client.transfers.transfer_instance(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                destination_subaccount=-1,
+            )
+        await async_perps_client.close()
+
+    async def test_async_bool_source_subaccount_raises(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        with pytest.raises(ValidationError):
+            await async_perps_client.transfers.transfer_instance(
+                source="event_contract",
+                destination="event_contract",
+                amount=1,
+                source_subaccount=False,  # type: ignore[arg-type]
+            )
         await async_perps_client.close()
 
     @respx.mock
@@ -397,6 +609,38 @@ class TestTransferSubaccount:
             "to_subaccount": 3,
             "amount_cents": 500,
         }
+        assert "exchange_index" not in body
+
+    @respx.mock
+    def test_exchange_index_sent_on_wire_including_zero(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/margin/subaccounts/transfer").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        perps_client.transfers.transfer_subaccount(
+            client_transfer_id=_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=3,
+            amount_cents=500,
+            exchange_index=0,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["exchange_index"] == 0
+
+    @respx.mock
+    def test_request_object_with_exchange_index(self, perps_client: PerpsClient) -> None:
+        route = respx.post(f"{BASE}/portfolio/margin/subaccounts/transfer").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        req = ApplySubaccountTransferRequest(
+            client_transfer_id=_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=3,
+            amount_cents=500,
+            exchange_index=2,
+        )
+        perps_client.transfers.transfer_subaccount(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["exchange_index"] == 2
 
     @respx.mock
     def test_accepts_uuid_and_str(self, perps_client: PerpsClient) -> None:
@@ -447,6 +691,26 @@ class TestTransferSubaccount:
                 client_transfer_id=_XFER_ID, from_subaccount=-1, to_subaccount=1, amount_cents=1
             )
 
+    def test_edge_negative_exchange_index_raises(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValidationError):
+            perps_client.transfers.transfer_subaccount(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=-1,
+            )
+
+    def test_edge_bool_exchange_index_raises(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValidationError):
+            perps_client.transfers.transfer_subaccount(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=True,  # type: ignore[arg-type]
+            )
+
     def test_edge_forbids_phantom_key(self) -> None:
         with pytest.raises(ValidationError):
             ApplySubaccountTransferRequest(
@@ -483,6 +747,25 @@ class TestTransferSubaccount:
         assert result is None
         body = json.loads(route.calls[0].request.content)
         assert body["amount_cents"] == 42
+        assert "exchange_index" not in body
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_exchange_index_sent_on_wire_including_zero(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.post(f"{BASE}/portfolio/margin/subaccounts/transfer").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await async_perps_client.transfers.transfer_subaccount(
+            client_transfer_id=_XFER_ID,
+            from_subaccount=0,
+            to_subaccount=1,
+            amount_cents=42,
+            exchange_index=0,
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["exchange_index"] == 0
         await async_perps_client.close()
 
     @respx.mock
@@ -496,4 +779,50 @@ class TestTransferSubaccount:
         await async_perps_client.transfers.transfer_subaccount(request=req)
         body = json.loads(route.calls[0].request.content)
         assert body["from_subaccount"] == 2
+        assert "exchange_index" not in body
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_request_object_with_exchange_index(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.post(f"{BASE}/portfolio/margin/subaccounts/transfer").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        req = ApplySubaccountTransferRequest(
+            client_transfer_id=_XFER_ID,
+            from_subaccount=2,
+            to_subaccount=0,
+            amount_cents=7,
+            exchange_index=0,
+        )
+        await async_perps_client.transfers.transfer_subaccount(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["exchange_index"] == 0
+        await async_perps_client.close()
+
+    async def test_async_negative_exchange_index_raises(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        with pytest.raises(ValidationError):
+            await async_perps_client.transfers.transfer_subaccount(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=-1,
+            )
+        await async_perps_client.close()
+
+    async def test_async_bool_exchange_index_raises(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        with pytest.raises(ValidationError):
+            await async_perps_client.transfers.transfer_subaccount(
+                client_transfer_id=_XFER_ID,
+                from_subaccount=0,
+                to_subaccount=1,
+                amount_cents=1,
+                exchange_index=False,  # type: ignore[arg-type]
+            )
         await async_perps_client.close()

@@ -2835,6 +2835,7 @@ components:
           type: integer
           description: Number of ticks counted in the window
           minimum: 0
+          x-rust-type: usize
         window_start_ts_ms:
           type: integer
           description: Window start boundary (unix ms)
@@ -3091,9 +3092,13 @@ components:
             price_dollars:
               type: string
               description: Price level in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             delta_fp:
               type: string
               description: Fixed-point contract delta (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             side:
               $ref: '#/components/schemas/marketSide'
             client_order_id:
@@ -3138,18 +3143,28 @@ components:
             price_dollars:
               type: string
               description: Last traded price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             yes_bid_dollars:
               type: string
               description: Best bid price for yes side in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             yes_ask_dollars:
               type: string
               description: Best ask price for yes side in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             volume_fp:
               type: string
               description: Fixed-point total contracts traded (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             open_interest_fp:
               type: string
               description: Fixed-point open interest (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             dollar_volume:
               type: integer
               description: Signed whole-dollar cumulative traded notional
@@ -3159,12 +3174,18 @@ components:
             yes_bid_size_fp:
               type: string
               description: Fixed-point contracts at best bid (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             yes_ask_size_fp:
               type: string
               description: Fixed-point contracts at best ask (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             last_trade_size_fp:
               type: string
               description: Fixed-point contracts in last trade (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             ts:
               type: integer
               deprecated: true
@@ -3206,12 +3227,18 @@ components:
             yes_price_dollars:
               type: string
               description: Yes side price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             no_price_dollars:
               type: string
               description: No side price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             count_fp:
               type: string
               description: Fixed-point contracts traded (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             taker_side:
               $ref: '#/components/schemas/marketSide'
               deprecated: true
@@ -3276,6 +3303,7 @@ components:
             exchange_index:
               type: integer
               description: Identifier for the exchange shard where the fill occurred
+              x-rust-type: i32
             is_taker:
               type: boolean
               description: If you were a taker on this fill
@@ -3296,12 +3324,18 @@ components:
             yes_price_dollars:
               type: string
               description: Price for the yes side of the fill in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             count_fp:
               type: string
               description: Fixed-point contracts filled (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             fee_cost:
               type: string
               description: Exchange fee paid for this fill in fixed-point dollars
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             action:
               $ref: '#/components/schemas/orderAction'
               deprecated: true
@@ -3310,6 +3344,8 @@ components:
             post_position_fp:
               type: string
               description: Fixed-point position after the fill (2 decimals)
+              x-rust-type: common::types::Position
+              x-rust-serialize-with: ws::dto::serde_money::serialize_position_fixed_point_count
             purchased_side:
               $ref: '#/components/schemas/marketSide'
               deprecated: true
@@ -3356,6 +3392,7 @@ components:
             exchange_index:
               type: integer
               description: Optional - This key will ONLY exist when the market is created. Identifier for the exchange shard the market lives on
+              x-rust-type: i32
             open_ts:
               type: integer
               description: Optional - This key will ONLY exist when the market is created. Unix timestamp for when the market opened (in seconds)
@@ -3378,6 +3415,8 @@ components:
             settlement_value:
               type: string
               description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_price_dollars
             is_deactivated:
               type: boolean
               description: Optional - This key will ONLY exist when the market is paused/unpaused. Boolean flag to indicate if trading is paused on an open market. This should only be interpreted for an open market
@@ -3412,12 +3451,18 @@ components:
                   start:
                     type: string
                     description: Starting price for this band, in dollars
+                    x-rust-type: common::types::Price
+                    x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
                   end:
                     type: string
                     description: Ending price for this band, in dollars
+                    x-rust-type: common::types::Price
+                    x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
                   step:
                     type: string
                     description: Tick size (minimum price increment) within this band, in dollars
+                    x-rust-type: common::types::Price
+                    x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -3442,6 +3487,7 @@ components:
             exchange_index:
               type: integer
               description: Optional - This key will ONLY exist when the market is created. Identifier for the exchange shard the market lives on
+              x-rust-type: i32
             open_ts:
               type: integer
               description: Optional - This key will ONLY exist when the market is created. Unix timestamp for when the market opened (in seconds)
@@ -3464,6 +3510,8 @@ components:
             settlement_value:
               type: string
               description: Optional - This key will ONLY exist when the market is determined. Settlement value of the market in fixed-point dollars (e.g. "0.5000")
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_price_dollars
             is_deactivated:
               type: boolean
               description: Optional - This key will ONLY exist when the market is paused/unpaused. Boolean flag to indicate if trading is paused on an open market. This should only be interpreted for an open market
@@ -3514,8 +3562,10 @@ components:
           type: string
         floor_strike:
           type: number
+          x-rust-type: crate::wire::JsonNumber
         cap_strike:
           type: number
+          x-rust-type: crate::wire::JsonNumber
         custom_strike:
           type: object
 
@@ -3551,9 +3601,11 @@ components:
             floor_strike:
               type: number
               description: Optional - This key will ONLY exist for metadata_updated events. The floor (lower bound) strike value for the market
+              x-rust-type: crate::wire::JsonNumber
             cap_strike:
               type: number
               description: Optional - This key will ONLY exist for metadata_updated events. The cap (upper bound) strike value for the market
+              x-rust-type: crate::wire::JsonNumber
             custom_strike:
               type: object
               description: Optional - This key will ONLY exist for metadata_updated events with a custom or structured strike type
@@ -3584,6 +3636,7 @@ components:
             exchange_index:
               type: integer
               description: Identifier for the exchange shard the event's markets live on
+              x-rust-type: i32
             title:
               type: string
               description: Title of event
@@ -3632,6 +3685,7 @@ components:
             fee_multiplier_override:
               type: [number, "null"]
               description: Event fee multiplier override. `null` when the override has been cleared.
+              x-rust-type: crate::wire::JsonNumber
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -3657,21 +3711,33 @@ components:
             position_fp:
               type: string
               description: Fixed-point net position (2 decimals)
+              x-rust-type: common::types::Position
+              x-rust-serialize-with: ws::dto::serde_money::serialize_position_fixed_point_count
             position_cost_dollars:
               type: string
               description: Current cost basis of the position as a fixed-point dollar string
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             realized_pnl_dollars:
               type: string
               description: Realized profit/loss as a fixed-point dollar string
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             fees_paid_dollars:
               type: string
               description: Total fees paid as a fixed-point dollar string
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             position_fee_cost_dollars:
               type: string
               description: Total position fee cost as a fixed-point dollar string
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             volume_fp:
               type: string
               description: Fixed-point total volume traded (2 decimals)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_centicount_fixed_point_count
             subaccount:
               type: integer
               description: Optional subaccount number for the position
@@ -3703,6 +3769,8 @@ components:
             contracts_limit_fp:
               type: string
               description: Updated contracts limit in fixed-point (2 decimals). Present for "created" and "limit_updated" events only.
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_amount_fixed_point_count
             ts_ms:
               type: integer
               format: int64
@@ -3737,6 +3805,7 @@ components:
             exchange_index:
               type: integer
               description: Identifier for the exchange shard where the order resides
+              x-rust-type: i32
             status:
               type: string
               description: Current order status
@@ -3768,27 +3837,43 @@ components:
             yes_price_dollars:
               type: string
               description: Yes price in fixed-point dollars (4 decimals)
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             fill_count_fp:
               type: string
               description: Number of contracts filled in fixed-point (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             remaining_count_fp:
               type: string
               description: Number of contracts remaining in fixed-point (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             initial_count_fp:
               type: string
               description: Initial number of contracts in fixed-point (2 decimals)
+              x-rust-type: common::types::Amount
+              x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             taker_fill_cost_dollars:
               type: string
               description: Taker fill cost in fixed-point dollars (6 decimals)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             maker_fill_cost_dollars:
               type: string
               description: Maker fill cost in fixed-point dollars (6 decimals)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             taker_fees_dollars:
               type: string
               description: Taker fees in fixed-point dollars (6 decimals).
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             maker_fees_dollars:
               type: string
               description: Maker fees in fixed-point dollars (6 decimals).
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_value_microcent_dollars
             client_order_id:
               type: string
               description: Client-provided order identifier
@@ -3865,9 +3950,13 @@ components:
             contracts_fp:
               type: string
               description: Fixed-point contracts requested (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             target_cost_dollars:
               type: string
               description: Target cost in dollars (optional)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_value_dollars
             created_ts:
               type: string
               description: Timestamp when the RFQ was created
@@ -3896,6 +3985,8 @@ components:
                   yes_settlement_value_dollars:
                     type: string
                     description: Yes settlement value in dollars for the selected leg. Omitted when unavailable.
+                    x-rust-type: common::types::Price
+                    x-rust-serialize-with: ws::dto::serde_money::serialize_option_price_dollars
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -3929,9 +4020,13 @@ components:
             contracts_fp:
               type: string
               description: Fixed-point contracts requested (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             target_cost_dollars:
               type: string
               description: Target cost in dollars (optional)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_value_dollars
             deleted_ts:
               type: string
               description: Timestamp when the RFQ was deleted
@@ -3975,18 +4070,28 @@ components:
             yes_bid_dollars:
               type: string
               description: Yes side bid price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             no_bid_dollars:
               type: string
               description: No side bid price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             yes_contracts_offered_fp:
               type: string
               description: Fixed-point yes contracts offered (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             no_contracts_offered_fp:
               type: string
               description: Fixed-point no contracts offered (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             rfq_target_cost_dollars:
               type: string
               description: Target cost from the RFQ in dollars (optional)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_value_dollars
             created_ts:
               type: string
               description: Timestamp when the quote was created
@@ -4035,9 +4140,13 @@ components:
             yes_bid_dollars:
               type: string
               description: Yes side bid price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             no_bid_dollars:
               type: string
               description: No side bid price in dollars
+              x-rust-type: common::types::Price
+              x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
             accepted_side:
               type: string
               description: Which side was accepted (yes/no) (optional)
@@ -4045,15 +4154,23 @@ components:
             contracts_accepted_fp:
               type: string
               description: Fixed-point contracts accepted (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             yes_contracts_offered_fp:
               type: string
               description: Fixed-point yes contracts offered (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             no_contracts_offered_fp:
               type: string
               description: Fixed-point no contracts offered (2 decimals) (optional)
+              x-rust-type: i64
+              x-rust-serialize-with: ws::dto::serde_money::serialize_optional_centicount_fixed_point_count
             rfq_target_cost_dollars:
               type: string
               description: Target cost from the RFQ in dollars (optional)
+              x-rust-type: common::types::Value
+              x-rust-serialize-with: ws::dto::serde_money::serialize_option_value_dollars
             subaccount:
               type: integer
               description: |
