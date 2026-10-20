@@ -865,6 +865,30 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="GetMarginFeeTierRatesResponse",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginCorporateActionsResponse",
+        spec_schema="GetMarginCorporateActionsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateAction",
+        spec_schema="MarginCorporateAction",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionCashTerms",
+        spec_schema="MarginCorporateActionCashTerms",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionSplitTerms",
+        spec_schema="MarginCorporateActionSplitTerms",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionFinalSettlementTerms",
+        spec_schema="MarginCorporateActionFinalSettlementTerms",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionTickerChangeTerms",
+        spec_schema="MarginCorporateActionTickerChangeTerms",
+    ),
+    ContractEntry(
         # /account/limits/perps returns the same shape as the prediction API's
         # /account/limits, so the perps resource reuses kalshi.models.account.AccountApiLimits.
         sdk_model="kalshi.models.account.AccountApiLimits",

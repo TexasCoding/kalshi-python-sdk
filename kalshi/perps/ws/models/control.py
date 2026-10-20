@@ -51,6 +51,7 @@ class PerpsChannel(StrEnum):
     FILL = "fill"
     USER_ORDERS = "user_orders"
     ORDER_GROUP_UPDATES = "order_group_updates"
+    CORPORATE_ACTIONS = "corporate_actions"
 
 
 class UpdateSubscriptionAction(StrEnum):

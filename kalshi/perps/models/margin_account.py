@@ -1,11 +1,10 @@
 """Perps margin-account models — balance, risk, notional risk limit, fee tiers.
 
-Response models for the four read-only direct-margin account endpoints (#394):
-``GetMarginBalance``, ``GetMarginRisk``, ``GetMarginNotionalRiskLimit`` and
-``GetMarginFeeTiers``. All are pure response models — every one carries
-``model_config = {"extra": "allow"}`` so additive spec fields don't break
-parsing, and none have request bodies (the endpoints are GETs with at most a
-single query flag).
+Response models for the read-only direct-margin account endpoints (#394) plus
+``GetMarginCorporateActions`` (#550). All are pure response models — every one
+carries ``model_config = {"extra": "allow"}`` so additive spec fields don't
+break parsing, and none have request bodies (the endpoints are GETs with at
+most query flags).
 
 Money fields use :data:`~kalshi.types.DollarDecimal` (the perps spec's
 ``FixedPointDollars`` string), and the signed position quantity uses
@@ -19,9 +18,10 @@ and so callers can do exact fee/leverage math without binary-float drift.
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from kalshi.types import (
     DollarDecimal,
@@ -136,3 +136,116 @@ class GetMarginFeeTierRatesResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     fee_tier_rates: list[MarginFeeTierRate]
+
+
+MarginCorporateActionTypeLiteral = Literal[
+    "cash_dividend",
+    "special_dividend",
+    "spin_off",
+    "stock_split",
+    "final_settlement",
+    "ticker_change",
+]
+"""Spec ``MarginCorporateAction.type`` — which terms object is present."""
+
+
+MarginCorporateActionStatusLiteral = Literal[
+    "scheduled",
+    "cancelled",
+    "applied",
+    "lapsed",
+]
+"""Spec ``MarginCorporateAction.status`` — public notice status."""
+
+
+class MarginCorporateActionCashTerms(BaseModel):
+    """Terms for ``cash_dividend``, ``special_dividend``, or ``spin_off``.
+
+    Spec ``MarginCorporateActionCashTerms``. Omitted for other types and
+    cancelled notices. All properties are optional.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    cash_per_share: DollarDecimal | None = None
+    cash_per_contract: DollarDecimal | None = None
+    ex_date: date | None = None
+
+
+class MarginCorporateActionSplitTerms(BaseModel):
+    """Terms for ``stock_split``.
+
+    Spec ``MarginCorporateActionSplitTerms``. Omitted for other types and
+    cancelled notices. All properties are optional.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    ratio_old: str | None = None
+    ratio_new: str | None = None
+    ex_date: date | None = None
+
+
+class MarginCorporateActionFinalSettlementTerms(BaseModel):
+    """Terms for ``final_settlement``.
+
+    Spec ``MarginCorporateActionFinalSettlementTerms``. Omitted for other
+    types and cancelled notices. ``reason`` is spec-required when the object
+    is present.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    reason: str
+    settlement_price_per_share: DollarDecimal | None = None
+    settlement_price_per_contract: DollarDecimal | None = None
+
+
+class MarginCorporateActionTickerChangeTerms(BaseModel):
+    """Terms for ``ticker_change``.
+
+    Spec ``MarginCorporateActionTickerChangeTerms``. Omitted for other types
+    and cancelled notices. ``old_ticker`` and ``new_ticker`` are required
+    when the object is present.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    old_ticker: str
+    new_ticker: str
+
+
+class MarginCorporateAction(BaseModel):
+    """Spec ``MarginCorporateAction`` — a margin corporate action notice.
+
+    Scheduled, applied, and lapsed notices have exactly one terms object
+    matching ``type``. Cancelled notices omit all four terms objects and
+    ``execution_time``.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str
+    market_id: str
+    market_ticker: str
+    type: MarginCorporateActionTypeLiteral
+    status: MarginCorporateActionStatusLiteral
+    updated_ts: AwareDatetime
+    execution_time: AwareDatetime | None = None
+    cash: MarginCorporateActionCashTerms | None = None
+    split: MarginCorporateActionSplitTerms | None = None
+    final_settlement: MarginCorporateActionFinalSettlementTerms | None = None
+    ticker_change: MarginCorporateActionTickerChangeTerms | None = None
+
+
+class GetMarginCorporateActionsResponse(BaseModel):
+    """Spec ``GetMarginCorporateActionsResponse`` — notices envelope.
+
+    ``corporate_actions`` is spec-required and uses
+    :data:`~kalshi.types.NullableList`: a missing key raises
+    ``ValidationError``, while a ``null`` array coerces to ``[]``.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    corporate_actions: NullableList[MarginCorporateAction]
