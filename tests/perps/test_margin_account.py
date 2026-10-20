@@ -10,13 +10,15 @@ paths (package ``__init__`` exports are wired during integration).
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
-from kalshi.errors import AuthRequiredError, KalshiServerError
+from kalshi.errors import AuthRequiredError, KalshiServerError, KalshiValidationError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 
 BASE = "https://external-api.demo.kalshi.co/trade-api/v2"
@@ -596,6 +598,267 @@ class TestApiLimits:
         resp = await async_perps_client.margin.api_limits()
         assert resp.usage_tier == "elevated"
         assert resp.grants == []
+        await async_perps_client.close()
+
+
+# ── corporate_actions ─────────────────────────────────────────────────────────
+
+
+def _cash_notice() -> dict[str, object]:
+    return {
+        "id": "ca-1",
+        "market_id": "11111111-1111-1111-1111-111111111111",
+        "market_ticker": "AAPL-PERP",
+        "type": "cash_dividend",
+        "status": "scheduled",
+        "updated_ts": "2026-10-01T12:00:00Z",
+        "execution_time": "2026-10-15T00:00:00Z",
+        "cash": {
+            "cash_per_share": "0.2500",
+            "cash_per_contract": "25.0000",
+            "ex_date": "2026-10-14",
+        },
+    }
+
+
+class TestCorporateActions:
+    @respx.mock
+    def test_happy_cash_dividend(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": [_cash_notice()]})
+        )
+        resp = perps_client.margin.corporate_actions()
+        assert route.called
+        assert len(resp.corporate_actions) == 1
+        action = resp.corporate_actions[0]
+        assert action.id == "ca-1"
+        assert action.market_ticker == "AAPL-PERP"
+        assert action.type == "cash_dividend"
+        assert action.status == "scheduled"
+        assert isinstance(action.updated_ts, datetime)
+        assert action.updated_ts.tzinfo is not None
+        assert isinstance(action.execution_time, datetime)
+        assert action.cash is not None
+        assert action.cash.cash_per_share == Decimal("0.2500")
+        assert isinstance(action.cash.cash_per_share, Decimal)
+        assert action.cash.cash_per_contract == Decimal("25.0000")
+        assert action.cash.ex_date == date(2026, 10, 14)
+        assert action.split is None
+        assert action.final_settlement is None
+        assert action.ticker_change is None
+        assert "ticker" not in route.calls.last.request.url.params
+        assert "market_id" not in route.calls.last.request.url.params
+
+    @respx.mock
+    def test_filters_sent_as_query_params(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": []})
+        )
+        perps_client.margin.corporate_actions(
+            ticker="AAPL-PERP",
+            market_id="11111111-1111-1111-1111-111111111111",
+        )
+        params = route.calls.last.request.url.params
+        assert params["ticker"] == "AAPL-PERP"
+        assert params["market_id"] == "11111111-1111-1111-1111-111111111111"
+
+    @respx.mock
+    def test_empty_list(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": []})
+        )
+        assert perps_client.margin.corporate_actions().corporate_actions == []
+
+    @respx.mock
+    def test_cancelled_notice_without_terms(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "corporate_actions": [
+                        {
+                            "id": "ca-cancel",
+                            "market_id": "22222222-2222-2222-2222-222222222222",
+                            "market_ticker": "MSFT-PERP",
+                            "type": "stock_split",
+                            "status": "cancelled",
+                            "updated_ts": "2026-10-02T08:00:00Z",
+                        }
+                    ]
+                },
+            )
+        )
+        action = perps_client.margin.corporate_actions().corporate_actions[0]
+        assert action.status == "cancelled"
+        assert action.execution_time is None
+        assert action.cash is None
+        assert action.split is None
+        assert action.final_settlement is None
+        assert action.ticker_change is None
+
+    @respx.mock
+    def test_split_final_settlement_and_ticker_change(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "corporate_actions": [
+                        {
+                            "id": "ca-split",
+                            "market_id": "33333333-3333-3333-3333-333333333333",
+                            "market_ticker": "NVDA-PERP",
+                            "type": "stock_split",
+                            "status": "applied",
+                            "updated_ts": "2026-10-03T00:00:00Z",
+                            "execution_time": "2026-10-03T00:00:00Z",
+                            "split": {
+                                "ratio_old": "1",
+                                "ratio_new": "4",
+                                "ex_date": "2026-10-03",
+                            },
+                        },
+                        {
+                            "id": "ca-fs",
+                            "market_id": "44444444-4444-4444-4444-444444444444",
+                            "market_ticker": "XYZ-PERP",
+                            "type": "final_settlement",
+                            "status": "lapsed",
+                            "updated_ts": "2026-10-04T00:00:00Z",
+                            "execution_time": "2026-10-04T00:00:00Z",
+                            "final_settlement": {
+                                "reason": "delisting",
+                                "settlement_price_per_share": "12.5000",
+                                "settlement_price_per_contract": "1250.0000",
+                            },
+                        },
+                        {
+                            "id": "ca-tc",
+                            "market_id": "55555555-5555-5555-5555-555555555555",
+                            "market_ticker": "NEW-PERP",
+                            "type": "ticker_change",
+                            "status": "scheduled",
+                            "updated_ts": "2026-10-05T00:00:00Z",
+                            "execution_time": "2026-10-06T00:00:00Z",
+                            "ticker_change": {
+                                "old_ticker": "OLD-PERP",
+                                "new_ticker": "NEW-PERP",
+                            },
+                        },
+                    ]
+                },
+            )
+        )
+        actions = perps_client.margin.corporate_actions().corporate_actions
+        assert actions[0].split is not None
+        assert actions[0].split.ratio_old == "1"
+        assert actions[0].split.ratio_new == "4"
+        assert actions[0].split.ex_date == date(2026, 10, 3)
+        fs = actions[1].final_settlement
+        assert fs is not None
+        assert fs.reason == "delisting"
+        assert fs.settlement_price_per_share == Decimal("12.5000")
+        assert isinstance(fs.settlement_price_per_contract, Decimal)
+        tc = actions[2].ticker_change
+        assert tc is not None
+        assert tc.old_ticker == "OLD-PERP"
+        assert tc.new_ticker == "NEW-PERP"
+
+    @respx.mock
+    def test_null_array_coerced_to_empty(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": None})
+        )
+        assert perps_client.margin.corporate_actions().corporate_actions == []
+
+    @respx.mock
+    def test_missing_required_key_raises(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        with pytest.raises(ValidationError):
+            perps_client.margin.corporate_actions()
+
+    @respx.mock
+    def test_error_400_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            perps_client.margin.corporate_actions()
+
+    @respx.mock
+    def test_error_500_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(500)
+        )
+        with pytest.raises(KalshiServerError):
+            perps_client.margin.corporate_actions()
+
+    @respx.mock
+    def test_unauthenticated_does_not_raise(self) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": []})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        resp = client.margin.corporate_actions()
+        assert route.called
+        assert resp.corporate_actions == []
+        client.close()
+
+    @respx.mock
+    async def test_async_happy(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(200, json={"corporate_actions": [_cash_notice()]})
+        )
+        resp = await async_perps_client.margin.corporate_actions()
+        assert resp.corporate_actions[0].cash is not None
+        assert resp.corporate_actions[0].cash.cash_per_contract == Decimal("25.0000")
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_filters_and_cancelled(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "corporate_actions": [
+                        {
+                            "id": "ca-async",
+                            "market_id": "66666666-6666-6666-6666-666666666666",
+                            "market_ticker": "AAPL-PERP",
+                            "type": "special_dividend",
+                            "status": "cancelled",
+                            "updated_ts": "2026-10-07T00:00:00Z",
+                        }
+                    ]
+                },
+            )
+        )
+        resp = await async_perps_client.margin.corporate_actions(ticker="AAPL-PERP")
+        assert route.calls.last.request.url.params["ticker"] == "AAPL-PERP"
+        assert "market_id" not in route.calls.last.request.url.params
+        assert resp.corporate_actions[0].status == "cancelled"
+        assert resp.corporate_actions[0].cash is None
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_error_400(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            await async_perps_client.margin.corporate_actions()
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_error_500(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_actions").mock(
+            return_value=httpx.Response(500)
+        )
+        with pytest.raises(KalshiServerError):
+            await async_perps_client.margin.corporate_actions()
         await async_perps_client.close()
 
 

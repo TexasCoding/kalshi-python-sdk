@@ -12,6 +12,7 @@ info:
     - `fill`
     - `user_orders`
     - `order_group_updates`
+    - `corporate_actions`
   contact:
     name: Kalshi Support
     url: https://kalshi.com
@@ -116,6 +117,26 @@ channels:
       orderbookDelta:
         $ref: '#/components/messages/orderbookDelta'
 
+  corporate_actions:
+    address: corporate_actions
+    title: Corporate Action Notices
+    description: |
+      Sent when the exchange applies a stock split, final settlement or ticker change to a
+      margin market. Each message has a type and one matching terms object: `split`,
+      `final_settlement` or `ticker_change`. Cash corporate actions are not streamed.
+
+      Positions are not streamed over WebSocket, and an applied corporate action can change
+      positions and balances without a fill. Re-fetch them from `GET /trade-api/v2/margin/positions`
+      and `GET /trade-api/v2/margin/balance` after each message.
+
+      Requirements:
+      - market specification optional via `market_ticker` or `market_tickers`; filters follow ticker changes
+      - no snapshot on subscribe; `GET /trade-api/v2/margin/corporate_actions` lists upcoming and recent notices
+      - supports `update_subscription` with `add_markets` and `delete_markets`
+    messages:
+      corporateActionsDelta:
+        $ref: '#/components/messages/corporateActionsDelta'
+
   ticker:
     address: ticker
     title: Market Ticker
@@ -192,6 +213,16 @@ channels:
         $ref: '#/components/messages/orderGroupUpdates'
 
 operations:
+  receiveCorporateActions:
+    action: send
+    title: Receive Corporate Action Notices
+    channel:
+      $ref: '#/channels/corporate_actions'
+    messages:
+      - $ref: '#/channels/corporate_actions/messages/corporateActionsDelta'
+    tags:
+      - name: market-data
+
   sendPing:
     action: receive
     title: Send Ping
@@ -557,6 +588,12 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/marginOrderbookDeltaPayload'
+    corporateActionsDelta:
+      name: corporate_actions_delta
+      title: Corporate Action Delta
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginCorporateActionsDeltaPayload'
     ticker:
       name: ticker
       title: Ticker Update
@@ -651,7 +688,7 @@ components:
     lastUpdateReason:
       type: string
       enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel"]
-      description: Margin order update reason when the delta corresponds to the authenticated user's order. CloseCancel and HaltCancel are reserved; the current orderbook stream filters out these operations. The field is omitted when no reason applies.
+      description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
 
     tickerPrice:
       type: object
@@ -711,7 +748,7 @@ components:
               minItems: 1
               items:
                 type: string
-                enum: ["orderbook_delta", "ticker", "trade", "fill", "user_orders", "order_group_updates"]
+                enum: ["orderbook_delta", "ticker", "trade", "fill", "user_orders", "order_group_updates", "corporate_actions"]
             market_ticker:
               type: string
             market_tickers:
@@ -985,6 +1022,7 @@ components:
               $ref: '#/components/schemas/bookSide'
             last_update_reason:
               $ref: '#/components/schemas/lastUpdateReason'
+              description: Margin order update reason. Present only when the delta comes from the authenticated user's order and a reason applies.
             client_order_id:
               type: string
             ts_ms:
@@ -993,6 +1031,107 @@ components:
               description: Unix timestamp in milliseconds.
             subaccount:
               type: integer
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
+
+    marginCorporateAction:
+      type: object
+      description: >-
+        A corporate action the exchange applied to a margin market. Exactly one terms object
+        matches type: split for stock_split, final_settlement for final_settlement, or
+        ticker_change for ticker_change.
+      required: [id, market_id, market_ticker, type, ts_ms]
+      properties:
+        id:
+          type: string
+          description: "Corporate action notice id, matching `id` in `GET /trade-api/v2/margin/corporate_actions`."
+        market_id:
+          type: string
+          description: "Stable market UUID."
+        market_ticker:
+          type: string
+          description: "Market ticker; the new ticker for ticker_change."
+        type:
+          type: string
+          enum: [stock_split, final_settlement, ticker_change]
+          description: "Corporate action type, identifying which terms object is present."
+        ts_ms:
+          type: integer
+          format: int64
+          description: "Unix timestamp in milliseconds when the exchange applied the action."
+        split:
+          $ref: '#/components/schemas/marginCorporateActionSplitTerms'
+        final_settlement:
+          $ref: '#/components/schemas/marginCorporateActionFinalSettlementTerms'
+        ticker_change:
+          $ref: '#/components/schemas/marginCorporateActionTickerChangeTerms'
+
+    marginCorporateActionSplitTerms:
+      type: object
+      description: "Terms for stock_split. Omitted for other types."
+      required: [ratio_old, ratio_new, pre_split_mark_price, post_split_mark_price]
+      properties:
+        ratio_old:
+          type: string
+          description: "Old-share component of the split ratio. A 4-for-1 split is ratio_new 4, ratio_old 1."
+        ratio_new:
+          type: string
+          description: "New-share component of the split ratio."
+        pre_split_mark_price:
+          type: string
+          description: "Mark price in US dollars before the split."
+          x-rust-type: common::types::Price
+          x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
+        post_split_mark_price:
+          type: string
+          description: "Mark price in US dollars after the split."
+          x-rust-type: common::types::Price
+          x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
+
+    marginCorporateActionFinalSettlementTerms:
+      type: object
+      description: "Terms for final_settlement. Omitted for other types."
+      required: [settlement_price_per_contract]
+      properties:
+        settlement_price_per_contract:
+          type: string
+          description: "Final settlement price in US dollars per contract."
+          x-rust-type: common::types::Price
+          x-rust-serialize-with: ws::dto::serde_money::serialize_price_dollars
+
+    marginCorporateActionTickerChangeTerms:
+      type: object
+      description: "Terms for ticker_change. Omitted for other types."
+      required: [old_ticker, new_ticker]
+      properties:
+        old_ticker:
+          type: string
+          description: "Previous market ticker."
+        new_ticker:
+          type: string
+          description: "New market ticker."
+
+    marginCorporateActionsDeltaPayload:
+      type: object
+      required:
+      - type
+      - sid
+      - seq
+      - msg
+      properties:
+        type:
+          type: string
+          const: corporate_actions_delta
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: [corporate_action]
+          properties:
+            corporate_action:
+              $ref: '#/components/schemas/marginCorporateAction'
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -1230,7 +1369,7 @@ components:
               description: Unix timestamp in milliseconds.
             last_update_reason:
               $ref: '#/components/schemas/lastUpdateReason'
-              description: Margin order update reason; ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
+              description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
             subaccount_number:
               type: integer
             order_source:

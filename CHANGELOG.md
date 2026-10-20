@@ -2,6 +2,19 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.2.0 — 2026-10-20
+
+### Added
+
+- Perps **`margin.corporate_actions(*, ticker=, market_id=)`** (sync +
+  async) — `GET /margin/corporate_actions`. Lists scheduled notices and
+  notices updated in the last seven days for margin markets (cash
+  dividends, special dividends, spin-offs, stock splits, final
+  settlements, ticker changes). Optional `ticker` and `market_id`
+  filters; omit both for all margin markets. Public market data (no
+  auth). Amounts are `DollarDecimal`. Cancelled notices omit terms and
+  `execution_time`. (Closes #550).
+
 ## 22.1.0 — 2026-10-17
 
 Reconciles nightly spec drift (#547). Additive and optional only — no

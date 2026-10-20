@@ -63,7 +63,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
-| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()` |
+| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()`, `corporate_actions()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 | `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
@@ -254,6 +254,22 @@ tier limits in the same shape as the prediction API's `client.account.limits()`
 (an `AccountApiLimits` with `usage_tier`, `read`/`write` token buckets, and the
 `grants` list of `ApiUsageLevelGrant`).
 
+`perps.margin.corporate_actions()` (`GET /margin/corporate_actions`) lists
+scheduled notices and notices updated in the last seven days. Optional
+`ticker` / `market_id` filters; omit both for all margin markets. Public
+market data (no auth). Scheduled, applied, and lapsed notices include
+exactly one terms object matching `type` (`cash`, `split`,
+`final_settlement`, or `ticker_change`). Cancelled notices omit terms and
+`execution_time`. Amounts are `DollarDecimal` US dollar strings.
+
+```python
+notices = perps.margin.corporate_actions(ticker="AAPL-PERP")
+for action in notices.corporate_actions:
+    print(action.id, action.type, action.status)
+    if action.cash is not None:
+        print(action.cash.cash_per_contract, action.cash.ex_date)
+```
+
 ## WebSocket streaming
 
 ```python
@@ -267,12 +283,16 @@ async with ws.connect() as session:
             print(msg.msg.funding_rate.rate, msg.msg.funding_rate.next_funding_time_ms)
 ```
 
-Six data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
-`trade`, `fill`, `user_orders`, `order_group_updates`. The connection, sequence-gap
-detection, reconnect, and backpressure machinery are reused from the event-contract
-WS stack (see [WebSocket](websockets.md)); the perps orderbook is `bid` / `ask`.
-The prediction-only channels (`market_positions`, `multivariate*`, `communications`,
-`market_lifecycle_v2`, `cfbenchmarks_value`) have no perps counterpart.
+Seven data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
+`trade`, `fill`, `user_orders`, `order_group_updates`, `corporate_actions`. The
+connection, sequence-gap detection, reconnect, and backpressure machinery are
+reused from the event-contract WS stack (see [WebSocket](websockets.md)); the
+perps orderbook is `bid` / `ask`. The prediction-only channels
+(`market_positions`, `multivariate*`, `communications`, `market_lifecycle_v2`,
+`cfbenchmarks_value`) have no perps counterpart. `corporate_actions` streams
+applied split / final-settlement / ticker-change notices (cash actions are
+REST-only); subscribe with `session.subscribe(channel="corporate_actions")`.
+Upcoming and recent notices are listed by `margin.corporate_actions()`.
 
 ## Self-Clearing-Member "Klear" API
 

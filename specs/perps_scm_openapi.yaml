@@ -731,10 +731,12 @@ components:
           type: string
           enum:
             - trade_audit
+            - position_transfer_audit
             - position_snapshot
             - market_price_snapshot
             - funding_periods
             - settlement_periods
+            - corporate_action_payments
             - maintenance_margin
             - maintenance_margin_aggregate
             - cash_balance_daily
@@ -1272,7 +1274,7 @@ components:
       properties:
         id: { type: string }
         amount: { type: string, description: "Withdrawal amount in USD as a fixed-point string (e.g. \"500.00\")." }
-        status: { type: string, enum: [pending, processing, processed, failed] }
+        status: { type: string, enum: [pending, processing, processed, failed, cancelled] }
         created_ts: { type: string, format: date-time }
 
     WithdrawSettlementBalanceRequest:

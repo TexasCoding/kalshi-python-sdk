@@ -2346,7 +2346,6 @@ components:
     marketTicker:
       type: string
       description: Unique market identifier
-      pattern: '^[A-Z0-9-]+$'
       examples:
         - "FED-23DEC-T3.00"
         - "HIGHNY-22DEC23-B53.5"
@@ -2368,7 +2367,7 @@ components:
 
     lastUpdateReason:
       type: string
-      description: Order update reason. ReduceOnlyCancel means reduce_only capped the order at placement.
+      description: Order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement.
       enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel", "SettlementBoundsCancel"]
 
     orderAction:
@@ -3887,17 +3886,17 @@ components:
             created_time:
               type: [string, "null"]
               deprecated: true
-              description: Deprecated - Order creation time in RFC3339 format. Use created_ts_ms instead.
+              description: Deprecated - Order creation time in RFC3339 format, truncated to milliseconds. Use created_ts_ms instead.
               format: date-time
             last_update_time:
               type: string
               deprecated: true
-              description: Deprecated - Last update time in RFC3339 format. Use last_updated_ts_ms instead.
+              description: Deprecated - Last update time in RFC3339 format, truncated to milliseconds. Use last_updated_ts_ms instead.
               format: date-time
             expiration_time:
               type: string
               deprecated: true
-              description: Deprecated - Order expiration time in RFC3339 format. Use expiration_ts_ms instead.
+              description: Deprecated - Order expiration time in RFC3339 format, truncated to milliseconds. Use expiration_ts_ms instead.
               format: date-time
             expiration_ts_ms:
               type: integer

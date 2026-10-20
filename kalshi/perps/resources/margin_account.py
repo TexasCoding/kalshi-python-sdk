@@ -1,10 +1,13 @@
 """Perps margin-account resource — balance, risk, notional risk limit, fee tiers, API limits.
 
-Read-only GET endpoints for the authenticated direct-margin user (#394). All
-carry a spec ``security`` block, so each method calls ``_require_auth()`` first
-— an unauthenticated caller gets ``AuthRequiredError`` client-side instead of a
-server 401. None are paginated (no response carries a cursor), so there are no
-``list_all()`` iterators. All retry on 429/502/503/504 (GET).
+Read-only GET endpoints. ``balance`` / ``risk`` / ``notional_risk_limit`` /
+``fee_tiers`` / ``fee_tier_rates`` / ``api_limits`` carry a spec ``security``
+block, so each of those methods calls ``_require_auth()`` first — an
+unauthenticated caller gets ``AuthRequiredError`` client-side instead of a
+server 401. ``corporate_actions`` is public market data (no spec ``security``
+block) and does not require auth. None are paginated (no response carries a
+cursor), so there are no ``list_all()`` iterators. All retry on 429/502/503/504
+(GET).
 
 ``api_limits`` (``GET /account/limits/perps``) returns the Perps API tier limits
 in the same shape as the prediction API's :class:`~kalshi.models.account.AccountApiLimits`,
@@ -16,6 +19,7 @@ from __future__ import annotations
 from kalshi.models.account import AccountApiLimits
 from kalshi.perps.models.margin_account import (
     GetMarginBalanceResponse,
+    GetMarginCorporateActionsResponse,
     GetMarginFeeTierRatesResponse,
     GetMarginFeeTiersResponse,
     GetMarginRiskResponse,
@@ -25,7 +29,7 @@ from kalshi.resources._base import AsyncResource, SyncResource, _params
 
 
 class MarginAccountResource(SyncResource):
-    """Sync perps margin-account API (balance / risk / notional_risk_limit / fee_tiers)."""
+    """Sync perps margin-account API (balance / risk / fee tiers / corporate_actions)."""
 
     def balance(
         self,
@@ -75,9 +79,29 @@ class MarginAccountResource(SyncResource):
         data = self._get("/account/limits/perps", extra_headers=extra_headers)
         return AccountApiLimits.model_validate(data)
 
+    def corporate_actions(
+        self,
+        *,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMarginCorporateActionsResponse:
+        """Scheduled notices and notices updated in the last seven days.
+
+        ``GET /margin/corporate_actions``. Public market data — no auth.
+        Optional ``ticker`` / ``market_id`` filter to one market; omit both
+        for notices across all margin markets. Cancelled notices omit terms
+        and ``execution_time``.
+        """
+        params = _params(ticker=ticker, market_id=market_id)
+        data = self._get(
+            "/margin/corporate_actions", params=params, extra_headers=extra_headers
+        )
+        return GetMarginCorporateActionsResponse.model_validate(data)
+
 
 class AsyncMarginAccountResource(AsyncResource):
-    """Async perps margin-account API (balance / risk / notional_risk_limit / fee_tiers)."""
+    """Async perps margin-account API (balance / risk / fee tiers / corporate_actions)."""
 
     async def balance(
         self,
@@ -128,3 +152,17 @@ class AsyncMarginAccountResource(AsyncResource):
         self._require_auth()
         data = await self._get("/account/limits/perps", extra_headers=extra_headers)
         return AccountApiLimits.model_validate(data)
+
+    async def corporate_actions(
+        self,
+        *,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetMarginCorporateActionsResponse:
+        """Async :meth:`MarginAccountResource.corporate_actions`."""
+        params = _params(ticker=ticker, market_id=market_id)
+        data = await self._get(
+            "/margin/corporate_actions", params=params, extra_headers=extra_headers
+        )
+        return GetMarginCorporateActionsResponse.model_validate(data)

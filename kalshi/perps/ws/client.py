@@ -592,11 +592,13 @@ class PerpsWebSocket:
     # ------------------------------------------------------------------
     # Per-channel typed subscribe helpers (#398)
     #
-    # The perps AsyncAPI defines exactly six data channels — all wired below.
-    # The prediction-API channels ``market_positions``,
+    # Typed ``subscribe_*`` helpers for the perps data channels. The
+    # prediction-API channels ``market_positions``,
     # ``market_lifecycle_v2`` / ``event_fee_update``, ``multivariate``,
     # ``multivariate_market_lifecycle``, and ``communications`` have NO perps
     # counterpart and intentionally get NO ``subscribe_*`` helper here.
+    # ``corporate_actions`` is on :class:`PerpsChannel` and is subscribed
+    # via the generic :meth:`subscribe`.
     #
     # ``builtins.list[str]`` is used for ``tickers`` params: the surrounding
     # API has a ``list_subscriptions`` method, so the ``list`` builtin is
