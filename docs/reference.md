@@ -60,6 +60,12 @@ every exception class.
 
 ::: kalshi.models.communications.AcceptBlockTradeProposalRequest
 
+::: kalshi.models.communications.CreateRFQBatchRequest
+
+::: kalshi.models.communications.CreateRFQBatchQuoteRequest
+
+::: kalshi.models.communications.AcceptRFQBatchRequest
+
 ::: kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest
 
 ::: kalshi.models.order_groups.CreateOrderGroupRequest

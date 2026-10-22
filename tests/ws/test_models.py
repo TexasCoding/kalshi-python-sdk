@@ -846,6 +846,23 @@ class TestCommunicationsModel:
         )
         assert payload.order_id == "ord-001"
         assert payload.executed_ts == datetime(2026, 4, 19, 18, 43, 37, tzinfo=UTC)
+        assert payload.rfq_batch_id is None
+
+    def test_quote_executed_payload_rfq_batch_id(self) -> None:
+        payload = QuoteExecutedPayload.model_validate(
+            {
+                "quote_id": "q-001",
+                "rfq_id": "rfq-001",
+                "order_id": "ord-001",
+                "quote_creator_id": "user-2",
+                "rfq_creator_id": "user-1",
+                "client_order_id": "cli-001",
+                "market_ticker": "T",
+                "executed_ts": "2026-04-19T18:43:37Z",
+                "rfq_batch_id": "batch-1",
+            }
+        )
+        assert payload.rfq_batch_id == "batch-1"
 
 
 # ---------- v0.14+ backfill (#162): one (de)serialization test per payload ----------

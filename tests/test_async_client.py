@@ -229,7 +229,7 @@ class TestAsyncTransportRetry:
             side_effect=[
                 httpx.Response(
                     429,
-                    headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+                    headers={"Retry-After": "Tue, 01 Jan 2030 00:00:00 GMT"},
                     json={"message": "rl"},
                 ),
                 httpx.Response(200, json={"markets": []}),

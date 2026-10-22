@@ -978,11 +978,11 @@ components:
               reportable_threshold: { type: integer, format: int64, description: 'CFTC reporting level for this market, in contracts (17 CFR 15.03(b)). A position of at least this size in either direction is reportable.' }
     EstimatePortfolioMaintenanceMarginPosition:
       type: object
-      required: [market_ticker, quantity, price]
+      required: [market_ticker, quantity]
       properties:
         market_ticker: { type: string, description: Market to include in the hypothetical portfolio. Must belong to the request's asset class. }
         quantity: { type: integer, format: int64, description: "Signed whole contract count; positive long, negative short. Must be non-zero." }
-        price: { type: string, description: 'Price of one contract in USD, to at most four decimal places (e.g. "6.8000"). Must be positive.' }
+        price: { type: string, description: 'Price of one contract in USD, to at most four decimal places (e.g. "6.8000"). Must be positive. Omit to use the market''s mark price from its latest settlement (before the end of `date`, if set); returns 400 if there is none.' }
 
     EstimatePortfolioMaintenanceMarginRequest:
       type: object

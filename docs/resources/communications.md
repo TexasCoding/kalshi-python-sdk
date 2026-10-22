@@ -32,6 +32,16 @@ Auth required throughout.
 | `block_trade_proposals.list(...)` / `block_trade_proposals.list_all(...)` | `GET /communications/block-trade-proposals` |
 | `block_trade_proposals.create(...)` | `POST /communications/block-trade-proposals` |
 | `block_trade_proposals.accept(block_trade_proposal_id, *, subtrader_id=None, subaccount=None)` | `POST /communications/block-trade-proposals/{block_trade_proposal_id}/accept` |
+| `rfq_batches.list(...)` / `rfq_batches.list_all(...)` | `GET /communications/rfq_batches` |
+| `rfq_batches.get(rfq_batch_id)` | `GET /communications/rfq_batches/{rfq_batch_id}` |
+| `rfq_batches.create(...)` | `POST /communications/rfq_batches` |
+| `rfq_batches.delete(rfq_batch_id)` | `DELETE /communications/rfq_batches/{rfq_batch_id}` |
+| `rfq_batches.accept(rfq_batch_id, *, accepted_side, min_bids)` | `PUT /communications/rfq_batches/{rfq_batch_id}/accept` |
+| `rfq_batches.best_quotes(rfq_batch_id)` | `GET /communications/rfq_batches/{rfq_batch_id}/best_quotes` |
+| `rfq_batches.quotes.list(rfq_batch_id)` | `GET /communications/rfq_batches/{rfq_batch_id}/quotes` |
+| `rfq_batches.quotes.create(rfq_batch_id, ...)` | `POST /communications/rfq_batches/{rfq_batch_id}/quotes` |
+| `rfq_batches.quotes.delete(rfq_batch_id, batch_quote_id)` | `DELETE /communications/rfq_batches/{rfq_batch_id}/quotes/{batch_quote_id}` |
+| `rfq_batches.quotes.confirm(rfq_batch_id, batch_quote_id)` | `PUT /communications/rfq_batches/{rfq_batch_id}/quotes/{batch_quote_id}/confirm` |
 
 `get_id()` returns your `participant_id` — the value you'll pass as
 `quote_creator_user_id` / `rfq_creator_user_id` when filtering lists. It stays
@@ -211,6 +221,61 @@ client.communications.block_trade_proposals.accept(proposal_id)
     `_dollars` / `_fp` aliasing applies. `price_centi_cents` and `centicount`
     must each be `>= 1`.
 
+## RFQ batches (v22.3.0)
+
+`client.communications.rfq_batches` backs `/communications/rfq_batches` —
+request quotes on several combo markets at once. Makers quote the whole
+batch; each child is accepted from whichever maker quotes it best on your
+side. Accepting fills every child or none.
+
+```python
+# Create a batch of two combos, sized the same way.
+resp = client.communications.rfq_batches.create(
+    children=[
+        {"market_ticker": "COMBO-A"},
+        {"market_ticker": "COMBO-B"},
+    ],
+    contracts="10.00",
+    rest_remainder=True,
+)
+batch_id = resp.rfq_batch.id
+
+# Maker: quote every child.
+quote = client.communications.rfq_batches.quotes.create(
+    batch_id,
+    quotes=[
+        {"rfq_id": resp.rfq_batch.rfqs[0].id, "yes_bid": "0.56", "no_bid": "0.44"},
+        {"rfq_id": resp.rfq_batch.rfqs[1].id, "yes_bid": "0.50", "no_bid": "0.50"},
+    ],
+    rest_remainder=True,
+)
+
+# Requester: read the best bid on each child (makers are not identified).
+best = client.communications.rfq_batches.best_quotes(batch_id)
+accepted = client.communications.rfq_batches.accept(
+    batch_id,
+    accepted_side="yes",
+    min_bids=[
+        {"rfq_id": q.rfq_id, "bid": q.yes_bid}
+        for q in best.best_quotes.rfqs
+        if q.yes_bid is not None
+    ],
+)
+
+# Winning maker confirms the children it won.
+client.communications.rfq_batches.quotes.confirm(batch_id, quote.id)
+```
+
+`list()` / `list_all()` are cursor-paginated (max 20 batches per page).
+`quotes.list()` is not paginated — it returns the batch quotes visible to
+you on that one batch.
+
+Prices on create-quote entries use `yes_bid` / `no_bid` (no `_dollars`
+suffix), matching `quotes.create()`. Accept `min_bids` use Python name
+`bid`, serialized as `bid_dollars`. Batch create sizes every child via
+`contracts` (`contracts_fp` on the wire) or `target_cost`
+(`target_cost_dollars`).
+
 ## Migrating from v2.x
 
 | v2.x (deprecated) | v3.0.0 (canonical) |
@@ -248,6 +313,14 @@ client.communications.block_trade_proposals.accept(proposal_id)
     options:
       heading_level: 3
 
+::: kalshi.resources.communications.RFQBatchesResource
+    options:
+      heading_level: 3
+
+::: kalshi.resources.communications.RFQBatchQuotesResource
+    options:
+      heading_level: 3
+
 ::: kalshi.resources.communications.AsyncCommunicationsResource
     options:
       heading_level: 3
@@ -261,5 +334,13 @@ client.communications.block_trade_proposals.accept(proposal_id)
       heading_level: 3
 
 ::: kalshi.resources.communications.AsyncBlockTradeProposalsResource
+    options:
+      heading_level: 3
+
+::: kalshi.resources.communications.AsyncRFQBatchesResource
+    options:
+      heading_level: 3
+
+::: kalshi.resources.communications.AsyncRFQBatchQuotesResource
     options:
       heading_level: 3

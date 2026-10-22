@@ -2,6 +2,38 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.3.0 — 2026-10-22
+
+Reconciles nightly spec drift (#553). Maps the ten core RFQ batch
+endpoints added upstream.
+
+### Added
+
+- Communications **`rfq_batches`** (sync + async) —
+  `client.communications.rfq_batches`. Backs
+  `/communications/rfq_batches`: `list()` / `list_all()` (cursor
+  paginated, max 20 per page), `get()`, `create()`, `delete()`,
+  `accept()`, `best_quotes()`. Nested
+  **`rfq_batches.quotes`**: `list()` (not paginated), `create()`,
+  `delete()`, `confirm()`. Auth required. Create sizes every child via
+  `contracts` (`contracts_fp` on the wire) or `target_cost`
+  (`target_cost_dollars`). Batch-quote bids use `yes_bid` / `no_bid`
+  (no `_dollars` suffix); accept `min_bids` use Python name `bid`,
+  serialized as `bid_dollars`. (Closes #553).
+
+- Optional **`QuoteExecutedPayload.rfq_batch_id`** — set when the
+  executed quote is a child of an RFQ batch.
+
+### Changed
+
+- Re-vendored `specs/` (OpenAPI 3.34.0 still, plus AsyncAPI and Klear
+  SCM). Besides RFQ batches the upstream changes are description,
+  example, vendor-extension, and response-side additive optional
+  fields (`IntraExchangeInstanceTransfer.client_transfer_id`, perps
+  `ExchangeStatus` / `MarginMarket` extras, WS `batch_communications`
+  and `pyth_value` channels). Those additive fields and new WS
+  channels are not mapped in this release.
+
 ## 22.2.0 — 2026-10-20
 
 ### Added

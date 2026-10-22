@@ -674,6 +674,65 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/communications/block-trade-proposals/{block_trade_proposal_id}/accept",
         request_body_schema="#/components/schemas/AcceptBlockTradeProposalRequest",
     ),
+    # RFQ batches
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.list",
+        http_method="GET",
+        path_template="/communications/rfq_batches",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.list_all",
+        http_method="GET",
+        path_template="/communications/rfq_batches",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.create",
+        http_method="POST",
+        path_template="/communications/rfq_batches",
+        request_body_schema="#/components/schemas/CreateRFQBatchRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.get",
+        http_method="GET",
+        path_template="/communications/rfq_batches/{rfq_batch_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.delete",
+        http_method="DELETE",
+        path_template="/communications/rfq_batches/{rfq_batch_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.best_quotes",
+        http_method="GET",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/best_quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchesResource.accept",
+        http_method="PUT",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/accept",
+        request_body_schema="#/components/schemas/AcceptRFQBatchRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchQuotesResource.list",
+        http_method="GET",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/quotes",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchQuotesResource.create",
+        http_method="POST",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/quotes",
+        request_body_schema="#/components/schemas/CreateRFQBatchQuoteRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchQuotesResource.delete",
+        http_method="DELETE",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/quotes/{batch_quote_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.RFQBatchQuotesResource.confirm",
+        http_method="PUT",
+        path_template="/communications/rfq_batches/{rfq_batch_id}/quotes/{batch_quote_id}/confirm",
+    ),
     # ── subaccounts ─────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.subaccounts.SubaccountsResource.create",
@@ -1146,6 +1205,13 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
     ),
+    (
+        "kalshi.resources.communications.RFQBatchesResource.list_all",
+        "cursor",
+    ): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
     ("kalshi.resources.markets.MarketsResource.list_all_trades", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
         kind="paginator_handled",
@@ -1350,6 +1416,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.communications.RFQsResource.list_all",
     "kalshi.resources.communications.QuotesResource.list_all",
     "kalshi.resources.communications.BlockTradeProposalsResource.list_all",
+    "kalshi.resources.communications.RFQBatchesResource.list_all",
     "kalshi.resources.milestones.MilestonesResource.list_all",
     "kalshi.resources.events.EventsResource.list_all",
     "kalshi.resources.events.EventsResource.list_all_multivariate",
@@ -1383,6 +1450,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.communications.AsyncRFQsResource.list_all",
     "kalshi.resources.communications.AsyncQuotesResource.list_all",
     "kalshi.resources.communications.AsyncBlockTradeProposalsResource.list_all",
+    "kalshi.resources.communications.AsyncRFQBatchesResource.list_all",
     "kalshi.resources.milestones.AsyncMilestonesResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all",
     "kalshi.resources.events.AsyncEventsResource.list_all_multivariate",

@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
+from kalshi.models.multivariate import TickerPair
 from kalshi.types import DollarDecimal, FixedPointCount, StrictInt
 
 UserFilterLiteral = Literal["self"]
@@ -326,3 +327,252 @@ class AcceptBlockTradeProposalRequest(BaseModel):
     subaccount: StrictInt | None = Field(default=None, ge=0, le=63)
 
     model_config = {"extra": "forbid"}
+
+
+# ── RFQ batches ────────────────────────────────────────────────────────────
+
+
+RfqBatchStatusLiteral = Literal["open", "accepted", "closed"]
+"""RFQ batch status filter for GET /communications/rfq_batches. Spec: RFQBatchStatus."""
+
+RfqBatchQuoteStatusLiteral = Literal[
+    "open",
+    "accepted",
+    "confirmed",
+    "executed",
+    "partially_executed",
+    "cancelled",
+]
+"""Batch-quote status. Spec: RFQBatchQuoteStatus."""
+
+
+class RFQBatch(BaseModel):
+    """An RFQ batch — several child RFQs quoted and accepted as a unit."""
+
+    id: str
+    creator_id: str
+    status: str
+    created_ts: AwareDatetime
+    rfqs: list[RFQ]
+    accepted_ts: AwareDatetime | None = None
+    closed_ts: AwareDatetime | None = None
+    updated_ts: AwareDatetime | None = None
+    close_reason: str | None = None
+    client_batch_id: str | None = None
+    creator_user_id: str | None = None
+    creator_subaccount: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetRFQBatchResponse(BaseModel):
+    """Single-RFQ-batch envelope."""
+
+    rfq_batch: RFQBatch
+
+    model_config = {"extra": "allow"}
+
+
+class GetRFQBatchesResponse(BaseModel):
+    """Paginated list of RFQ batches."""
+
+    rfq_batches: list[RFQBatch]
+    cursor: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class CreateRFQBatchChild(BaseModel):
+    """One combo to request quotes on. Set exactly one of ``market_ticker``
+    and ``selected_markets``; the spec does not encode the exclusivity.
+    """
+
+    market_ticker: str | None = None
+    selected_markets: list[TickerPair] | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateRFQBatchRequest(BaseModel):
+    """Body for POST /communications/rfq_batches.
+
+    Spec sizes every child the same way via ``contracts_fp`` or
+    ``target_cost_dollars``. SDK Python names drop those suffixes and
+    serialize with ``serialization_alias``. Provide exactly one of
+    ``contracts`` and ``target_cost``; the spec does not encode the
+    exclusivity, so the SDK does not enforce it.
+    """
+
+    children: list[CreateRFQBatchChild]
+    mve_collection_ticker: str | None = None
+    contracts: FixedPointCount | None = Field(
+        default=None,
+        serialization_alias="contracts_fp",
+    )
+    target_cost: DollarDecimal | None = Field(
+        default=None,
+        serialization_alias="target_cost_dollars",
+    )
+    target_cost_excludes_fees: bool | None = None
+    rest_remainder: bool | None = None
+    replace_existing: bool | None = None
+    obscure_creator_id: bool | None = None
+    client_batch_id: str | None = Field(default=None, max_length=64)
+    subtrader_id: str | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateRFQBatchResponse(BaseModel):
+    """Wraps the newly-created RFQ batch."""
+
+    rfq_batch: RFQBatch
+
+    model_config = {"extra": "allow"}
+
+
+class RFQBatchQuote(BaseModel):
+    """One maker's quote on an RFQ batch."""
+
+    id: str
+    rfq_batch_id: str
+    creator_id: str
+    rfq_creator_id: str
+    status: str
+    created_ts: AwareDatetime
+    updated_ts: AwareDatetime
+    quotes: list[Quote]
+    accepted_side: Literal["yes", "no"] | None = None
+    accepted_ts: AwareDatetime | None = None
+    confirmed_ts: AwareDatetime | None = None
+    rest_remainder: bool | None = None
+    post_only: bool | None = None
+    creator_user_id: str | None = None
+    creator_subaccount: int | None = None
+    rfq_creator_user_id: str | None = None
+    rfq_creator_subaccount: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetRFQBatchQuotesResponse(BaseModel):
+    """Batch quotes on an RFQ batch visible to the caller. Not paginated."""
+
+    batch_quotes: list[RFQBatchQuote]
+
+    model_config = {"extra": "allow"}
+
+
+class RFQBatchQuoteEntry(BaseModel):
+    """Price for one child RFQ inside a batch quote.
+
+    Spec wire uses ``yes_bid`` / ``no_bid`` (no ``_dollars`` suffix), matching
+    :class:`CreateQuoteRequest`.
+    """
+
+    rfq_id: str
+    yes_bid: DollarDecimal
+    no_bid: DollarDecimal
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateRFQBatchQuoteRequest(BaseModel):
+    """Body for POST /communications/rfq_batches/{rfq_batch_id}/quotes."""
+
+    quotes: list[RFQBatchQuoteEntry]
+    rest_remainder: bool
+    post_only: bool | None = None
+    subaccount: StrictInt | None = Field(default=None, ge=0)
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateRFQBatchQuoteResponse(BaseModel):
+    """Wraps the newly-created batch quote's id."""
+
+    id: str
+
+    model_config = {"extra": "allow"}
+
+
+class RFQBatchBestQuote(BaseModel):
+    """Best open bid on each side of one child RFQ, across makers."""
+
+    rfq_id: str
+    market_ticker: str
+    yes_bid: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("yes_bid_dollars", "yes_bid"),
+    )
+    no_bid: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("no_bid_dollars", "no_bid"),
+    )
+    yes_contracts_offered: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "yes_contracts_offered_fp",
+            "yes_contracts_offered",
+        ),
+    )
+    no_contracts_offered: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "no_contracts_offered_fp",
+            "no_contracts_offered",
+        ),
+    )
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class RFQBatchBestQuotes(BaseModel):
+    """Best quotes across makers for every child of an RFQ batch."""
+
+    rfq_batch_id: str
+    status: str
+    version: int
+    yes_complete: bool
+    no_complete: bool
+    rfqs: list[RFQBatchBestQuote]
+    updated_ts: AwareDatetime | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetRFQBatchBestQuotesResponse(BaseModel):
+    """Envelope for GET .../rfq_batches/{rfq_batch_id}/best_quotes."""
+
+    best_quotes: RFQBatchBestQuotes
+
+    model_config = {"extra": "allow"}
+
+
+class RFQBatchAcceptLimit(BaseModel):
+    """Price-protection floor for one child on accept."""
+
+    rfq_id: str
+    bid: DollarDecimal = Field(serialization_alias="bid_dollars")
+
+    model_config = {"extra": "forbid"}
+
+
+class AcceptRFQBatchRequest(BaseModel):
+    """Body for PUT /communications/rfq_batches/{rfq_batch_id}/accept."""
+
+    accepted_side: Literal["yes", "no"]
+    min_bids: list[RFQBatchAcceptLimit]
+    client_order_id: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class AcceptRFQBatchResponse(BaseModel):
+    """Quotes accepted on every child, in batch order."""
+
+    accepted_side: Literal["yes", "no"]
+    quotes: list[Quote]
+
+    model_config = {"extra": "allow"}
