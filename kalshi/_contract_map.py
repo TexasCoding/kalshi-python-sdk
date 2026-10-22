@@ -230,6 +230,52 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.communications.AcceptBlockTradeProposalRequest",
         spec_schema="AcceptBlockTradeProposalRequest",
     ),
+    # RFQ batches. Response items + request bodies, matching Quote/RFQ and
+    # CreateQuoteRequest/AcceptQuoteRequest. List/create wrappers omitted.
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatch",
+        spec_schema="RFQBatch",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatchQuote",
+        spec_schema="RFQBatchQuote",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatchBestQuote",
+        spec_schema="RFQBatchBestQuote",
+        notes="bid/contracts fields use short names with _dollars/_fp aliases",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatchBestQuotes",
+        spec_schema="RFQBatchBestQuotes",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.CreateRFQBatchRequest",
+        spec_schema="CreateRFQBatchRequest",
+        notes="Uses serialization_alias for contracts_fp / target_cost_dollars",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.CreateRFQBatchQuoteRequest",
+        spec_schema="CreateRFQBatchQuoteRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.AcceptRFQBatchRequest",
+        spec_schema="AcceptRFQBatchRequest",
+        notes="bid serializes as bid_dollars",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.CreateRFQBatchChild",
+        spec_schema="CreateRFQBatchChild",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatchQuoteEntry",
+        spec_schema="RFQBatchQuoteEntry",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.communications.RFQBatchAcceptLimit",
+        spec_schema="RFQBatchAcceptLimit",
+        notes="bid serializes as bid_dollars",
+    ),
     ContractEntry(
         sdk_model="kalshi.models.subaccounts.SubaccountBalance",
         spec_schema="SubaccountBalance",

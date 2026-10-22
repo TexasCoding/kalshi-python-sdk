@@ -25,17 +25,29 @@ from kalshi.models.communications import (
     RFQ,
     AcceptBlockTradeProposalRequest,
     AcceptQuoteRequest,
+    AcceptRFQBatchRequest,
     BlockTradeProposal,
     CreateQuoteRequest,
     CreateQuoteResponse,
+    CreateRFQBatchChild,
+    CreateRFQBatchQuoteRequest,
+    CreateRFQBatchRequest,
     CreateRFQRequest,
     CreateRFQResponse,
     GetBlockTradeProposalsResponse,
     GetCommunicationsIDResponse,
     GetQuoteResponse,
+    GetRFQBatchBestQuotesResponse,
+    GetRFQBatchQuotesResponse,
+    GetRFQBatchResponse,
     GetRFQResponse,
     ProposeBlockTradeRequest,
     Quote,
+    RFQBatch,
+    RFQBatchAcceptLimit,
+    RFQBatchBestQuote,
+    RFQBatchQuote,
+    RFQBatchQuoteEntry,
 )
 from kalshi.resources.communications import (
     AsyncCommunicationsResource,
@@ -43,6 +55,8 @@ from kalshi.resources.communications import (
     AsyncRFQsResource,
     CommunicationsResource,
     QuotesResource,
+    RFQBatchesResource,
+    RFQBatchQuotesResource,
     RFQsResource,
 )
 
@@ -1773,3 +1787,736 @@ class TestBlockTradeProposalsAuthGuard:
     def test_accept_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.block_trade_proposals.accept("btp-1")
+
+
+# ── RFQ batches ─────────────────────────────────────────────────────────────
+
+
+_MINIMAL_RFQ_BATCH = {
+    "id": "batch-1",
+    "creator_id": "comm-42",
+    "status": "open",
+    "created_ts": "2026-04-18T12:00:00Z",
+    "rfqs": [_MINIMAL_RFQ, {**_MINIMAL_RFQ, "id": "rfq-2", "market_ticker": "MKT-2"}],
+}
+
+_MINIMAL_BATCH_QUOTE = {
+    "id": "bq-1",
+    "rfq_batch_id": "batch-1",
+    "creator_id": "comm-99",
+    "rfq_creator_id": "comm-42",
+    "status": "open",
+    "created_ts": "2026-04-18T12:01:00Z",
+    "updated_ts": "2026-04-18T12:01:00Z",
+    "quotes": [_MINIMAL_QUOTE],
+}
+
+_MINIMAL_BEST_QUOTES = {
+    "rfq_batch_id": "batch-1",
+    "status": "open",
+    "version": 3,
+    "yes_complete": True,
+    "no_complete": False,
+    "rfqs": [
+        {
+            "rfq_id": "rfq-1",
+            "market_ticker": "MKT-1",
+            "yes_bid_dollars": "0.5600",
+            "no_bid_dollars": "0.4400",
+            "yes_contracts_offered_fp": "10.00",
+            "no_contracts_offered_fp": "10.00",
+        },
+        {"rfq_id": "rfq-2", "market_ticker": "MKT-2"},
+    ],
+}
+
+_BATCH_URL = "https://test.kalshi.com/trade-api/v2/communications/rfq_batches"
+
+_CHILDREN = [
+    CreateRFQBatchChild(market_ticker="MKT-1"),
+    CreateRFQBatchChild(market_ticker="MKT-2"),
+]
+
+
+class TestRFQBatchModels:
+    def test_rfq_batch_parses(self) -> None:
+        batch = RFQBatch.model_validate(_MINIMAL_RFQ_BATCH)
+        assert batch.id == "batch-1"
+        assert len(batch.rfqs) == 2
+        assert isinstance(batch.rfqs[0], RFQ)
+
+    def test_get_rfq_batch_response_wraps(self) -> None:
+        resp = GetRFQBatchResponse.model_validate({"rfq_batch": _MINIMAL_RFQ_BATCH})
+        assert resp.rfq_batch.id == "batch-1"
+
+    def test_batch_quote_parses(self) -> None:
+        q = RFQBatchQuote.model_validate(_MINIMAL_BATCH_QUOTE)
+        assert q.id == "bq-1"
+        assert isinstance(q.quotes[0], Quote)
+
+    def test_best_quote_accepts_dollars_and_fp_aliases(self) -> None:
+        bq = RFQBatchBestQuote.model_validate(
+            {
+                "rfq_id": "rfq-1",
+                "market_ticker": "MKT-1",
+                "yes_bid_dollars": "0.5600",
+                "yes_contracts_offered_fp": "10.00",
+            }
+        )
+        assert bq.yes_bid == Decimal("0.5600")
+        assert bq.yes_contracts_offered == Decimal("10.00")
+
+    def test_best_quote_accepts_short_names(self) -> None:
+        bq = RFQBatchBestQuote.model_validate(
+            {
+                "rfq_id": "rfq-1",
+                "market_ticker": "MKT-1",
+                "yes_bid": "0.50",
+                "yes_contracts_offered": "5",
+            }
+        )
+        assert bq.yes_bid == Decimal("0.50")
+        assert bq.yes_contracts_offered == Decimal("5")
+
+    def test_create_rfq_batch_request_serializes_fp_and_dollars(self) -> None:
+        req = CreateRFQBatchRequest(
+            children=_CHILDREN,
+            contracts=Decimal("10.00"),
+            target_cost=Decimal("5.00"),
+            rest_remainder=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["contracts_fp"] == "10.00"
+        assert body["target_cost_dollars"] == "5.00"
+        assert "contracts" not in body
+        assert "target_cost" not in body
+        assert body["rest_remainder"] is True
+
+    def test_create_rfq_batch_request_omits_optional(self) -> None:
+        req = CreateRFQBatchRequest(children=_CHILDREN)
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {
+            "children": [{"market_ticker": "MKT-1"}, {"market_ticker": "MKT-2"}],
+        }
+
+    def test_create_rfq_batch_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateRFQBatchRequest(children=_CHILDREN, phantom=1)  # type: ignore[call-arg]
+
+    def test_create_rfq_batch_child_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateRFQBatchChild(market_ticker="MKT-1", phantom=1)  # type: ignore[call-arg]
+
+    def test_create_rfq_batch_quote_request_serializes_bids_without_suffix(self) -> None:
+        req = CreateRFQBatchQuoteRequest(
+            quotes=[
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-1", yes_bid=Decimal("0.56"), no_bid=Decimal("0.44")
+                ),
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-2", yes_bid=Decimal("0.50"), no_bid=Decimal("0.50")
+                ),
+            ],
+            rest_remainder=True,
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["quotes"][0] == {
+            "rfq_id": "rfq-1",
+            "yes_bid": "0.56",
+            "no_bid": "0.44",
+        }
+        assert "yes_bid_dollars" not in body["quotes"][0]
+
+    def test_create_rfq_batch_quote_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateRFQBatchQuoteRequest(  # type: ignore[call-arg]
+                quotes=[
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-1", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-2", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                ],
+                rest_remainder=True,
+                phantom=True,
+            )
+
+    def test_accept_rfq_batch_request_serializes_bid_dollars(self) -> None:
+        req = AcceptRFQBatchRequest(
+            accepted_side="yes",
+            min_bids=[
+                RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.56")),
+                RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.44")),
+            ],
+        )
+        body = req.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {
+            "accepted_side": "yes",
+            "min_bids": [
+                {"rfq_id": "rfq-1", "bid_dollars": "0.56"},
+                {"rfq_id": "rfq-2", "bid_dollars": "0.44"},
+            ],
+        }
+
+    def test_accept_rfq_batch_request_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            AcceptRFQBatchRequest(  # type: ignore[call-arg]
+                accepted_side="yes",
+                min_bids=[
+                    RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.5")),
+                    RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.5")),
+                ],
+                phantom=1,
+            )
+
+    def test_rfq_batch_accept_limit_forbids_extra(self) -> None:
+        with pytest.raises(ValidationError):
+            RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.5"), phantom=1)  # type: ignore[call-arg]
+
+
+class TestListRFQBatches:
+    @respx.mock
+    def test_returns_paged_batches(self, comms: CommunicationsResource) -> None:
+        respx.get(_BATCH_URL).mock(
+            return_value=httpx.Response(200, json={"rfq_batches": [_MINIMAL_RFQ_BATCH]})
+        )
+        page = comms.rfq_batches.list()
+        assert len(page.items) == 1
+        assert isinstance(page.items[0], RFQBatch)
+        assert page.items[0].id == "batch-1"
+        assert isinstance(comms.rfq_batches, RFQBatchesResource)
+
+    @respx.mock
+    def test_passes_filter_params(self, comms: CommunicationsResource) -> None:
+        route = respx.get(_BATCH_URL).mock(
+            return_value=httpx.Response(200, json={"rfq_batches": []})
+        )
+        comms.rfq_batches.list(status="open", subaccount=3, user_filter="self", limit=10)
+        params = route.calls[0].request.url.params
+        assert params["status"] == "open"
+        assert params["subaccount"] == "3"
+        assert params["user_filter"] == "self"
+        assert params["limit"] == "10"
+
+    def test_limit_out_of_range(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="limit"):
+            comms.rfq_batches.list(limit=21)
+
+    @respx.mock
+    def test_list_all_auto_paginates(self, comms: CommunicationsResource) -> None:
+        respx.get(_BATCH_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"rfq_batches": [_MINIMAL_RFQ_BATCH], "cursor": "page2"}
+                ),
+                httpx.Response(
+                    200, json={"rfq_batches": [{**_MINIMAL_RFQ_BATCH, "id": "batch-2"}]}
+                ),
+            ]
+        )
+        ids = [b.id for b in comms.rfq_batches.list_all()]
+        assert ids == ["batch-1", "batch-2"]
+
+    @respx.mock
+    def test_500_raises(self, comms: CommunicationsResource) -> None:
+        respx.get(_BATCH_URL).mock(return_value=httpx.Response(500, json={"message": "boom"}))
+        with pytest.raises(KalshiServerError):
+            comms.rfq_batches.list()
+
+
+class TestGetRFQBatch:
+    @respx.mock
+    def test_returns_batch(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/batch-1").mock(
+            return_value=httpx.Response(200, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        resp = comms.rfq_batches.get("batch-1")
+        assert resp.rfq_batch.id == "batch-1"
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/missing").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.get("missing")
+
+    def test_empty_id_rejected(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="rfq_batch_id"):
+            comms.rfq_batches.get("")
+
+
+class TestCreateRFQBatch:
+    @respx.mock
+    def test_sends_correct_body(self, comms: CommunicationsResource) -> None:
+        route = respx.post(_BATCH_URL).mock(
+            return_value=httpx.Response(201, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        resp = comms.rfq_batches.create(
+            children=_CHILDREN,
+            contracts=Decimal("10"),
+            rest_remainder=True,
+            subaccount=2,
+        )
+        assert resp.rfq_batch.id == "batch-1"
+        body = json.loads(route.calls[0].request.content)
+        assert body == {
+            "children": [{"market_ticker": "MKT-1"}, {"market_ticker": "MKT-2"}],
+            "contracts_fp": "10",
+            "rest_remainder": True,
+            "subaccount": 2,
+        }
+
+    @respx.mock
+    def test_accepts_request_model(self, comms: CommunicationsResource) -> None:
+        route = respx.post(_BATCH_URL).mock(
+            return_value=httpx.Response(201, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        req = CreateRFQBatchRequest(
+            children=_CHILDREN,
+            target_cost=Decimal("5.00"),
+            client_batch_id="cli-batch",
+        )
+        comms.rfq_batches.create(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["target_cost_dollars"] == "5.00"
+        assert body["client_batch_id"] == "cli-batch"
+
+    def test_create_rejects_request_with_kwargs(self, comms: CommunicationsResource) -> None:
+        req = CreateRFQBatchRequest(children=_CHILDREN)
+        with pytest.raises(TypeError):
+            comms.rfq_batches.create(request=req, children=_CHILDREN)
+
+    def test_create_requires_children(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(TypeError, match="children"):
+            comms.rfq_batches.create()
+
+    @respx.mock
+    def test_400_maps_to_validation_error(self, comms: CommunicationsResource) -> None:
+        respx.post(_BATCH_URL).mock(return_value=httpx.Response(400, json={"message": "bad"}))
+        with pytest.raises(KalshiValidationError):
+            comms.rfq_batches.create(children=_CHILDREN)
+
+
+class TestDeleteRFQBatch:
+    @respx.mock
+    def test_sends_delete(self, comms: CommunicationsResource) -> None:
+        route = respx.delete(f"{_BATCH_URL}/batch-1").mock(return_value=httpx.Response(204))
+        comms.rfq_batches.delete("batch-1")
+        assert route.called
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.delete(f"{_BATCH_URL}/gone").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.delete("gone")
+
+
+class TestAcceptRFQBatch:
+    @respx.mock
+    def test_sends_put_with_body(self, comms: CommunicationsResource) -> None:
+        route = respx.put(f"{_BATCH_URL}/batch-1/accept").mock(
+            return_value=httpx.Response(
+                200,
+                json={"accepted_side": "yes", "quotes": [_MINIMAL_QUOTE, _MINIMAL_QUOTE]},
+            )
+        )
+        resp = comms.rfq_batches.accept(
+            "batch-1",
+            accepted_side="yes",
+            min_bids=[
+                RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.56")),
+                RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.44")),
+            ],
+        )
+        assert resp.accepted_side == "yes"
+        assert len(resp.quotes) == 2
+        body = json.loads(route.calls[0].request.content)
+        assert body["accepted_side"] == "yes"
+        assert body["min_bids"][0]["bid_dollars"] == "0.56"
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.put(f"{_BATCH_URL}/gone/accept").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.accept(
+                "gone",
+                accepted_side="no",
+                min_bids=[
+                    RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.5")),
+                    RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.5")),
+                ],
+            )
+
+    def test_accept_requires_min_bids(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(TypeError, match="min_bids"):
+            comms.rfq_batches.accept("batch-1", accepted_side="yes")
+
+
+class TestBestQuotesRFQBatch:
+    @respx.mock
+    def test_returns_best_quotes(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/batch-1/best_quotes").mock(
+            return_value=httpx.Response(200, json={"best_quotes": _MINIMAL_BEST_QUOTES})
+        )
+        resp = comms.rfq_batches.best_quotes("batch-1")
+        assert isinstance(resp, GetRFQBatchBestQuotesResponse)
+        assert resp.best_quotes.version == 3
+        assert resp.best_quotes.rfqs[0].yes_bid == Decimal("0.5600")
+        assert resp.best_quotes.rfqs[1].yes_bid is None
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/gone/best_quotes").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.best_quotes("gone")
+
+
+class TestListRFQBatchQuotes:
+    @respx.mock
+    def test_returns_quotes(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(200, json={"batch_quotes": [_MINIMAL_BATCH_QUOTE]})
+        )
+        resp = comms.rfq_batches.quotes.list("batch-1")
+        assert isinstance(resp, GetRFQBatchQuotesResponse)
+        assert isinstance(comms.rfq_batches.quotes, RFQBatchQuotesResource)
+        assert len(resp.batch_quotes) == 1
+        assert resp.batch_quotes[0].id == "bq-1"
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/gone/quotes").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.quotes.list("gone")
+
+    @respx.mock
+    def test_empty_list(self, comms: CommunicationsResource) -> None:
+        respx.get(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(200, json={"batch_quotes": []})
+        )
+        resp = comms.rfq_batches.quotes.list("batch-1")
+        assert resp.batch_quotes == []
+
+
+class TestCreateRFQBatchQuote:
+    @respx.mock
+    def test_sends_correct_body(self, comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(201, json={"id": "bq-new"})
+        )
+        resp = comms.rfq_batches.quotes.create(
+            "batch-1",
+            quotes=[
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-1", yes_bid=Decimal("0.56"), no_bid=Decimal("0.44")
+                ),
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-2", yes_bid=Decimal("0.50"), no_bid=Decimal("0.50")
+                ),
+            ],
+            rest_remainder=True,
+            post_only=True,
+        )
+        assert resp.id == "bq-new"
+        body = json.loads(route.calls[0].request.content)
+        assert body["rest_remainder"] is True
+        assert body["post_only"] is True
+        assert body["quotes"][0]["yes_bid"] == "0.56"
+
+    @respx.mock
+    def test_400(self, comms: CommunicationsResource) -> None:
+        respx.post(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(400, json={"message": "bad"})
+        )
+        with pytest.raises(KalshiValidationError):
+            comms.rfq_batches.quotes.create(
+                "batch-1",
+                quotes=[
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-1", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-2", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                ],
+                rest_remainder=False,
+            )
+
+    def test_create_requires_quotes(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(TypeError, match="quotes"):
+            comms.rfq_batches.quotes.create("batch-1", rest_remainder=True)
+
+
+class TestDeleteRFQBatchQuote:
+    @respx.mock
+    def test_sends_delete(self, comms: CommunicationsResource) -> None:
+        route = respx.delete(f"{_BATCH_URL}/batch-1/quotes/bq-1").mock(
+            return_value=httpx.Response(204)
+        )
+        comms.rfq_batches.quotes.delete("batch-1", "bq-1")
+        assert route.called
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.delete(f"{_BATCH_URL}/batch-1/quotes/gone").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.quotes.delete("batch-1", "gone")
+
+
+class TestConfirmRFQBatchQuote:
+    @respx.mock
+    def test_sends_put_with_empty_body(self, comms: CommunicationsResource) -> None:
+        route = respx.put(f"{_BATCH_URL}/batch-1/quotes/bq-1/confirm").mock(
+            return_value=httpx.Response(204)
+        )
+        comms.rfq_batches.quotes.confirm("batch-1", "bq-1")
+        assert route.called
+        assert route.calls[0].request.content == b"{}"
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.put(f"{_BATCH_URL}/batch-1/quotes/gone/confirm").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.rfq_batches.quotes.confirm("batch-1", "gone")
+
+
+class TestAsyncRFQBatches:
+    async def test_list(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(_BATCH_URL).mock(
+            return_value=httpx.Response(200, json={"rfq_batches": [_MINIMAL_RFQ_BATCH]})
+        )
+        page = await async_comms.rfq_batches.list()
+        assert len(page.items) == 1
+        assert isinstance(page.items[0], RFQBatch)
+
+    async def test_list_all(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(_BATCH_URL).mock(
+            side_effect=[
+                httpx.Response(
+                    200, json={"rfq_batches": [_MINIMAL_RFQ_BATCH], "cursor": "page2"}
+                ),
+                httpx.Response(
+                    200, json={"rfq_batches": [{**_MINIMAL_RFQ_BATCH, "id": "batch-2"}]}
+                ),
+            ]
+        )
+        ids = [b.id async for b in async_comms.rfq_batches.list_all()]
+        assert ids == ["batch-1", "batch-2"]
+
+    async def test_get(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(f"{_BATCH_URL}/batch-1").mock(
+            return_value=httpx.Response(200, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        resp = await async_comms.rfq_batches.get("batch-1")
+        assert resp.rfq_batch.id == "batch-1"
+
+    async def test_create(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(_BATCH_URL).mock(
+            return_value=httpx.Response(201, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        resp = await async_comms.rfq_batches.create(children=_CHILDREN)
+        assert resp.rfq_batch.id == "batch-1"
+        assert route.called
+
+    async def test_delete(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(f"{_BATCH_URL}/batch-1").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.rfq_batches.delete("batch-1")
+        assert route.called
+
+    async def test_accept(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.put(f"{_BATCH_URL}/batch-1/accept").mock(
+            return_value=httpx.Response(
+                200, json={"accepted_side": "yes", "quotes": [_MINIMAL_QUOTE]}
+            )
+        )
+        resp = await async_comms.rfq_batches.accept(
+            "batch-1",
+            accepted_side="yes",
+            min_bids=[
+                RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.56")),
+                RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.44")),
+            ],
+        )
+        assert resp.accepted_side == "yes"
+
+    async def test_best_quotes(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(f"{_BATCH_URL}/batch-1/best_quotes").mock(
+            return_value=httpx.Response(200, json={"best_quotes": _MINIMAL_BEST_QUOTES})
+        )
+        resp = await async_comms.rfq_batches.best_quotes("batch-1")
+        assert resp.best_quotes.yes_complete is True
+
+    async def test_list_quotes(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(200, json={"batch_quotes": [_MINIMAL_BATCH_QUOTE]})
+        )
+        resp = await async_comms.rfq_batches.quotes.list("batch-1")
+        assert resp.batch_quotes[0].id == "bq-1"
+
+    async def test_create_quote(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(f"{_BATCH_URL}/batch-1/quotes").mock(
+            return_value=httpx.Response(201, json={"id": "bq-9"})
+        )
+        resp = await async_comms.rfq_batches.quotes.create(
+            "batch-1",
+            quotes=[
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-1", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                ),
+                RFQBatchQuoteEntry(
+                    rfq_id="rfq-2", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                ),
+            ],
+            rest_remainder=False,
+        )
+        assert resp.id == "bq-9"
+        assert route.called
+
+    async def test_delete_quote(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(f"{_BATCH_URL}/batch-1/quotes/bq-1").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.rfq_batches.quotes.delete("batch-1", "bq-1")
+        assert route.called
+
+    async def test_confirm_quote(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.put(f"{_BATCH_URL}/batch-1/quotes/bq-1/confirm").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.rfq_batches.quotes.confirm("batch-1", "bq-1")
+        assert route.calls[0].request.content == b"{}"
+
+    async def test_list_500(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.get(_BATCH_URL).mock(
+            return_value=httpx.Response(500, json={"message": "boom"})
+        )
+        with pytest.raises(KalshiServerError):
+            await async_comms.rfq_batches.list()
+
+
+class TestRFQBatchesAuthGuard:
+    def test_list_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.list()
+
+    def test_list_all_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            list(unauth_comms.rfq_batches.list_all())
+
+    def test_get_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.get("batch-1")
+
+    def test_create_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.create(children=_CHILDREN)
+
+    def test_delete_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.delete("batch-1")
+
+    def test_accept_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.accept(
+                "batch-1",
+                accepted_side="yes",
+                min_bids=[
+                    RFQBatchAcceptLimit(rfq_id="rfq-1", bid=Decimal("0.5")),
+                    RFQBatchAcceptLimit(rfq_id="rfq-2", bid=Decimal("0.5")),
+                ],
+            )
+
+    def test_best_quotes_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.best_quotes("batch-1")
+
+    def test_list_quotes_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.quotes.list("batch-1")
+
+    def test_create_quote_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.quotes.create(
+                "batch-1",
+                quotes=[
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-1", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                    RFQBatchQuoteEntry(
+                        rfq_id="rfq-2", yes_bid=Decimal("0.5"), no_bid=Decimal("0.5")
+                    ),
+                ],
+                rest_remainder=True,
+            )
+
+    def test_delete_quote_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.quotes.delete("batch-1", "bq-1")
+
+    def test_confirm_quote_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.rfq_batches.quotes.confirm("batch-1", "bq-1")

@@ -12,6 +12,7 @@ methods remain as ``@deprecated`` forwarders for one release; they emit
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime
 from decimal import Decimal
@@ -25,18 +26,32 @@ from kalshi.models.communications import (
     RFQ,
     AcceptBlockTradeProposalRequest,
     AcceptQuoteRequest,
+    AcceptRFQBatchRequest,
+    AcceptRFQBatchResponse,
     BlockTradeProposal,
     CreateQuoteRequest,
     CreateQuoteResponse,
+    CreateRFQBatchChild,
+    CreateRFQBatchQuoteRequest,
+    CreateRFQBatchQuoteResponse,
+    CreateRFQBatchRequest,
+    CreateRFQBatchResponse,
     CreateRFQRequest,
     CreateRFQResponse,
     GetCommunicationsIDResponse,
     GetQuoteResponse,
+    GetRFQBatchBestQuotesResponse,
+    GetRFQBatchQuotesResponse,
+    GetRFQBatchResponse,
     GetRFQResponse,
     ProposeBlockTradeRequest,
     ProposeBlockTradeResponse,
     Quote,
     QuoteStatusLiteral,
+    RFQBatch,
+    RFQBatchAcceptLimit,
+    RFQBatchQuoteEntry,
+    RfqBatchStatusLiteral,
     RfqStatusLiteral,
     UserFilterLiteral,
 )
@@ -318,6 +333,127 @@ def _build_accept_block_trade_proposal_body(
         )
     # Empty body is valid (spec requestBody required: false). model_dump yields
     # {} when nothing is set, which still forces Content-Type: application/json.
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _list_rfq_batches_params(
+    *,
+    cursor: str | None,
+    limit: int | None,
+    subaccount: int | None,
+    status: RfqBatchStatusLiteral | None,
+    user_filter: UserFilterLiteral | None,
+) -> dict[str, Any]:
+    limit = _validate_limit(limit, hi=20)
+    return _params(
+        cursor=cursor,
+        limit=limit,
+        subaccount=subaccount,
+        status=status,
+        user_filter=user_filter,
+    )
+
+
+def _build_create_rfq_batch_body(
+    request: CreateRFQBatchRequest | None,
+    *,
+    children: builtins.list[CreateRFQBatchChild] | None,
+    mve_collection_ticker: str | None,
+    contracts: Decimal | str | float | int | None,
+    target_cost: Decimal | str | float | int | None,
+    target_cost_excludes_fees: bool | None,
+    rest_remainder: bool | None,
+    replace_existing: bool | None,
+    obscure_creator_id: bool | None,
+    client_batch_id: str | None,
+    subtrader_id: str | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        children=children,
+        mve_collection_ticker=mve_collection_ticker,
+        contracts=contracts,
+        target_cost=target_cost,
+        target_cost_excludes_fees=target_cost_excludes_fees,
+        rest_remainder=rest_remainder,
+        replace_existing=replace_existing,
+        obscure_creator_id=obscure_creator_id,
+        client_batch_id=client_batch_id,
+        subtrader_id=subtrader_id,
+        subaccount=subaccount,
+    )
+    if request is None:
+        if children is None:
+            raise TypeError("create() requires `children` (or pass `request=...`)")
+        request = CreateRFQBatchRequest(
+            children=children,
+            mve_collection_ticker=mve_collection_ticker,
+            contracts=contracts,  # type: ignore[arg-type]
+            target_cost=target_cost,  # type: ignore[arg-type]
+            target_cost_excludes_fees=target_cost_excludes_fees,
+            rest_remainder=rest_remainder,
+            replace_existing=replace_existing,
+            obscure_creator_id=obscure_creator_id,
+            client_batch_id=client_batch_id,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_create_rfq_batch_quote_body(
+    request: CreateRFQBatchQuoteRequest | None,
+    *,
+    quotes: builtins.list[RFQBatchQuoteEntry] | None,
+    rest_remainder: bool | None,
+    post_only: bool | None,
+    subaccount: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        quotes=quotes,
+        rest_remainder=rest_remainder,
+        post_only=post_only,
+        subaccount=subaccount,
+    )
+    if request is None:
+        if quotes is None or rest_remainder is None:
+            raise TypeError(
+                "create() requires `quotes` and `rest_remainder` (or pass `request=...`)"
+            )
+        request = CreateRFQBatchQuoteRequest(
+            quotes=quotes,
+            rest_remainder=rest_remainder,
+            post_only=post_only,
+            subaccount=subaccount,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_accept_rfq_batch_body(
+    request: AcceptRFQBatchRequest | None,
+    *,
+    accepted_side: Literal["yes", "no"] | None,
+    min_bids: builtins.list[RFQBatchAcceptLimit] | None,
+    client_order_id: str | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        accepted_side=accepted_side,
+        min_bids=min_bids,
+        client_order_id=client_order_id,
+    )
+    if request is None:
+        if accepted_side is None or min_bids is None:
+            raise TypeError(
+                "accept() requires `accepted_side` and `min_bids` (or pass `request=...`)"
+            )
+        request = AcceptRFQBatchRequest(
+            accepted_side=accepted_side,
+            min_bids=min_bids,
+            client_order_id=client_order_id,
+        )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
@@ -910,6 +1046,295 @@ class BlockTradeProposalsResource(SyncResource):
         )
 
 
+class RFQBatchQuotesResource(SyncResource):
+    """Sync batch-quote sub-resource — ``client.communications.rfq_batches.quotes``.
+
+    Backs ``/communications/rfq_batches/{rfq_batch_id}/quotes``.
+    """
+
+    def list(
+        self,
+        rfq_batch_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetRFQBatchQuotesResponse:
+        self._require_auth()
+        data = self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/quotes",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchQuotesResponse.model_validate(data)
+
+    @overload
+    def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: CreateRFQBatchQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse: ...
+    @overload
+    def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        quotes: builtins.list[RFQBatchQuoteEntry],
+        rest_remainder: bool,
+        post_only: bool | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse: ...
+    def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: CreateRFQBatchQuoteRequest | None = None,
+        quotes: builtins.list[RFQBatchQuoteEntry] | None = None,
+        rest_remainder: bool | None = None,
+        post_only: bool | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse:
+        self._require_auth()
+        body = _build_create_rfq_batch_quote_body(
+            request,
+            quotes=quotes,
+            rest_remainder=rest_remainder,
+            post_only=post_only,
+            subaccount=subaccount,
+        )
+        data = self._post(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/quotes",
+            json=body,
+            extra_headers=extra_headers,
+        )
+        return CreateRFQBatchQuoteResponse.model_validate(data)
+
+    def delete(
+        self,
+        rfq_batch_id: str,
+        batch_quote_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        self._delete(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}"
+            f"/quotes/{_seg(batch_quote_id, name='batch_quote_id')}",
+            extra_headers=extra_headers,
+        )
+
+    def confirm(
+        self,
+        rfq_batch_id: str,
+        batch_quote_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        # json={} forces Content-Type: application/json — demo rejects empty PUTs.
+        self._put(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}"
+            f"/quotes/{_seg(batch_quote_id, name='batch_quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )
+
+
+class RFQBatchesResource(SyncResource):
+    """Sync RFQ-batch sub-resource — ``client.communications.rfq_batches``.
+
+    Reached via :attr:`CommunicationsResource.rfq_batches`. Backs
+    ``/communications/rfq_batches`` endpoints. Batch quotes live on
+    :attr:`quotes`.
+    """
+
+    quotes: RFQBatchQuotesResource
+
+    def __init__(self, transport: SyncTransport) -> None:
+        super().__init__(transport)
+        self.quotes = RFQBatchQuotesResource(transport)
+
+    def list(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        status: RfqBatchStatusLiteral | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[RFQBatch]:
+        self._require_auth()
+        params = _list_rfq_batches_params(
+            cursor=cursor,
+            limit=limit,
+            subaccount=subaccount,
+            status=status,
+            user_filter=user_filter,
+        )
+        return self._list(
+            "/communications/rfq_batches",
+            RFQBatch,
+            "rfq_batches",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def list_all(
+        self,
+        *,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        status: RfqBatchStatusLiteral | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[RFQBatch]:
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _list_rfq_batches_params(
+            cursor=None,
+            limit=limit,
+            subaccount=subaccount,
+            status=status,
+            user_filter=user_filter,
+        )
+        return self._list_all(
+            "/communications/rfq_batches",
+            RFQBatch,
+            "rfq_batches",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    def get(
+        self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQBatchResponse:
+        self._require_auth()
+        data = self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchResponse.model_validate(data)
+
+    @overload
+    def create(
+        self, *, request: CreateRFQBatchRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateRFQBatchResponse: ...
+    @overload
+    def create(
+        self,
+        *,
+        children: builtins.list[CreateRFQBatchChild],
+        mve_collection_ticker: str | None = ...,
+        contracts: Decimal | str | float | int | None = ...,
+        target_cost: Decimal | str | float | int | None = ...,
+        target_cost_excludes_fees: bool | None = ...,
+        rest_remainder: bool | None = ...,
+        replace_existing: bool | None = ...,
+        obscure_creator_id: bool | None = ...,
+        client_batch_id: str | None = ...,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchResponse: ...
+    def create(
+        self,
+        *,
+        request: CreateRFQBatchRequest | None = None,
+        children: builtins.list[CreateRFQBatchChild] | None = None,
+        mve_collection_ticker: str | None = None,
+        contracts: Decimal | str | float | int | None = None,
+        target_cost: Decimal | str | float | int | None = None,
+        target_cost_excludes_fees: bool | None = None,
+        rest_remainder: bool | None = None,
+        replace_existing: bool | None = None,
+        obscure_creator_id: bool | None = None,
+        client_batch_id: str | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchResponse:
+        self._require_auth()
+        body = _build_create_rfq_batch_body(
+            request,
+            children=children,
+            mve_collection_ticker=mve_collection_ticker,
+            contracts=contracts,
+            target_cost=target_cost,
+            target_cost_excludes_fees=target_cost_excludes_fees,
+            rest_remainder=rest_remainder,
+            replace_existing=replace_existing,
+            obscure_creator_id=obscure_creator_id,
+            client_batch_id=client_batch_id,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+        )
+        data = self._post("/communications/rfq_batches", json=body, extra_headers=extra_headers)
+        return CreateRFQBatchResponse.model_validate(data)
+
+    def delete(self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None) -> None:
+        self._require_auth()
+        self._delete(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}",
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: AcceptRFQBatchRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse: ...
+    @overload
+    def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        min_bids: builtins.list[RFQBatchAcceptLimit],
+        client_order_id: str | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse: ...
+    def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: AcceptRFQBatchRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        min_bids: builtins.list[RFQBatchAcceptLimit] | None = None,
+        client_order_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse:
+        self._require_auth()
+        body = _build_accept_rfq_batch_body(
+            request,
+            accepted_side=accepted_side,
+            min_bids=min_bids,
+            client_order_id=client_order_id,
+        )
+        data = self._put(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+        return AcceptRFQBatchResponse.model_validate(data)
+
+    def best_quotes(
+        self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQBatchBestQuotesResponse:
+        self._require_auth()
+        data = self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/best_quotes",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchBestQuotesResponse.model_validate(data)
+
+
 class CommunicationsResource(SyncResource):
     """Sync communications / RFQ API.
 
@@ -917,6 +1342,7 @@ class CommunicationsResource(SyncResource):
 
     - :attr:`rfqs` — :class:`RFQsResource` — ``/communications/rfqs`` surface.
     - :attr:`quotes` — :class:`QuotesResource` — ``/communications/quotes`` surface.
+    - :attr:`rfq_batches` — :class:`RFQBatchesResource` — ``/communications/rfq_batches``.
 
     The misc :meth:`get_id` endpoint stays at the top level because it has no
     sub-noun. The flat ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` /
@@ -929,12 +1355,14 @@ class CommunicationsResource(SyncResource):
     rfqs: RFQsResource
     quotes: QuotesResource
     block_trade_proposals: BlockTradeProposalsResource
+    rfq_batches: RFQBatchesResource
 
     def __init__(self, transport: SyncTransport) -> None:
         super().__init__(transport)
         self.rfqs = RFQsResource(transport)
         self.quotes = QuotesResource(transport)
         self.block_trade_proposals = BlockTradeProposalsResource(transport)
+        self.rfq_batches = RFQBatchesResource(transport)
 
     def get_id(self, *, extra_headers: dict[str, str] | None = None) -> GetCommunicationsIDResponse:
         self._require_auth()
@@ -1728,6 +2156,292 @@ class AsyncBlockTradeProposalsResource(AsyncResource):
         )
 
 
+class AsyncRFQBatchQuotesResource(AsyncResource):
+    """Async batch-quote sub-resource — ``client.communications.rfq_batches.quotes``."""
+
+    async def list(
+        self,
+        rfq_batch_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetRFQBatchQuotesResponse:
+        self._require_auth()
+        data = await self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/quotes",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchQuotesResponse.model_validate(data)
+
+    @overload
+    async def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: CreateRFQBatchQuoteRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse: ...
+    @overload
+    async def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        quotes: builtins.list[RFQBatchQuoteEntry],
+        rest_remainder: bool,
+        post_only: bool | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse: ...
+    async def create(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: CreateRFQBatchQuoteRequest | None = None,
+        quotes: builtins.list[RFQBatchQuoteEntry] | None = None,
+        rest_remainder: bool | None = None,
+        post_only: bool | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchQuoteResponse:
+        self._require_auth()
+        body = _build_create_rfq_batch_quote_body(
+            request,
+            quotes=quotes,
+            rest_remainder=rest_remainder,
+            post_only=post_only,
+            subaccount=subaccount,
+        )
+        data = await self._post(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/quotes",
+            json=body,
+            extra_headers=extra_headers,
+        )
+        return CreateRFQBatchQuoteResponse.model_validate(data)
+
+    async def delete(
+        self,
+        rfq_batch_id: str,
+        batch_quote_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        await self._delete(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}"
+            f"/quotes/{_seg(batch_quote_id, name='batch_quote_id')}",
+            extra_headers=extra_headers,
+        )
+
+    async def confirm(
+        self,
+        rfq_batch_id: str,
+        batch_quote_id: str,
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        self._require_auth()
+        # json={} forces Content-Type: application/json — demo rejects empty PUTs.
+        await self._put(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}"
+            f"/quotes/{_seg(batch_quote_id, name='batch_quote_id')}/confirm",
+            json={},
+            extra_headers=extra_headers,
+        )
+
+
+class AsyncRFQBatchesResource(AsyncResource):
+    """Async RFQ-batch sub-resource — ``client.communications.rfq_batches``."""
+
+    quotes: AsyncRFQBatchQuotesResource
+
+    def __init__(self, transport: AsyncTransport) -> None:
+        super().__init__(transport)
+        self.quotes = AsyncRFQBatchQuotesResource(transport)
+
+    async def list(
+        self,
+        *,
+        cursor: str | None = None,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        status: RfqBatchStatusLiteral | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[RFQBatch]:
+        self._require_auth()
+        params = _list_rfq_batches_params(
+            cursor=cursor,
+            limit=limit,
+            subaccount=subaccount,
+            status=status,
+            user_filter=user_filter,
+        )
+        return await self._list(
+            "/communications/rfq_batches",
+            RFQBatch,
+            "rfq_batches",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def list_all(
+        self,
+        *,
+        limit: int | None = None,
+        subaccount: int | None = None,
+        status: RfqBatchStatusLiteral | None = None,
+        user_filter: UserFilterLiteral | None = None,
+        max_pages: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[RFQBatch]:
+        """Returns an async iterator — use ``async for``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        params = _list_rfq_batches_params(
+            cursor=None,
+            limit=limit,
+            subaccount=subaccount,
+            status=status,
+            user_filter=user_filter,
+        )
+        return self._list_all(
+            "/communications/rfq_batches",
+            RFQBatch,
+            "rfq_batches",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
+    async def get(
+        self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQBatchResponse:
+        self._require_auth()
+        data = await self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchResponse.model_validate(data)
+
+    @overload
+    async def create(
+        self, *, request: CreateRFQBatchRequest, extra_headers: dict[str, str] | None = None
+    ) -> CreateRFQBatchResponse: ...
+    @overload
+    async def create(
+        self,
+        *,
+        children: builtins.list[CreateRFQBatchChild],
+        mve_collection_ticker: str | None = ...,
+        contracts: Decimal | str | float | int | None = ...,
+        target_cost: Decimal | str | float | int | None = ...,
+        target_cost_excludes_fees: bool | None = ...,
+        rest_remainder: bool | None = ...,
+        replace_existing: bool | None = ...,
+        obscure_creator_id: bool | None = ...,
+        client_batch_id: str | None = ...,
+        subtrader_id: str | None = ...,
+        subaccount: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchResponse: ...
+    async def create(
+        self,
+        *,
+        request: CreateRFQBatchRequest | None = None,
+        children: builtins.list[CreateRFQBatchChild] | None = None,
+        mve_collection_ticker: str | None = None,
+        contracts: Decimal | str | float | int | None = None,
+        target_cost: Decimal | str | float | int | None = None,
+        target_cost_excludes_fees: bool | None = None,
+        rest_remainder: bool | None = None,
+        replace_existing: bool | None = None,
+        obscure_creator_id: bool | None = None,
+        client_batch_id: str | None = None,
+        subtrader_id: str | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateRFQBatchResponse:
+        self._require_auth()
+        body = _build_create_rfq_batch_body(
+            request,
+            children=children,
+            mve_collection_ticker=mve_collection_ticker,
+            contracts=contracts,
+            target_cost=target_cost,
+            target_cost_excludes_fees=target_cost_excludes_fees,
+            rest_remainder=rest_remainder,
+            replace_existing=replace_existing,
+            obscure_creator_id=obscure_creator_id,
+            client_batch_id=client_batch_id,
+            subtrader_id=subtrader_id,
+            subaccount=subaccount,
+        )
+        data = await self._post(
+            "/communications/rfq_batches", json=body, extra_headers=extra_headers
+        )
+        return CreateRFQBatchResponse.model_validate(data)
+
+    async def delete(
+        self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        self._require_auth()
+        await self._delete(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}",
+            extra_headers=extra_headers,
+        )
+
+    @overload
+    async def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: AcceptRFQBatchRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse: ...
+    @overload
+    async def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        accepted_side: Literal["yes", "no"],
+        min_bids: builtins.list[RFQBatchAcceptLimit],
+        client_order_id: str | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse: ...
+    async def accept(
+        self,
+        rfq_batch_id: str,
+        *,
+        request: AcceptRFQBatchRequest | None = None,
+        accepted_side: Literal["yes", "no"] | None = None,
+        min_bids: builtins.list[RFQBatchAcceptLimit] | None = None,
+        client_order_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AcceptRFQBatchResponse:
+        self._require_auth()
+        body = _build_accept_rfq_batch_body(
+            request,
+            accepted_side=accepted_side,
+            min_bids=min_bids,
+            client_order_id=client_order_id,
+        )
+        data = await self._put(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/accept",
+            json=body,
+            extra_headers=extra_headers,
+        )
+        return AcceptRFQBatchResponse.model_validate(data)
+
+    async def best_quotes(
+        self, rfq_batch_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> GetRFQBatchBestQuotesResponse:
+        self._require_auth()
+        data = await self._get(
+            f"/communications/rfq_batches/{_seg(rfq_batch_id, name='rfq_batch_id')}/best_quotes",
+            extra_headers=extra_headers,
+        )
+        return GetRFQBatchBestQuotesResponse.model_validate(data)
+
+
 class AsyncCommunicationsResource(AsyncResource):
     """Async communications / RFQ API.
 
@@ -1735,6 +2449,7 @@ class AsyncCommunicationsResource(AsyncResource):
 
     - :attr:`rfqs` — :class:`AsyncRFQsResource` — ``/communications/rfqs``.
     - :attr:`quotes` — :class:`AsyncQuotesResource` — ``/communications/quotes``.
+    - :attr:`rfq_batches` — :class:`AsyncRFQBatchesResource` — ``/communications/rfq_batches``.
 
     The flat ``list_rfqs`` / ``get_rfq`` / ``create_rfq`` / ``delete_rfq`` /
     ``list_all_rfqs`` / ``list_quotes`` / ``get_quote`` / ``create_quote`` /
@@ -1746,12 +2461,14 @@ class AsyncCommunicationsResource(AsyncResource):
     rfqs: AsyncRFQsResource
     quotes: AsyncQuotesResource
     block_trade_proposals: AsyncBlockTradeProposalsResource
+    rfq_batches: AsyncRFQBatchesResource
 
     def __init__(self, transport: AsyncTransport) -> None:
         super().__init__(transport)
         self.rfqs = AsyncRFQsResource(transport)
         self.quotes = AsyncQuotesResource(transport)
         self.block_trade_proposals = AsyncBlockTradeProposalsResource(transport)
+        self.rfq_batches = AsyncRFQBatchesResource(transport)
 
     async def get_id(
         self, *, extra_headers: dict[str, str] | None = None

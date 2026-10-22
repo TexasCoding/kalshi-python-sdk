@@ -153,6 +153,8 @@ class QuoteExecutedPayload(BaseModel):
     executed_ts: AwareDatetime
     # AsyncAPI content (2026-07-27): own subaccount when the quote used one.
     subaccount: int | None = None
+    # Child of an RFQ batch: set when this execution belongs to a batch.
+    rfq_batch_id: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

@@ -1436,6 +1436,15 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/AcceptBlockTradeProposalRequest": (
         "kalshi.models.communications.AcceptBlockTradeProposalRequest"
     ),
+    "#/components/schemas/CreateRFQBatchRequest": (
+        "kalshi.models.communications.CreateRFQBatchRequest"
+    ),
+    "#/components/schemas/CreateRFQBatchQuoteRequest": (
+        "kalshi.models.communications.CreateRFQBatchQuoteRequest"
+    ),
+    "#/components/schemas/AcceptRFQBatchRequest": (
+        "kalshi.models.communications.AcceptRFQBatchRequest"
+    ),
     "#/components/schemas/ApplySubaccountTransferRequest": (
         "kalshi.models.subaccounts.ApplySubaccountTransferRequest"
     ),

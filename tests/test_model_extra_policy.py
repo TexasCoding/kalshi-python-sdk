@@ -19,6 +19,14 @@ from tests._request_model_fixtures import minimal_kwargs
 # request-body sub-model whose name doesn't end in plain `Request`.
 # `Input` covers nested write models such as `TargetBalanceAllocationInput`.
 _REQUEST_BODY_SUFFIXES = ("Request", "RequestOrder", "Input")
+# Nested request-body items whose names don't match the suffixes above.
+_NESTED_REQUEST_MODELS = frozenset(
+    {
+        "CreateRFQBatchChild",
+        "RFQBatchQuoteEntry",
+        "RFQBatchAcceptLimit",
+    }
+)
 
 
 def _exported_model_classes() -> list[tuple[str, type[BaseModel]]]:
@@ -39,7 +47,9 @@ def _exported_model_classes() -> list[tuple[str, type[BaseModel]]]:
 
 
 def _is_request_body(name: str) -> bool:
-    return any(name.endswith(suffix) for suffix in _REQUEST_BODY_SUFFIXES)
+    return name in _NESTED_REQUEST_MODELS or any(
+        name.endswith(suffix) for suffix in _REQUEST_BODY_SUFFIXES
+    )
 
 
 _ALL_MODELS = _exported_model_classes()
