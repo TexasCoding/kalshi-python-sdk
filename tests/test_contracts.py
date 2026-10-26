@@ -1070,6 +1070,18 @@ class TestWsSpecDrift:
                 f"but it doesn't exist in the AsyncAPI spec"
             )
 
+    def test_batch_communications_channel_removed(self) -> None:
+        """#556: AsyncAPI dropped ``batch_communications`` (16 → 15).
+
+        RFQ-batch notifications now ride ``communications``. The SDK never
+        shipped a typed subscribe helper for the removed channel, so the
+        public ``subscribe_communications`` surface stays.
+        """
+        channels = self.spec.get("channels", {})
+        assert "batch_communications" not in channels
+        assert "communications" in channels
+        assert len(channels) == 15
+
     def test_ws_envelope_type_drift(self) -> None:
         """Warn if spec type const values differ from SDK message envelope type defaults."""
         schemas = self.spec.get("components", {}).get("schemas", {})

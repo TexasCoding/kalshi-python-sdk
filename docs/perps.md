@@ -189,7 +189,11 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   (`"dampen"` / `"exclude"`): how funding averages a second with no
   premium (no orderbook sample, no index price, or a trading halt).
   `dampen` counts that second as a premium of 0; `exclude` leaves it
-  out of the average.
+  out of the average. `MarginMarket.halt_sources` is optional
+  (`list[str] | None`; spec-required, `None` if absent): why the market is halted (`"initial_setup"`,
+  `"corporate_action"`, …). Empty means the market is not halted or
+  the reason has not been observed — do not read empty as proof the
+  market is live.
 - **Mark prices** (since the v3.21.0 spec sync) — `MarginMarket` carries three
   optional reference-price objects: `settlement_mark_price`,
   `liquidation_mark_price`, and `reference_price`, each a nested `TickerPrice`

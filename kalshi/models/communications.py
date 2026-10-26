@@ -385,10 +385,24 @@ class GetRFQBatchesResponse(BaseModel):
 class CreateRFQBatchChild(BaseModel):
     """One combo to request quotes on. Set exactly one of ``market_ticker``
     and ``selected_markets``; the spec does not encode the exclusivity.
+
+    Optional ``contracts`` / ``target_cost`` size this child in place of
+    the batch-level size. Provide at most one; the spec does not encode
+    the exclusivity, so the SDK does not enforce it.
     """
 
     market_ticker: str | None = None
     selected_markets: list[TickerPair] | None = None
+    contracts: FixedPointCount | None = Field(
+        default=None,
+        serialization_alias="contracts_fp",
+        validation_alias=AliasChoices("contracts_fp", "contracts"),
+    )
+    target_cost: DollarDecimal | None = Field(
+        default=None,
+        serialization_alias="target_cost_dollars",
+        validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
+    )
 
     model_config = {"extra": "forbid"}
 
@@ -396,11 +410,12 @@ class CreateRFQBatchChild(BaseModel):
 class CreateRFQBatchRequest(BaseModel):
     """Body for POST /communications/rfq_batches.
 
-    Spec sizes every child the same way via ``contracts_fp`` or
-    ``target_cost_dollars``. SDK Python names drop those suffixes and
-    serialize with ``serialization_alias``. Provide exactly one of
-    ``contracts`` and ``target_cost``; the spec does not encode the
-    exclusivity, so the SDK does not enforce it.
+    Spec sizes children via ``contracts_fp`` or ``target_cost_dollars``
+    on the batch (applied to every child that sets no size of its own)
+    or on each child. SDK Python names drop those suffixes and serialize
+    with ``serialization_alias``. Provide at most one of ``contracts``
+    and ``target_cost``; the spec does not encode the exclusivity, so
+    the SDK does not enforce it.
     """
 
     children: list[CreateRFQBatchChild]

@@ -1907,6 +1907,39 @@ class TestRFQBatchModels:
         with pytest.raises(ValidationError):
             CreateRFQBatchChild(market_ticker="MKT-1", phantom=1)  # type: ignore[call-arg]
 
+    def test_create_rfq_batch_child_serializes_fp_and_dollars(self) -> None:
+        child = CreateRFQBatchChild(
+            market_ticker="MKT-1",
+            contracts=Decimal("10.00"),
+            target_cost=Decimal("5.00"),
+        )
+        body = child.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body["contracts_fp"] == "10.00"
+        assert body["target_cost_dollars"] == "5.00"
+        assert "contracts" not in body
+        assert "target_cost" not in body
+
+    def test_create_rfq_batch_child_accepts_wire_aliases(self) -> None:
+        child = CreateRFQBatchChild.model_validate(
+            {
+                "market_ticker": "MKT-1",
+                "contracts_fp": "10.00",
+                "target_cost_dollars": "5.00",
+            }
+        )
+        assert child.contracts == Decimal("10.00")
+        assert child.target_cost == Decimal("5.00")
+
+    def test_create_rfq_batch_child_accepts_python_names(self) -> None:
+        child = CreateRFQBatchChild(market_ticker="MKT-1", contracts=Decimal("10.00"))
+        assert child.contracts == Decimal("10.00")
+        assert child.target_cost is None
+
+    def test_create_rfq_batch_child_omits_optional_size(self) -> None:
+        child = CreateRFQBatchChild(market_ticker="MKT-1")
+        body = child.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert body == {"market_ticker": "MKT-1"}
+
     def test_create_rfq_batch_quote_request_serializes_bids_without_suffix(self) -> None:
         req = CreateRFQBatchQuoteRequest(
             quotes=[
@@ -2066,6 +2099,24 @@ class TestCreateRFQBatch:
             "contracts_fp": "10",
             "rest_remainder": True,
             "subaccount": 2,
+        }
+
+    @respx.mock
+    def test_sends_per_child_size(self, comms: CommunicationsResource) -> None:
+        route = respx.post(_BATCH_URL).mock(
+            return_value=httpx.Response(201, json={"rfq_batch": _MINIMAL_RFQ_BATCH})
+        )
+        comms.rfq_batches.create(
+            children=[
+                CreateRFQBatchChild(market_ticker="MKT-1", contracts=Decimal("10.00")),
+                CreateRFQBatchChild(market_ticker="MKT-2", target_cost=Decimal("5.00")),
+            ],
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert body["children"][0] == {"market_ticker": "MKT-1", "contracts_fp": "10.00"}
+        assert body["children"][1] == {
+            "market_ticker": "MKT-2",
+            "target_cost_dollars": "5.00",
         }
 
     @respx.mock

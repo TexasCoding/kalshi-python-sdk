@@ -2028,6 +2028,15 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
 # ``paginator_handled`` / ``client_only`` / ``wire_normalization`` entries here
 # with a required ``reason``.
 PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
+    # ── perps markets (#557) ──
+    ("kalshi.perps.models.markets.MarginMarket", "halt_sources"): Exclusion(
+        reason=(
+            "spec 3.34.0 adds halt_sources as required; the SDK keeps it optional "
+            "(None when absent) so payloads/fixtures predating the field still "
+            "validate and the change ships as a minor release (22.4.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # ── perps orders (#391) ──
     ("kalshi.perps.resources.orders.MarginOrdersResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",

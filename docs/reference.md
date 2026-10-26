@@ -62,6 +62,8 @@ every exception class.
 
 ::: kalshi.models.communications.CreateRFQBatchRequest
 
+::: kalshi.models.communications.CreateRFQBatchChild
+
 ::: kalshi.models.communications.CreateRFQBatchQuoteRequest
 
 ::: kalshi.models.communications.AcceptRFQBatchRequest
