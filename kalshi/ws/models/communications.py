@@ -163,6 +163,10 @@ class CommunicationsMessage(BaseModel):
 
     Users who want typed parsing can use the individual payload models
     (RfqCreatedPayload, QuoteCreatedPayload, etc.) to validate msg contents.
+
+    RFQ-batch notifications now arrive on this channel. The standalone
+    ``batch_communications`` channel was removed from the AsyncAPI spec
+    (SDK v22.4.0).
     """
 
     type: Literal["communications"] = "communications"

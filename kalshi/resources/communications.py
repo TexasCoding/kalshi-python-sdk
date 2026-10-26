@@ -1257,6 +1257,12 @@ class RFQBatchesResource(SyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQBatchResponse:
+        """Create an RFQ batch.
+
+        Size the batch via ``contracts`` / ``target_cost``, or set
+        ``contracts`` / ``target_cost`` on each :class:`CreateRFQBatchChild`
+        in place of the batch-level size.
+        """
         self._require_auth()
         body = _build_create_rfq_batch_body(
             request,
@@ -2360,6 +2366,12 @@ class AsyncRFQBatchesResource(AsyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> CreateRFQBatchResponse:
+        """Create an RFQ batch.
+
+        Size the batch via ``contracts`` / ``target_cost``, or set
+        ``contracts`` / ``target_cost`` on each :class:`CreateRFQBatchChild`
+        in place of the batch-level size.
+        """
         self._require_auth()
         body = _build_create_rfq_batch_body(
             request,

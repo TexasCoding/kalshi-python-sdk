@@ -51,6 +51,7 @@ def _market_dict(**overrides: object) -> dict[str, object]:
         "funding_cap": 1.0,
         "funding_limit_unit": "percentage",
         "funding_invalid_premium_handling": "dampen",
+        "halt_sources": [],
         "leverage_estimate": 2.5,
         "leverage_estimates": {"1000": 2.5, "10000": 2.0, "100000": 1.5},
         "long_leverage_estimates": {"1000": 2.4, "10000": 1.9},
@@ -144,6 +145,7 @@ class TestList:
         assert m.funding_cap == Decimal("1.0")
         assert m.funding_limit_unit == "percentage"
         assert m.funding_invalid_premium_handling == "dampen"
+        assert m.halt_sources == []
         assert isinstance(m.funding_deadband, Decimal)
         assert isinstance(m.funding_cap, Decimal)
 
@@ -205,6 +207,19 @@ class TestList:
         with pytest.raises(ValidationError):
             MarginMarket.model_validate(_market_dict(funding_limit_unit="bps"))
 
+    def test_halt_sources_optional(self) -> None:
+        payload = _market_dict()
+        del payload["halt_sources"]
+        assert MarginMarket.model_validate(payload).halt_sources is None
+
+    def test_halt_sources_parses(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(halt_sources=["corporate_action"]))
+        assert m.halt_sources == ["corporate_action"]
+
+    def test_halt_sources_empty_is_valid(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(halt_sources=[]))
+        assert m.halt_sources == []
+
     @respx.mock
     def test_status_filter(self, perps_client: PerpsClient) -> None:
         route = respx.get(f"{BASE}/margin/markets").mock(
@@ -236,6 +251,7 @@ class TestList:
                             "funding_cap": 1.0,
                             "funding_limit_unit": "percentage",
                             "funding_invalid_premium_handling": "dampen",
+                            "halt_sources": ["initial_setup"],
                             "leverage_estimate": None,
                         }
                     ]

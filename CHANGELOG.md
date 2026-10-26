@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.4.0 — 2026-10-26
+
+Reconciles nightly spec drift (#556, #557). Additive on the RFQ-batch
+child request and on perps `MarginMarket`. No breaking changes.
+
+### Added
+
+- Optional **`CreateRFQBatchChild.contracts`** /
+  **`CreateRFQBatchChild.target_cost`** — per-child size in place of
+  the batch-level size. Python names drop the `_fp` / `_dollars`
+  suffixes; serialize as `contracts_fp` / `target_cost_dollars` and
+  accept both wire and Python names. Batch-level `contracts` /
+  `target_cost` still apply to every child that sets no size of its
+  own. (Closes #557).
+
+- Optional **`MarginMarket.halt_sources`** (`list[str] | None`). The
+  spec marks it required; the SDK keeps it optional so this stays a
+  minor release. Why the
+  market is halted (`"initial_setup"`, `"corporate_action"`, …). Empty
+  means the market is not halted or the reason has not been observed —
+  do not read empty as proof the market is live. (Closes #557).
+
+### Changed
+
+- Re-vendored `specs/` (OpenAPI 3.34.0 still). Core AsyncAPI dropped
+  the `batch_communications` channel (16 → 15); RFQ-batch notifications
+  now ride `communications`. The SDK never shipped a typed
+  `subscribe_batch_communications` helper — `subscribe_communications()`
+  documents the move. Perps AsyncAPI and Klear SCM are unchanged.
+  (Closes #556).
+
 ## 22.3.0 — 2026-10-22
 
 Reconciles nightly spec drift (#553). Maps the ten core RFQ batch

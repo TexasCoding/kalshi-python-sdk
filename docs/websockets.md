@@ -50,6 +50,10 @@ SDK's perspective on it.
 The `type` column matters when filtering raw logs — note the singular forms
 for `user_order` and `market_position`. The standalone `multivariate` /
 `multivariate_lookup` channel was removed from AsyncAPI (SDK v10.0.0).
+The standalone `batch_communications` channel was removed from AsyncAPI
+(SDK v22.4.0, 16 → 15 spec channels); RFQ-batch notifications now ride
+`communications`. The SDK never shipped a typed
+`subscribe_batch_communications` helper.
 
 !!! warning "Migration (v3.1.0): `event_fee_update` rides `market_lifecycle_v2`"
     Since the v3.20.0 spec sync (SDK v3.1.0) the `market_lifecycle_v2` channel

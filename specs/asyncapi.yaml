@@ -298,8 +298,12 @@ channels:
         - `shard_factor` (1-100) and `shard_key` (`0 <= key < shard_factor`)
       - RFQ events (RFQCreated, RFQDeleted) are sent for all users by default. Set `user_filter: "self"` to receive only RFQs you created. Omitted or empty `user_filter` keeps the default.
       - Quote events (QuoteCreated, QuoteAccepted, QuoteExecuted) are only sent if you created the quote OR you created the RFQ
+      - RFQ batch events (RFQBatchCreated, RFQBatchDeleted) follow the RFQ event rules: sent for all users by default, or with `user_filter: "self"` only for RFQ batches you created. A batch's child RFQs are announced only inside RFQBatchCreated; each child trade still sends QuoteExecuted, with `rfq_batch_id` set. With sharding, every batch event is partitioned by `rfq_batch_id` instead of the market ticker, so a child's QuoteExecuted can arrive on another shard than its batch's events.
+      - Each child of an RFQ batch fills at its best quote across makers, and the children execute together as one fill-or-kill: nothing trades unless every child can fill in full. In the rare case that filling one child cancels a maker order another child needed, the batch closes partially executed. Every maker's batch quote prices every child, and each child goes to the maker bidding best on the accepted side, so one batch can have several winning makers. A batch quote counts only for 30 seconds after it was last submitted; resending an unchanged bid within that time keeps its time priority.
+      - RFQBatchBestQuotes and RFQBatchExecuted are only sent to the RFQ batch creator. RFQBatchBestQuotes carries the best bids across makers without identifying them; the batch creator never receives a maker's individual batch quote.
+      - Batch quote events (BatchQuoteCreated, BatchQuoteAccepted, BatchQuoteExecuted) are only sent to the maker that created the batch quote. Each winning maker confirms the children it won, and nothing executes until every winning maker has confirmed.
 
-      **Use case:** Tracking RFQs you create and quotes on your RFQs, or quotes you create on others' RFQs. Use QuoteExecuted to correlate fill messages with quotes via client_order_id.
+      **Use case:** Tracking RFQs and RFQ batches you create and the quotes on them, or quotes and batch quotes you create on others'. Use QuoteExecuted to correlate fill messages with quotes via client_order_id.
     messages:
       rfqCreated:
         $ref: '#/components/messages/rfqCreated'
@@ -311,27 +315,6 @@ channels:
         $ref: '#/components/messages/quoteAccepted'
       quoteExecuted:
         $ref: '#/components/messages/quoteExecuted'
-
-  batch_communications:
-    address: batch_communications
-    title: Batch Communications
-    description: |
-      Real-time RFQ batch and batch quote notifications. Requires authentication.
-
-      **Requirements:**
-      - Authentication required
-      - Market specification ignored
-      - Optional sharding for fanout control:
-        - `shard_factor` (1-100) and `shard_key` (`0 <= key < shard_factor`)
-        - Every event is partitioned by `rfq_batch_id`
-      - RFQ batch events (RFQBatchCreated, RFQBatchDeleted) are sent for all users by default. Set `user_filter: "self"` to receive only RFQ batches you created. Omitted or empty `user_filter` keeps the default.
-      - A batch's child RFQs are announced only inside RFQBatchCreated. Each child trade still sends QuoteExecuted, with `rfq_batch_id` set, on the `communications` channel. The two channels are separate subscriptions, so a child's QuoteExecuted is not ordered with this channel's messages.
-      - An RFQ batch is filled child by child at the best quote across makers. Every maker's batch quote prices every child, and each child goes to the maker bidding best on the accepted side, so one batch can have several winning makers. A batch quote counts only for 30 seconds after it was last submitted; resending an unchanged bid within that time keeps its time priority.
-      - RFQBatchBestQuotes and RFQBatchExecuted are only sent to the RFQ batch creator. RFQBatchBestQuotes carries the best bids across makers without identifying them; the batch creator never receives a maker's individual batch quote.
-      - Batch quote events (BatchQuoteCreated, BatchQuoteAccepted, BatchQuoteExecuted) are only sent to the maker that created the batch quote. Each winning maker confirms the children it won, and nothing executes until every winning maker has confirmed.
-
-      **Use case:** Tracking RFQ batches you create and the best quotes on them, or batch quotes you create on others' RFQ batches.
-    messages:
       rfqBatchCreated:
         $ref: '#/components/messages/rfqBatchCreated'
       rfqBatchDeleted:
@@ -1067,9 +1050,9 @@ operations:
     title: RFQ Batch Created
     summary: Receive RFQ batch created notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/rfqBatchCreated'
+      - $ref: '#/channels/communications/messages/rfqBatchCreated'
     tags:
       - name: private
 
@@ -1078,9 +1061,9 @@ operations:
     title: RFQ Batch Deleted
     summary: Receive RFQ batch deleted notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/rfqBatchDeleted'
+      - $ref: '#/channels/communications/messages/rfqBatchDeleted'
     tags:
       - name: private
 
@@ -1089,9 +1072,9 @@ operations:
     title: Batch Quote Created
     summary: Receive batch quote created notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/batchQuoteCreated'
+      - $ref: '#/channels/communications/messages/batchQuoteCreated'
     tags:
       - name: private
 
@@ -1100,9 +1083,9 @@ operations:
     title: RFQ Batch Best Quotes
     summary: Receive the best quotes across makers on your RFQ batch
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/rfqBatchBestQuotes'
+      - $ref: '#/channels/communications/messages/rfqBatchBestQuotes'
     tags:
       - name: private
 
@@ -1111,9 +1094,9 @@ operations:
     title: Batch Quote Accepted
     summary: Receive batch quote accepted notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/batchQuoteAccepted'
+      - $ref: '#/channels/communications/messages/batchQuoteAccepted'
     tags:
       - name: private
 
@@ -1122,9 +1105,9 @@ operations:
     title: RFQ Batch Executed
     summary: Receive RFQ batch executed notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/rfqBatchExecuted'
+      - $ref: '#/channels/communications/messages/rfqBatchExecuted'
     tags:
       - name: private
 
@@ -1133,9 +1116,9 @@ operations:
     title: Batch Quote Executed
     summary: Receive batch quote executed notifications
     channel:
-      $ref: '#/channels/batch_communications'
+      $ref: '#/channels/communications'
     messages:
-      - $ref: '#/channels/batch_communications/messages/batchQuoteExecuted'
+      - $ref: '#/channels/communications/messages/batchQuoteExecuted'
     tags:
       - name: private
 
@@ -2651,10 +2634,10 @@ components:
     rfqBatchExecuted:
       name: rfq_batch_executed
       title: RFQ Batch Executed
-      summary: Notification when every child of your accepted RFQ batch has executed or failed
+      summary: Notification when your accepted RFQ batch has executed or failed
       description: |
-        Sent only to the RFQ batch creator, once per batch, when every child has executed or failed. Each child trade also sends `quote_executed` on the `communications` channel, a separate subscription, so it is not ordered with this message.
-        Children that failed to execute are listed in `failed_rfq_ids`. Each winning maker receives `batch_quote_executed` for its own children instead.
+        Sent only to the RFQ batch creator, once per batch, after the per-child `quote_executed` messages. A sharded subscription can receive a child's `quote_executed` on another shard, so across shards the two are not ordered.
+        The children execute together, so either every child is in `executed_rfq_ids` or every child is in `failed_rfq_ids`, except in the rare case that filling one child cancelled a maker order another child needed. Each winning maker receives `batch_quote_executed` for its own children instead.
       contentType: application/json
       payload:
         $ref: '#/components/schemas/rfqBatchExecutedPayload'
@@ -2678,9 +2661,9 @@ components:
     batchQuoteExecuted:
       name: batch_quote_executed
       title: Batch Quote Executed
-      summary: Notification when every child your batch quote won has executed or failed
+      summary: Notification when the RFQ batch your batch quote won children of has executed or failed
       description: |
-        Sent to each winning maker once every child it won has executed or failed. It covers only your children. Each child trade also sends `quote_executed` on the `communications` channel, a separate subscription, so it is not ordered with this message.
+        Sent to each winning maker once the batch has executed or failed, after the per-child `quote_executed` messages. It covers only your children. A sharded subscription can receive a child's `quote_executed` on another shard, so across shards the two are not ordered.
         When the RFQ batch creator obscured their ID, `rfq_creator_id` is revealed only if at least one of your children executed.
       contentType: application/json
       payload:
@@ -2826,7 +2809,7 @@ components:
               type: string
               enum: ["", "self"]
               default: ""
-              description: 'Communications channel only. Set to "self" to receive RFQ created/deleted events only for RFQs you created. Omitted or empty receives RFQs from all users. Quote notifications are unchanged.'
+              description: 'Communications channel only. Set to "self" to receive RFQ and RFQ batch created/deleted events only for those you created. Omitted or empty receives them from all users. Quote and batch quote notifications are unchanged.'
             shard_factor:
               type: integer
               description: 'Number of shards for communications channel fanout (optional)'
@@ -5048,7 +5031,7 @@ components:
               format: date-time
             close_reason:
               type: string
-              description: How the batch ended. `executed` when every child executed, `partially executed` when some failed, `execution failed` when none executed.
+              description: How the batch ended. `executed` when every child executed, `execution failed` when none did, and `partially executed` in the rare case that filling one child cancelled a maker order another child needed.
             subaccount:
               type: integer
               description: |
@@ -5097,7 +5080,7 @@ components:
               format: date-time
             close_reason:
               type: string
-              description: How your children ended. `executed` when every one executed, `partially executed` when some failed, `execution failed` when none executed.
+              description: How your children ended. `executed` when every one executed, `execution failed` when none did, and `partially executed` in the rare case that filling one child of the batch cancelled a maker order another child needed.
             subaccount:
               type: integer
               description: |

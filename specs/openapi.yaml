@@ -1558,6 +1558,8 @@ paths:
       description: |
         Transfers funds within the same account.
 
+        Subaccount-restricted API keys can only transfer between `event_contract` exchange indices, with `source_subaccount` and `destination_subaccount` both set to the key's subaccount.
+
         When `source_exchange_shard` and `destination_exchange_shard` are the same, Kalshi treats the request as a subaccount transfer. The returned transfer ID appears in the subaccount transfer history.
 
         Cross-exchange-index subaccount transfers run in up to three non-atomic steps. If a later step fails, completed steps are not undone, so funds may remain in the primary account on the source or destination exchange index.
@@ -1717,7 +1719,7 @@ paths:
     get:
       operationId: GetSubaccountBalances
       summary: Get All Subaccount Balances
-      description: 'Gets balances for all subaccounts including the primary account.'
+      description: "Gets balances for all subaccounts including the primary account. For an API key restricted to a subaccount, returns only that subaccount's balances across exchange indices."
       tags:
         - portfolio
       security:
@@ -2484,10 +2486,16 @@ paths:
         round robin. Each child is an ordinary RFQ on one combo market. Makers
         quote the whole batch, but each child is accepted from whichever maker
         quotes it best on your side, so the batch may fill from several makers.
-        Accepting fills every child or none, and each child then executes as its
-        own trade. Name each child's combo by its market ticker, or by its legs
-        to look up or create the combo in mve_collection_ticker. Every child is
-        sized the same way.
+        Accepting takes every child or none, and the children then execute
+        together as one fill-or-kill: nothing trades unless every child can
+        fill in full. In the rare case that filling one child cancels a maker
+        order another child needed, the batch closes partially executed. Name
+        each child's combo by its market ticker, or by its legs to look up or
+        create the combo in mve_collection_ticker. Size each child with its own
+        contracts_fp or target_cost_dollars, or set one on the batch for every
+        child that has none; every child must be sized the same way, by
+        contracts or by target cost. rest_remainder must be false, and FCM
+        members cannot create RFQ batches yet (403 rfq_batch_unavailable).
       x-mint:
         content: |
           <Note>
@@ -2796,8 +2804,8 @@ paths:
       description: >-
         Confirm the children your batch quote won, all at once. Nothing executes
         until every winning maker of the batch has confirmed; the last
-        confirmation starts the execution timer for every child, and each child
-        executes as its own trade. If any winner misses the confirmation
+        confirmation starts the execution timer for every child, and the
+        children then execute together. If any winner misses the confirmation
         deadline, the whole batch closes without trading.
       tags:
         - communications
@@ -5132,7 +5140,7 @@ components:
     MultipleEventTickerQuery:
       name: event_ticker
       in: query
-      description: Event tickers to filter by, as a comma-separated list (maximum 10).
+      description: Event tickers to filter by, as a comma-separated list (maximum 100). Events with no markets return no orders.
       schema:
         type: string
         x-go-type-skip-optional-pointer: true
@@ -8816,7 +8824,7 @@ components:
           description: Timestamp when the RFQ batch was last updated (visible to the batch creator)
         close_reason:
           type: string
-          description: Why the RFQ batch closed, for example executed, partially executed, or cancelled (visible to the batch creator)
+          description: Why the RFQ batch closed, for example executed, execution failed, or cancelled. A batch closes partially executed only in the rare case that filling one child cancelled a maker order another child needed (visible to the batch creator)
           x-go-type-skip-optional-pointer: true
         client_batch_id:
           type: string
@@ -8855,7 +8863,7 @@ components:
 
     CreateRFQBatchChild:
       type: object
-      description: One combo to request quotes on. Set exactly one of market_ticker and selected_markets.
+      description: One combo to request quotes on. Set exactly one of market_ticker and selected_markets, and optionally the child's own size.
       properties:
         market_ticker:
           type: string
@@ -8870,6 +8878,14 @@ components:
           x-go-type-skip-optional-pointer: true
           x-oapi-codegen-extra-tags:
             validate: omitempty,max=6,dive
+        contracts_fp:
+          $ref: '#/components/schemas/FixedPointCount'
+          nullable: true
+          description: Number of contracts requested on this child, in place of the batch's size. Provide at most one of contracts_fp and target_cost_dollars.
+        target_cost_dollars:
+          $ref: '#/components/schemas/FixedPointDollars'
+          description: Target cost of this child, in dollars, in place of the batch's size. Provide at most one of contracts_fp and target_cost_dollars.
+          x-go-type-skip-optional-pointer: true
 
     CreateRFQBatchRequest:
       type: object
@@ -8892,18 +8908,18 @@ components:
         contracts_fp:
           $ref: '#/components/schemas/FixedPointCount'
           nullable: true
-          description: Number of contracts requested on every child. Provide exactly one of contracts_fp and target_cost_dollars.
+          description: Number of contracts requested on every child that sets no size of its own. Provide at most one of contracts_fp and target_cost_dollars, and one of them unless every child sets its own.
         target_cost_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Target cost of every child, in dollars. Provide exactly one of contracts_fp and target_cost_dollars.
+          description: Target cost, in dollars, of every child that sets no size of its own. Provide at most one of contracts_fp and target_cost_dollars, and one of them unless every child sets its own.
           x-go-type-skip-optional-pointer: true
         target_cost_excludes_fees:
           type: boolean
-          description: Same as on Create RFQ, applied to every child. Only valid together with target_cost_dollars.
+          description: Same as on Create RFQ, applied to every child. Only valid when the children are sized by target cost.
           x-go-type-skip-optional-pointer: true
         rest_remainder:
           type: boolean
-          description: Whether to rest the remainder of each child RFQ after execution
+          description: Must be false. A batch executes as one fill-or-kill, so no child rests a remainder.
           default: false
           x-go-type-skip-optional-pointer: true
         replace_existing:
@@ -8925,7 +8941,7 @@ components:
           x-go-type-skip-optional-pointer: true
         subtrader_id:
           type: string
-          description: The subtrader to create the RFQ batch for (FCM members only)
+          description: The subtrader to create the RFQ batch for (FCM members only; FCM members cannot create RFQ batches yet)
           x-go-type-skip-optional-pointer: true
         subaccount:
           type: integer
@@ -8941,7 +8957,7 @@ components:
 
     RFQBatchQuoteStatus:
       type: string
-      description: Status of a batch quote. A partially_executed batch quote executed some children and failed others.
+      description: Status of a batch quote. A partially_executed batch quote executed some children and failed others, which happens only in the rare case that filling one child of the batch cancelled a maker order another child needed.
       enum: [open, accepted, confirmed, executed, partially_executed, cancelled]
 
     RFQBatchQuote:

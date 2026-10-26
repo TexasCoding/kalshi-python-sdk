@@ -63,6 +63,7 @@ exposed by each resource method stays in lockstep with the OpenAPI spec.
 | `client.communications.accept_quote` | `AcceptQuoteRequest` |
 | `client.communications.block_trade_proposals.create` | `ProposeBlockTradeRequest` |
 | `client.communications.block_trade_proposals.accept` | `AcceptBlockTradeProposalRequest` |
+| `client.communications.rfq_batches.create` | `CreateRFQBatchRequest` (wraps `list[CreateRFQBatchChild]`) |
 | `client.multivariate_collections.create_market` | `CreateMarketInMultivariateEventCollectionRequest` |
 | `client.order_groups.create` | `CreateOrderGroupRequest` |
 | `client.order_groups.update_limit` | `UpdateOrderGroupLimitRequest` |
@@ -79,6 +80,8 @@ an awkward wire name:
 | Model field | Wire name |
 |---|---|
 | `CreateRFQRequest.target_cost` | `target_cost_dollars` |
+| `CreateRFQBatchRequest.contracts` / `CreateRFQBatchChild.contracts` | `contracts_fp` |
+| `CreateRFQBatchRequest.target_cost` / `CreateRFQBatchChild.target_cost` | `target_cost_dollars` |
 | `StructuredTarget.target_type` (response) | `type` (avoids shadowing the builtin) |
 
 You never type these long names — they're an internal implementation detail.

@@ -103,6 +103,13 @@ class MarginMarket(BaseModel):
     # index price, or a trading halt), configured at market creation.
     # ``dampen`` counts the second as premium 0; ``exclude`` omits it.
     funding_invalid_premium_handling: Literal["dampen", "exclude"]
+    # Spec marks it required; the SDK keeps it optional so older payloads
+    # and existing constructors still validate (minor release). Why the
+    # market is halted (``"initial_setup"``,
+    # ``"corporate_action"``, …). Empty means the market is not halted or
+    # the reason has not been observed — do not read empty as proof the
+    # market is live.
+    halt_sources: list[str] | None = None
 
     leverage_estimate: MultiplierDecimal | None = None
     # Leverage (1 / margin_rate) keyed by notional position size in dollars

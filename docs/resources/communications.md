@@ -229,14 +229,14 @@ batch; each child is accepted from whichever maker quotes it best on your
 side. Accepting fills every child or none.
 
 ```python
-# Create a batch of two combos, sized the same way.
+# Create a batch of two combos. Size the batch, or set contracts /
+# target_cost on each child in place of the batch-level size.
 resp = client.communications.rfq_batches.create(
     children=[
-        {"market_ticker": "COMBO-A"},
-        {"market_ticker": "COMBO-B"},
+        {"market_ticker": "COMBO-A", "contracts": "10.00"},
+        {"market_ticker": "COMBO-B", "contracts": "5.00"},
     ],
-    contracts="10.00",
-    rest_remainder=True,
+    rest_remainder=False,
 )
 batch_id = resp.rfq_batch.id
 
@@ -272,9 +272,11 @@ you on that one batch.
 
 Prices on create-quote entries use `yes_bid` / `no_bid` (no `_dollars`
 suffix), matching `quotes.create()`. Accept `min_bids` use Python name
-`bid`, serialized as `bid_dollars`. Batch create sizes every child via
+`bid`, serialized as `bid_dollars`. Batch create sizes children via
 `contracts` (`contracts_fp` on the wire) or `target_cost`
-(`target_cost_dollars`).
+(`target_cost_dollars`) on the batch (applied to every child that sets
+no size of its own) or on each `CreateRFQBatchChild`. `rest_remainder`
+must be false: a batch executes as one fill-or-kill.
 
 ## Migrating from v2.x
 

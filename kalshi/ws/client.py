@@ -872,6 +872,14 @@ class KalshiWebSocket:
         shard_key: int | None = None,
         maxsize: int = 1000,
     ) -> AsyncIterator[CommunicationsMessage]:
+        """Subscribe to RFQ and quote notifications.
+
+        RFQ-batch notifications (``rfq_batch_created``, ``rfq_batch_deleted``,
+        ``batch_quote_*``, ``rfq_batch_best_quotes``, ``rfq_batch_executed``)
+        now arrive on this channel. The standalone ``batch_communications``
+        channel was removed from the AsyncAPI spec (SDK v22.4.0); the SDK
+        never shipped a typed subscribe helper for it.
+        """
         params: dict[str, Any] = {}
         if shard_factor is not None:
             params["shard_factor"] = shard_factor

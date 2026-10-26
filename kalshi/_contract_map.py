@@ -266,6 +266,7 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.communications.CreateRFQBatchChild",
         spec_schema="CreateRFQBatchChild",
+        notes="Uses serialization_alias + AliasChoices for contracts_fp / target_cost_dollars",
     ),
     ContractEntry(
         sdk_model="kalshi.models.communications.RFQBatchQuoteEntry",
