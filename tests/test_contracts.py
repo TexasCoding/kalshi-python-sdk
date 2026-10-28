@@ -1003,9 +1003,9 @@ class TestWsSpecDrift:
     # be added here with an evidence citation in the notes field of the
     # corresponding WS_CONTRACT_MAP entry.
     _DEMO_DIVERGENCE_ALLOWLIST: ClassVar[set[tuple[str, str]]] = set()
+    @pytest.fixture(autouse=True, scope="class")
 
     @staticmethod
-    @pytest.fixture(autouse=True, scope="class")
     def _load(request: pytest.FixtureRequest) -> None:
         request.cls.spec = _load_asyncapi_spec()
 
