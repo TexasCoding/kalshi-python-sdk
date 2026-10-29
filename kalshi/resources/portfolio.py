@@ -579,7 +579,7 @@ class PortfolioResource(SyncResource):
         """``GET /portfolio/credit_history`` — credits, newest first.
 
         ``min_ts`` is inclusive and ``max_ts`` is exclusive, both applied to
-        credit creation time. ``limit`` is 1–1000.
+        credit creation time. ``limit`` is 1-1000.
         """
         self._require_auth()
         _validate_limit(limit, hi=1000)

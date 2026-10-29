@@ -2389,7 +2389,9 @@ def _flatten_allof(
     merged_props: dict[str, Any] = {}
     merged_required: list[str] = []
     out: dict[str, Any] = {
-        key: value for key, value in schema.items() if key not in {"allOf", "properties", "required"}
+        key: value
+        for key, value in schema.items()
+        if key not in {"allOf", "properties", "required"}
     }
     branches = list(schema["allOf"])
     # A wrapper that also declares its own properties is applied first so

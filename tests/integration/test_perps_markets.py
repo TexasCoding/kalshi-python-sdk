@@ -31,7 +31,7 @@ from tests.integration.coverage_harness import register_perps
 
 register_perps(
     "PerpsMarketsResource",
-    ["bulk_orderbooks", "candlesticks", "get", "list", "orderbook"],
+    ["bulk_orderbooks", "candlesticks", "get", "list", "orderbook", "schedules"],
 )
 
 

@@ -485,3 +485,20 @@ class TestHistory:
             await client.funding.history(start_date="2026-06-01", end_date="2026-06-04")
         assert not route.called
         await client.close()
+
+
+class TestSubaccountType:
+    def test_omitted_is_none_and_parses(self) -> None:
+        omitted = MarginFundingHistoryEntry.model_validate(
+            _entry(funding_amount="1.00", subaccount_number=0)
+        )
+        assert omitted.subaccount_type is None
+        present = _entry(funding_amount="1.00", subaccount_number=0)
+        present["subaccount_type"] = "isolated"
+        assert MarginFundingHistoryEntry.model_validate(present).subaccount_type == "isolated"
+
+    def test_invalid_raises(self) -> None:
+        payload = _entry(funding_amount="1.00", subaccount_number=0)
+        payload["subaccount_type"] = "nope"
+        with pytest.raises(ValidationError):
+            MarginFundingHistoryEntry.model_validate(payload)

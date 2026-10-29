@@ -219,8 +219,8 @@ class PerpsMarketsResource(SyncResource):
     ) -> dict[str, MarginMarketScheduleDetails]:
         """``GET /margin/markets/schedules`` — holiday closures for up to 100 tickers.
 
-        Public market data (no auth). ``tickers`` is required (1–100, each
-        1–200 characters) and serializes as a comma-separated query string.
+        Public market data (no auth). ``tickers`` is required (1-100, each
+        1-200 characters) and serializes as a comma-separated query string.
         The body is a map keyed by market ticker. Regular daily and weekend
         closures are not included.
         """

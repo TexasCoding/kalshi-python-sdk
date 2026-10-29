@@ -314,7 +314,7 @@ EventContractExitTriggeredLegLiteral = Literal["stop_loss", "take_profit"]
 """Which bracket leg fired."""
 
 EventContractExitSlippageUnitLiteral = Literal["bps", "cents"]
-"""Slippage unit. ``bps`` is 0–9999; ``cents`` is 0–99."""
+"""Slippage unit. ``bps`` is 0-9999; ``cents`` is 0-99."""
 
 CreditStatusLiteral = Literal["unknown", "pending", "failed", "applied"]
 """Credit processing status. Spec: ``CreditHistory.status``."""
@@ -323,7 +323,7 @@ CreditStatusLiteral = Literal["unknown", "pending", "failed", "applied"]
 class EventContractExitSlippage(BaseModel):
     """Execution allowance below the trigger price, shared by TP and SL.
 
-    ``bps`` accepts 0–9999. ``cents`` accepts 0–99 (spec ``not`` rejects
+    ``bps`` accepts 0-9999. ``cents`` accepts 0-99 (spec ``not`` rejects
     ``unit=cents`` with ``value >= 100``). Zero allows no slippage.
     """
 

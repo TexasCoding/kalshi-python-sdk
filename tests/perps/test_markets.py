@@ -19,9 +19,11 @@ from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiServerError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
+    MarginHolidayWindow,
     MarginMarket,
     MarginMarketCandlestick,
     MarginMarketSchedule,
+    MarginMarketScheduleDetails,
     MarginOrderbook,
     PriceDistributionHistorical,
 )
@@ -704,4 +706,77 @@ class TestCandlesticks:
             "BTC-PERP", start_ts=1, end_ts=2, period_interval=1
         )
         assert candles[0].price.mean == Decimal("0.5620")
+        await async_perps_client.close()
+
+
+class TestSchedules:
+    @respx.mock
+    def test_parses_holiday_map(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/markets/schedules").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "BTC-PERP": {
+                        "kalshi_trading_holidays": [
+                            {
+                                "from": "2026-12-25T00:00:00Z",
+                                "until": "2026-12-26T00:00:00Z",
+                                "reason": "Christmas",
+                            }
+                        ]
+                    }
+                },
+            )
+        )
+        details = perps_client.markets.schedules(tickers=["BTC-PERP", "ETH-PERP"])
+        assert route.calls[0].request.url.params["tickers"] == "BTC-PERP,ETH-PERP"
+        window = details["BTC-PERP"].kalshi_trading_holidays[0]
+        assert isinstance(details["BTC-PERP"], MarginMarketScheduleDetails)
+        assert isinstance(window, MarginHolidayWindow)
+        assert window.reason == "Christmas"
+        assert window.start.year == 2026
+        assert window.until.day == 26
+
+    def test_rejects_empty_blank_long_and_over_max(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            perps_client.markets.schedules(tickers=[])
+        with pytest.raises(ValueError, match="empty"):
+            perps_client.markets.schedules(tickers=["BTC-PERP", "  "])
+        with pytest.raises(ValueError, match="200"):
+            perps_client.markets.schedules(tickers=["X" * 201])
+        with pytest.raises(ValueError, match="100"):
+            perps_client.markets.schedules(tickers=[f"T{i}" for i in range(101)])
+
+    @respx.mock
+    def test_not_found(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/schedules").mock(return_value=httpx.Response(404))
+        with pytest.raises(KalshiNotFoundError):
+            perps_client.markets.schedules(tickers=["NOPE"])
+
+    @respx.mock
+    def test_unauthenticated_reaches_wire(self) -> None:
+        route = respx.get(f"{BASE}/margin/markets/schedules").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        assert client.markets.schedules(tickers=["BTC-PERP"]) == {}
+        assert route.called
+        client.close()
+
+    @respx.mock
+    async def test_async(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/schedules").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "BTC-PERP": {
+                        "kalshi_trading_holidays": [
+                            {"from": "2026-01-01T00:00:00Z", "until": "2026-01-02T00:00:00Z"}
+                        ]
+                    }
+                },
+            )
+        )
+        details = await async_perps_client.markets.schedules(tickers=["BTC-PERP"])
+        assert details["BTC-PERP"].kalshi_trading_holidays[0].reason is None
         await async_perps_client.close()

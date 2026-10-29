@@ -19,6 +19,7 @@ register(
         "batch_create_v2",
         "cancel_v2",
         "create_v2",
+        "create_with_exit_trigger",
         "decrease_v2",
         "fills",
         "fills_all",

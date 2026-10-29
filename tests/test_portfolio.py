@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 
 import httpx
 import pytest
 import respx
+from pydantic import ValidationError
 
 from kalshi._base_client import AsyncTransport, SyncTransport
 from kalshi.auth import KalshiAuth
 from kalshi.config import KalshiConfig
-from kalshi.errors import AuthRequiredError, KalshiAuthError
+from kalshi.errors import (
+    AuthRequiredError,
+    KalshiAuthError,
+    KalshiNotFoundError,
+    KalshiValidationError,
+)
+from kalshi.models.portfolio import (
+    AttachedEventContractExitTrigger,
+    CreditHistory,
+    EventContractExitSlippage,
+    SetEventContractExitTriggerRequest,
+)
 from kalshi.resources.portfolio import AsyncPortfolioResource, PortfolioResource
 from tests._model_fixtures import (
     event_position_dict,
@@ -1574,3 +1587,227 @@ class TestTargetBalanceAllocation:
         await async_portfolio.set_target_balance_allocation(
             allocations=[TargetBalanceAllocationInput(exchange_index=0, percent=100)]
         )
+
+
+_BASE = "https://test.kalshi.com/trade-api/v2"
+_TRIGGER = {
+    "id": "trig-1",
+    "ticker": "MKT-A",
+    "side": "yes",
+    "subaccount_number": 0,
+    "kind": "bracket",
+    "status": "active",
+    "created_time": "2026-06-04T12:00:00Z",
+    "updated_time": "2026-06-04T12:00:01Z",
+    "stop_loss_price": "0.4000",
+    "take_profit_price": "0.7000",
+}
+_CREDIT = {
+    "credit_id": "cr-1",
+    "type": "promo",
+    "status": "applied",
+    "amount_dollars": "1.5000",
+    "reason": "welcome",
+    "created_time": "2026-06-04T12:00:00Z",
+}
+
+
+class TestExitTriggers:
+    @respx.mock
+    def test_get_parses_bracket(self, portfolio: PortfolioResource) -> None:
+        route = respx.get(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(
+                200,
+                json={"exit_trigger": _TRIGGER, "exit_triggers": [_TRIGGER]},
+            )
+        )
+        resp = portfolio.exit_triggers("MKT-A", kind="bracket", subaccount=2)
+        assert resp.exit_trigger is not None
+        assert resp.exit_trigger.id == "trig-1"
+        assert resp.exit_trigger.stop_loss_price == Decimal("0.4000")
+        assert len(resp.exit_triggers) == 1
+        assert dict(route.calls[0].request.url.params) == {"kind": "bracket", "subaccount": "2"}
+
+    @respx.mock
+    def test_get_null_trigger_and_omitted_kind(self, portfolio: PortfolioResource) -> None:
+        route = respx.get(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(
+                200, json={"exit_trigger": None, "exit_triggers": []}
+            )
+        )
+        resp = portfolio.exit_triggers("MKT-A")
+        assert resp.exit_trigger is None
+        assert resp.exit_triggers == []
+        assert "kind" not in route.calls[0].request.url.params
+
+    @respx.mock
+    def test_get_404(self, portfolio: PortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/positions/NOPE/exit_trigger").mock(
+            return_value=httpx.Response(404, json={"error": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            portfolio.exit_triggers("NOPE")
+
+    def test_get_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.exit_triggers("MKT-A")
+
+    @respx.mock
+    def test_put_serializes_one_leg(self, portfolio: PortfolioResource) -> None:
+        route = respx.put(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(200, json=_TRIGGER)
+        )
+        trigger = portfolio.set_exit_trigger(
+            "MKT-A",
+            request=SetEventContractExitTriggerRequest(stop_loss_price=Decimal("0.5600")),
+            subaccount=1,
+        )
+        assert trigger.id == "trig-1"
+        body = json.loads(route.calls[0].request.content)
+        assert body == {"stop_loss_price": "0.5600"}
+        assert isinstance(body["stop_loss_price"], str)
+        assert dict(route.calls[0].request.url.params) == {"subaccount": "1"}
+
+    def test_put_rejects_neither_leg_and_phantom(self) -> None:
+        with pytest.raises(ValidationError, match="at least one"):
+            SetEventContractExitTriggerRequest()
+        with pytest.raises(ValidationError):
+            SetEventContractExitTriggerRequest(stop_loss_price=Decimal("0.5600"), ghost="x")  # type: ignore[call-arg]
+
+    def test_slippage_cents_cap(self) -> None:
+        with pytest.raises(ValidationError, match="cents slippage"):
+            EventContractExitSlippage(unit="cents", value=100)
+        ok = EventContractExitSlippage(unit="bps", value=100)
+        assert ok.value == 100
+        attached = AttachedEventContractExitTrigger(
+            stop_loss_price_dollars=Decimal("0.5600"),  # type: ignore[call-arg]
+        )
+        assert attached.stop_loss_price == Decimal("0.5600")
+
+    @respx.mock
+    def test_put_400(self, portfolio: PortfolioResource) -> None:
+        respx.put(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(400, json={"error": "bad"})
+        )
+        with pytest.raises(KalshiValidationError):
+            portfolio.set_exit_trigger(
+                "MKT-A",
+                request=SetEventContractExitTriggerRequest(take_profit_price=Decimal("0.8000")),
+            )
+
+    @respx.mock
+    def test_delete_204(self, portfolio: PortfolioResource) -> None:
+        route = respx.delete(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(204)
+        )
+        assert portfolio.cancel_exit_trigger("MKT-A", kind="bracket") is None
+        assert route.calls[0].request.url.params["kind"] == "bracket"
+
+    @respx.mock
+    def test_delete_401(self, portfolio: PortfolioResource) -> None:
+        respx.delete(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            portfolio.cancel_exit_trigger("MKT-A")
+
+    def test_delete_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.cancel_exit_trigger("MKT-A")
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_roundtrip(self, async_portfolio: AsyncPortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(
+                200, json={"exit_trigger": None, "exit_triggers": [_TRIGGER]}
+            )
+        )
+        respx.put(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(200, json=_TRIGGER)
+        )
+        respx.delete(f"{_BASE}/portfolio/positions/MKT-A/exit_trigger").mock(
+            return_value=httpx.Response(204)
+        )
+        got = await async_portfolio.exit_triggers("MKT-A")
+        assert got.exit_trigger is None
+        assert got.exit_triggers[0].side == "yes"
+        updated = await async_portfolio.set_exit_trigger(
+            "MKT-A",
+            request=SetEventContractExitTriggerRequest(stop_loss_price=Decimal("0.4000")),
+        )
+        assert updated.status == "active"
+        assert await async_portfolio.cancel_exit_trigger("MKT-A") is None
+
+
+class TestCreditHistory:
+    @respx.mock
+    def test_returns_page(self, portfolio: PortfolioResource) -> None:
+        route = respx.get(f"{_BASE}/portfolio/credit_history").mock(
+            return_value=httpx.Response(200, json={"credits": [_CREDIT], "cursor": "abc"})
+        )
+        page = portfolio.credit_history(limit=10, min_ts=1, max_ts=2)
+        assert len(page.items) == 1
+        assert isinstance(page.items[0], CreditHistory)
+        assert page.items[0].credit_type == "promo"
+        assert page.items[0].amount == Decimal("1.5000")
+        assert page.cursor == "abc"
+        params = dict(route.calls[0].request.url.params)
+        assert params == {"limit": "10", "min_ts": "1", "max_ts": "2"}
+
+    @respx.mock
+    def test_empty_page(self, portfolio: PortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/credit_history").mock(
+            return_value=httpx.Response(200, json={"credits": [], "cursor": ""})
+        )
+        page = portfolio.credit_history()
+        assert page.items == []
+        assert page.cursor is None
+
+    @respx.mock
+    def test_all_stops_on_empty_cursor(self, portfolio: PortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/credit_history").mock(
+            side_effect=[
+                httpx.Response(200, json={"credits": [_CREDIT], "cursor": "p2"}),
+                httpx.Response(
+                    200,
+                    json={"credits": [{**_CREDIT, "credit_id": "cr-2"}], "cursor": ""},
+                ),
+            ]
+        )
+        ids = [c.credit_id for c in portfolio.credit_history_all(limit=1)]
+        assert ids == ["cr-1", "cr-2"]
+
+    def test_limit_out_of_range(self, portfolio: PortfolioResource) -> None:
+        with pytest.raises(ValueError, match=r"limit must be in"):
+            portfolio.credit_history(limit=1001)
+        with pytest.raises(ValueError, match="max_pages"):
+            list(portfolio.credit_history_all(max_pages=0))
+
+    @respx.mock
+    def test_auth_failure(self, portfolio: PortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/credit_history").mock(
+            return_value=httpx.Response(401, json={"error": "unauthorized"})
+        )
+        with pytest.raises(KalshiAuthError):
+            portfolio.credit_history()
+
+    def test_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.credit_history()
+        with pytest.raises(AuthRequiredError):
+            unauth_portfolio.credit_history_all()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_page_and_all(self, async_portfolio: AsyncPortfolioResource) -> None:
+        respx.get(f"{_BASE}/portfolio/credit_history").mock(
+            side_effect=[
+                httpx.Response(200, json={"credits": [_CREDIT], "cursor": "p2"}),
+                httpx.Response(200, json={"credits": [_CREDIT], "cursor": ""}),
+            ]
+        )
+        page = await async_portfolio.credit_history()
+        assert page.items[0].credit_id == "cr-1"
+        items = [c async for c in async_portfolio.credit_history_all()]
+        assert len(items) == 1

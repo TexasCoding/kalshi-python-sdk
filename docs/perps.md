@@ -59,7 +59,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | Attribute | Endpoints |
 |---|---|
 | `exchange` | `status()`, `enabled()` (per-member access gate), `risk_parameters()` |
-| `markets` | `list()`, `get()`, `orderbook()`, `bulk_orderbooks(*, tickers)`, `candlesticks()` |
+| `markets` | `list()`, `get()`, `orderbook()`, `bulk_orderbooks(*, tickers)`, `candlesticks()`, `schedules(*, tickers)` |
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
@@ -77,7 +77,18 @@ is not a margin market returns 404.
 books = perps.markets.bulk_orderbooks(tickers=["BTC-PERP", "ETH-PERP"])
 for ob in books:
     print(ob.ticker, len(ob.bids), len(ob.asks))
+
+schedules = perps.markets.schedules(tickers=["BTC-PERP", "ETH-PERP"])
+for ticker, details in schedules.items():
+    print(ticker, len(details.kalshi_trading_holidays))
 ```
+
+`markets.schedules(*, tickers)` returns Kalshi trading-holiday closures
+(`GET /margin/markets/schedules`) as a ticker → `MarginMarketScheduleDetails`
+map. `tickers` is required (1–100, each 1–200 characters) and serializes as a
+comma-separated query string. Regular daily and weekend closures are not
+included. Each holiday window's spec field `from` is `start` on
+`MarginHolidayWindow` (`until` is the exclusive end).
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -212,7 +223,11 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   null while open.
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
-  identifying which subaccount holds the position.
+  identifying which subaccount holds the position. `subaccount_type`
+  (`"cross"` / `"isolated"` / `"auto_rebalance"`, or `None` when the key is
+  absent) is optional on `MarginPosition`, `MarginSubaccountBalance`,
+  `MarginRiskPosition`, and `MarginFundingHistoryEntry`. The spec marks it
+  required; the SDK keeps it optional so older payloads still parse.
 - **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
   `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
   the position is hedged within a portfolio so its margin is computed at the
@@ -287,16 +302,19 @@ async with ws.connect() as session:
             print(msg.msg.funding_rate.rate, msg.msg.funding_rate.next_funding_time_ms)
 ```
 
-Seven data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
-`trade`, `fill`, `user_orders`, `order_group_updates`, `corporate_actions`. The
-connection, sequence-gap detection, reconnect, and backpressure machinery are
-reused from the event-contract WS stack (see [WebSocket](websockets.md)); the
-perps orderbook is `bid` / `ask`. The prediction-only channels
-(`market_positions`, `multivariate*`, `communications`, `market_lifecycle_v2`,
+Eight data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
+`trade`, `fill`, `user_orders`, `order_group_updates`, `corporate_actions`,
+`market_lifecycle_v2`. The connection, sequence-gap detection, reconnect, and
+backpressure machinery are reused from the event-contract WS stack (see
+[WebSocket](websockets.md)); the perps orderbook is `bid` / `ask`. The
+prediction-only channels (`market_positions`, `multivariate*`, `communications`,
 `cfbenchmarks_value`) have no perps counterpart. `corporate_actions` streams
 applied split / final-settlement / ticker-change notices (cash actions are
 REST-only); subscribe with `session.subscribe(channel="corporate_actions")`.
 Upcoming and recent notices are listed by `margin.corporate_actions()`.
+`subscribe_market_lifecycle()` yields `MarginMarketLifecycleV2Message` for
+activation and deactivation of every margin market (`event_type` is
+`activated` or `deactivated`). Ticker filters are not supported on that channel.
 
 ## Self-Clearing-Member "Klear" API
 
