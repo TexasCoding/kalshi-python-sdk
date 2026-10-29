@@ -5,16 +5,22 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
+from kalshi.errors import KalshiError
 from kalshi.models.common import Page
 from kalshi.models.orders import Fill
 from kalshi.models.portfolio import (
     Balance,
+    CreditHistory,
     Deposit,
+    EventContractExitKindLiteral,
+    EventContractExitTrigger,
+    GetEventContractExitTriggersResponse,
     GetTargetBalanceAllocationResponse,
     IntraExchangeInstanceTransfer,
     MarketPosition,
     PositionsResponse,
     RestingMarginReservationLiteral,
+    SetEventContractExitTriggerRequest,
     SetTargetBalanceAllocationRequest,
     Settlement,
     SettlementStatusLiteral,
@@ -495,6 +501,120 @@ class PortfolioResource(SyncResource):
             extra_headers=extra_headers,
         )
 
+    def exit_triggers(
+        self,
+        ticker: str,
+        *,
+        kind: EventContractExitKindLiteral | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetEventContractExitTriggersResponse:
+        """``GET /portfolio/positions/{ticker}/exit_trigger``.
+
+        Hidden (``x-excluded``) until event-contract take-profit / stop-loss
+        launches. ``kind`` filters the bracket family.
+        """
+        self._require_auth()
+        params = _params(kind=kind, subaccount=subaccount)
+        data = self._get(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetEventContractExitTriggersResponse.model_validate(data)
+
+    def set_exit_trigger(
+        self,
+        ticker: str,
+        *,
+        request: SetEventContractExitTriggerRequest,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EventContractExitTrigger:
+        """``PUT /portfolio/positions/{ticker}/exit_trigger``. Not retried.
+
+        Replaces both legs. A leg omitted from ``request`` is cleared.
+        """
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        data = self._put(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        if data is None:
+            raise KalshiError("Expected EventContractExitTrigger body, got 204 No Content.")
+        return EventContractExitTrigger.model_validate(data)
+
+    def cancel_exit_trigger(
+        self,
+        ticker: str,
+        *,
+        kind: EventContractExitKindLiteral | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """``DELETE /portfolio/positions/{ticker}/exit_trigger``. Not retried.
+
+        Succeeds even when nothing is live. Returns 204.
+        """
+        self._require_auth()
+        params = _params(kind=kind, subaccount=subaccount)
+        self._delete(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def credit_history(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[CreditHistory]:
+        """``GET /portfolio/credit_history`` — credits, newest first.
+
+        ``min_ts`` is inclusive and ``max_ts`` is exclusive, both applied to
+        credit creation time. ``limit`` is 1–1000.
+        """
+        self._require_auth()
+        _validate_limit(limit, hi=1000)
+        params = _params(limit=limit, cursor=cursor, min_ts=min_ts, max_ts=max_ts)
+        return self._list(
+            "/portfolio/credit_history",
+            CreditHistory,
+            "credits",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def credit_history_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Iterator[CreditHistory]:
+        """Auto-paginate ``GET /portfolio/credit_history``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=1000)
+        params = _params(limit=limit, min_ts=min_ts, max_ts=max_ts)
+        return self._list_all(
+            "/portfolio/credit_history",
+            CreditHistory,
+            "credits",
+            params=params,
+            max_pages=max_pages,
+            extra_headers=extra_headers,
+        )
+
 
 class AsyncPortfolioResource(AsyncResource):
     """Async portfolio API."""
@@ -901,5 +1021,105 @@ class AsyncPortfolioResource(AsyncResource):
         await self._post_void(
             "/portfolio/target_balance_allocation",
             json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+
+    async def exit_triggers(
+        self,
+        ticker: str,
+        *,
+        kind: EventContractExitKindLiteral | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetEventContractExitTriggersResponse:
+        """Async :meth:`PortfolioResource.exit_triggers`."""
+        self._require_auth()
+        params = _params(kind=kind, subaccount=subaccount)
+        data = await self._get(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetEventContractExitTriggersResponse.model_validate(data)
+
+    async def set_exit_trigger(
+        self,
+        ticker: str,
+        *,
+        request: SetEventContractExitTriggerRequest,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> EventContractExitTrigger:
+        """Async :meth:`PortfolioResource.set_exit_trigger`. Not retried."""
+        self._require_auth()
+        params = _params(subaccount=subaccount)
+        data = await self._put(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            json=request.model_dump(exclude_none=True, by_alias=True, mode="json"),
+            extra_headers=extra_headers,
+        )
+        if data is None:
+            raise KalshiError("Expected EventContractExitTrigger body, got 204 No Content.")
+        return EventContractExitTrigger.model_validate(data)
+
+    async def cancel_exit_trigger(
+        self,
+        ticker: str,
+        *,
+        kind: EventContractExitKindLiteral | None = None,
+        subaccount: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        """Async :meth:`PortfolioResource.cancel_exit_trigger`. Not retried."""
+        self._require_auth()
+        params = _params(kind=kind, subaccount=subaccount)
+        await self._delete(
+            f"/portfolio/positions/{_seg(ticker, name='ticker')}/exit_trigger",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    async def credit_history(
+        self,
+        *,
+        limit: int | None = None,
+        cursor: str | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Page[CreditHistory]:
+        """Async :meth:`PortfolioResource.credit_history`."""
+        self._require_auth()
+        _validate_limit(limit, hi=1000)
+        params = _params(limit=limit, cursor=cursor, min_ts=min_ts, max_ts=max_ts)
+        return await self._list(
+            "/portfolio/credit_history",
+            CreditHistory,
+            "credits",
+            params=params,
+            extra_headers=extra_headers,
+        )
+
+    def credit_history_all(
+        self,
+        *,
+        limit: int | None = None,
+        max_pages: int | None = None,
+        min_ts: int | None = None,
+        max_ts: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> AsyncIterator[CreditHistory]:
+        """Async auto-paginate ``GET /portfolio/credit_history``."""
+        self._require_auth()
+        _validate_max_pages(max_pages)
+        _validate_limit(limit, hi=1000)
+        params = _params(limit=limit, min_ts=min_ts, max_ts=max_ts)
+        return self._list_all(
+            "/portfolio/credit_history",
+            CreditHistory,
+            "credits",
+            params=params,
+            max_pages=max_pages,
             extra_headers=extra_headers,
         )

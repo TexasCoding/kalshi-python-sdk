@@ -100,6 +100,8 @@ _OVERRIDES: dict[str, dict[str, Any]] = {
     # one of ``reduce_by`` / ``reduce_to``. Both fields are optional so
     # the auto-builder skips them — populate one.
     "DecreaseOrderV2Request": {"reduce_by": Decimal("1")},
+    # Both legs are optional, but a model_validator requires at least one.
+    "SetEventContractExitTriggerRequest": {"stop_loss_price": Decimal("0.5600")},
 }
 
 

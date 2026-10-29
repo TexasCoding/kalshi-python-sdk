@@ -17,6 +17,7 @@ needed.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -100,6 +101,15 @@ class ExchangeInstance(StrEnum):
 
     EVENT_CONTRACT = "event_contract"
     MARGINED = "margined"
+
+
+SubaccountTypeLiteral = Literal["cross", "isolated", "auto_rebalance"]
+"""Spec ``SubaccountType`` — how a subaccount is margined.
+
+``cross`` for the primary account and numbered subaccounts, ``isolated`` for
+a market's isolated subaccount, and ``auto_rebalance`` for an auto-rebalanced
+isolated position (shares its market's isolated subaccount number).
+"""
 
 
 class EmptyResponse(BaseModel):

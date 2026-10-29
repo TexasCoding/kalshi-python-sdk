@@ -24,8 +24,10 @@ from kalshi.models.orders import (
     BatchCancelOrdersV2RequestOrder,
     BatchCreateOrdersV2Request,
     CreateOrderV2Request,
+    CreateOrderWithExitTriggerRequest,
     DecreaseOrderV2Request,
 )
+from kalshi.models.portfolio import AttachedEventContractExitTrigger
 from kalshi.resources.orders import AsyncOrdersResource
 from tests._model_fixtures import fill_dict, order_dict
 
@@ -958,3 +960,77 @@ class TestIssue351AsyncOrdersFillsDeprecated:
             ids = [f.trade_id async for f in orders.fills_all()]
         assert ids == ["a"]
         assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+
+
+class TestAsyncCreateOrderWithExitTrigger:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_returns_response(self, orders: AsyncOrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/with_exit_trigger",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "order_id": "ord-v2-1",
+                    "fill_count": "0",
+                    "remaining_count": "10",
+                    "ts_ms": 1,
+                },
+            )
+        )
+        result = await orders.create_with_exit_trigger(
+            request=CreateOrderWithExitTriggerRequest(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                exit_trigger=AttachedEventContractExitTrigger(
+                    take_profit_price=Decimal("0.8000"),
+                ),
+            ),
+        )
+        assert result.order_id == "ord-v2-1"
+        body = json.loads(route.calls[0].request.content)
+        assert body["exit_trigger"]["take_profit_price"] == "0.8000"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_server_400(self, orders: AsyncOrdersResource) -> None:
+        from kalshi.errors import KalshiValidationError
+
+        respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/with_exit_trigger",
+        ).mock(return_value=httpx.Response(400, json={"error": "bad"}))
+        with pytest.raises(KalshiValidationError):
+            await orders.create_with_exit_trigger(
+                request=CreateOrderWithExitTriggerRequest(
+                    ticker="MKT-A",
+                    client_order_id="cli-1",
+                    side="bid",
+                    count=Decimal("1"),
+                    price=Decimal("0.50"),
+                    time_in_force="good_till_canceled",
+                    self_trade_prevention_type="taker_at_cross",
+                    exit_trigger=AttachedEventContractExitTrigger(),
+                ),
+            )
+
+    @pytest.mark.asyncio
+    async def test_requires_auth(self, unauth_orders_async: AsyncOrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            await unauth_orders_async.create_with_exit_trigger(
+                request=CreateOrderWithExitTriggerRequest(
+                    ticker="MKT-A",
+                    client_order_id="cli-1",
+                    side="bid",
+                    count=Decimal("1"),
+                    price=Decimal("0.50"),
+                    time_in_force="good_till_canceled",
+                    self_trade_prevention_type="taker_at_cross",
+                    exit_trigger=AttachedEventContractExitTrigger(),
+                ),
+            )

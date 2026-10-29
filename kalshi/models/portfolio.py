@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, StrictInt
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, StrictInt, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList, UnixSecondsTimestamp
 
@@ -287,3 +287,170 @@ class SetTargetBalanceAllocationRequest(BaseModel):
     resting_margin_reservation: RestingMarginReservationLiteral | None = None
 
     model_config = {"extra": "forbid"}
+
+
+# ---------------------------------------------------------------------------
+# Event-contract exit triggers and credit history (OpenAPI 3.35.0).
+# Exit-trigger routes are ``x-excluded`` until take-profit / stop-loss launches.
+# ---------------------------------------------------------------------------
+
+EventContractExitSideLiteral = Literal["yes", "no"]
+"""Outcome side a position holds. Spec: ``EventContractExitTrigger.side``."""
+
+EventContractExitKindLiteral = Literal["bracket"]
+"""Exit-trigger family. Spec currently allows only ``bracket``."""
+
+EventContractExitStatusLiteral = Literal[
+    "pending_on_entry",
+    "active",
+    "filled",
+    "canceled",
+    "failed",
+    "unknown",
+]
+"""Lifecycle of an event-contract exit trigger."""
+
+EventContractExitTriggeredLegLiteral = Literal["stop_loss", "take_profit"]
+"""Which bracket leg fired."""
+
+EventContractExitSlippageUnitLiteral = Literal["bps", "cents"]
+"""Slippage unit. ``bps`` is 0–9999; ``cents`` is 0–99."""
+
+CreditStatusLiteral = Literal["unknown", "pending", "failed", "applied"]
+"""Credit processing status. Spec: ``CreditHistory.status``."""
+
+
+class EventContractExitSlippage(BaseModel):
+    """Execution allowance below the trigger price, shared by TP and SL.
+
+    ``bps`` accepts 0–9999. ``cents`` accepts 0–99 (spec ``not`` rejects
+    ``unit=cents`` with ``value >= 100``). Zero allows no slippage.
+    """
+
+    unit: EventContractExitSlippageUnitLiteral
+    value: StrictInt = Field(ge=0, le=9999)
+
+    model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def _cents_under_100(self) -> EventContractExitSlippage:
+        if self.unit == "cents" and self.value >= 100:
+            raise ValueError("cents slippage must be 0-99 (got value >= 100)")
+        return self
+
+
+class AttachedEventContractExitTrigger(BaseModel):
+    """Take-profit / stop-loss attached to ``POST .../orders/with_exit_trigger``.
+
+    Prices are YES prices, like the order's ``price``. Every field is optional;
+    an empty object is spec-valid. Omit a leg to leave it unset.
+    """
+
+    slippage: EventContractExitSlippage | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("stop_loss_price_dollars", "stop_loss_price"),
+        serialization_alias="stop_loss_price",
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("take_profit_price_dollars", "take_profit_price"),
+        serialization_alias="take_profit_price",
+    )
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+
+class SetEventContractExitTriggerRequest(BaseModel):
+    """Body for ``PUT /portfolio/positions/{ticker}/exit_trigger``.
+
+    Replaces both legs: a leg you omit is cleared. At least one of
+    ``stop_loss_price`` or ``take_profit_price`` is required. Prices are YES
+    prices, like order prices.
+    """
+
+    slippage: EventContractExitSlippage | None = None
+    kind: EventContractExitKindLiteral | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("stop_loss_price_dollars", "stop_loss_price"),
+        serialization_alias="stop_loss_price",
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("take_profit_price_dollars", "take_profit_price"),
+        serialization_alias="take_profit_price",
+    )
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @model_validator(mode="after")
+    def _at_least_one_leg(self) -> SetEventContractExitTriggerRequest:
+        if self.stop_loss_price is None and self.take_profit_price is None:
+            raise ValueError(
+                "at least one of stop_loss_price or take_profit_price is required"
+            )
+        return self
+
+
+class EventContractExitTrigger(BaseModel):
+    """A take-profit / stop-loss bracket on an event-contract position.
+
+    ``side`` is the outcome the position holds. Prices are YES prices.
+    """
+
+    id: str
+    ticker: str
+    side: EventContractExitSideLiteral
+    subaccount_number: int
+    kind: EventContractExitKindLiteral
+    status: EventContractExitStatusLiteral
+    created_time: AwareDatetime
+    updated_time: AwareDatetime
+    slippage: EventContractExitSlippage | None = None
+    stop_loss_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("stop_loss_price_dollars", "stop_loss_price"),
+    )
+    take_profit_price: DollarDecimal | None = Field(
+        default=None,
+        validation_alias=AliasChoices("take_profit_price_dollars", "take_profit_price"),
+    )
+    status_reason: str | None = None
+    triggered_order_id: str | None = None
+    triggered_leg: EventContractExitTriggeredLegLiteral | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class GetEventContractExitTriggersResponse(BaseModel):
+    """Response from ``GET /portfolio/positions/{ticker}/exit_trigger``.
+
+    ``exit_triggers`` lists live brackets. ``exit_trigger`` is the most recently
+    updated bracket, including a terminal one, and is null when none exists.
+    The key is required; the value may be null.
+    """
+
+    exit_trigger: EventContractExitTrigger | None
+    exit_triggers: list[EventContractExitTrigger]
+
+    model_config = {"extra": "allow"}
+
+
+class CreditHistory(BaseModel):
+    """One row from ``GET /portfolio/credit_history``.
+
+    ``type`` is exposed as ``credit_type`` so it does not shadow the builtin.
+    ``amount`` accepts the spec's ``amount_dollars`` wire name.
+    """
+
+    credit_id: str
+    credit_type: str = Field(validation_alias=AliasChoices("type", "credit_type"))
+    status: CreditStatusLiteral
+    amount: DollarDecimal = Field(
+        validation_alias=AliasChoices("amount_dollars", "amount"),
+    )
+    reason: str
+    created_time: AwareDatetime
+
+    model_config = {"extra": "allow", "populate_by_name": True}

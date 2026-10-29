@@ -626,6 +626,46 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /margin/markets/schedules:
+    get:
+      operationId: GetMarginMarketSchedules
+      summary: Get Market Schedules
+      description: Endpoint for retrieving Kalshi trading holiday closures for multiple margin markets. Returns a map keyed by market ticker. Regular daily and weekend closures are not included.
+      tags:
+        - market
+      parameters:
+        - name: tickers
+          in: query
+          required: true
+          description: Comma-separated list of margin market tickers
+          schema:
+            type: array
+            items:
+              type: string
+              minLength: 1
+              maxLength: 200
+            minItems: 1
+            maxItems: 100
+          style: form
+          explode: false
+          x-oapi-codegen-extra-tags:
+            validate: required,min=1,max=100,dive,required,max=200
+      responses:
+        '200':
+          description: Market schedules retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetMarginMarketSchedulesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /margin/markets/orderbooks:
     get:
       operationId: GetMarginMarketOrderbooks
@@ -2300,6 +2340,9 @@ components:
       enum:
         - bracket
         - trailing
+      x-enum-varnames:
+        - Bracket
+        - Trailing
     ExitTriggerStatus:
       type: string
       description: >-
@@ -2321,6 +2364,9 @@ components:
       enum:
         - stop_loss
         - take_profit
+      x-enum-varnames:
+        - StopLoss
+        - TakeProfit
     ExitTriggerReason:
       type: string
       description: Why the trigger reached its terminal status.
@@ -2330,6 +2376,7 @@ components:
         - entry_not_filled
         - order_rejected
         - position_flipped
+        - market_deactivated
     UpdateExitTriggerRequest:
       type: object
       description: >-
@@ -3258,6 +3305,40 @@ components:
             How funding averages a bar with no premium (no orderbook sample or no index price anywhere in the bar, or a trading
             halt during it), configured at market creation. dampen counts the bar as a premium of 0; exclude leaves it out of the average.
 
+    GetMarginMarketSchedulesResponse:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/MarginMarketScheduleDetails'
+
+    MarginMarketScheduleDetails:
+      type: object
+      required:
+        - kalshi_trading_holidays
+      properties:
+        kalshi_trading_holidays:
+          type: array
+          description: Kalshi trading holiday closures for the market.
+          items:
+            $ref: '#/components/schemas/MarginHolidayWindow'
+
+    MarginHolidayWindow:
+      type: object
+      required:
+        - from
+        - until
+      properties:
+        from:
+          type: string
+          format: date-time
+          description: Inclusive start of the holiday closure in UTC.
+        until:
+          type: string
+          format: date-time
+          description: Exclusive end of the holiday closure in UTC.
+        reason:
+          type: string
+          description: Reason for the holiday closure.
+
     MarginMarketSchedule:
       type: object
       nullable: true
@@ -3307,8 +3388,14 @@ components:
 
     OrderReason:
       type: string
-      enum: ['liquidation', 'take_profit_stop_loss']
-      description: The reason for a system-generated order. Present for liquidation and TP/SL orders.
+      enum: ['liquidation', 'take_profit_stop_loss', 'auto_rebalance']
+      description: The reason for a system-generated order. Present for liquidation, TP/SL, and auto-rebalance orders.
+
+    SubaccountType:
+      type: string
+      enum: ['cross', 'isolated', 'auto_rebalance']
+      x-enum-varnames: [SubaccountTypeCross, SubaccountTypeIsolated, SubaccountTypeAutoRebalance]
+      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, and `auto_rebalance` for an auto-rebalanced isolated position, which shares its market's isolated subaccount number.
 
     LastUpdateReason:
       type: string
@@ -3410,6 +3497,7 @@ components:
       type: object
       required:
         - subaccount
+        - subaccount_type
         - market_ticker
         - position
         - entry_price
@@ -3420,6 +3508,8 @@ components:
         subaccount:
           type: integer
           description: The subaccount number that holds this position (0 for primary, 1-63 for subaccounts)
+        subaccount_type:
+          $ref: '#/components/schemas/SubaccountType'
         market_ticker:
           type: string
           description: Market ticker symbol
@@ -3566,6 +3656,7 @@ components:
       type: object
       required:
         - subaccount
+        - subaccount_type
         - position_value
         - account_equity
         - maintenance_margin
@@ -3576,6 +3667,8 @@ components:
         subaccount:
           type: integer
           description: The subaccount number (0 for primary, 1-63 for subaccounts)
+        subaccount_type:
+          $ref: '#/components/schemas/SubaccountType'
         position_value:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Mark-to-market value of open positions for this subaccount in fixed-point dollars
@@ -3614,6 +3707,7 @@ components:
       type: object
       required:
         - subaccount
+        - subaccount_type
         - market_ticker
         - position
         - mark_price
@@ -3623,6 +3717,8 @@ components:
         subaccount:
           type: integer
           description: The subaccount number (0 for primary, 1-63 for subaccounts)
+        subaccount_type:
+          $ref: '#/components/schemas/SubaccountType'
         market_ticker:
           type: string
           description: Market ticker symbol
@@ -3744,6 +3840,7 @@ components:
         - funding_amount
         - quantity
         - subaccount_number
+        - subaccount_type
       properties:
         market_ticker:
           type: string
@@ -3769,6 +3866,8 @@ components:
           type: integer
           nullable: true
           description: Subaccount number (0 for primary)
+        subaccount_type:
+          $ref: '#/components/schemas/SubaccountType'
 
     GetMarginFundingHistoryResponse:
       type: object
@@ -3801,7 +3900,7 @@ components:
       properties:
         id:
           type: string
-          description: "Stable notice id, equal to the Klear review id."
+          description: "Stable corporate action id."
         market_id:
           type: string
           description: "Stable market UUID."
@@ -3825,7 +3924,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: "Review execution time. Omitted for cancelled notices."
+          description: "Execution time. Omitted for cancelled notices."
         cash:
           $ref: '#/components/schemas/MarginCorporateActionCashTerms'
         split:

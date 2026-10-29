@@ -25,6 +25,8 @@ _NESTED_REQUEST_MODELS = frozenset(
         "CreateRFQBatchChild",
         "RFQBatchQuoteEntry",
         "RFQBatchAcceptLimit",
+        "AttachedEventContractExitTrigger",
+        "EventContractExitSlippage",
     }
 )
 

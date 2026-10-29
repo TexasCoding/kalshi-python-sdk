@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field, model_validator
 
+from kalshi.models.portfolio import AttachedEventContractExitTrigger
 from kalshi.types import DollarDecimal, FixedPointCount, OrderPrice, StrictInt
 
 # Literal aliases for fixed-enum fields on the order models.
@@ -188,6 +189,17 @@ class CreateOrderV2Request(BaseModel):
     exchange_index: StrictInt | None = Field(default=None, ge=0)
 
     model_config = {"extra": "forbid"}
+
+
+class CreateOrderWithExitTriggerRequest(CreateOrderV2Request):
+    """Body for ``POST /portfolio/events/orders/with_exit_trigger``.
+
+    Same wire shape as :class:`CreateOrderV2Request` plus a required
+    ``exit_trigger``. The route is hidden in the published spec
+    (``x-excluded``) until event-contract take-profit / stop-loss launches.
+    """
+
+    exit_trigger: AttachedEventContractExitTrigger
 
 
 class CreateOrderV2Response(BaseModel):

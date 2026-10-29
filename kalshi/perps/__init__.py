@@ -73,6 +73,7 @@ from kalshi.perps.models.common import (
     OrderSource,
     PriceLevelDollarsCountFp,
     SelfTradePreventionType,
+    SubaccountTypeLiteral,
 )
 from kalshi.perps.models.exchange import (
     ExchangeStatus,
@@ -115,9 +116,11 @@ from kalshi.perps.models.margin_account import (
 )
 from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
+    MarginHolidayWindow,
     MarginMarket,
     MarginMarketCandlestick,
     MarginMarketSchedule,
+    MarginMarketScheduleDetails,
     MarginMarketStatusLiteral,
     MarginOrderbook,
     MarginOrderbookLevel,
@@ -337,9 +340,11 @@ __all__ = [
     "MarginFundingHistoryEntry",
     "MarginFundingRate",
     "MarginFundingRateEstimate",
+    "MarginHolidayWindow",
     "MarginMarket",
     "MarginMarketCandlestick",
     "MarginMarketSchedule",
+    "MarginMarketScheduleDetails",
     "MarginMarketStatus",
     "MarginMarketStatusLiteral",
     "MarginOrder",
@@ -397,6 +402,7 @@ __all__ = [
     "SettlementBalanceHistoryEntry",
     "SettlementDetail",
     "SettlementEstimate",
+    "SubaccountTypeLiteral",
     "TickerPrice",
     "TimeInForceLiteral",
     "TransfersResource",

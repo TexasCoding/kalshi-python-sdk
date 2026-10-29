@@ -25,8 +25,10 @@ from kalshi.models.orders import (
     BatchCancelOrdersV2RequestOrder,
     BatchCreateOrdersV2Request,
     CreateOrderV2Request,
+    CreateOrderWithExitTriggerRequest,
     DecreaseOrderV2Request,
 )
+from kalshi.models.portfolio import AttachedEventContractExitTrigger
 from kalshi.resources.orders import OrdersResource
 from tests._model_fixtures import fill_dict, order_dict
 
@@ -1158,3 +1160,93 @@ class TestIssue351OrdersFillsDeprecated:
             ids = [f.trade_id for f in orders.fills_all()]
         assert ids == ["a"]
         assert len([w for w in record if issubclass(w.category, DeprecationWarning)]) == 1
+
+
+def _exit_order(**trigger: object) -> CreateOrderWithExitTriggerRequest:
+    return CreateOrderWithExitTriggerRequest(
+        ticker="MKT-A",
+        client_order_id="cli-1",
+        side="bid",
+        count=Decimal("10"),
+        price=Decimal("0.50"),
+        time_in_force="good_till_canceled",
+        self_trade_prevention_type="taker_at_cross",
+        exit_trigger=AttachedEventContractExitTrigger(**trigger),
+    )
+
+
+class TestCreateOrderWithExitTrigger:
+    @respx.mock
+    def test_returns_response(self, orders: OrdersResource) -> None:
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/with_exit_trigger",
+        ).mock(
+            return_value=httpx.Response(
+                201,
+                json={
+                    "order_id": "ord-v2-1",
+                    "client_order_id": "cli-1",
+                    "fill_count": "0",
+                    "remaining_count": "10",
+                    "ts_ms": 1700000000000,
+                },
+            )
+        )
+        result = orders.create_with_exit_trigger(
+            request=_exit_order(stop_loss_price=Decimal("0.5600")),
+        )
+        assert result.order_id == "ord-v2-1"
+        assert result.fill_count == Decimal("0")
+        body = json.loads(route.calls[0].request.content)
+        assert body["exit_trigger"] == {"stop_loss_price": "0.5600"}
+        assert isinstance(body["exit_trigger"]["stop_loss_price"], str)
+        assert body["price"] == "0.50"
+        assert "stop_loss_price_dollars" not in body["exit_trigger"]
+
+    @respx.mock
+    def test_server_400_and_409(self, orders: OrdersResource) -> None:
+        from kalshi.errors import KalshiConflictError, KalshiValidationError
+
+        route = respx.post(
+            "https://test.kalshi.com/trade-api/v2/portfolio/events/orders/with_exit_trigger",
+        )
+        route.mock(return_value=httpx.Response(400, json={"error": "bad"}))
+        with pytest.raises(KalshiValidationError):
+            orders.create_with_exit_trigger(request=_exit_order())
+        route.mock(return_value=httpx.Response(409, json={"error": "conflict"}))
+        with pytest.raises(KalshiConflictError):
+            orders.create_with_exit_trigger(request=_exit_order())
+
+    def test_requires_exit_trigger_and_rejects_phantom(self) -> None:
+        with pytest.raises(ValidationError):
+            CreateOrderWithExitTriggerRequest(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+            )
+        with pytest.raises(ValidationError):
+            CreateOrderWithExitTriggerRequest(
+                ticker="MKT-A",
+                client_order_id="cli-1",
+                side="bid",
+                count=Decimal("10"),
+                price=Decimal("0.50"),
+                time_in_force="good_till_canceled",
+                self_trade_prevention_type="taker_at_cross",
+                exit_trigger=AttachedEventContractExitTrigger(),
+                ghost_field="x",  # type: ignore[call-arg]
+            )
+
+    def test_empty_attached_trigger_is_valid(self) -> None:
+        request = _exit_order()
+        assert request.exit_trigger.stop_loss_price is None
+        dumped = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        assert dumped["exit_trigger"] == {}
+
+    def test_requires_auth(self, unauth_orders: OrdersResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_orders.create_with_exit_trigger(request=_exit_order())

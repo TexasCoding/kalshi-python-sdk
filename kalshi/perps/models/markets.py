@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal, NullableList
 
@@ -314,5 +314,34 @@ class GetMarginMarketCandlesticksResponse(BaseModel):
 
     ticker: str
     candlesticks: NullableList[MarginMarketCandlestick]
+
+    model_config = {"extra": "allow"}
+
+
+class MarginHolidayWindow(BaseModel):
+    """One Kalshi trading-holiday closure on ``GET /margin/markets/schedules``.
+
+    Spec property ``from`` is a Python keyword, so the field is ``start``.
+    Both ``start`` and ``until`` are required; ``reason`` is optional.
+    """
+
+    start: AwareDatetime = Field(
+        validation_alias=AliasChoices("from", "start"),
+        serialization_alias="from",
+    )
+    until: AwareDatetime
+    reason: str | None = None
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class MarginMarketScheduleDetails(BaseModel):
+    """Holiday closures for one margin market.
+
+    Regular daily and weekend closures are not included. The schedules
+    endpoint returns a ticker → details map; this is one value.
+    """
+
+    kalshi_trading_holidays: list[MarginHolidayWindow]
 
     model_config = {"extra": "allow"}
