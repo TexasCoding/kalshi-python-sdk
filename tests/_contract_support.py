@@ -423,6 +423,12 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         request_body_schema="#/components/schemas/CreateOrderV2Request",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.orders.OrdersResource.create_with_exit_trigger",
+        http_method="POST",
+        path_template="/portfolio/events/orders/with_exit_trigger",
+        request_body_schema="#/components/schemas/CreateOrderWithExitTriggerRequest",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.orders.OrdersResource.cancel_v2",
         http_method="DELETE",
         path_template="/portfolio/events/orders/{order_id}",
@@ -854,6 +860,32 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/portfolio/target_balance_allocation",
     ),
     MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.exit_triggers",
+        http_method="GET",
+        path_template="/portfolio/positions/{ticker}/exit_trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.set_exit_trigger",
+        http_method="PUT",
+        path_template="/portfolio/positions/{ticker}/exit_trigger",
+        request_body_schema="#/components/schemas/SetEventContractExitTriggerRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.cancel_exit_trigger",
+        http_method="DELETE",
+        path_template="/portfolio/positions/{ticker}/exit_trigger",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.credit_history",
+        http_method="GET",
+        path_template="/portfolio/credit_history",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.portfolio.PortfolioResource.credit_history_all",
+        http_method="GET",
+        path_template="/portfolio/credit_history",
+    ),
+    MethodEndpointEntry(
         sdk_method="kalshi.resources.portfolio.PortfolioResource.set_target_balance_allocation",
         http_method="POST",
         path_template="/portfolio/target_balance_allocation",
@@ -1099,6 +1131,10 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
     ),
     ("kalshi.resources.portfolio.PortfolioResource.deposits_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
+        kind="paginator_handled",
+    ),
+    ("kalshi.resources.portfolio.PortfolioResource.credit_history_all", "cursor"): Exclusion(
+        reason="paginator-handled; not a caller-facing kwarg on credit_history_all",
         kind="paginator_handled",
     ),
     ("kalshi.resources.portfolio.PortfolioResource.positions_all", "cursor"): Exclusion(
@@ -1437,6 +1473,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.PortfolioResource.positions_all",
     "kalshi.resources.portfolio.PortfolioResource.fills_all",
     "kalshi.resources.portfolio.PortfolioResource.intra_exchange_transfers_all",
+    "kalshi.resources.portfolio.PortfolioResource.credit_history_all",
     "kalshi.resources.fcm.FcmResource.orders_all",
     "kalshi.resources.fcm.FcmResource.fills_all",
     "kalshi.resources.fcm.FcmResource.positions_all",
@@ -1471,6 +1508,7 @@ _MAX_PAGES_FQNS: tuple[str, ...] = (
     "kalshi.resources.portfolio.AsyncPortfolioResource.positions_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.fills_all",
     "kalshi.resources.portfolio.AsyncPortfolioResource.intra_exchange_transfers_all",
+    "kalshi.resources.portfolio.AsyncPortfolioResource.credit_history_all",
     "kalshi.resources.fcm.AsyncFcmResource.orders_all",
     "kalshi.resources.fcm.AsyncFcmResource.fills_all",
     "kalshi.resources.fcm.AsyncFcmResource.positions_all",
@@ -1538,6 +1576,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.bulk_orderbooks",
         http_method="GET",
         path_template="/margin/markets/orderbooks",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.schedules",
+        http_method="GET",
+        path_template="/margin/markets/schedules",
     ),
     MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.markets.PerpsMarketsResource.candlesticks",
@@ -2037,6 +2080,47 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         ),
         kind="server_omits_despite_required",
     ),
+    ("kalshi.perps.models.portfolio.MarginPosition", "subaccount_type"): Exclusion(
+        reason=(
+            "spec 3.35.0 adds subaccount_type as required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships without a major version bump."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.perps.models.margin_account.MarginSubaccountBalance",
+        "subaccount_type",
+    ): Exclusion(
+        reason=(
+            "spec 3.35.0 adds subaccount_type as required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships without a major version bump."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.perps.models.margin_account.MarginRiskPosition",
+        "subaccount_type",
+    ): Exclusion(
+        reason=(
+            "spec 3.35.0 adds subaccount_type as required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships without a major version bump."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.perps.models.funding.MarginFundingHistoryEntry",
+        "subaccount_type",
+    ): Exclusion(
+        reason=(
+            "spec 3.35.0 adds subaccount_type as required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships without a major version bump."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # ── perps orders (#391) ──
     ("kalshi.perps.resources.orders.MarginOrdersResource.list_all", "cursor"): Exclusion(
         reason="paginator-handled; not a caller-facing kwarg on list_all",
@@ -2286,6 +2370,55 @@ def _resolve_path_params(
     return list(merged.values())
 
 
+def _flatten_allof(
+    spec: dict[str, Any],
+    schema: dict[str, Any],
+    *,
+    max_ref_depth: int,
+) -> dict[str, Any]:
+    """Merge an ``allOf`` object schema into one ``properties`` map.
+
+    Earlier branches win on property-name collisions (``setdefault``), so a
+    later branch that restates ``time_in_force`` without its enum does not
+    wipe the enum from ``CreateOrderV2Request``. Does not mutate ``spec``.
+    Schemas without ``allOf`` are returned unchanged.
+    """
+    if "allOf" not in schema:
+        return schema
+
+    merged_props: dict[str, Any] = {}
+    merged_required: list[str] = []
+    out: dict[str, Any] = {
+        key: value
+        for key, value in schema.items()
+        if key not in {"allOf", "properties", "required"}
+    }
+    branches = list(schema["allOf"])
+    # A wrapper that also declares its own properties is applied first so
+    # allOf branches can fill gaps without overwriting them... no: earlier
+    # allOf branches win, and the wrapper's own properties fill only gaps.
+    for sub in branches:
+        if "$ref" in sub:
+            sub = _resolve_ref(spec, sub["$ref"], max_depth=max_ref_depth)
+        if "allOf" in sub:
+            sub = _flatten_allof(spec, sub, max_ref_depth=max_ref_depth)
+        for name, prop in sub.get("properties", {}).items():
+            merged_props.setdefault(name, prop)
+        for req in sub.get("required", []):
+            if req not in merged_required:
+                merged_required.append(req)
+    for name, prop in schema.get("properties", {}).items():
+        merged_props.setdefault(name, prop)
+    for req in schema.get("required", []):
+        if req not in merged_required:
+            merged_required.append(req)
+    out["type"] = out.get("type", "object")
+    out["properties"] = merged_props
+    if merged_required:
+        out["required"] = merged_required
+    return out
+
+
 def _resolve_request_body_schema(
     spec: dict[str, Any],
     path_template: str,
@@ -2332,4 +2465,4 @@ def _resolve_request_body_schema(
     if "$ref" in schema:
         schema = _resolve_ref(spec, schema["$ref"], max_depth=max_ref_depth)
 
-    return schema  # type: ignore[no-any-return]
+    return _flatten_allof(spec, schema, max_ref_depth=max_ref_depth)

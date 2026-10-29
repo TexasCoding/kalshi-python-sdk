@@ -685,3 +685,20 @@ class TestExitTriggers:
         )
         assert ok.stop_loss_price == Decimal("50000.0000")
         assert ok.take_profit_price == Decimal("70000.0000")
+
+
+class TestSubaccountType:
+    def test_omitted_is_none(self) -> None:
+        position = MarginPosition.model_validate(_long_position())
+        assert position.subaccount_type is None
+
+    def test_parses_when_present(self) -> None:
+        payload = _long_position()
+        payload["subaccount_type"] = "cross"
+        assert MarginPosition.model_validate(payload).subaccount_type == "cross"
+
+    def test_invalid_raises(self) -> None:
+        payload = _long_position()
+        payload["subaccount_type"] = "hedged"
+        with pytest.raises(ValidationError):
+            MarginPosition.model_validate(payload)

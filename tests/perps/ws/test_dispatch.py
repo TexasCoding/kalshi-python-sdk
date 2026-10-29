@@ -25,7 +25,7 @@ from .conftest import FakePerpsWS
 
 def test_control_types_and_message_models() -> None:
     assert {"subscribed", "unsubscribed", "ok", "error"} == CONTROL_TYPES
-    # #398 populated the type -> model registry; the seven data channels route here.
+    # #398 populated the type -> model registry; data channels route here.
     assert set(MESSAGE_MODELS) >= {
         "orderbook_snapshot",
         "orderbook_delta",

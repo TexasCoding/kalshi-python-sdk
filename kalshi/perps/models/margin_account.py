@@ -23,6 +23,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.types import (
     DollarDecimal,
     FixedPointCount,
@@ -37,6 +38,9 @@ class MarginSubaccountBalance(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     subaccount: int
+    # Spec 3.35.0 marks subaccount_type required. Kept optional so a balance
+    # row that omits it still parses. See PERPS_EXCLUSIONS.
+    subaccount_type: SubaccountTypeLiteral | None = None
     position_value: DollarDecimal
     account_equity: DollarDecimal
     maintenance_margin: DollarDecimal
@@ -60,6 +64,9 @@ class MarginRiskPosition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     subaccount: int
+    # Spec 3.35.0 marks subaccount_type required. Kept optional so a risk
+    # row that omits it still parses. See PERPS_EXCLUSIONS.
+    subaccount_type: SubaccountTypeLiteral | None = None
     market_ticker: str
     position: FixedPointCount
     mark_price: DollarDecimal

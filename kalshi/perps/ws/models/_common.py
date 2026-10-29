@@ -49,7 +49,11 @@ OrderGroupEventType = Literal[
     "limit_updated",
 ]
 
+# Spec ``marginMarketLifecycleV2Payload.msg.event_type`` enum.
+MarginMarketLifecycleEventType = Literal["activated", "deactivated"]
+
 __all__ = [
+    "MarginMarketLifecycleEventType",
     "OrderGroupEventType",
     "PerpsBookSide",
     "PerpsLastUpdateReason",

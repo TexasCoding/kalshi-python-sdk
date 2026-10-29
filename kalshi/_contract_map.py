@@ -493,6 +493,10 @@ CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="CreateOrderV2Request",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.orders.CreateOrderWithExitTriggerRequest",
+        spec_schema="CreateOrderWithExitTriggerRequest",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.orders.CreateOrderV2Response",
         spec_schema="CreateOrderV2Response",
     ),
@@ -592,6 +596,31 @@ CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.models.portfolio.Deposit",
         spec_schema="Deposit",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.CreditHistory",
+        spec_schema="CreditHistory",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.EventContractExitSlippage",
+        spec_schema="EventContractExitSlippage",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.AttachedEventContractExitTrigger",
+        spec_schema="AttachedEventContractExitTrigger",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.SetEventContractExitTriggerRequest",
+        spec_schema="SetEventContractExitTriggerRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.EventContractExitTrigger",
+        spec_schema="EventContractExitTrigger",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.portfolio.GetEventContractExitTriggersResponse",
+        spec_schema="response|GET|/portfolio/positions/{ticker}/exit_trigger|200",
+        notes="Inline 200 schema on the GET; not a named component",
     ),
     ContractEntry(
         sdk_model="kalshi.models.portfolio.Withdrawal",
@@ -789,6 +818,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
     ContractEntry(
         sdk_model="kalshi.perps.models.markets.MarginMarketSchedule",
         spec_schema="MarginMarketSchedule",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginHolidayWindow",
+        spec_schema="MarginHolidayWindow",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginMarketScheduleDetails",
+        spec_schema="MarginMarketScheduleDetails",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.models.markets.MarginMarketCandlestick",

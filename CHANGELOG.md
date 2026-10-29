@@ -2,6 +2,44 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.5.0 — 2026-10-29
+
+Reconciles nightly spec drift (#561) against core OpenAPI 3.35.0 and the
+latest perps specs. Additive only. No breaking changes.
+
+### Added
+
+- **Exit triggers** (sync and async): `client.portfolio.exit_triggers(ticker)`
+  (`GET /portfolio/positions/{ticker}/exit_trigger`),
+  `set_exit_trigger` (`PUT`), `cancel_exit_trigger` (`DELETE`), and
+  `client.orders.create_with_exit_trigger`
+  (`POST /portfolio/events/orders/with_exit_trigger`). New models
+  `EventContractExitTrigger`, `SetEventContractExitTriggerRequest`,
+  `AttachedEventContractExitTrigger`, `EventContractExitSlippage`,
+  `CreateOrderWithExitTriggerRequest`. PUT/DELETE/POST are never retried.
+  (Closes #561).
+- **Credit history**: `client.portfolio.credit_history()` and
+  `credit_history_all()` (`GET /portfolio/credit_history`), returning
+  `CreditHistory` with `amount` as `DollarDecimal`. (Closes #561).
+- **Perps market schedules**: `perps.markets.schedules()`
+  (`GET /margin/markets/schedules`), returning
+  `MarginMarketScheduleDetails` / `MarginHolidayWindow`. (Closes #561).
+- **Perps WebSocket `market_lifecycle_v2`** channel:
+  `PerpsWebSocket.subscribe_market_lifecycle`, yielding
+  `MarginMarketLifecycleV2Message`.
+- Optional **`subaccount_type`** (`"cross"`, `"isolated"`,
+  `"auto_rebalance"` or `None`) on `MarginPosition`,
+  `MarginSubaccountBalance`, `MarginRiskPosition` and
+  `MarginFundingHistoryEntry`. The spec marks it required; the SDK keeps it
+  optional (contract exclusion `server_omits_despite_required`) so this
+  stays a minor release. (Closes #561).
+
+### Internal
+
+- Test config: set `asyncio_default_fixture_loop_scope = "function"` and
+  fixed fixture decorator order for pytest-asyncio 1.4.1 / pytest 9.2
+  (#560, closes #559).
+
 ## 22.4.0 — 2026-10-26
 
 Reconciles nightly spec drift (#556, #557). Additive on the RFQ-batch

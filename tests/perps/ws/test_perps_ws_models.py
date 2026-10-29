@@ -24,6 +24,10 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from kalshi.perps.ws.models.fill import MarginFillMessage, MarginFillPayload
+from kalshi.perps.ws.models.market_lifecycle import (
+    MarginMarketLifecycleV2Message,
+    MarginMarketLifecycleV2Payload,
+)
 from kalshi.perps.ws.models.order_group import (
     OrderGroupUpdatesMessage,
     OrderGroupUpdatesPayload,
@@ -69,6 +73,10 @@ _PAYLOAD_MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "marginTickerPayload": (MarginTickerMessage, MarginTickerPayload),
     "marginTradePayload": (MarginTradeMessage, MarginTradePayload),
     "marginFillPayload": (MarginFillMessage, MarginFillPayload),
+    "marginMarketLifecycleV2Payload": (
+        MarginMarketLifecycleV2Message,
+        MarginMarketLifecycleV2Payload,
+    ),
     "marginUserOrderPayload": (MarginUserOrderMessage, MarginUserOrderPayload),
     "orderGroupUpdatesPayload": (
         OrderGroupUpdatesMessage,
@@ -134,6 +142,7 @@ class TestPayloadDriftGuard:
             "marginOrderbookDeltaPayload",
             "orderGroupUpdatesPayload",
             "marginTradePayload",
+            "marginMarketLifecycleV2Payload",
         ):
             assert "seq" in spec["components"]["schemas"][schema_name]["required"]
         for schema_name in (
@@ -608,6 +617,60 @@ class TestOrderGroup:
             OrderGroupUpdatesMessage.model_validate(frame)
 
 
+class TestMarketLifecycle:
+    def test_parses_spec_deactivated_example(self) -> None:
+        spec = _load_spec()
+        example = spec["components"]["messages"]["marketLifecycleV2"]["examples"][0][
+            "payload"
+        ]
+        msg = MarginMarketLifecycleV2Message.model_validate(example)
+        assert msg.type == "market_lifecycle_v2"
+        assert msg.sid == 13
+        assert msg.seq == 4
+        assert msg.sending_ts_ms == 1792000000150
+        assert msg.msg.market_ticker == "KXBTCPERP"
+        assert msg.msg.event_type == "deactivated"
+        assert msg.msg.is_deactivated is True
+
+    def test_parses_activated_and_omitted_sending_ts(self) -> None:
+        msg = MarginMarketLifecycleV2Message.model_validate(
+            {
+                "type": "market_lifecycle_v2",
+                "sid": 13,
+                "seq": 5,
+                "msg": {
+                    "market_ticker": "KXBTCPERP",
+                    "event_type": "activated",
+                    "is_deactivated": False,
+                },
+            }
+        )
+        assert msg.msg.event_type == "activated"
+        assert msg.msg.is_deactivated is False
+        assert msg.sending_ts_ms is None
+
+    def test_missing_seq_or_bad_event_type_raises(self) -> None:
+        base = {
+            "type": "market_lifecycle_v2",
+            "sid": 13,
+            "seq": 5,
+            "msg": {
+                "market_ticker": "KXBTCPERP",
+                "event_type": "activated",
+                "is_deactivated": False,
+            },
+        }
+        missing_seq = {k: v for k, v in base.items() if k != "seq"}
+        with pytest.raises(ValidationError):
+            MarginMarketLifecycleV2Message.model_validate(missing_seq)
+        bad = {
+            **base,
+            "msg": {**base["msg"], "event_type": "halted"},
+        }
+        with pytest.raises(ValidationError):
+            MarginMarketLifecycleV2Message.model_validate(bad)
+
+
 class TestDispatcherRegistration:
     def test_message_models_registers_all_seven_types(self) -> None:
         from kalshi.perps.ws.dispatch import MESSAGE_MODELS
@@ -620,11 +683,12 @@ class TestDispatcherRegistration:
             "fill": MarginFillMessage,
             "user_order": MarginUserOrderMessage,
             "order_group_updates": OrderGroupUpdatesMessage,
+            "market_lifecycle_v2": MarginMarketLifecycleV2Message,
         } == MESSAGE_MODELS
 
 
 class TestSubscribeHelpers:
-    def test_six_typed_helpers_present(self) -> None:
+    def test_typed_helpers_present(self) -> None:
         from kalshi.perps.ws.client import PerpsWebSocket
 
         for name in (
@@ -634,6 +698,7 @@ class TestSubscribeHelpers:
             "subscribe_fill",
             "subscribe_user_orders",
             "subscribe_order_group",
+            "subscribe_market_lifecycle",
         ):
             assert callable(getattr(PerpsWebSocket, name))
 
@@ -642,9 +707,8 @@ class TestSubscribeHelpers:
 
         for name in (
             "subscribe_market_positions",
-                        "subscribe_multivariate_lifecycle",
+            "subscribe_multivariate_lifecycle",
             "subscribe_communications",
-            "subscribe_market_lifecycle",
         ):
             assert not hasattr(PerpsWebSocket, name), (
                 f"{name} has no perps counterpart and must not exist"

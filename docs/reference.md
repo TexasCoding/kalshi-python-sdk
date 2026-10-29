@@ -36,6 +36,14 @@ every exception class.
 
 ::: kalshi.models.orders.CreateOrderV2Request
 
+::: kalshi.models.orders.CreateOrderWithExitTriggerRequest
+
+::: kalshi.models.portfolio.AttachedEventContractExitTrigger
+
+::: kalshi.models.portfolio.SetEventContractExitTriggerRequest
+
+::: kalshi.models.portfolio.EventContractExitSlippage
+
 ::: kalshi.models.orders.AmendOrderV2Request
 
 ::: kalshi.models.orders.DecreaseOrderV2Request

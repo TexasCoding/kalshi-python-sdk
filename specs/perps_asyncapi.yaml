@@ -13,6 +13,7 @@ info:
     - `user_orders`
     - `order_group_updates`
     - `corporate_actions`
+    - `market_lifecycle_v2`
   contact:
     name: Kalshi Support
     url: https://kalshi.com
@@ -110,7 +111,22 @@ channels:
       - authenticated connection
       - market specification required via `market_ticker` or `market_tickers`
       - sends `orderbook_snapshot` first, then incremental `orderbook_delta` updates
-      - supports `get_snapshot` on `update_subscription` to request a fresh snapshot without changing the subscription
+      - supports `get_snapshot` on `update_subscription` to request a fresh snapshot without changing the subscribed markets. Apply every returned snapshot as a replacement for that market's local book
+      - each connection has one `orderbook_delta` subscription. A repeated `subscribe` adds new markets to its existing `sid` and sends no snapshot for markets already subscribed
+      - a repeated `subscribe` must use the existing `update_interval_ms` (omitting it means `0`); a different valid interval returns error code 11 without adding markets. Use `update_subscription` with `add_markets` to add markets without respecifying the interval. To change it, `unsubscribe`, wait for `unsubscribed`, then `subscribe` again
+      - optional conflated updates: set `update_interval_ms` to `100` or `1000` on the initial `subscribe` to receive one net
+        `orderbook_delta` per changed price level per window. A window starts with its first held change; processing and transport can delay delivery. Updates to your own orders
+        within any subaccount restriction and snapshots bypass the interval. A snapshot replaces any unsent held changes for its market, and `seq` stays contiguous.
+        Omit it or set it to `0` for real-time updates, the default
+      - levels whose held changes cancel out are skipped. `ts_ms` is the timestamp of the latest change included in each delta;
+        it can decrease between deltas and is not a completeness watermark. Follow the subscription's `seq` for delivery order
+      - changes to other participants' orders, including liquidity your trades consume, remain held. Between flushes,
+        public levels can lag your own orders and the book can appear locked or crossed. A flush has separate delta messages and no end-of-flush message
+      - apply every delta in `seq` order within its subscription. Recover a gap with `get_snapshot` for all subscribed markets,
+        or `unsubscribe`, wait for `unsubscribed`, then `subscribe` again. Replace each book with its new snapshot before applying later deltas;
+        a repeated `subscribe` alone does not resynchronize existing markets
+      - conflation windows are independent across subscriptions. When switching connections, rebuild from that
+        connection's snapshot and follow its own `seq`; do not combine deltas from different connections
     messages:
       orderbookSnapshot:
         $ref: '#/components/messages/orderbookSnapshot'
@@ -136,6 +152,19 @@ channels:
     messages:
       corporateActionsDelta:
         $ref: '#/components/messages/corporateActionsDelta'
+
+  market_lifecycle_v2:
+    address: market_lifecycle_v2
+    title: Market Lifecycle
+    description: |
+      Market deactivation and activation notifications.
+
+      Requirements:
+      - no additional channel-level auth beyond the authenticated WebSocket connection
+      - receives every margin market; `market_ticker` filters are not supported
+    messages:
+      marketLifecycleV2:
+        $ref: '#/components/messages/marketLifecycleV2'
 
   ticker:
     address: ticker
@@ -220,6 +249,17 @@ operations:
       $ref: '#/channels/corporate_actions'
     messages:
       - $ref: '#/channels/corporate_actions/messages/corporateActionsDelta'
+    tags:
+      - name: market-data
+
+  receiveMarketLifecycleV2:
+    action: send
+    title: Market Lifecycle Event
+    summary: Receive market deactivation and activation notifications
+    channel:
+      $ref: '#/channels/market_lifecycle_v2'
+    messages:
+      - $ref: '#/channels/market_lifecycle_v2/messages/marketLifecycleV2'
     tags:
       - name: market-data
 
@@ -594,6 +634,36 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/marginCorporateActionsDeltaPayload'
+    marketLifecycleV2:
+      name: market_lifecycle_v2
+      title: Market Lifecycle V2
+      summary: Market deactivated or activated
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/marginMarketLifecycleV2Payload'
+      examples:
+        - name: marketDeactivated
+          summary: Market deactivated
+          payload:
+            type: market_lifecycle_v2
+            sending_ts_ms: 1792000000150
+            sid: 13
+            seq: 4
+            msg:
+              market_ticker: "KXBTCPERP"
+              event_type: "deactivated"
+              is_deactivated: true
+        - name: marketActivated
+          summary: Market activated
+          payload:
+            type: market_lifecycle_v2
+            sending_ts_ms: 1792000900150
+            sid: 13
+            seq: 5
+            msg:
+              market_ticker: "KXBTCPERP"
+              event_type: "activated"
+              is_deactivated: false
     ticker:
       name: ticker
       title: Ticker Update
@@ -748,7 +818,7 @@ components:
               minItems: 1
               items:
                 type: string
-                enum: ["orderbook_delta", "ticker", "trade", "fill", "user_orders", "order_group_updates", "corporate_actions"]
+                enum: ["orderbook_delta", "ticker", "trade", "fill", "user_orders", "order_group_updates", "corporate_actions", "market_lifecycle_v2"]
             market_ticker:
               type: string
             market_tickers:
@@ -763,6 +833,22 @@ components:
             skip_ticker_ack:
               type: boolean
               default: false
+            update_interval_ms:
+              type: integer
+              enum: [0, 100, 1000]
+              default: 0
+              description: |
+                Orderbook channel only. Opts in to conflated `orderbook_delta` updates: one net delta per
+                changed price level in each 100 or 1000 millisecond window. A window starts with its first
+                held change; processing and transport can delay delivery. Your own orders within any subaccount restriction and snapshots bypass the interval;
+                changes to other participants' orders, including liquidity you consume, remain held.
+                Omit or set to 0 for real-time updates, the default. Use JSON integer literals: other signed
+                64-bit integer literals return error code 29. Values that fail integer decoding, including
+                floating-point notation and strings, return code 1 for the whole command.
+                A repeated subscribe adds markets to the existing sid and must specify the same interval
+                (omission means 0); a mismatch returns error code 11. Change intervals by unsubscribing first.
+                Follow seq within this subscription. Recover gaps with fresh snapshots for all subscribed markets
+                or unsubscribe then subscribe again. Independently conflated streams cannot be combined.
 
     unsubscribeCommandPayload:
       type: object
@@ -948,7 +1034,7 @@ components:
                 outside the public Margin surface. Codes 6, 16, and 17 are
                 retired; the service no longer emits them and their numbers
                 stay reserved.
-              enum: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 23, 24, 25, 26, 27, 28]
+              enum: [1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 18, 23, 24, 25, 26, 27, 28, 29]
             msg:
               type: string
             market_ticker:
@@ -1028,7 +1114,10 @@ components:
             ts_ms:
               type: integer
               format: int64
-              description: Unix timestamp in milliseconds.
+              description: |
+                Unix timestamp in milliseconds.
+                In conflated mode, this is the timestamp of the latest change included at this price level.
+                It can decrease between deltas; follow the subscription's seq for delivery order.
             subaccount:
               type: integer
         sending_ts_ms:
@@ -1044,7 +1133,7 @@ components:
       properties:
         id:
           type: string
-          description: "Corporate action notice id, matching `id` in `GET /trade-api/v2/margin/corporate_actions`."
+          description: "Corporate action id, matching `id` in `GET /trade-api/v2/margin/corporate_actions`."
         market_id:
           type: string
           description: "Stable market UUID."
@@ -1132,6 +1221,32 @@ components:
           properties:
             corporate_action:
               $ref: '#/components/schemas/marginCorporateAction'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
+
+    marginMarketLifecycleV2Payload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
+        type:
+          type: string
+          const: "market_lifecycle_v2"
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["market_ticker", "event_type", "is_deactivated"]
+          properties:
+            market_ticker:
+              $ref: '#/components/schemas/marketTicker'
+            event_type:
+              type: string
+              enum: ["activated", "deactivated"]
+            is_deactivated:
+              type: boolean
+              description: Whether trading on the market is paused.
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -1308,8 +1423,9 @@ components:
               type: string
               enum: ["user", "system"]
               description: |
-                `system` for liquidations and margin exit or trailing-stop
-                triggers. `user` for every other order.
+                `system` for liquidations, margin exit or trailing-stop
+                triggers, and auto-rebalance orders. `user` for every other
+                order.
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -1376,8 +1492,9 @@ components:
               type: string
               enum: ["user", "system"]
               description: |
-                `system` for liquidations and margin exit or trailing-stop
-                triggers. `user` for every other order.
+                `system` for liquidations, margin exit or trailing-stop
+                triggers, and auto-rebalance orders. `user` for every other
+                order.
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 

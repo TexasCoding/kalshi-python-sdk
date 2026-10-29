@@ -329,6 +329,28 @@ def _resolve_schema(spec: dict[str, Any], schema_name: str) -> dict[str, Any]:
     name at the top level — e.g., the per-entry shapes inside ``Batch*Orders*``
     response wrappers.
     """
+    if schema_name.startswith("response|"):
+        # Inline response schema: ``response|GET|/path/{id}|200``.
+        # Paths contain no ``|``, so the split is unambiguous.
+        try:
+            _, method, path, status = schema_name.split("|", 3)
+        except ValueError:
+            pytest.fail(f"Bad response schema locator {schema_name!r}")
+        path_item = spec.get("paths", {}).get(path)
+        if not isinstance(path_item, dict) or method.lower() not in path_item:
+            pytest.fail(f"Schema locator {schema_name!r} does not match a spec operation")
+        response = path_item[method.lower()].get("responses", {}).get(status)
+        if not isinstance(response, dict):
+            pytest.fail(f"Schema locator {schema_name!r} has no {status} response")
+        if "$ref" in response:
+            response = _resolve_ref(spec, response["$ref"])
+        node = response.get("content", {}).get("application/json", {}).get("schema")
+        if not isinstance(node, dict):
+            pytest.fail(f"Schema locator {schema_name!r} has no JSON schema")
+        if "$ref" in node:
+            node = _resolve_ref(spec, node["$ref"])
+        return node
+
     schemas = spec.get("components", {}).get("schemas", {})
     head, *rest = schema_name.split(".")
     node = schemas.get(head)
@@ -1422,6 +1444,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     # DecreaseOrderRequest/BatchCreate*/BatchCancel*) were removed in spec v3.22.0
     # along with their endpoints. Only the V2 family remains.
     "#/components/schemas/CreateOrderV2Request": ("kalshi.models.orders.CreateOrderV2Request"),
+    "#/components/schemas/CreateOrderWithExitTriggerRequest": (
+        "kalshi.models.orders.CreateOrderWithExitTriggerRequest"
+    ),
     "#/components/schemas/AmendOrderV2Request": ("kalshi.models.orders.AmendOrderV2Request"),
     "#/components/schemas/DecreaseOrderV2Request": ("kalshi.models.orders.DecreaseOrderV2Request"),
     "#/components/schemas/BatchCreateOrdersV2Request": (
@@ -1470,6 +1495,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/GenerateApiKeyRequest": ("kalshi.models.api_keys.GenerateApiKeyRequest"),
     "#/components/schemas/SetTargetBalanceAllocationRequest": (
         "kalshi.models.portfolio.SetTargetBalanceAllocationRequest"
+    ),
+    "#/components/schemas/SetEventContractExitTriggerRequest": (
+        "kalshi.models.portfolio.SetEventContractExitTriggerRequest"
     ),
     "#/components/schemas/CreateFCMPositionTransferRequest": (
         "kalshi.models.fcm.CreateFCMPositionTransferRequest"

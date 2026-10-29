@@ -8,6 +8,7 @@ modules added by #398 and are re-exported here.
 """
 
 from kalshi.perps.ws.models._common import (
+    MarginMarketLifecycleEventType,
     OrderGroupEventType,
     PerpsLastUpdateReason,
     PerpsSelfTradePreventionType,
@@ -34,6 +35,10 @@ from kalshi.perps.ws.models.control import (
     UpdateSubscriptionParams,
 )
 from kalshi.perps.ws.models.fill import MarginFillMessage, MarginFillPayload
+from kalshi.perps.ws.models.market_lifecycle import (
+    MarginMarketLifecycleV2Message,
+    MarginMarketLifecycleV2Payload,
+)
 from kalshi.perps.ws.models.order_group import (
     OrderGroupUpdatesMessage,
     OrderGroupUpdatesPayload,
@@ -62,6 +67,9 @@ __all__ = [
     "ListSubscriptionsResponse",
     "MarginFillMessage",
     "MarginFillPayload",
+    "MarginMarketLifecycleEventType",
+    "MarginMarketLifecycleV2Message",
+    "MarginMarketLifecycleV2Payload",
     "MarginOrderbookDeltaMessage",
     "MarginOrderbookDeltaPayload",
     "MarginOrderbookSnapshotMessage",

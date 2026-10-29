@@ -13,6 +13,7 @@ Reads stay on `/portfolio/orders/*`.
 | Method | Endpoint | Retry |
 |---|---|---|
 | `create_v2(*, request)` | `POST /portfolio/events/orders` | **never** — see [Retries & idempotency](../retries.md) |
+| `create_with_exit_trigger(*, request)` | `POST /portfolio/events/orders/with_exit_trigger` | never |
 | `batch_create_v2(*, request)` | `POST /portfolio/events/orders/batched` | never |
 | `cancel_v2(order_id, *, subaccount, exchange_index, market_ticker)` | `DELETE /portfolio/events/orders/{order_id}` | never |
 | `cancel_all_v2(*, subaccount)` | `DELETE /portfolio/events/orders` | never |
@@ -29,6 +30,13 @@ V2 uses `BookSideLiteral` (`"bid"` / `"ask"`), a single `price` field
 (not paired yes/no), and requires `client_order_id` as a server-side
 idempotency key. The surface is **model-only** — every write method takes a
 pre-built request model rather than kwargs.
+
+`create_with_exit_trigger` places that same V2 order with an attached
+take-profit / stop-loss bracket (`CreateOrderWithExitTriggerRequest`, which
+subclasses `CreateOrderV2Request` and adds a required `exit_trigger`). The
+route is hidden in the published spec (`x-excluded`) until event-contract
+TP/SL launches. The POST is never retried. An empty `exit_trigger` object is
+spec-valid; prices on the bracket are YES prices.
 
 ## Place an order
 

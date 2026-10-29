@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from kalshi.errors import AuthRequiredError, KalshiServerError, KalshiValidationError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
+from kalshi.perps.models.margin_account import MarginRiskPosition, MarginSubaccountBalance
 
 BASE = "https://external-api.demo.kalshi.co/trade-api/v2"
 
@@ -892,3 +893,52 @@ class TestPerpsBaseUrl:
         )
         # extra="allow" — additive field doesn't break parsing.
         assert perps_client.margin.fee_tiers().maker_fee_rates == {}
+
+
+def _balance_row(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "subaccount": 0,
+        "position_value": "1.0000",
+        "account_equity": "2.0000",
+        "maintenance_margin": "0.1000",
+        "initial_margin": "0.2000",
+        "resting_orders_margin": "0.0000",
+        "available_balance": "1.8000",
+    }
+    row.update(overrides)
+    return row
+
+
+def _risk_row(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "subaccount": 0,
+        "market_ticker": "BTC-PERP",
+        "position": "1.00",
+        "mark_price": "0.5600",
+        "position_notional": "0.5600",
+        "is_portfolio": False,
+    }
+    row.update(overrides)
+    return row
+
+
+class TestSubaccountType:
+    def test_balance_omitted_is_none_and_parses(self) -> None:
+        assert MarginSubaccountBalance.model_validate(_balance_row()).subaccount_type is None
+        parsed = MarginSubaccountBalance.model_validate(
+            _balance_row(subaccount_type="isolated")
+        )
+        assert parsed.subaccount_type == "isolated"
+
+    def test_balance_invalid_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginSubaccountBalance.model_validate(_balance_row(subaccount_type="nope"))
+
+    def test_risk_omitted_is_none_and_parses(self) -> None:
+        assert MarginRiskPosition.model_validate(_risk_row()).subaccount_type is None
+        parsed = MarginRiskPosition.model_validate(_risk_row(subaccount_type="auto_rebalance"))
+        assert parsed.subaccount_type == "auto_rebalance"
+
+    def test_risk_invalid_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginRiskPosition.model_validate(_risk_row(subaccount_type="cross-margin"))

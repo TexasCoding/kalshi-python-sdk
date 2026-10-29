@@ -52,6 +52,8 @@ exposed by each resource method stays in lockstep with the OpenAPI spec.
 | Resource | Request model |
 |---|---|
 | `client.orders.create_v2` | `CreateOrderV2Request` |
+| `client.orders.create_with_exit_trigger` | `CreateOrderWithExitTriggerRequest` (adds `exit_trigger`: `AttachedEventContractExitTrigger`) |
+| `client.portfolio.set_exit_trigger` | `SetEventContractExitTriggerRequest` (at least one of `stop_loss_price` / `take_profit_price`; nested `EventContractExitSlippage`) |
 | `client.orders.amend_v2` | `AmendOrderV2Request` |
 | `client.orders.decrease_v2` | `DecreaseOrderV2Request` (XOR `reduce_by` / `reduce_to`) |
 | `client.orders.batch_create_v2` | `BatchCreateOrdersV2Request` (wraps `list[CreateOrderV2Request]`) |

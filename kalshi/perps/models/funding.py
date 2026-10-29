@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.types import (
     DollarDecimal,
     FixedPointCount,
@@ -60,7 +61,9 @@ class MarginFundingRate(BaseModel):
 class MarginFundingHistoryEntry(BaseModel):
     """Spec ``MarginFundingHistoryEntry`` — one realized funding payment.
 
-    All seven properties are spec-required. ``subaccount_number`` is marked
+    Dollar, count, and timestamp fields are spec-required. ``subaccount_type``
+    (spec 3.35.0) is spec-required but kept optional — ``None`` when the key
+    is absent. ``subaccount_number`` is marked
     ``required`` **and** ``nullable: true`` in the spec, so it is typed
     ``int | None`` with **no default** — a missing key still raises
     ``ValidationError`` while an explicit ``null`` is tolerated (same pattern as
@@ -85,6 +88,9 @@ class MarginFundingHistoryEntry(BaseModel):
     # Spec-required + nullable: no default so a missing key raises
     # ValidationError, while an explicit null is tolerated.
     subaccount_number: int | None
+    # Spec 3.35.0 marks this required. Optional so a history row that omits
+    # it still parses. See PERPS_EXCLUSIONS.
+    subaccount_type: SubaccountTypeLiteral | None = None
 
 
 class MarginFundingRateEstimate(BaseModel):

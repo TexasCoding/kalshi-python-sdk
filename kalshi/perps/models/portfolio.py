@@ -24,6 +24,7 @@ from typing import Literal
 
 from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.types import (
     DollarDecimal,
     FixedPointCount,
@@ -52,6 +53,10 @@ class MarginPosition(BaseModel):
     """
 
     subaccount: int
+    # Spec 3.35.0 marks subaccount_type required. Kept optional (None when
+    # the key is absent) so fixtures and payloads from before the field
+    # still validate. See PERPS_EXCLUSIONS.
+    subaccount_type: SubaccountTypeLiteral | None = None
     market_ticker: str
     position: FixedPointCount
     entry_price: DollarDecimal

@@ -1,6 +1,6 @@
 """End-to-end channel tests: subscribe helper -> fake server frame -> typed model.
 
-Drives the six typed ``subscribe_*`` helpers through the FakePerpsWS server and
+Drives the typed ``subscribe_*`` helpers through the FakePerpsWS server and
 asserts the dispatched frame arrives as the correct ``Margin*Message`` model.
 Also verifies the orderbook-apply seam in ``_process_frame`` feeds the
 :class:`PerpsOrderbookManager`.
@@ -17,6 +17,7 @@ import pytest
 from kalshi.perps.config import PerpsConfig
 from kalshi.perps.ws import PerpsWebSocket
 from kalshi.perps.ws.models.fill import MarginFillMessage
+from kalshi.perps.ws.models.market_lifecycle import MarginMarketLifecycleV2Message
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
 from kalshi.perps.ws.models.orderbook import (
     MarginOrderbookDeltaMessage,
@@ -61,6 +62,33 @@ async def test_subscribe_ticker_yields_typed_message(
         assert isinstance(frame, MarginTickerMessage)
         assert frame.msg.funding_rate is not None
         assert frame.msg.funding_rate.rate == Decimal("0.0001")
+
+
+async def test_subscribe_market_lifecycle_yields_typed_message(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    ws = PerpsWebSocket(auth=perps_auth, config=perps_ws_config)
+    async with ws.connect() as session:
+        stream = await session.subscribe_market_lifecycle()
+        sid = await _sid(fake_perps_ws)
+        cmd = fake_perps_ws.received_commands[-1]
+        assert cmd["params"]["channels"] == ["market_lifecycle_v2"]
+        assert "market_tickers" not in cmd["params"]
+        await fake_perps_ws.send_to_all({
+            "type": "market_lifecycle_v2",
+            "sid": sid,
+            "seq": 4,
+            "sending_ts_ms": 1792000000150,
+            "msg": {
+                "market_ticker": "KXBTCPERP",
+                "event_type": "deactivated",
+                "is_deactivated": True,
+            },
+        })
+        frame = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+        assert isinstance(frame, MarginMarketLifecycleV2Message)
+        assert frame.msg.event_type == "deactivated"
+        assert frame.seq == 4
 
 
 async def test_subscribe_trade_yields_typed_message(

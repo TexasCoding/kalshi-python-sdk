@@ -44,6 +44,7 @@ from kalshi.perps.ws.connection import ConnectionState, PerpsConnectionManager
 from kalshi.perps.ws.dispatch import PerpsMessageDispatcher
 from kalshi.perps.ws.models.control import PerpsErrorResponse, SubscriptionEntry
 from kalshi.perps.ws.models.fill import MarginFillMessage
+from kalshi.perps.ws.models.market_lifecycle import MarginMarketLifecycleV2Message
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
 from kalshi.perps.ws.models.orderbook import (
     MarginOrderbookDeltaMessage,
@@ -593,12 +594,13 @@ class PerpsWebSocket:
     # Per-channel typed subscribe helpers (#398)
     #
     # Typed ``subscribe_*`` helpers for the perps data channels. The
-    # prediction-API channels ``market_positions``,
-    # ``market_lifecycle_v2`` / ``event_fee_update``, ``multivariate``,
+    # prediction-API channels ``market_positions``, ``multivariate``,
     # ``multivariate_market_lifecycle``, and ``communications`` have NO perps
     # counterpart and intentionally get NO ``subscribe_*`` helper here.
     # ``corporate_actions`` is on :class:`PerpsChannel` and is subscribed
-    # via the generic :meth:`subscribe`.
+    # via the generic :meth:`subscribe`. ``market_lifecycle_v2`` is a perps
+    # channel (activation / deactivation of every margin market; ticker
+    # filters are not supported).
     #
     # ``builtins.list[str]`` is used for ``tickers`` params: the surrounding
     # API has a ``list_subscriptions`` method, so the ``list`` builtin is
@@ -718,6 +720,21 @@ class PerpsWebSocket:
         return await self._do_subscribe(
             "order_group_updates",
             overflow=OverflowStrategy.ERROR, maxsize=maxsize,
+        )
+
+    async def subscribe_market_lifecycle(
+        self,
+        *,
+        maxsize: int = 1000,
+    ) -> AsyncIterator[MarginMarketLifecycleV2Message]:
+        """Subscribe to ``market_lifecycle_v2`` (activation and deactivation).
+
+        The server sends every margin market. ``market_ticker`` filters are
+        not supported. Not sequence-gap tracked, so overflow is ``DROP_OLDEST``.
+        """
+        return await self._do_subscribe(
+            "market_lifecycle_v2",
+            overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
 
     async def unsubscribe(self, client_id: int) -> None:

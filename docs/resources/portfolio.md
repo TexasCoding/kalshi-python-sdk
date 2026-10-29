@@ -13,6 +13,10 @@ Auth required throughout.
 | `fills(...)` / `fills_all(..., exchange_index=None)` | `GET /portfolio/fills` |
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
 | `deposits(*, limit, cursor)` / `deposits_all(*, limit, max_pages)` | `GET /portfolio/deposits` |
+| `credit_history(*, limit, cursor, min_ts, max_ts)` / `credit_history_all(...)` | `GET /portfolio/credit_history` |
+| `exit_triggers(ticker, *, kind, subaccount)` | `GET /portfolio/positions/{ticker}/exit_trigger` |
+| `set_exit_trigger(ticker, *, request, subaccount)` | `PUT /portfolio/positions/{ticker}/exit_trigger` (never retried) |
+| `cancel_exit_trigger(ticker, *, kind, subaccount)` | `DELETE /portfolio/positions/{ticker}/exit_trigger` (never retried) |
 | `withdrawals(*, limit, cursor)` / `withdrawals_all(*, limit, max_pages)` | `GET /portfolio/withdrawals` |
 | `intra_exchange_transfers(...)` / `intra_exchange_transfers_all(...)` | `GET /portfolio/intra_exchange_instance_transfers` |
 | `get_intra_exchange_transfer(transfer_id)` | `GET /portfolio/intra_exchange_instance_transfers/{transfer_id}` |
@@ -175,6 +179,44 @@ constructors (tests/mocks) must pass it; an empty list is valid.
 !!! warning "FCM members only"
     Non-FCM accounts get a `403` (mapped to `KalshiAuthError`). Demo mirrors
     production behavior here.
+
+## Credit history
+
+`credit_history` returns `Page[CreditHistory]`, newest first. `min_ts` is
+inclusive and `max_ts` is exclusive (credit creation time). `limit` is 1–1000.
+`credit_type` is the spec's `type` field. `amount` is a `DollarDecimal`
+(`amount_dollars` on the wire).
+
+```python
+page = client.portfolio.credit_history(limit=50)
+for credit in page:
+    print(credit.credit_id, credit.credit_type, credit.amount, credit.status)
+
+for credit in client.portfolio.credit_history_all():
+    ...
+```
+
+## Exit triggers
+
+Take-profit / stop-loss brackets on an event-contract position. These routes
+are hidden in the published OpenAPI (`x-excluded`) until the feature launches.
+`PUT` and `DELETE` are never retried. Prices are YES prices (`DollarDecimal`).
+`set_exit_trigger` replaces both legs — omit a leg to clear it, and pass at
+least one of `stop_loss_price` or `take_profit_price`.
+
+```python
+from decimal import Decimal
+from kalshi import SetEventContractExitTriggerRequest
+
+trigger = client.portfolio.set_exit_trigger(
+    "HIGHNY-24JAN01-T60",
+    request=SetEventContractExitTriggerRequest(stop_loss_price=Decimal("0.5600")),
+)
+print(trigger.id, trigger.status, trigger.stop_loss_price)
+
+current = client.portfolio.exit_triggers("HIGHNY-24JAN01-T60", kind="bracket")
+client.portfolio.cancel_exit_trigger("HIGHNY-24JAN01-T60", kind="bracket")
+```
 
 ## Deposits and withdrawals
 

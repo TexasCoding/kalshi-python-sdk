@@ -11,8 +11,8 @@ A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) predi
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Type checked: mypy strict](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy.readthedocs.io/)
 
-- **Full coverage** of the Kalshi REST API (127 mapped of 128 operations across 19 resources, OpenAPI v3.34.0) and WebSocket API (12 typed `subscribe_*` channels + escape-hatch).
-- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (50 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (26 of 27 operations). See [Perps (margin) trading](#perps-margin-trading).
+- **Full coverage** of the Kalshi REST API (132 mapped of 133 operations across 19 resources, OpenAPI v3.35.0) and WebSocket API (12 typed `subscribe_*` channels + escape-hatch).
+- **Perps (margin) API**: standalone `PerpsClient` / `AsyncPerpsClient` + `PerpsWebSocket` for the perpetual-futures exchange (54 REST operations, 6 WS channels), plus a `KlearClient` for the Self-Clearing-Member "Klear" settlement API (26 of 27 operations). See [Perps (margin) trading](#perps-margin-trading).
 - **FIX protocol**: an async-first FIX engine (FIXT.1.1 / FIX50SP2) for both products — order-entry, drop-copy, market-data, post-trade (prediction), and RFQ (prediction) sessions (plus order-group management over the order-entry session) with typed message models, sequence recovery, and order-book / settlement reassembly. `from kalshi import FixClient` / `MarginFixClient`. See [FIX protocol](#fix-protocol-low-latency-trading).
 - **V2 event-market orders**: `create_v2` / `amend_v2` / `decrease_v2` / `cancel_v2` / `cancel_all_v2` plus batched variants on `/portfolio/events/orders/*` — the only order-write surface.
 - **Funding & cost introspection**: `portfolio.deposits()`, `portfolio.withdrawals()`, `account.endpoint_costs()`.
@@ -220,7 +220,7 @@ Resource families on the perps client: `exchange`, `markets`, `orders`,
 Real-time streaming via `PerpsWebSocket` — `subscribe_ticker` (carries
 `funding_rate` + `next_funding_time_ms`), `subscribe_orderbook_delta`,
 `subscribe_trade`, `subscribe_fill`, `subscribe_user_orders`,
-`subscribe_order_group`.
+`subscribe_order_group`, `subscribe_market_lifecycle`.
 
 Prices are `DollarDecimal` (FixedPointDollars, up to 6 decimals); counts are
 `FixedPointCount` (2 decimals, `_fp` wire suffix). REST timestamps are RFC3339;

@@ -28,6 +28,7 @@ from kalshi.models.orders import (
     CancelOrderV2Response,
     CreateOrderV2Request,
     CreateOrderV2Response,
+    CreateOrderWithExitTriggerRequest,
     DecreaseOrderV2Request,
     DecreaseOrderV2Response,
     Fill,
@@ -294,6 +295,26 @@ class OrdersResource(SyncResource):
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = self._post("/portfolio/events/orders", json=body, extra_headers=extra_headers)
+        return CreateOrderV2Response.model_validate(data)
+
+    def create_with_exit_trigger(
+        self,
+        *,
+        request: CreateOrderWithExitTriggerRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateOrderV2Response:
+        """``POST /portfolio/events/orders/with_exit_trigger``. Not retried.
+
+        Creates an entry order with an attached take-profit / stop-loss
+        bracket. Hidden (``x-excluded``) until that feature launches.
+        """
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = self._post(
+            "/portfolio/events/orders/with_exit_trigger",
+            json=body,
+            extra_headers=extra_headers,
+        )
         return CreateOrderV2Response.model_validate(data)
 
     def cancel_v2(
@@ -609,6 +630,22 @@ class AsyncOrdersResource(AsyncResource):
         self._require_auth()
         body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
         data = await self._post("/portfolio/events/orders", json=body, extra_headers=extra_headers)
+        return CreateOrderV2Response.model_validate(data)
+
+    async def create_with_exit_trigger(
+        self,
+        *,
+        request: CreateOrderWithExitTriggerRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateOrderV2Response:
+        """Async :meth:`OrdersResource.create_with_exit_trigger`. Not retried."""
+        self._require_auth()
+        body = request.model_dump(exclude_none=True, by_alias=True, mode="json")
+        data = await self._post(
+            "/portfolio/events/orders/with_exit_trigger",
+            json=body,
+            extra_headers=extra_headers,
+        )
         return CreateOrderV2Response.model_validate(data)
 
     async def cancel_v2(

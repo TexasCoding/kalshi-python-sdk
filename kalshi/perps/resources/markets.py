@@ -1,6 +1,6 @@
-"""Perps markets resource — list/get, orderbook, bulk orderbooks, candlesticks.
+"""Perps markets resource — list/get, orderbook, bulk orderbooks, candlesticks, schedules.
 
-Five read-only ``GET`` endpoints, all public market data (the spec marks no
+Six read-only ``GET`` endpoints, all public market data (the spec marks no
 ``security`` block on any of them) — so none call ``_require_auth()``, unlike the
 public-markets ``orderbook`` which does. All retry on 429/502/503/504 (GET).
 
@@ -24,6 +24,7 @@ from kalshi.perps.models.markets import (
     GetMarginMarketsResponse,
     MarginMarket,
     MarginMarketCandlestick,
+    MarginMarketScheduleDetails,
     MarginMarketStatusLiteral,
     MarginOrderbook,
     MarginOrderbookLevel,
@@ -38,6 +39,8 @@ from kalshi.resources._base import (
 )
 
 _MAX_BULK = 100
+_MAX_SCHEDULE_TICKERS = 100
+_MAX_TICKER_LEN = 200
 
 
 def _parse_orderbook(data: dict[str, Any], ticker: str) -> MarginOrderbook:
@@ -93,8 +96,39 @@ def _bulk_orderbooks_params(*, tickers: builtins.list[str]) -> dict[str, Any]:
     return _params(tickers=_join_tickers(tickers))
 
 
+def _schedules_params(*, tickers: builtins.list[str]) -> dict[str, Any]:
+    """Validate + build params for GET /margin/markets/schedules.
+
+    Spec requires 1..100 tickers, each 1..200 characters. Wire format is
+    ``?tickers=a,b`` (style: form, explode: false).
+    """
+    if not tickers:
+        raise ValueError("tickers must be a non-empty list")
+    if len(tickers) > _MAX_SCHEDULE_TICKERS:
+        raise ValueError(
+            f"tickers accepts at most {_MAX_SCHEDULE_TICKERS} entries per spec "
+            f"(got {len(tickers)})"
+        )
+    for i, ticker in enumerate(tickers):
+        if not ticker or not ticker.strip():
+            raise ValueError(f"tickers[{i}] is empty")
+        if len(ticker) > _MAX_TICKER_LEN:
+            raise ValueError(
+                f"tickers[{i}] exceeds {_MAX_TICKER_LEN} characters (got {len(ticker)})"
+            )
+    return _params(tickers=_join_tickers(tickers, max_items=_MAX_SCHEDULE_TICKERS))
+
+
+def _parse_schedules(data: dict[str, Any]) -> dict[str, MarginMarketScheduleDetails]:
+    """Parse the ticker → schedule-details map from GET /margin/markets/schedules."""
+    return {
+        ticker: MarginMarketScheduleDetails.model_validate(details)
+        for ticker, details in data.items()
+    }
+
+
 class PerpsMarketsResource(SyncResource):
-    """Sync perps markets API (list / get / orderbook / bulk_orderbooks / candlesticks)."""
+    """Sync perps markets API (list / get / orderbook / bulk / candlesticks / schedules)."""
 
     def list(
         self,
@@ -177,9 +211,28 @@ class PerpsMarketsResource(SyncResource):
         )
         return GetMarginMarketCandlesticksResponse.model_validate(data).candlesticks
 
+    def schedules(
+        self,
+        *,
+        tickers: builtins.list[str],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, MarginMarketScheduleDetails]:
+        """``GET /margin/markets/schedules`` — holiday closures for up to 100 tickers.
+
+        Public market data (no auth). ``tickers`` is required (1-100, each
+        1-200 characters) and serializes as a comma-separated query string.
+        The body is a map keyed by market ticker. Regular daily and weekend
+        closures are not included.
+        """
+        params = _schedules_params(tickers=tickers)
+        data = self._get(
+            "/margin/markets/schedules", params=params, extra_headers=extra_headers
+        )
+        return _parse_schedules(data)
+
 
 class AsyncPerpsMarketsResource(AsyncResource):
-    """Async perps markets API (list / get / orderbook / bulk_orderbooks / candlesticks)."""
+    """Async perps markets API (list / get / orderbook / bulk / candlesticks / schedules)."""
 
     async def list(
         self,
@@ -263,3 +316,16 @@ class AsyncPerpsMarketsResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return GetMarginMarketCandlesticksResponse.model_validate(data).candlesticks
+
+    async def schedules(
+        self,
+        *,
+        tickers: builtins.list[str],
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, MarginMarketScheduleDetails]:
+        """Async :meth:`PerpsMarketsResource.schedules`."""
+        params = _schedules_params(tickers=tickers)
+        data = await self._get(
+            "/margin/markets/schedules", params=params, extra_headers=extra_headers
+        )
+        return _parse_schedules(data)
