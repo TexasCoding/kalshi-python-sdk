@@ -7,10 +7,11 @@ resource base injects the ``Authorization: Bearer`` header on every request —
 there is no client-side un-logged-in guard; an invalid token surfaces as a
 server 401.
 
-Money-typing invariants under test: ``_centicents`` fields stay plain ``int``
-(never ``Decimal``), only the withdraw/withdrawal ``amount`` fields are
-``DollarDecimal`` dollar-strings, and the withdraw POST body wire shape is
-exactly ``{"amount": "500.00"}``. POST is never retried.
+Money-typing invariants under test: ``_centicents`` fields without a ``*_fp``
+counterpart stay plain ``int``; fields that alias a ``*_fp`` wire name are
+``DollarDecimal``. The withdraw POST body wire shape is ``{"amount": "500.00"}``
+(plus optional ``mfa_code``). POST is never retried. The withdrawal POST path
+is ``/margin/settlement_balance_withdrawal``.
 """
 
 from __future__ import annotations
@@ -281,9 +282,8 @@ class TestActiveObligations:
         assert len(resp.obligations) == 2
         assert all(isinstance(o, ObligationEntry) for o in resp.obligations)
         assert resp.obligations[0].amount_centicents == -99999
-        assert isinstance(resp.obligations[0].amount_centicents, int)
+        assert isinstance(resp.obligations[0].amount_centicents, Decimal)
         assert not isinstance(resp.obligations[0].amount_centicents, bool)
-        assert not isinstance(resp.obligations[0].amount_centicents, Decimal)
         assert resp.obligations[0].asset_class == "Crypto"
         assert resp.obligations[0].settlement_details[0].position_quantity_fp == Decimal("1.25")
         assert resp.obligations[0].funding_payments[0].funding_amount_centicents == -50
@@ -603,7 +603,7 @@ class TestCorporateActionPayments:
         assert row.position_quantity_fp == Decimal("1.25")
         assert row.post_position_quantity_fp == Decimal("2.50")
         assert row.payment_amount_centicents == 400
-        assert isinstance(row.payment_amount_centicents, int)
+        assert isinstance(row.payment_amount_centicents, Decimal)
         assert not isinstance(row.payment_amount_centicents, bool)
         assert row.pre_split_price_centicents == 68000
         assert row.post_split_price_centicents == 34000
@@ -716,8 +716,7 @@ class TestSettlementBalance:
         )
         resp = auth_klear_client.margin.settlement_balance()
         assert resp.balance_available_centicents == 1_000_000
-        assert isinstance(resp.balance_available_centicents, int)
-        assert not isinstance(resp.balance_available_centicents, Decimal)
+        assert isinstance(resp.balance_available_centicents, Decimal)
         assert resp.locked_balance_centicents == 250_000
         auth_klear_client.close()
 
@@ -827,7 +826,7 @@ class TestSettlementBalanceHistory:
         assert len(page.items) == 1
         assert isinstance(page.items[0], SettlementBalanceHistoryEntry)
         assert page.items[0].balance_delta_centicents == -500
-        assert isinstance(page.items[0].balance_delta_centicents, int)
+        assert isinstance(page.items[0].balance_delta_centicents, Decimal)
         assert page.cursor == "C1"
         auth_klear_client.close()
 
@@ -878,7 +877,7 @@ class TestSettlementBalanceHistory:
 class TestWithdrawSettlementBalance:
     @respx.mock
     def test_happy_wire_shape(self, auth_klear_client: KlearClient) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "wd-1"})
         )
         resp = auth_klear_client.margin.withdraw_settlement_balance(amount="500.00")
@@ -897,7 +896,7 @@ class TestWithdrawSettlementBalance:
     def test_rejects_non_positive_amount_client_side(self, auth_klear_client: KlearClient) -> None:
         # Security: a non-positive withdrawal must be rejected at construction,
         # BEFORE any HTTP reaches the real-money endpoint (mirrors OrderPrice).
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "should-not-happen"})
         )
         for bad in ("0.00", "-500.00"):
@@ -909,7 +908,7 @@ class TestWithdrawSettlementBalance:
     @respx.mock
     def test_server_400_on_valid_amount_maps(self, auth_klear_client: KlearClient) -> None:
         # A positive amount the server rejects (e.g. insufficient funds) maps cleanly.
-        respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(400, json={"code": "bad", "message": "insufficient funds"})
         )
         with pytest.raises(KalshiValidationError):
@@ -918,7 +917,7 @@ class TestWithdrawSettlementBalance:
 
     @respx.mock
     def test_post_not_retried(self) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(503, json={"code": "x", "message": "down"})
         )
         client = KlearClient(
@@ -934,7 +933,7 @@ class TestWithdrawSettlementBalance:
 
     @respx.mock
     async def test_async_happy_wire_shape(self, auth_async_klear_client: AsyncKlearClient) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "wd-2"})
         )
         resp = await auth_async_klear_client.margin.withdraw_settlement_balance(amount="12.34")

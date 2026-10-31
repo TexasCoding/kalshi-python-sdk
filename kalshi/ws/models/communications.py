@@ -36,6 +36,8 @@ class RfqCreatedPayload(BaseModel):
     # event_ticker/market_ticker/side/yes_settlement_value_dollars.
     mve_collection_ticker: str | None = None
     mve_selected_legs: list[dict[str, object]] | None = None
+    # Set when this RFQ is a child of an RFQ batch; omitted otherwise.
+    rfq_batch_id: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -61,6 +63,8 @@ class RfqDeletedPayload(BaseModel):
         default=None,
         validation_alias=AliasChoices("target_cost_dollars", "target_cost"),
     )
+    # Set when this RFQ is a child of an RFQ batch; omitted otherwise.
+    rfq_batch_id: str | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

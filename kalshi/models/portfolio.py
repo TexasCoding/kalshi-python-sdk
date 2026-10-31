@@ -239,6 +239,7 @@ class IntraExchangeInstanceTransfer(BaseModel):
     amount: DollarDecimal
     status: IntraExchangeInstanceTransferStatusLiteral
     created_ts: int
+    client_transfer_id: str | None = None
 
     model_config = {"extra": "allow"}
 

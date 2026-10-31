@@ -1428,6 +1428,22 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="spec marks deprecated; superseded by ts_ms",
         kind="spec_deprecated",
     ),
+    ("kalshi.ws.models.orderbook_delta.OrderbookSnapshotPayload", "clock"): Exclusion(
+        reason=(
+            "AsyncAPI marks orderbook snapshot clock required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.6.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.ws.models.orderbook_delta.OrderbookDeltaPayload", "clock"): Exclusion(
+        reason=(
+            "AsyncAPI marks orderbook delta clock required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.6.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # --- server_omits_despite_required (#183, post-#172 nightly findings) ---
     # Fields the OpenAPI spec marks `required: true` but the live demo server
     # omits in practice. Each entry MUST cite a demo+prod observation in
@@ -1969,7 +1985,7 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.withdraw_settlement_balance",
         http_method="POST",
-        path_template="/margin/withdraw_settlement_balance",
+        path_template="/margin/settlement_balance_withdrawal",
         request_body_schema="#/components/schemas/WithdrawSettlementBalanceRequest",
     ),
     MethodEndpointEntry(

@@ -22,6 +22,7 @@ from kalshi.perps.models.common import (
     SubaccountTypeLiteral,
 )
 from kalshi.perps.models.exchange import (
+    ExchangeIndexStatus,
     ExchangeStatus,
     GetMarginRiskParametersResponse,
     MarginEnabledResponse,
@@ -141,6 +142,7 @@ __all__ = [
     "ExchangeIndex",
     "ExchangeInstance",
     "ExchangeInstanceLiteral",
+    "ExchangeIndexStatus",
     "ExchangeStatus",
     "ExitTrigger",
     "ExitTriggerKindLiteral",
