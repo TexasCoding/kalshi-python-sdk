@@ -2290,6 +2290,53 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="client-side page cap, no wire counterpart",
         kind="client_only",
     ),
+    # Spec marks each additive *_fp dollar string required next to its integer
+    # *_centicents field. The SDK keeps *_fp optional so a centicents-only
+    # payload still parses. The two attributes are separate; there is no alias.
+    **{
+        (model, field): Exclusion(
+            reason=(
+                "Spec marks this *_fp dollar string required beside the integer "
+                "*_centicents field. The SDK keeps it optional (DollarDecimal | None) "
+                "so centicents-only payloads still parse. Separate attributes; no alias."
+            ),
+            kind="server_omits_despite_required",
+        )
+        for model, field in (
+            ("kalshi.perps.klear.models.margin.ObligationReceiveInfo", "amount_fp"),
+            ("kalshi.perps.klear.models.margin.ObligationEntry", "amount_fp"),
+            ("kalshi.perps.klear.models.margin.ObligationEntry", "pnl_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementDetail", "pnl_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementDetail", "total_amount_fp"),
+            ("kalshi.perps.klear.models.margin.FundingPaymentDetail", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.FundingPaymentDetail", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.MemberFundingPayment", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.MemberFundingPayment", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.CorporateActionPaymentDetail", "payment_amount_fp"),
+            ("kalshi.perps.klear.models.margin.MarketSettlementEstimate", "variation_margin_fp"),
+            ("kalshi.perps.klear.models.margin.MarketSettlementEstimate", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementEstimate", "variation_margin_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementEstimate", "total_amount_fp"),
+            (
+                "kalshi.perps.klear.models.margin.GetSettlementEstimateByAssetClassResponse",
+                "settlement_balance_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.GetSettlementBalanceResponse",
+                "balance_available_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
+                "balance_delta_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
+                "locked_balance_delta_fp",
+            ),
+            ("kalshi.perps.klear.models.margin.MarketFundingEstimate", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.FundingEstimate", "funding_amount_fp"),
+        )
+    },
 }
 
 

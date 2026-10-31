@@ -378,7 +378,9 @@ matching `*_truncated` flag is set; page the full set via the methods below.
 cash and split corporate-action payments already included in settlement PnL
 — do not add them to the obligation total.
 `CorporateActionPaymentDetail.payment_time` is always present and is `null`
-for splits. Centicents fields on that model are plain integers;
+for splits. Centicents fields on that model stay plain integers.
+`payment_amount_fp` is the optional dollar-string counterpart of
+`payment_amount_centicents` (separate attribute, not an alias).
 `position_quantity_fp` and `post_position_quantity_fp` are fixed-point
 contract counts. `corporate_action_payments` / `corporate_action_payments_all`
 page the full set when `corporate_action_payments_truncated` is true (limit
@@ -409,12 +411,15 @@ klear.margin.delete_subtrader_group(created.group_id)
 ```
 
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
-10,000 centicents`) unless the spec also publishes a `*_fp` counterpart
-(fixed-point dollar string). Those dual fields keep their Python
-`*_centicents` names, parse as `DollarDecimal`, accept either wire name, and
-serialize as `*_fp`. The withdrawal `amount` and
+10,000 centicents`), plain `int` on the Python models. Where the spec also
+publishes a `*_fp` counterpart (the same amount as a fixed-point dollar
+string, 6 decimal places), the SDK exposes it as a separate optional
+`DollarDecimal` attribute with that `*_fp` name. `None` means the key was
+absent. There is no aliasing: a payload can carry both the integer and the
+dollar string, and `model_dump(by_alias=True)` emits both names. The
+withdrawal `amount`, `GetSettlementBalanceWithdrawalResponse.amount`, and
 `MarketSettlementEstimate.session_avg_price_fp` are fixed-point dollar
-strings.
+strings that were never centicents.
 `klear.margin.withdraw_settlement_balance(amount="500.00")` posts to
 `POST /margin/settlement_balance_withdrawal` and validates the amount as
 positive at construction (the single real-money write) before any request is sent.

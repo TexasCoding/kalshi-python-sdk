@@ -10,11 +10,18 @@ Python attribute renames.
 
 ### Changed
 
-- **Klear settlement money fields** accept the new `*_fp` wire names
-  (fixed-point dollar strings) while keeping the existing Python
-  `*_centicents` attribute names. Serialization emits `*_fp`. Affected
-  models: `CorporateActionPaymentDetail`, `FundingEstimate`,
-  `FundingPaymentDetail`, `GetSettlementBalanceResponse`,
+- **Klear settlement money fields** gain additive optional `*_fp`
+  attributes (`DollarDecimal | None`) beside the existing integer
+  `*_centicents` fields. The spec sends both: an `int64` centicents value
+  and the same amount as a fixed-point dollar string (6 decimal places).
+  There is no aliasing. `*_centicents` stays a plain `int`, a
+  centicents-only payload leaves `*_fp` as `None`, and serialization emits
+  both names. Affected attributes: `amount_fp`, `pnl_fp`,
+  `total_amount_fp`, `notional_value_fp`, `funding_amount_fp`,
+  `payment_amount_fp`, `variation_margin_fp`, `settlement_balance_fp`,
+  `balance_available_fp`, `locked_balance_fp`, `balance_delta_fp`,
+  `locked_balance_delta_fp` on `CorporateActionPaymentDetail`,
+  `FundingEstimate`, `FundingPaymentDetail`, `GetSettlementBalanceResponse`,
   `GetSettlementEstimateByAssetClassResponse`, `MarketFundingEstimate`,
   `MarketSettlementEstimate`, `MemberFundingPayment`, `ObligationEntry`,
   `ObligationReceiveInfo`, `SettlementBalanceHistoryEntry`,
@@ -31,8 +38,6 @@ Python attribute renames.
 - Optional `OrderbookSnapshotPayload.clock` /
   `OrderbookDeltaPayload.clock`.
 - Optional `UserOrdersPayload.last_update_reason`.
-- Optional `GetSettlementBalanceResponse.locked_balance_fp` (aliased onto
-  `locked_balance_centicents`).
 - Optional perps `ExchangeStatus.exchange_estimated_resume_time` /
   `exchange_index_statuses` / `intra_exchange_transfers_active`, plus
   `ExchangeIndexStatus`.
