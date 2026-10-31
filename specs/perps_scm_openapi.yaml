@@ -436,7 +436,7 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /margin/withdraw_settlement_balance:
+  /margin/settlement_balance_withdrawal:
     post:
       operationId: WithdrawSettlementBalance
       summary: Withdraw Settlement Balance
@@ -458,7 +458,6 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
-  /margin/settlement_balance_withdrawal:
     get:
       operationId: GetSettlementBalanceWithdrawal
       summary: Get Settlement Balance Withdrawal
@@ -785,9 +784,11 @@ components:
         - id
         - user_id
         - amount_centicents
+        - amount_fp
         - fees_centicents
         - maintenance_margin_centicents
         - pnl_centicents
+        - pnl_fp
         - execution_time
         - last_updated_ts
         - asset_class
@@ -799,25 +800,29 @@ components:
           format: int64
           description: |
             Net settlement amount in USD as centicents (1 USD = 10,000
-            centicents). All monetary fields on this API are returned in
-            centicents. Total the clearing member owes or is owed, inclusive
-            of PnL, fees, and maintenance margin changes. Negative means the
-            clearing member pays Kalshi Klear; positive means Kalshi Klear
-            pays the clearing member.
+            centicents). Monetary fields ending in `_centicents` are integer
+            centicents; where an `_fp` counterpart exists, it carries the same
+            amount as a fixed-point dollar string with 6 decimal places. Total
+            the clearing member owes or is owed, inclusive of PnL, fees, and
+            maintenance margin changes. Negative means the clearing member pays
+            Kalshi Klear; positive means Kalshi Klear pays the clearing member.
+        amount_fp: { type: string, description: "amount_centicents as a fixed-point dollar string with 6 decimal places (e.g. \"10005.000000\")." }
         fees_centicents: { type: integer, format: int64, description: Trading fees incurred during the settlement period. }
         maintenance_margin_centicents: { type: integer, format: int64, description: Current maintenance margin requirement for this obligation. }
         pnl_centicents: { type: integer, format: int64, description: "Total PnL for this settlement period; the sum of the settlement details for this settlement cycle." }
+        pnl_fp: { type: string, description: pnl_centicents as a fixed-point dollar string with 6 decimal places. }
         execution_time: { type: string, format: date-time, description: Settlement cycle time this obligation belongs to. }
         last_updated_ts: { type: string, format: date-time, description: Timestamp of the last status change on this obligation. }
         asset_class: { $ref: '#/components/schemas/AssetClass' }
 
     ObligationReceiveInfo:
       type: object
-      required: [id, type, amount_centicents, external_reference, created_ts]
+      required: [id, type, amount_centicents, amount_fp, external_reference, created_ts]
       properties:
         id: { type: string }
         type: { type: string }
         amount_centicents: { type: integer, format: int64 }
+        amount_fp: { type: string, description: amount_centicents as a fixed-point dollar string with 6 decimal places. }
         external_reference: { type: string }
         created_ts: { type: string, format: date-time }
 
@@ -829,16 +834,20 @@ components:
         - subtrader_id
         - position_quantity_fp
         - pnl_centicents
+        - pnl_fp
         - total_fees_centicents
         - total_amount_centicents
+        - total_amount_fp
       properties:
         id: { type: string }
         market_ticker: { type: string }
         subtrader_id: { type: string }
         position_quantity_fp: { type: string, description: "Signed position at settlement as a fixed-point contract count (e.g. \"1.25\")." }
         pnl_centicents: { type: integer, format: int64, description: "Total PnL for this market and subtrader over the settlement period, including the market's net funding (itemized per funding period in the entry's funding_payments)." }
+        pnl_fp: { type: string, description: pnl_centicents as a fixed-point dollar string with 6 decimal places. }
         total_fees_centicents: { type: integer, format: int64, description: Total fees. }
         total_amount_centicents: { type: integer, format: int64, description: Total amount. }
+        total_amount_fp: { type: string, description: total_amount_centicents as a fixed-point dollar string with 6 decimal places. }
 
     FundingPaymentDetail:
       type: object
@@ -849,7 +858,9 @@ components:
         - funding_time
         - position_quantity_fp
         - notional_value_centicents
+        - notional_value_fp
         - funding_amount_centicents
+        - funding_amount_fp
       properties:
         id: { type: string }
         market_ticker: { type: string }
@@ -857,7 +868,9 @@ components:
         funding_time: { type: string, format: date-time, description: The funding period this payment applies to. }
         position_quantity_fp: { type: string, description: "Signed position at funding time as a fixed-point contract count (e.g. \"1.25\")." }
         notional_value_centicents: { type: integer, format: int64, description: Signed notional value (position times mark price) the funding payment was computed from. }
+        notional_value_fp: { type: string, description: notional_value_centicents as a fixed-point dollar string with 6 decimal places. }
         funding_amount_centicents: { type: integer, format: int64, description: "Signed funding amount; positive when received, negative when paid." }
+        funding_amount_fp: { type: string, description: funding_amount_centicents as a fixed-point dollar string with 6 decimal places. }
 
     CorporateActionPaymentDetail:
       type: object
@@ -873,6 +886,7 @@ components:
         - position_quantity_fp
         - post_position_quantity_fp
         - payment_amount_centicents
+        - payment_amount_fp
         - payment_time
         - settlement_execution_time
         - created_ts
@@ -887,6 +901,7 @@ components:
         position_quantity_fp: { type: string, description: Signed position before the action as a fixed-point contract count. }
         post_position_quantity_fp: { type: string, description: Signed position after the action as a fixed-point contract count; unchanged for cash distributions. }
         payment_amount_centicents: { type: integer, format: int64, description: Signed cash amount; positive when received and negative when paid. For splits this is cash in lieu and excludes position revaluation. }
+        payment_amount_fp: { type: string, description: payment_amount_centicents as a fixed-point dollar string with 6 decimal places. }
         payment_time: { type: string, format: date-time, nullable: true, description: Scheduled cash payment time; null for splits. }
         settlement_execution_time: { type: string, format: date-time, description: Settlement cycle that carries this payment. }
         pre_split_price_centicents: { type: integer, format: int64, description: Mark price before the split; omitted when not applicable. }
@@ -1139,27 +1154,35 @@ components:
       required:
         - quantity_centicount
         - variation_margin_centicents
+        - variation_margin_fp
         - notional_value_centicents
+        - notional_value_fp
       properties:
         quantity_centicount: { type: integer, format: int64, description: Position quantity in centicounts. }
         variation_margin_centicents: { type: integer, format: int64, description: Variation margin for this market. }
+        variation_margin_fp: { type: string, description: variation_margin_centicents as a fixed-point dollar string with 6 decimal places. }
         notional_value_centicents: { type: integer, format: int64, description: Notional value for this market. }
+        notional_value_fp: { type: string, description: notional_value_centicents as a fixed-point dollar string with 6 decimal places. }
         session_avg_price_fp: { type: string, description: "Average entry price for the current settlement session, as a fixed-point dollar string. Omitted when the position quantity is zero." }
 
     SettlementEstimate:
       type: object
       required:
         - variation_margin_centicents
+        - variation_margin_fp
         - total_fees_centicents
         - maintenance_margin_delta_centicents
         - maintenance_margin_required_centicents
         - total_amount_centicents
+        - total_amount_fp
       properties:
         variation_margin_centicents: { type: integer, format: int64, description: Variation margin. }
+        variation_margin_fp: { type: string, description: variation_margin_centicents as a fixed-point dollar string with 6 decimal places. }
         total_fees_centicents: { type: integer, format: int64, description: Total fees. }
         maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin requirement. }
         maintenance_margin_required_centicents: { type: integer, format: int64, description: Maintenance margin requirement. }
         total_amount_centicents: { type: integer, format: int64, description: Estimated total settlement amount. }
+        total_amount_fp: { type: string, description: total_amount_centicents as a fixed-point dollar string with 6 decimal places. }
         positions:
           type: object
           description: Map of market ticker to that market's settlement estimate.
@@ -1186,26 +1209,29 @@ components:
 
     GetSettlementEstimateByAssetClassResponse:
       type: object
-      required: [estimates, settlement_balance_centicents]
+      required: [estimates, settlement_balance_centicents, settlement_balance_fp]
       properties:
         estimates:
           type: object
           description: Map of asset class to the estimated next settlement for that asset class.
           additionalProperties: { $ref: '#/components/schemas/AssetClassSettlementEstimate' }
         settlement_balance_centicents: { type: integer, format: int64, description: Current settlement buffer balance. }
+        settlement_balance_fp: { type: string, description: settlement_balance_centicents as a fixed-point dollar string with 6 decimal places. }
 
     MarketFundingEstimate:
       type: object
-      required: [quantity_centicount, funding_amount_centicents]
+      required: [quantity_centicount, funding_amount_centicents, funding_amount_fp]
       properties:
         quantity_centicount: { type: integer, format: int64 }
         funding_amount_centicents: { type: integer, format: int64 }
+        funding_amount_fp: { type: string, description: funding_amount_centicents as a fixed-point dollar string with 6 decimal places. }
 
     FundingEstimate:
       type: object
-      required: [funding_amount_centicents]
+      required: [funding_amount_centicents, funding_amount_fp]
       properties:
         funding_amount_centicents: { type: integer, format: int64 }
+        funding_amount_fp: { type: string, description: funding_amount_centicents as a fixed-point dollar string with 6 decimal places. }
         positions:
           type: object
           description: Keyed by market ticker; only present on subtrader and group breakdowns.
@@ -1254,11 +1280,13 @@ components:
 
     GetSettlementBalanceResponse:
       type: object
-      required: [user_id, balance_available_centicents]
+      required: [user_id, balance_available_centicents, balance_available_fp]
       properties:
         user_id: { type: string }
         balance_available_centicents: { type: integer, format: int64, description: Settlement buffer balance. }
+        balance_available_fp: { type: string, description: balance_available_centicents as a fixed-point dollar string with 6 decimal places. }
         locked_balance_centicents: { type: integer, format: int64, description: Locked settlement balance (e.g. pending withdrawals). }
+        locked_balance_fp: { type: string, description: locked_balance_centicents as a fixed-point dollar string with 6 decimal places. }
 
     GetGuarantyFundBalanceResponse:
       type: object
@@ -1279,11 +1307,14 @@ components:
 
     WithdrawSettlementBalanceRequest:
       type: object
-      required: [amount]
+      required: [amount, mfa_code]
       properties:
         amount:
           type: string
-          description: Amount to withdraw in USD as a fixed-point string (e.g. "500.00"). Must be positive.
+          description: Amount to withdraw in USD as a fixed-point string (e.g. "500.00"). Must be positive and in whole cents.
+        mfa_code:
+          type: string
+          description: Code from the requesting user's multi-factor authentication method.
 
     WithdrawSettlementBalanceResponse:
       type: object
@@ -1295,10 +1326,12 @@ components:
 
     SettlementBalanceHistoryEntry:
       type: object
-      required: [balance_delta_centicents, locked_balance_delta_centicents, reason, business_transaction_id, created_ts]
+      required: [balance_delta_centicents, balance_delta_fp, locked_balance_delta_centicents, locked_balance_delta_fp, reason, business_transaction_id, created_ts]
       properties:
         balance_delta_centicents: { type: integer, format: int64, description: Change to the settlement buffer balance. }
+        balance_delta_fp: { type: string, description: balance_delta_centicents as a fixed-point dollar string with 6 decimal places. }
         locked_balance_delta_centicents: { type: integer, format: int64, description: Change to the locked settlement balance. Funds are locked during pending withdrawals. }
+        locked_balance_delta_fp: { type: string, description: locked_balance_delta_centicents as a fixed-point dollar string with 6 decimal places. }
         reason: { type: string, description: Reason for the balance change. }
         business_transaction_id: { type: string, description: Identifier of the business transaction that caused this entry. }
         created_ts: { type: string, format: date-time, description: Timestamp when the entry was created. }
