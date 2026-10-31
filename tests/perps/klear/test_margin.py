@@ -7,10 +7,13 @@ resource base injects the ``Authorization: Bearer`` header on every request —
 there is no client-side un-logged-in guard; an invalid token surfaces as a
 server 401.
 
-Money-typing invariants under test: ``_centicents`` fields stay plain ``int``
-(never ``Decimal``), only the withdraw/withdrawal ``amount`` fields are
-``DollarDecimal`` dollar-strings, and the withdraw POST body wire shape is
-exactly ``{"amount": "500.00"}``. POST is never retried.
+Money-typing invariants under test: every ``*_centicents`` field is a plain
+``int``. Where the spec also sends a ``*_fp`` dollar string, that value is a
+separate optional ``DollarDecimal`` (``None`` when the key is absent). There
+is no aliasing: ``model_dump(by_alias=True)`` keeps both names. The withdraw
+POST body wire shape is ``{"amount": "500.00"}`` (plus optional ``mfa_code``).
+POST is never retried. The withdrawal POST path is
+``/margin/settlement_balance_withdrawal``.
 """
 
 from __future__ import annotations
@@ -31,10 +34,21 @@ from kalshi.errors import (
 )
 from kalshi.perps.klear import AsyncKlearClient, KlearClient, KlearConfig
 from kalshi.perps.klear.models.margin import (
+    CorporateActionPaymentDetail,
+    FundingEstimate,
+    FundingPaymentDetail,
+    GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
+    GetSettlementEstimateByAssetClassResponse,
     MarginReport,
+    MarketFundingEstimate,
+    MarketSettlementEstimate,
+    MemberFundingPayment,
     ObligationEntry,
+    ObligationReceiveInfo,
     SettlementBalanceHistoryEntry,
+    SettlementDetail,
+    SettlementEstimate,
     WithdrawSettlementBalanceRequest,
 )
 
@@ -283,10 +297,12 @@ class TestActiveObligations:
         assert resp.obligations[0].amount_centicents == -99999
         assert isinstance(resp.obligations[0].amount_centicents, int)
         assert not isinstance(resp.obligations[0].amount_centicents, bool)
-        assert not isinstance(resp.obligations[0].amount_centicents, Decimal)
+        assert resp.obligations[0].amount_fp is None
         assert resp.obligations[0].asset_class == "Crypto"
         assert resp.obligations[0].settlement_details[0].position_quantity_fp == Decimal("1.25")
+        assert resp.obligations[0].settlement_details[0].pnl_fp is None
         assert resp.obligations[0].funding_payments[0].funding_amount_centicents == -50
+        assert resp.obligations[0].funding_payments[0].funding_amount_fp is None
         assert resp.obligations[0].execution_time.tzinfo is not None
         auth_klear_client.close()
 
@@ -345,12 +361,16 @@ class TestSettlementEstimateByAssetClass:
         )
         resp = auth_klear_client.margin.settlement_estimate_by_asset_class()
         assert resp.settlement_balance_centicents == 123456
+        assert isinstance(resp.settlement_balance_centicents, int)
+        assert resp.settlement_balance_fp is None
         crypto = resp.estimates["Crypto"]
         assert crypto.next_runtime.tzinfo is not None
         assert crypto.user_breakdown is not None
         assert crypto.user_breakdown.total_amount_centicents == 1630
+        assert crypto.user_breakdown.total_amount_fp is None
         assert crypto.subtrader_breakdowns is not None
         assert crypto.subtrader_breakdowns["st1"].variation_margin_centicents == 1000
+        assert crypto.subtrader_breakdowns["st1"].variation_margin_fp is None
         assert crypto.prev_settlement_prices == {"BTC-PERP": 5000}
         assert crypto.omitted_subtrader_count == 2
         auth_klear_client.close()
@@ -400,6 +420,8 @@ class TestSettlementEstimateByAssetClass:
             notional_value_centicents=3,
         )
         assert bare.session_avg_price_fp is None
+        assert bare.variation_margin_fp is None
+        assert bare.notional_value_fp is None
         parsed = MarketSettlementEstimate.model_validate(
             {
                 "quantity_centicount": 1,
@@ -605,6 +627,7 @@ class TestCorporateActionPayments:
         assert row.payment_amount_centicents == 400
         assert isinstance(row.payment_amount_centicents, int)
         assert not isinstance(row.payment_amount_centicents, bool)
+        assert row.payment_amount_fp is None
         assert row.pre_split_price_centicents == 68000
         assert row.post_split_price_centicents == 34000
         assert row.payment_time is not None
@@ -717,8 +740,11 @@ class TestSettlementBalance:
         resp = auth_klear_client.margin.settlement_balance()
         assert resp.balance_available_centicents == 1_000_000
         assert isinstance(resp.balance_available_centicents, int)
-        assert not isinstance(resp.balance_available_centicents, Decimal)
+        assert not isinstance(resp.balance_available_centicents, bool)
+        assert resp.balance_available_fp is None
         assert resp.locked_balance_centicents == 250_000
+        assert isinstance(resp.locked_balance_centicents, int)
+        assert resp.locked_balance_fp is None
         auth_klear_client.close()
 
     @respx.mock
@@ -828,6 +854,9 @@ class TestSettlementBalanceHistory:
         assert isinstance(page.items[0], SettlementBalanceHistoryEntry)
         assert page.items[0].balance_delta_centicents == -500
         assert isinstance(page.items[0].balance_delta_centicents, int)
+        assert not isinstance(page.items[0].balance_delta_centicents, bool)
+        assert page.items[0].balance_delta_fp is None
+        assert page.items[0].locked_balance_delta_fp is None
         assert page.cursor == "C1"
         auth_klear_client.close()
 
@@ -878,7 +907,7 @@ class TestSettlementBalanceHistory:
 class TestWithdrawSettlementBalance:
     @respx.mock
     def test_happy_wire_shape(self, auth_klear_client: KlearClient) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "wd-1"})
         )
         resp = auth_klear_client.margin.withdraw_settlement_balance(amount="500.00")
@@ -889,6 +918,19 @@ class TestWithdrawSettlementBalance:
         assert body == {"amount": "500.00"}
         auth_klear_client.close()
 
+    @respx.mock
+    def test_mfa_code_serialized_when_set(self, auth_klear_client: KlearClient) -> None:
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
+            return_value=httpx.Response(200, json={"id": "wd-mfa"})
+        )
+        resp = auth_klear_client.margin.withdraw_settlement_balance(
+            amount="500.00", mfa_code="123456"
+        )
+        assert resp.id == "wd-mfa"
+        body = json.loads(route.calls.last.request.content)
+        assert body == {"amount": "500.00", "mfa_code": "123456"}
+        auth_klear_client.close()
+
     def test_forbid_extra_field(self) -> None:
         with pytest.raises(ValidationError):
             WithdrawSettlementBalanceRequest(amount="5", bogus=1)  # type: ignore[call-arg]
@@ -897,7 +939,7 @@ class TestWithdrawSettlementBalance:
     def test_rejects_non_positive_amount_client_side(self, auth_klear_client: KlearClient) -> None:
         # Security: a non-positive withdrawal must be rejected at construction,
         # BEFORE any HTTP reaches the real-money endpoint (mirrors OrderPrice).
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "should-not-happen"})
         )
         for bad in ("0.00", "-500.00"):
@@ -909,7 +951,7 @@ class TestWithdrawSettlementBalance:
     @respx.mock
     def test_server_400_on_valid_amount_maps(self, auth_klear_client: KlearClient) -> None:
         # A positive amount the server rejects (e.g. insufficient funds) maps cleanly.
-        respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(400, json={"code": "bad", "message": "insufficient funds"})
         )
         with pytest.raises(KalshiValidationError):
@@ -918,7 +960,7 @@ class TestWithdrawSettlementBalance:
 
     @respx.mock
     def test_post_not_retried(self) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(503, json={"code": "x", "message": "down"})
         )
         client = KlearClient(
@@ -934,7 +976,7 @@ class TestWithdrawSettlementBalance:
 
     @respx.mock
     async def test_async_happy_wire_shape(self, auth_async_klear_client: AsyncKlearClient) -> None:
-        route = respx.post(f"{BASE}/margin/withdraw_settlement_balance").mock(
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
             return_value=httpx.Response(200, json={"id": "wd-2"})
         )
         resp = await auth_async_klear_client.margin.withdraw_settlement_balance(amount="12.34")
@@ -1432,6 +1474,8 @@ class TestFundingEstimateAndSchedule:
         )
         resp = auth_klear_client.margin.funding_estimate_by_asset_class()
         assert resp.estimates["Crypto"].user_breakdown.funding_amount_centicents == 100
+        assert isinstance(resp.estimates["Crypto"].user_breakdown.funding_amount_centicents, int)
+        assert resp.estimates["Crypto"].user_breakdown.funding_amount_fp is None
         auth_klear_client.close()
 
     @respx.mock
@@ -1453,3 +1497,352 @@ class TestFundingEstimateAndSchedule:
         resp = await auth_async_klear_client.margin.funding_schedule(asset_class="Crypto")
         assert resp.schedule == "0 */8 * * *"
         await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
+# Additive optional *_fp dollar fields (no aliasing)
+# --------------------------------------------------------------------------- #
+
+
+def _receive_info_payload(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "r1",
+        "type": "wire",
+        "external_reference": "EXT-1",
+        "created_ts": "2026-06-01T00:30:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+def _json_dump(model: object) -> dict[str, object]:
+    """``by_alias`` serialization. With no aliases this still emits every name."""
+    dumped = model.model_dump(by_alias=True, mode="json")  # type: ignore[attr-defined]
+    assert isinstance(dumped, dict)
+    return dumped
+
+
+class TestAdditiveFpFields:
+    """``*_centicents`` stays a plain ``int``. Each ``*_fp`` wire field is separate.
+
+    A payload that sends only the old centicents name parses with ``*_fp is None``.
+    A payload that sends both parses both. ``model_dump(by_alias=True)`` keeps
+    both names. An ``*_fp`` key alone does not fill the centicents attribute.
+    """
+
+    def test_obligation_receive_info_centicents_only_and_both(self) -> None:
+        old = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents=12345)
+        )
+        assert old.amount_centicents == 12345
+        assert isinstance(old.amount_centicents, int)
+        assert not isinstance(old.amount_centicents, bool)
+        assert old.amount_fp is None
+        old_dump = _json_dump(old)
+        assert old_dump["amount_centicents"] == 12345
+        assert old_dump["amount_fp"] is None
+
+        both = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents=12345, amount_fp="1.234500")
+        )
+        assert both.amount_centicents == 12345
+        assert isinstance(both.amount_centicents, int)
+        assert both.amount_fp == Decimal("1.2345")
+        dumped = _json_dump(both)
+        assert dumped["amount_centicents"] == 12345
+        assert dumped["amount_fp"] == "1.234500"
+
+    def test_construct_by_python_name(self) -> None:
+        info = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents=12345, amount_fp="1.234500")
+        )
+        by_name = ObligationReceiveInfo(
+            id=info.id,
+            type=info.type,
+            amount_centicents=info.amount_centicents,
+            amount_fp=info.amount_fp,
+            external_reference=info.external_reference,
+            created_ts=info.created_ts,
+        )
+        assert by_name.amount_centicents == 12345
+        assert by_name.amount_fp == Decimal("1.2345")
+        dumped = _json_dump(by_name)
+        assert dumped["amount_centicents"] == 12345
+        assert dumped["amount_fp"] == "1.234500"
+
+    def test_fp_alone_does_not_fill_centicents(self) -> None:
+        with pytest.raises(ValidationError):
+            ObligationReceiveInfo.model_validate(_receive_info_payload(amount_fp="1.234500"))
+
+    def test_settlement_detail_centicents_only_and_both(self) -> None:
+        old = SettlementDetail.model_validate(_settlement_detail())
+        assert old.pnl_centicents == -200
+        assert isinstance(old.pnl_centicents, int)
+        assert old.pnl_fp is None
+        assert old.total_amount_centicents == -300
+        assert old.total_amount_fp is None
+        assert old.total_fees_centicents == 100
+
+        both = SettlementDetail.model_validate(
+            _settlement_detail(pnl_fp="-0.020000", total_amount_fp="-0.030000")
+        )
+        assert both.pnl_centicents == -200
+        assert both.pnl_fp == Decimal("-0.02")
+        assert both.total_amount_centicents == -300
+        assert both.total_amount_fp == Decimal("-0.03")
+        dumped = _json_dump(both)
+        assert dumped["pnl_centicents"] == -200
+        assert dumped["pnl_fp"] == "-0.020000"
+        assert dumped["total_amount_centicents"] == -300
+        assert dumped["total_amount_fp"] == "-0.030000"
+        assert dumped["total_fees_centicents"] == 100
+
+    def test_funding_payment_detail_centicents_only_and_both(self) -> None:
+        old = FundingPaymentDetail.model_validate(_funding_payment())
+        assert old.notional_value_centicents == 100000
+        assert isinstance(old.notional_value_centicents, int)
+        assert old.notional_value_fp is None
+        assert old.funding_amount_centicents == -50
+        assert old.funding_amount_fp is None
+
+        both = FundingPaymentDetail.model_validate(
+            _funding_payment(notional_value_fp="10.000000", funding_amount_fp="-0.005000")
+        )
+        assert both.notional_value_centicents == 100000
+        assert both.notional_value_fp == Decimal("10")
+        assert both.funding_amount_centicents == -50
+        assert both.funding_amount_fp == Decimal("-0.005")
+        dumped = _json_dump(both)
+        assert dumped["notional_value_centicents"] == 100000
+        assert dumped["notional_value_fp"] == "10.000000"
+        assert dumped["funding_amount_centicents"] == -50
+        assert dumped["funding_amount_fp"] == "-0.005000"
+
+    def test_corporate_action_payment_centicents_only_and_both(self) -> None:
+        old = CorporateActionPaymentDetail.model_validate(_corporate_action_payment())
+        assert old.payment_amount_centicents == 400
+        assert isinstance(old.payment_amount_centicents, int)
+        assert old.payment_amount_fp is None
+
+        both = CorporateActionPaymentDetail.model_validate(
+            _corporate_action_payment(payment_amount_fp="0.040000")
+        )
+        assert both.payment_amount_centicents == 400
+        assert both.payment_amount_fp == Decimal("0.04")
+        dumped = _json_dump(both)
+        assert dumped["payment_amount_centicents"] == 400
+        assert dumped["payment_amount_fp"] == "0.040000"
+
+    def test_obligation_entry_centicents_only_and_both(self) -> None:
+        old = ObligationEntry.model_validate(_obligation())
+        assert old.amount_centicents == -12345
+        assert isinstance(old.amount_centicents, int)
+        assert old.amount_fp is None
+        assert old.pnl_centicents == -200
+        assert old.pnl_fp is None
+
+        both = ObligationEntry.model_validate(
+            _obligation(amount=12345) | {"amount_fp": "1.234500", "pnl_fp": "-0.020000"}
+        )
+        assert both.amount_centicents == 12345
+        assert both.amount_fp == Decimal("1.2345")
+        assert both.pnl_centicents == -200
+        assert both.pnl_fp == Decimal("-0.02")
+        dumped = _json_dump(both)
+        assert dumped["amount_centicents"] == 12345
+        assert dumped["amount_fp"] == "1.234500"
+        assert dumped["pnl_centicents"] == -200
+        assert dumped["pnl_fp"] == "-0.020000"
+
+    def test_market_settlement_estimate_centicents_only_and_both(self) -> None:
+        centicents = {
+            "quantity_centicount": 1,
+            "variation_margin_centicents": 1000,
+            "notional_value_centicents": 2000,
+        }
+        old = MarketSettlementEstimate.model_validate(centicents)
+        assert old.variation_margin_centicents == 1000
+        assert isinstance(old.variation_margin_centicents, int)
+        assert old.variation_margin_fp is None
+        assert old.notional_value_centicents == 2000
+        assert old.notional_value_fp is None
+
+        both = MarketSettlementEstimate.model_validate(
+            centicents | {"variation_margin_fp": "0.100000", "notional_value_fp": "0.200000"}
+        )
+        assert both.variation_margin_centicents == 1000
+        assert both.variation_margin_fp == Decimal("0.1")
+        assert both.notional_value_centicents == 2000
+        assert both.notional_value_fp == Decimal("0.2")
+        dumped = _json_dump(both)
+        assert dumped["variation_margin_centicents"] == 1000
+        assert dumped["variation_margin_fp"] == "0.100000"
+        assert dumped["notional_value_centicents"] == 2000
+        assert dumped["notional_value_fp"] == "0.200000"
+
+    def test_settlement_estimate_centicents_only_and_both(self) -> None:
+        old = SettlementEstimate.model_validate(_estimate())
+        assert old.total_amount_centicents == 1630
+        assert isinstance(old.total_amount_centicents, int)
+        assert old.total_amount_fp is None
+        assert old.variation_margin_centicents == 1000
+        assert old.variation_margin_fp is None
+        # Fees and maintenance margin have no *_fp counterpart.
+        assert old.total_fees_centicents == 200
+        assert isinstance(old.total_fees_centicents, int)
+
+        both = SettlementEstimate.model_validate(
+            _estimate() | {"variation_margin_fp": "0.100000", "total_amount_fp": "0.163000"}
+        )
+        assert both.variation_margin_centicents == 1000
+        assert both.variation_margin_fp == Decimal("0.1")
+        assert both.total_amount_centicents == 1630
+        assert both.total_amount_fp == Decimal("0.163")
+        dumped = _json_dump(both)
+        assert dumped["variation_margin_centicents"] == 1000
+        assert dumped["variation_margin_fp"] == "0.100000"
+        assert dumped["total_amount_centicents"] == 1630
+        assert dumped["total_amount_fp"] == "0.163000"
+        assert dumped["total_fees_centicents"] == 200
+
+    def test_settlement_estimate_by_asset_class_centicents_only_and_both(self) -> None:
+        old = GetSettlementEstimateByAssetClassResponse.model_validate(
+            {"estimates": {}, "settlement_balance_centicents": 50}
+        )
+        assert old.settlement_balance_centicents == 50
+        assert isinstance(old.settlement_balance_centicents, int)
+        assert old.settlement_balance_fp is None
+
+        both = GetSettlementEstimateByAssetClassResponse.model_validate(
+            {
+                "estimates": {},
+                "settlement_balance_centicents": 50,
+                "settlement_balance_fp": "0.005000",
+            }
+        )
+        assert both.settlement_balance_centicents == 50
+        assert both.settlement_balance_fp == Decimal("0.005")
+        dumped = _json_dump(both)
+        assert dumped["settlement_balance_centicents"] == 50
+        assert dumped["settlement_balance_fp"] == "0.005000"
+
+    def test_settlement_balance_centicents_only_and_both(self) -> None:
+        old = GetSettlementBalanceResponse.model_validate(
+            {
+                "user_id": "u1",
+                "balance_available_centicents": 1_000_000,
+                "locked_balance_centicents": 250_000,
+            }
+        )
+        assert old.balance_available_centicents == 1_000_000
+        assert isinstance(old.balance_available_centicents, int)
+        assert old.balance_available_fp is None
+        assert old.locked_balance_centicents == 250_000
+        assert old.locked_balance_fp is None
+
+        both = GetSettlementBalanceResponse.model_validate(
+            {
+                "user_id": "u1",
+                "balance_available_centicents": 1_000_000,
+                "balance_available_fp": "100.000000",
+                "locked_balance_centicents": 250_000,
+                "locked_balance_fp": "25.000000",
+            }
+        )
+        assert both.balance_available_centicents == 1_000_000
+        assert both.balance_available_fp == Decimal("100")
+        assert both.locked_balance_centicents == 250_000
+        assert both.locked_balance_fp == Decimal("25")
+        dumped = _json_dump(both)
+        assert dumped["balance_available_centicents"] == 1_000_000
+        assert dumped["balance_available_fp"] == "100.000000"
+        assert dumped["locked_balance_centicents"] == 250_000
+        assert dumped["locked_balance_fp"] == "25.000000"
+
+    def test_settlement_balance_history_centicents_only_and_both(self) -> None:
+        old = SettlementBalanceHistoryEntry.model_validate(_balance_history_entry())
+        assert old.balance_delta_centicents == -500
+        assert isinstance(old.balance_delta_centicents, int)
+        assert old.balance_delta_fp is None
+        assert old.locked_balance_delta_centicents == 500
+        assert old.locked_balance_delta_fp is None
+
+        both = SettlementBalanceHistoryEntry.model_validate(
+            _balance_history_entry()
+            | {"balance_delta_fp": "-0.050000", "locked_balance_delta_fp": "0.050000"}
+        )
+        assert both.balance_delta_centicents == -500
+        assert both.balance_delta_fp == Decimal("-0.05")
+        assert both.locked_balance_delta_centicents == 500
+        assert both.locked_balance_delta_fp == Decimal("0.05")
+        dumped = _json_dump(both)
+        assert dumped["balance_delta_centicents"] == -500
+        assert dumped["balance_delta_fp"] == "-0.050000"
+        assert dumped["locked_balance_delta_centicents"] == 500
+        assert dumped["locked_balance_delta_fp"] == "0.050000"
+
+    def test_market_funding_estimate_centicents_only_and_both(self) -> None:
+        old = MarketFundingEstimate.model_validate(
+            {"quantity_centicount": 1, "funding_amount_centicents": -50}
+        )
+        assert old.funding_amount_centicents == -50
+        assert isinstance(old.funding_amount_centicents, int)
+        assert old.funding_amount_fp is None
+
+        both = MarketFundingEstimate.model_validate(
+            {
+                "quantity_centicount": 1,
+                "funding_amount_centicents": -50,
+                "funding_amount_fp": "-0.005000",
+            }
+        )
+        assert both.funding_amount_centicents == -50
+        assert both.funding_amount_fp == Decimal("-0.005")
+        dumped = _json_dump(both)
+        assert dumped["funding_amount_centicents"] == -50
+        assert dumped["funding_amount_fp"] == "-0.005000"
+
+    def test_funding_estimate_centicents_only_and_both(self) -> None:
+        old = FundingEstimate.model_validate({"funding_amount_centicents": 100})
+        assert old.funding_amount_centicents == 100
+        assert isinstance(old.funding_amount_centicents, int)
+        assert old.funding_amount_fp is None
+
+        both = FundingEstimate.model_validate(
+            {"funding_amount_centicents": 100, "funding_amount_fp": "0.010000"}
+        )
+        assert both.funding_amount_centicents == 100
+        assert both.funding_amount_fp == Decimal("0.01")
+        dumped = _json_dump(both)
+        assert dumped["funding_amount_centicents"] == 100
+        assert dumped["funding_amount_fp"] == "0.010000"
+
+    def test_member_funding_payment_inherits_separate_fp_fields(self) -> None:
+        centicents = {
+            "id": "p1",
+            "market_ticker": "BTC-PERP",
+            "subtrader_id": "user_desk1",
+            "funding_time": "2026-09-01T16:00:00Z",
+            "position_quantity_fp": "1.25",
+            "notional_value_centicents": 10000,
+            "funding_amount_centicents": -50,
+            "settlement_execution_time": "2026-09-01T16:05:00Z",
+        }
+        old = MemberFundingPayment.model_validate(centicents)
+        assert old.funding_amount_centicents == -50
+        assert isinstance(old.funding_amount_centicents, int)
+        assert old.funding_amount_fp is None
+        assert old.notional_value_fp is None
+
+        both = MemberFundingPayment.model_validate(
+            centicents | {"notional_value_fp": "1.000000", "funding_amount_fp": "-0.005000"}
+        )
+        assert both.notional_value_centicents == 10000
+        assert both.notional_value_fp == Decimal("1")
+        assert both.funding_amount_centicents == -50
+        assert both.funding_amount_fp == Decimal("-0.005")
+        dumped = _json_dump(both)
+        assert dumped["notional_value_centicents"] == 10000
+        assert dumped["notional_value_fp"] == "1.000000"
+        assert dumped["funding_amount_centicents"] == -50
+        assert dumped["funding_amount_fp"] == "-0.005000"

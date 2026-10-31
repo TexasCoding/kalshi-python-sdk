@@ -84,6 +84,7 @@ class OrderbookSnapshotPayload(BaseModel):
     no: PriceCountMap = Field(
         validation_alias=AliasChoices("no_dollars_fp", "no"),
     )
+    clock: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
@@ -110,6 +111,7 @@ class OrderbookDeltaPayload(BaseModel):
     ts: AwareDatetime | None = None
     # v0.14+ backfill (#162). ts_ms (Unix ms) supersedes ts (RFC3339).
     ts_ms: int | None = None
+    clock: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

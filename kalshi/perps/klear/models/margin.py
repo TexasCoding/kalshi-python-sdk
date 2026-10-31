@@ -7,21 +7,26 @@ settlement-buffer balance + history, guaranty-fund balance, settlement-balance
 withdrawal (initiate + status-by-id), and FCM subtrader groups.
 
 **Money typing — read carefully.** Unlike the perps prediction/REST framing
-(``FixedPointDollars`` / ``FixedPointCount`` strings), almost every monetary
-field on the Klear margin schemas is an **integer ``int64`` in _centicents_**
-(the spec states ``1 USD = 10,000 centicents``), serialized as a JSON number
-with a ``_centicents`` field-name suffix. Those are **plain ``int``** — they are
-NOT :data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the
-integer-cents precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
-``Deposit.amount_cents``). Fixed-point **count** strings appear on
+(``FixedPointDollars`` / ``FixedPointCount`` strings), many monetary fields on
+the Klear margin schemas are an **integer ``int64`` in _centicents_** (the spec
+states ``1 USD = 10,000 centicents``), serialized as a JSON number with a
+``_centicents`` field-name suffix. Those are **plain ``int``** — they are NOT
+:data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the integer-cents
+precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
+``Deposit.amount_cents``). Where the spec also publishes a ``*_fp`` counterpart
+(the same amount as a fixed-point dollar string, 6 decimal places), the SDK
+exposes it as a separate optional :data:`DollarDecimal` attribute with the same
+``*_fp`` name; the ``*_centicents`` integer attributes are unchanged.
+Fixed-point **count** strings appear on
 :attr:`SettlementDetail.position_quantity_fp`,
 :attr:`FundingPaymentDetail.position_quantity_fp`, and
 :attr:`CorporateActionPaymentDetail.position_quantity_fp` /
 :attr:`CorporateActionPaymentDetail.post_position_quantity_fp`. The fixed-point
-**dollar-string** fields are :attr:`WithdrawSettlementBalanceRequest.amount`,
+**dollar-string** fields that were never centicents are
+:attr:`WithdrawSettlementBalanceRequest.amount`,
 :attr:`GetSettlementBalanceWithdrawalResponse.amount`, and
 :attr:`MarketSettlementEstimate.session_avg_price_fp` (e.g. ``"500.00"``);
-those use :data:`DollarDecimal`.
+those also use :data:`DollarDecimal`.
 
 **Timestamps.** Every REST timestamp is RFC3339 (``format: date-time``) and uses
 :class:`pydantic.AwareDatetime`; the single ``format: date`` field
@@ -64,6 +69,7 @@ def _require_positive_withdrawal(value: Decimal) -> Decimal:
 
 WithdrawalAmount = Annotated[DollarDecimal, AfterValidator(_require_positive_withdrawal)]
 """A request-side withdrawal amount: a positive fixed-point dollar value."""
+
 
 # Spec ``MarginReport.report_type`` enum — surfaced as a Literal alias (mirrors
 # the ``PaymentStatusLiteral`` style in kalshi/models/portfolio.py).
@@ -129,10 +135,11 @@ class ObligationReceiveInfo(BaseModel):
     id: str
     type: str
     amount_centicents: int
+    amount_fp: DollarDecimal | None = None
     external_reference: str
     created_ts: AwareDatetime
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class SettlementDetail(BaseModel):
@@ -143,10 +150,12 @@ class SettlementDetail(BaseModel):
     subtrader_id: str
     position_quantity_fp: FixedPointCount
     pnl_centicents: int
+    pnl_fp: DollarDecimal | None = None
     total_fees_centicents: int
     total_amount_centicents: int
+    total_amount_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class MaintenanceMarginDetail(BaseModel):
@@ -169,7 +178,8 @@ class FundingPaymentDetail(BaseModel):
     """Spec ``FundingPaymentDetail`` — per-market funding payment within an obligation.
 
     ``position_quantity_fp`` is a fixed-point contract count string (e.g. ``"1.25"``).
-    Centicents fields are plain ``int``.
+    ``notional_value_centicents`` / ``funding_amount_centicents`` are
+    :data:`DollarDecimal` (wire ``*_fp`` or legacy ``*_centicents``).
     """
 
     id: str
@@ -178,9 +188,11 @@ class FundingPaymentDetail(BaseModel):
     funding_time: AwareDatetime
     position_quantity_fp: FixedPointCount
     notional_value_centicents: int
+    notional_value_fp: DollarDecimal | None = None
     funding_amount_centicents: int
+    funding_amount_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class CorporateActionPaymentDetail(BaseModel):
@@ -190,8 +202,9 @@ class CorporateActionPaymentDetail(BaseModel):
     They are not additional amounts to add to the obligation total.
 
     ``position_quantity_fp`` / ``post_position_quantity_fp`` are fixed-point
-    contract counts. Centicents fields are plain ``int``. ``payment_time`` is
-    a required key that is ``null`` for splits (no scheduled cash time).
+    contract counts. ``payment_amount_centicents`` is :data:`DollarDecimal`.
+    ``payment_time`` is a required key that is ``null`` for splits (no
+    scheduled cash time).
     ``pre_split_price_centicents`` / ``post_split_price_centicents`` /
     ``exchange_ts`` are omitted when they do not apply.
     """
@@ -206,6 +219,7 @@ class CorporateActionPaymentDetail(BaseModel):
     position_quantity_fp: FixedPointCount
     post_position_quantity_fp: FixedPointCount
     payment_amount_centicents: int
+    payment_amount_fp: DollarDecimal | None = None
     # Required key; null for splits.
     payment_time: AwareDatetime | None
     settlement_execution_time: AwareDatetime
@@ -214,7 +228,7 @@ class CorporateActionPaymentDetail(BaseModel):
     post_split_price_centicents: int | None = None
     exchange_ts: AwareDatetime | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class ObligationEntry(BaseModel):
@@ -225,7 +239,8 @@ class ObligationEntry(BaseModel):
     model (the spec only ever returns the composed shape, never bare
     ``ObligationInfo``). ``amount_centicents`` is the net settlement amount:
     negative means the SCM pays Kalshi Klear, positive means Kalshi Klear pays
-    the SCM. All ``_centicents`` fields are plain ``int``.
+    the SCM. Fields with a ``*_fp`` wire counterpart are :data:`DollarDecimal`;
+    remaining ``_centicents`` fields are plain ``int``.
 
     Inline detail arrays are capped at 1000 rows; when truncated the matching
     ``*_truncated`` flag is set and the full set is available via the paged
@@ -236,9 +251,11 @@ class ObligationEntry(BaseModel):
     id: str
     user_id: str
     amount_centicents: int
+    amount_fp: DollarDecimal | None = None
     fees_centicents: int
     maintenance_margin_centicents: int
     pnl_centicents: int
+    pnl_fp: DollarDecimal | None = None
     execution_time: AwareDatetime
     last_updated_ts: AwareDatetime
     # Spec (perps SCM) added a required ``asset_class`` on ``ObligationInfo``.
@@ -254,7 +271,7 @@ class ObligationEntry(BaseModel):
     funding_payments_truncated: bool | None = None
     corporate_action_payments_truncated: bool | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class GetObligationHistoryResponse(BaseModel):
@@ -331,25 +348,30 @@ class MarketSettlementEstimate(BaseModel):
 
     quantity_centicount: int
     variation_margin_centicents: int
+    variation_margin_fp: DollarDecimal | None = None
     notional_value_centicents: int
+    notional_value_fp: DollarDecimal | None = None
     # Optional fixed-point dollar string; omitted when position quantity is zero.
     session_avg_price_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class SettlementEstimate(BaseModel):
     """Spec ``SettlementEstimate`` — estimated next-settlement amounts (centicents)."""
 
     variation_margin_centicents: int
+
+    variation_margin_fp: DollarDecimal | None = None
     total_fees_centicents: int
     maintenance_margin_delta_centicents: int
     maintenance_margin_required_centicents: int
     total_amount_centicents: int
+    total_amount_fp: DollarDecimal | None = None
     # Spec v3.22.0: per-market breakdown map (market ticker -> estimate); optional.
     positions: dict[str, MarketSettlementEstimate] | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 # ── Spec sync 3.24.0 additions (perps SCM) ──────────────────────────────────
@@ -401,8 +423,9 @@ class GetSettlementEstimateByAssetClassResponse(BaseModel):
 
     estimates: dict[str, AssetClassSettlementEstimate]
     settlement_balance_centicents: int
+    settlement_balance_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class GetSettlementBalanceResponse(BaseModel):
@@ -413,9 +436,11 @@ class GetSettlementBalanceResponse(BaseModel):
 
     user_id: str
     balance_available_centicents: int
+    balance_available_fp: DollarDecimal | None = None
     locked_balance_centicents: int | None = None
+    locked_balance_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class GetGuarantyFundBalanceResponse(BaseModel):
@@ -438,12 +463,15 @@ class WithdrawSettlementBalanceRequest(BaseModel):
     string** (``"500.00"``), NOT centicents — wire name equals the Python name, so
     no ``serialization_alias`` is needed. It is validated **positive at construction**
     (this is the single real-money write; a negative/zero amount must never reach
-    the endpoint). Uses ``extra="forbid"`` so a typo'd field fails at construction;
+    the endpoint). ``mfa_code`` is optional in the SDK (the spec marks it
+    required) so existing callers stay valid; omit it and the key is not sent.
+    Uses ``extra="forbid"`` so a typo'd field fails at construction;
     serializes via ``model.model_dump(exclude_none=True, by_alias=True, mode="json")``
     to ``{"amount": "500.00"}``.
     """
 
     amount: WithdrawalAmount
+    mfa_code: str | None = None
 
     model_config = {"extra": "forbid"}
 
@@ -474,12 +502,15 @@ class SettlementBalanceHistoryEntry(BaseModel):
     """Spec ``SettlementBalanceHistoryEntry`` — one settlement-balance change."""
 
     balance_delta_centicents: int
+
+    balance_delta_fp: DollarDecimal | None = None
     locked_balance_delta_centicents: int
+    locked_balance_delta_fp: DollarDecimal | None = None
     reason: str
     business_transaction_id: str
     created_ts: AwareDatetime
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class GetSettlementBalanceHistoryResponse(BaseModel):
@@ -720,17 +751,20 @@ class MarketFundingEstimate(BaseModel):
 
     quantity_centicount: int
     funding_amount_centicents: int
+    funding_amount_fp: DollarDecimal | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class FundingEstimate(BaseModel):
     """Funding amount plus optional per-market position breakdown."""
 
     funding_amount_centicents: int
+
+    funding_amount_fp: DollarDecimal | None = None
     positions: dict[str, MarketFundingEstimate] | None = None
 
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow", "populate_by_name": True}
 
 
 class AssetClassFundingEstimate(BaseModel):

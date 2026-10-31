@@ -78,6 +78,8 @@ class MarginMarket(BaseModel):
     ticker: str
     title: str
     status: MarginMarketStatusLiteral
+    # Stable market UUID; remains unchanged if the ticker is renamed.
+    market_id: str | None = None
     contract_size: DollarDecimal
     # Spec 3.30.0: underlying units per contract-size unit (required string).
     underlying_multiplier: str

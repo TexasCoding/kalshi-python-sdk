@@ -21,7 +21,7 @@ authenticated with a **Bearer** token (not RSA-PSS):
 - ``guaranty_fund_balance`` — ``GET /margin/guaranty_fund_balance``.
 - ``settlement_balance_history`` / ``settlement_balance_history_all`` — ``GET
   /margin/settlement_balance_history``: cursor-paginated (limit max 500).
-- ``withdraw_settlement_balance`` — ``POST /margin/withdraw_settlement_balance``:
+- ``withdraw_settlement_balance`` — ``POST /margin/settlement_balance_withdrawal``:
   ``WithdrawSettlementBalanceRequest`` body; NOT retried (POST).
 - ``settlement_balance_withdrawal`` — ``GET /margin/settlement_balance_withdrawal``:
   withdrawal status by required ``id``.
@@ -425,17 +425,20 @@ class MarginResource(KlearSyncResource):
         self,
         *,
         amount: DollarDecimal | str,
+        mfa_code: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> WithdrawSettlementBalanceResponse:
-        """``POST /margin/withdraw_settlement_balance`` — initiate a wire withdrawal.
+        """``POST /margin/settlement_balance_withdrawal`` — initiate a wire withdrawal.
 
-        ``amount`` is a fixed-point dollar string (``"500.00"``, positive). The
-        request body is built from :class:`WithdrawSettlementBalanceRequest` and
-        serialized to ``{"amount": "500.00"}``. POST is never retried.
+        ``amount`` is a fixed-point dollar string (``"500.00"``, positive). Optional
+        ``mfa_code`` is included on the body when set. The request body is built
+        from :class:`WithdrawSettlementBalanceRequest` and serialized to
+        ``{"amount": "500.00"}`` (plus ``mfa_code`` when provided). POST is never
+        retried.
         """
-        req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount))
+        req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount), mfa_code=mfa_code)
         data = self._post(
-            "/margin/withdraw_settlement_balance",
+            "/margin/settlement_balance_withdrawal",
             json=req.model_dump(exclude_none=True, by_alias=True, mode="json"),
             extra_headers=extra_headers,
         )
@@ -1026,12 +1029,13 @@ class AsyncMarginResource(KlearAsyncResource):
         self,
         *,
         amount: DollarDecimal | str,
+        mfa_code: str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> WithdrawSettlementBalanceResponse:
         """Async :meth:`MarginResource.withdraw_settlement_balance`."""
-        req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount))
+        req = WithdrawSettlementBalanceRequest(amount=to_decimal(amount), mfa_code=mfa_code)
         data = await self._post(
-            "/margin/withdraw_settlement_balance",
+            "/margin/settlement_balance_withdrawal",
             json=req.model_dump(exclude_none=True, by_alias=True, mode="json"),
             extra_headers=extra_headers,
         )

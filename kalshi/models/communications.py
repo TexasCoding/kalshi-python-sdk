@@ -63,6 +63,8 @@ class RFQ(BaseModel):
     creator_subaccount: int | None = None
     # Spec 3.30.0: True when target_cost is principal-only (taker fees on top).
     target_cost_excludes_fees: bool | None = None
+    # Set when this RFQ is a child of an RFQ batch; omitted otherwise.
+    rfq_batch_id: str | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

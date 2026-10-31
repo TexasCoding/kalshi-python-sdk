@@ -1428,6 +1428,22 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="spec marks deprecated; superseded by ts_ms",
         kind="spec_deprecated",
     ),
+    ("kalshi.ws.models.orderbook_delta.OrderbookSnapshotPayload", "clock"): Exclusion(
+        reason=(
+            "AsyncAPI marks orderbook snapshot clock required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.6.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.ws.models.orderbook_delta.OrderbookDeltaPayload", "clock"): Exclusion(
+        reason=(
+            "AsyncAPI marks orderbook delta clock required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.6.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # --- server_omits_despite_required (#183, post-#172 nightly findings) ---
     # Fields the OpenAPI spec marks `required: true` but the live demo server
     # omits in practice. Each entry MUST cite a demo+prod observation in
@@ -1969,7 +1985,7 @@ PERPS_SCM_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
     MethodEndpointEntry(
         sdk_method="kalshi.perps.klear.resources.margin.MarginResource.withdraw_settlement_balance",
         http_method="POST",
-        path_template="/margin/withdraw_settlement_balance",
+        path_template="/margin/settlement_balance_withdrawal",
         request_body_schema="#/components/schemas/WithdrawSettlementBalanceRequest",
     ),
     MethodEndpointEntry(
@@ -2274,6 +2290,53 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         reason="client-side page cap, no wire counterpart",
         kind="client_only",
     ),
+    # Spec marks each additive *_fp dollar string required next to its integer
+    # *_centicents field. The SDK keeps *_fp optional so a centicents-only
+    # payload still parses. The two attributes are separate; there is no alias.
+    **{
+        (model, field): Exclusion(
+            reason=(
+                "Spec marks this *_fp dollar string required beside the integer "
+                "*_centicents field. The SDK keeps it optional (DollarDecimal | None) "
+                "so centicents-only payloads still parse. Separate attributes; no alias."
+            ),
+            kind="server_omits_despite_required",
+        )
+        for model, field in (
+            ("kalshi.perps.klear.models.margin.ObligationReceiveInfo", "amount_fp"),
+            ("kalshi.perps.klear.models.margin.ObligationEntry", "amount_fp"),
+            ("kalshi.perps.klear.models.margin.ObligationEntry", "pnl_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementDetail", "pnl_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementDetail", "total_amount_fp"),
+            ("kalshi.perps.klear.models.margin.FundingPaymentDetail", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.FundingPaymentDetail", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.MemberFundingPayment", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.MemberFundingPayment", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.CorporateActionPaymentDetail", "payment_amount_fp"),
+            ("kalshi.perps.klear.models.margin.MarketSettlementEstimate", "variation_margin_fp"),
+            ("kalshi.perps.klear.models.margin.MarketSettlementEstimate", "notional_value_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementEstimate", "variation_margin_fp"),
+            ("kalshi.perps.klear.models.margin.SettlementEstimate", "total_amount_fp"),
+            (
+                "kalshi.perps.klear.models.margin.GetSettlementEstimateByAssetClassResponse",
+                "settlement_balance_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.GetSettlementBalanceResponse",
+                "balance_available_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
+                "balance_delta_fp",
+            ),
+            (
+                "kalshi.perps.klear.models.margin.SettlementBalanceHistoryEntry",
+                "locked_balance_delta_fp",
+            ),
+            ("kalshi.perps.klear.models.margin.MarketFundingEstimate", "funding_amount_fp"),
+            ("kalshi.perps.klear.models.margin.FundingEstimate", "funding_amount_fp"),
+        )
+    },
 }
 
 
