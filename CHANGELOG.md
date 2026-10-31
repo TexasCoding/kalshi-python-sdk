@@ -2,6 +2,43 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.6.0 — 2026-10-31
+
+Reconciles nightly spec drift (#563) against the latest Klear (SCM) spec
+plus trivial optional fields on core REST/WS and perps models. No public
+Python attribute renames.
+
+### Changed
+
+- **Klear settlement money fields** accept the new `*_fp` wire names
+  (fixed-point dollar strings) while keeping the existing Python
+  `*_centicents` attribute names. Serialization emits `*_fp`. Affected
+  models: `CorporateActionPaymentDetail`, `FundingEstimate`,
+  `FundingPaymentDetail`, `GetSettlementBalanceResponse`,
+  `GetSettlementEstimateByAssetClassResponse`, `MarketFundingEstimate`,
+  `MarketSettlementEstimate`, `MemberFundingPayment`, `ObligationEntry`,
+  `ObligationReceiveInfo`, `SettlementBalanceHistoryEntry`,
+  `SettlementDetail`, `SettlementEstimate`. (Closes #563).
+- **`klear.margin.withdraw_settlement_balance`** (sync and async) now
+  posts to `POST /margin/settlement_balance_withdrawal` (the previous
+  `/margin/withdraw_settlement_balance` path was removed upstream).
+  Optional `mfa_code=` is forwarded on the body when set.
+
+### Added
+
+- Optional `RFQ.rfq_batch_id`, `RfqCreatedPayload.rfq_batch_id`,
+  `RfqDeletedPayload.rfq_batch_id`.
+- Optional `OrderbookSnapshotPayload.clock` /
+  `OrderbookDeltaPayload.clock`.
+- Optional `UserOrdersPayload.last_update_reason`.
+- Optional `GetSettlementBalanceResponse.locked_balance_fp` (aliased onto
+  `locked_balance_centicents`).
+- Optional perps `ExchangeStatus.exchange_estimated_resume_time` /
+  `exchange_index_statuses` / `intra_exchange_transfers_active`, plus
+  `ExchangeIndexStatus`.
+- Optional `MarginMarket.market_id`.
+- Optional `IntraExchangeInstanceTransfer.client_transfer_id`.
+
 ## 22.5.0 — 2026-10-29
 
 Reconciles nightly spec drift (#561) against core OpenAPI 3.35.0 and the

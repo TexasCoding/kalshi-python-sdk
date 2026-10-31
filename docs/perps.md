@@ -409,11 +409,16 @@ klear.margin.delete_subtrader_group(created.group_id)
 ```
 
 Money fields on the Klear margin schemas are integer **centicents** (`1 USD =
-10,000 centicents`); the withdrawal `amount` and
+10,000 centicents`) unless the spec also publishes a `*_fp` counterpart
+(fixed-point dollar string). Those dual fields keep their Python
+`*_centicents` names, parse as `DollarDecimal`, accept either wire name, and
+serialize as `*_fp`. The withdrawal `amount` and
 `MarketSettlementEstimate.session_avg_price_fp` are fixed-point dollar
 strings.
-`klear.margin.withdraw_settlement_balance(amount="500.00")` validates the amount as
+`klear.margin.withdraw_settlement_balance(amount="500.00")` posts to
+`POST /margin/settlement_balance_withdrawal` and validates the amount as
 positive at construction (the single real-money write) before any request is sent.
+Pass `mfa_code=` when the clearing member requires MFA.
 The Bearer `access_token` is never logged and is redacted in `repr()` (only the
 non-secret `admin_user_id` is shown).
 

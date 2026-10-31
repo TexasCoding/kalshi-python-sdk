@@ -32,10 +32,21 @@ from kalshi.errors import (
 )
 from kalshi.perps.klear import AsyncKlearClient, KlearClient, KlearConfig
 from kalshi.perps.klear.models.margin import (
+    CorporateActionPaymentDetail,
+    FundingEstimate,
+    FundingPaymentDetail,
+    GetSettlementBalanceResponse,
     GetSettlementBalanceWithdrawalResponse,
+    GetSettlementEstimateByAssetClassResponse,
     MarginReport,
+    MarketFundingEstimate,
+    MarketSettlementEstimate,
+    MemberFundingPayment,
     ObligationEntry,
+    ObligationReceiveInfo,
     SettlementBalanceHistoryEntry,
+    SettlementDetail,
+    SettlementEstimate,
     WithdrawSettlementBalanceRequest,
 )
 
@@ -888,6 +899,19 @@ class TestWithdrawSettlementBalance:
         assert body == {"amount": "500.00"}
         auth_klear_client.close()
 
+    @respx.mock
+    def test_mfa_code_serialized_when_set(self, auth_klear_client: KlearClient) -> None:
+        route = respx.post(f"{BASE}/margin/settlement_balance_withdrawal").mock(
+            return_value=httpx.Response(200, json={"id": "wd-mfa"})
+        )
+        resp = auth_klear_client.margin.withdraw_settlement_balance(
+            amount="500.00", mfa_code="123456"
+        )
+        assert resp.id == "wd-mfa"
+        body = json.loads(route.calls.last.request.content)
+        assert body == {"amount": "500.00", "mfa_code": "123456"}
+        auth_klear_client.close()
+
     def test_forbid_extra_field(self) -> None:
         with pytest.raises(ValidationError):
             WithdrawSettlementBalanceRequest(amount="5", bogus=1)  # type: ignore[call-arg]
@@ -1452,3 +1476,242 @@ class TestFundingEstimateAndSchedule:
         resp = await auth_async_klear_client.margin.funding_schedule(asset_class="Crypto")
         assert resp.schedule == "0 */8 * * *"
         await auth_async_klear_client.close()
+
+
+# --------------------------------------------------------------------------- #
+# *_fp wire aliases (keep Python *_centicents names)
+# --------------------------------------------------------------------------- #
+
+
+def _receive_info_payload(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "id": "r1",
+        "type": "wire",
+        "external_reference": "EXT-1",
+        "created_ts": "2026-06-01T00:30:00Z",
+    }
+    base.update(overrides)
+    return base
+
+
+class TestCenticentsFpAliases:
+    """Old ``*_centicents`` keys and new ``*_fp`` keys both populate the Python name.
+
+    Serialization emits the ``*_fp`` wire name.
+    """
+
+    def test_obligation_receive_info_old_and_fp_names(self) -> None:
+        old = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents="500.000000")
+        )
+        new = ObligationReceiveInfo.model_validate(_receive_info_payload(amount_fp="500.000000"))
+        assert old.amount_centicents == new.amount_centicents == Decimal("500.000000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["amount_fp"] == "500.000000"
+        assert "amount_centicents" not in dumped
+
+    def test_obligation_receive_info_populate_by_name(self) -> None:
+        info = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents="12.340000")
+        )
+        by_name = ObligationReceiveInfo(
+            id=info.id,
+            type=info.type,
+            amount_centicents=info.amount_centicents,
+            external_reference=info.external_reference,
+            created_ts=info.created_ts,
+        )
+        assert by_name.amount_centicents == Decimal("12.340000")
+
+    def test_fp_name_wins_when_both_keys_present(self) -> None:
+        parsed = ObligationReceiveInfo.model_validate(
+            _receive_info_payload(amount_centicents=5_000_000, amount_fp="500.000000")
+        )
+        assert parsed.amount_centicents == Decimal("500.000000")
+
+    def test_settlement_detail_old_and_fp_names(self) -> None:
+        old = SettlementDetail.model_validate(_settlement_detail())
+        new = SettlementDetail.model_validate(
+            {
+                "id": "sd1",
+                "market_ticker": "BTC-PERP",
+                "subtrader_id": "st1",
+                "position_quantity_fp": "1.25",
+                "pnl_fp": "-0.020000",
+                "total_fees_centicents": 100,
+                "total_amount_fp": "-0.030000",
+            }
+        )
+        assert old.pnl_centicents == Decimal("-200")
+        assert new.pnl_centicents == Decimal("-0.020000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["pnl_fp"] == "-0.020000"
+        assert dumped["total_amount_fp"] == "-0.030000"
+        assert "pnl_centicents" not in dumped
+        assert "total_amount_centicents" not in dumped
+
+    def test_funding_payment_detail_old_and_fp_names(self) -> None:
+        old = FundingPaymentDetail.model_validate(_funding_payment())
+        fp_payload = {
+            "id": "fp1",
+            "market_ticker": "BTC-PERP",
+            "subtrader_id": "st1",
+            "funding_time": "2026-06-01T00:00:00Z",
+            "position_quantity_fp": "2.00",
+            "notional_value_fp": "10.000000",
+            "funding_amount_fp": "-0.005000",
+        }
+        new = FundingPaymentDetail.model_validate(fp_payload)
+        assert old.notional_value_centicents == Decimal("100000")
+        assert new.funding_amount_centicents == Decimal("-0.005000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["notional_value_fp"] == "10.000000"
+        assert dumped["funding_amount_fp"] == "-0.005000"
+
+    def test_corporate_action_payment_old_and_fp_names(self) -> None:
+        old = CorporateActionPaymentDetail.model_validate(_corporate_action_payment())
+        fp_payload = {**_corporate_action_payment(), "payment_amount_fp": "0.040000"}
+        del fp_payload["payment_amount_centicents"]
+        new = CorporateActionPaymentDetail.model_validate(fp_payload)
+        assert old.payment_amount_centicents == Decimal("400")
+        assert new.payment_amount_centicents == Decimal("0.040000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["payment_amount_fp"] == "0.040000"
+        assert "payment_amount_centicents" not in dumped
+
+    def test_obligation_entry_old_and_fp_names(self) -> None:
+        old = ObligationEntry.model_validate(_obligation())
+        fp_payload = {**_obligation(), "amount_fp": "-1.234500", "pnl_fp": "-0.020000"}
+        del fp_payload["amount_centicents"]
+        del fp_payload["pnl_centicents"]
+        new = ObligationEntry.model_validate(fp_payload)
+        assert old.amount_centicents == Decimal("-12345")
+        assert new.amount_centicents == Decimal("-1.234500")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["amount_fp"] == "-1.234500"
+        assert dumped["pnl_fp"] == "-0.020000"
+
+    def test_market_settlement_estimate_old_and_fp_names(self) -> None:
+        old = MarketSettlementEstimate.model_validate(
+            {
+                "quantity_centicount": 1,
+                "variation_margin_centicents": 1000,
+                "notional_value_centicents": 2000,
+            }
+        )
+        new = MarketSettlementEstimate.model_validate(
+            {
+                "quantity_centicount": 1,
+                "variation_margin_fp": "0.100000",
+                "notional_value_fp": "0.200000",
+            }
+        )
+        assert old.variation_margin_centicents == Decimal("1000")
+        assert new.notional_value_centicents == Decimal("0.200000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["variation_margin_fp"] == "0.100000"
+        assert dumped["notional_value_fp"] == "0.200000"
+
+    def test_settlement_estimate_old_and_fp_names(self) -> None:
+        old = SettlementEstimate.model_validate(_estimate())
+        new = SettlementEstimate.model_validate(
+            {
+                "variation_margin_fp": "0.100000",
+                "total_fees_centicents": 200,
+                "maintenance_margin_delta_centicents": 30,
+                "maintenance_margin_required_centicents": 400,
+                "total_amount_fp": "0.163000",
+            }
+        )
+        assert old.total_amount_centicents == Decimal("1630")
+        assert new.variation_margin_centicents == Decimal("0.100000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["total_amount_fp"] == "0.163000"
+        assert dumped["variation_margin_fp"] == "0.100000"
+
+    def test_settlement_estimate_by_asset_class_old_and_fp_names(self) -> None:
+        old = GetSettlementEstimateByAssetClassResponse.model_validate(
+            {"estimates": {}, "settlement_balance_centicents": 50}
+        )
+        new = GetSettlementEstimateByAssetClassResponse.model_validate(
+            {"estimates": {}, "settlement_balance_fp": "0.005000"}
+        )
+        assert old.settlement_balance_centicents == Decimal("50")
+        assert new.settlement_balance_centicents == Decimal("0.005000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["settlement_balance_fp"] == "0.005000"
+
+    def test_settlement_balance_old_and_fp_names(self) -> None:
+        old = GetSettlementBalanceResponse.model_validate(
+            {
+                "user_id": "u1",
+                "balance_available_centicents": 1_000_000,
+                "locked_balance_centicents": 250_000,
+            }
+        )
+        new = GetSettlementBalanceResponse.model_validate(
+            {
+                "user_id": "u1",
+                "balance_available_fp": "100.000000",
+                "locked_balance_fp": "25.000000",
+            }
+        )
+        assert old.balance_available_centicents == Decimal("1000000")
+        assert new.locked_balance_centicents == Decimal("25.000000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["balance_available_fp"] == "100.000000"
+        assert dumped["locked_balance_fp"] == "25.000000"
+
+    def test_settlement_balance_history_old_and_fp_names(self) -> None:
+        old = SettlementBalanceHistoryEntry.model_validate(_balance_history_entry())
+        new = SettlementBalanceHistoryEntry.model_validate(
+            {
+                "balance_delta_fp": "-0.050000",
+                "locked_balance_delta_fp": "0.050000",
+                "reason": "withdrawal_initiated",
+                "business_transaction_id": "btx-1",
+                "created_ts": "2026-06-01T00:00:00Z",
+            }
+        )
+        assert old.balance_delta_centicents == Decimal("-500")
+        assert new.locked_balance_delta_centicents == Decimal("0.050000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["balance_delta_fp"] == "-0.050000"
+        assert dumped["locked_balance_delta_fp"] == "0.050000"
+
+    def test_market_funding_estimate_old_and_fp_names(self) -> None:
+        old = MarketFundingEstimate.model_validate(
+            {"quantity_centicount": 1, "funding_amount_centicents": -50}
+        )
+        new = MarketFundingEstimate.model_validate(
+            {"quantity_centicount": 1, "funding_amount_fp": "-0.005000"}
+        )
+        assert old.funding_amount_centicents == Decimal("-50")
+        assert new.funding_amount_centicents == Decimal("-0.005000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["funding_amount_fp"] == "-0.005000"
+
+    def test_funding_estimate_old_and_fp_names(self) -> None:
+        old = FundingEstimate.model_validate({"funding_amount_centicents": 100})
+        new = FundingEstimate.model_validate({"funding_amount_fp": "0.010000"})
+        assert old.funding_amount_centicents == Decimal("100")
+        assert new.funding_amount_centicents == Decimal("0.010000")
+        dumped = new.model_dump(by_alias=True, mode="json")
+        assert dumped["funding_amount_fp"] == "0.010000"
+
+    def test_member_funding_payment_inherits_fp_aliases(self) -> None:
+        payload = {
+            "id": "p1",
+            "market_ticker": "BTC-PERP",
+            "subtrader_id": "user_desk1",
+            "funding_time": "2026-09-01T16:00:00Z",
+            "position_quantity_fp": "1.25",
+            "notional_value_fp": "1.000000",
+            "funding_amount_fp": "-0.005000",
+            "settlement_execution_time": "2026-09-01T16:05:00Z",
+        }
+        parsed = MemberFundingPayment.model_validate(payload)
+        assert parsed.funding_amount_centicents == Decimal("-0.005000")
+        dumped = parsed.model_dump(by_alias=True, mode="json")
+        assert dumped["funding_amount_fp"] == "-0.005000"
+        assert dumped["notional_value_fp"] == "1.000000"

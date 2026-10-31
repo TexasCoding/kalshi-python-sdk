@@ -503,4 +503,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "22.5.0"
+__version__ = "22.6.0"
