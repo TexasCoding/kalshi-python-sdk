@@ -14,10 +14,9 @@ states ``1 USD = 10,000 centicents``), serialized as a JSON number with a
 :data:`DollarDecimal` / :data:`FixedPointCount`. This mirrors the integer-cents
 precedent in ``kalshi/models/portfolio.py`` (``Balance.balance``,
 ``Deposit.amount_cents``). Where the spec also publishes a ``*_fp`` counterpart
-(fixed-point dollar string, 6 decimal places), the SDK **keeps the Python
-``*_centicents`` attribute name** (no public rename) and types it as
-:data:`DollarDecimal`. Validation accepts both wire names via
-``AliasChoices(fp_name, old_name)``; serialization emits the ``*_fp`` name.
+(the same amount as a fixed-point dollar string, 6 decimal places), the SDK
+exposes it as a separate optional :data:`DollarDecimal` attribute with the same
+``*_fp`` name; the ``*_centicents`` integer attributes are unchanged.
 Fixed-point **count** strings appear on
 :attr:`SettlementDetail.position_quantity_fp`,
 :attr:`FundingPaymentDetail.position_quantity_fp`, and
@@ -43,9 +42,9 @@ from __future__ import annotations
 
 import datetime
 from decimal import Decimal
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
-from pydantic import AfterValidator, AliasChoices, AwareDatetime, BaseModel, Field, SecretStr
+from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, SecretStr
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
@@ -71,14 +70,6 @@ def _require_positive_withdrawal(value: Decimal) -> Decimal:
 WithdrawalAmount = Annotated[DollarDecimal, AfterValidator(_require_positive_withdrawal)]
 """A request-side withdrawal amount: a positive fixed-point dollar value."""
 
-
-def _fp_money(fp_name: str, old_name: str, **kwargs: Any) -> Any:
-    """Accept ``fp_name`` or ``old_name`` on the wire; serialize as ``fp_name``."""
-    return Field(
-        validation_alias=AliasChoices(fp_name, old_name),
-        serialization_alias=fp_name,
-        **kwargs,
-    )
 
 # Spec ``MarginReport.report_type`` enum — surfaced as a Literal alias (mirrors
 # the ``PaymentStatusLiteral`` style in kalshi/models/portfolio.py).
@@ -143,7 +134,8 @@ class ObligationReceiveInfo(BaseModel):
 
     id: str
     type: str
-    amount_centicents: DollarDecimal = _fp_money("amount_fp", "amount_centicents")
+    amount_centicents: int
+    amount_fp: DollarDecimal | None = None
     external_reference: str
     created_ts: AwareDatetime
 
@@ -157,11 +149,11 @@ class SettlementDetail(BaseModel):
     market_ticker: str
     subtrader_id: str
     position_quantity_fp: FixedPointCount
-    pnl_centicents: DollarDecimal = _fp_money("pnl_fp", "pnl_centicents")
+    pnl_centicents: int
+    pnl_fp: DollarDecimal | None = None
     total_fees_centicents: int
-    total_amount_centicents: DollarDecimal = _fp_money(
-        "total_amount_fp", "total_amount_centicents"
-    )
+    total_amount_centicents: int
+    total_amount_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -195,12 +187,10 @@ class FundingPaymentDetail(BaseModel):
     subtrader_id: str
     funding_time: AwareDatetime
     position_quantity_fp: FixedPointCount
-    notional_value_centicents: DollarDecimal = _fp_money(
-        "notional_value_fp", "notional_value_centicents"
-    )
-    funding_amount_centicents: DollarDecimal = _fp_money(
-        "funding_amount_fp", "funding_amount_centicents"
-    )
+    notional_value_centicents: int
+    notional_value_fp: DollarDecimal | None = None
+    funding_amount_centicents: int
+    funding_amount_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -228,9 +218,8 @@ class CorporateActionPaymentDetail(BaseModel):
     subtrader_id: str
     position_quantity_fp: FixedPointCount
     post_position_quantity_fp: FixedPointCount
-    payment_amount_centicents: DollarDecimal = _fp_money(
-        "payment_amount_fp", "payment_amount_centicents"
-    )
+    payment_amount_centicents: int
+    payment_amount_fp: DollarDecimal | None = None
     # Required key; null for splits.
     payment_time: AwareDatetime | None
     settlement_execution_time: AwareDatetime
@@ -261,10 +250,12 @@ class ObligationEntry(BaseModel):
     # From ObligationInfo.
     id: str
     user_id: str
-    amount_centicents: DollarDecimal = _fp_money("amount_fp", "amount_centicents")
+    amount_centicents: int
+    amount_fp: DollarDecimal | None = None
     fees_centicents: int
     maintenance_margin_centicents: int
-    pnl_centicents: DollarDecimal = _fp_money("pnl_fp", "pnl_centicents")
+    pnl_centicents: int
+    pnl_fp: DollarDecimal | None = None
     execution_time: AwareDatetime
     last_updated_ts: AwareDatetime
     # Spec (perps SCM) added a required ``asset_class`` on ``ObligationInfo``.
@@ -356,12 +347,10 @@ class MarketSettlementEstimate(BaseModel):
     """Spec ``MarketSettlementEstimate`` — per-market settlement breakdown (centi units)."""
 
     quantity_centicount: int
-    variation_margin_centicents: DollarDecimal = _fp_money(
-        "variation_margin_fp", "variation_margin_centicents"
-    )
-    notional_value_centicents: DollarDecimal = _fp_money(
-        "notional_value_fp", "notional_value_centicents"
-    )
+    variation_margin_centicents: int
+    variation_margin_fp: DollarDecimal | None = None
+    notional_value_centicents: int
+    notional_value_fp: DollarDecimal | None = None
     # Optional fixed-point dollar string; omitted when position quantity is zero.
     session_avg_price_fp: DollarDecimal | None = None
 
@@ -371,15 +360,14 @@ class MarketSettlementEstimate(BaseModel):
 class SettlementEstimate(BaseModel):
     """Spec ``SettlementEstimate`` — estimated next-settlement amounts (centicents)."""
 
-    variation_margin_centicents: DollarDecimal = _fp_money(
-        "variation_margin_fp", "variation_margin_centicents"
-    )
+    variation_margin_centicents: int
+
+    variation_margin_fp: DollarDecimal | None = None
     total_fees_centicents: int
     maintenance_margin_delta_centicents: int
     maintenance_margin_required_centicents: int
-    total_amount_centicents: DollarDecimal = _fp_money(
-        "total_amount_fp", "total_amount_centicents"
-    )
+    total_amount_centicents: int
+    total_amount_fp: DollarDecimal | None = None
     # Spec v3.22.0: per-market breakdown map (market ticker -> estimate); optional.
     positions: dict[str, MarketSettlementEstimate] | None = None
 
@@ -434,9 +422,8 @@ class GetSettlementEstimateByAssetClassResponse(BaseModel):
     """
 
     estimates: dict[str, AssetClassSettlementEstimate]
-    settlement_balance_centicents: DollarDecimal = _fp_money(
-        "settlement_balance_fp", "settlement_balance_centicents"
-    )
+    settlement_balance_centicents: int
+    settlement_balance_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -448,12 +435,10 @@ class GetSettlementBalanceResponse(BaseModel):
     """
 
     user_id: str
-    balance_available_centicents: DollarDecimal = _fp_money(
-        "balance_available_fp", "balance_available_centicents"
-    )
-    locked_balance_centicents: DollarDecimal | None = _fp_money(
-        "locked_balance_fp", "locked_balance_centicents", default=None
-    )
+    balance_available_centicents: int
+    balance_available_fp: DollarDecimal | None = None
+    locked_balance_centicents: int | None = None
+    locked_balance_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -516,12 +501,11 @@ class GetSettlementBalanceWithdrawalResponse(BaseModel):
 class SettlementBalanceHistoryEntry(BaseModel):
     """Spec ``SettlementBalanceHistoryEntry`` — one settlement-balance change."""
 
-    balance_delta_centicents: DollarDecimal = _fp_money(
-        "balance_delta_fp", "balance_delta_centicents"
-    )
-    locked_balance_delta_centicents: DollarDecimal = _fp_money(
-        "locked_balance_delta_fp", "locked_balance_delta_centicents"
-    )
+    balance_delta_centicents: int
+
+    balance_delta_fp: DollarDecimal | None = None
+    locked_balance_delta_centicents: int
+    locked_balance_delta_fp: DollarDecimal | None = None
     reason: str
     business_transaction_id: str
     created_ts: AwareDatetime
@@ -766,9 +750,8 @@ class MarketFundingEstimate(BaseModel):
     """Per-market funding estimate on a subtrader or group breakdown."""
 
     quantity_centicount: int
-    funding_amount_centicents: DollarDecimal = _fp_money(
-        "funding_amount_fp", "funding_amount_centicents"
-    )
+    funding_amount_centicents: int
+    funding_amount_fp: DollarDecimal | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 
@@ -776,9 +759,9 @@ class MarketFundingEstimate(BaseModel):
 class FundingEstimate(BaseModel):
     """Funding amount plus optional per-market position breakdown."""
 
-    funding_amount_centicents: DollarDecimal = _fp_money(
-        "funding_amount_fp", "funding_amount_centicents"
-    )
+    funding_amount_centicents: int
+
+    funding_amount_fp: DollarDecimal | None = None
     positions: dict[str, MarketFundingEstimate] | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
