@@ -2064,7 +2064,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
-          description: "Identifier for an exchange shard. Perps subaccount transfers ignore this field."
+          description: "Deprecated: ignored for Perps subaccount transfers. This field will be removed."
           x-go-type-skip-optional-pointer: true
           x-oapi-codegen-extra-tags:
             validate: "gte=0"
@@ -2094,7 +2094,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
           default: 0
-          description: The market group this order group is bound to (default 0). All orders placed into this order group must be for markets whose exchange_index matches this value.
+          description: "Deprecated: ignored. Perps order groups can hold orders on any market. This field will be removed."
           x-go-type-skip-optional-pointer: true
     CreateOrderGroupResponse:
       type: object
@@ -2113,6 +2113,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
+          description: "Deprecated: has no effect on Perps order groups. This field will be removed."
           x-go-type-skip-optional-pointer: true
           x-omitempty: false
     CreateSubaccountResponse:
@@ -2259,7 +2260,7 @@ components:
           description: Additional details about the error, if available
     ExchangeIndex:
       type: integer
-      description: "Identifier for an exchange shard. Defaults to 0 if unspecified."
+      description: "Identifier for a Predictions exchange shard. Deprecated on Perps, which runs on one matching engine. Defaults to 0 if unspecified."
       example: 0
     ExchangeInstance:
       type: string
@@ -2583,6 +2584,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
+          description: "Deprecated: has no effect on Perps order groups. This field will be removed."
           x-go-type-skip-optional-pointer: true
           x-omitempty: false
     GetOrderGroupsResponse:
@@ -2622,7 +2624,7 @@ components:
           maximum: 100
           default: 0
           x-go-type-skip-optional-pointer: true
-          description: Source exchange shard index (default 0)
+          description: "Predictions exchange shard of the source when source is event_contract. Leave unset (0) for Perps."
           x-oapi-codegen-extra-tags:
             validate: "gte=0,lte=100"
         destination_exchange_shard:
@@ -2631,7 +2633,7 @@ components:
           maximum: 100
           default: 0
           x-go-type-skip-optional-pointer: true
-          description: Destination exchange shard index (default 0)
+          description: "Predictions exchange shard of the destination when destination is event_contract. Leave unset (0) for Perps."
           x-oapi-codegen-extra-tags:
             validate: "gte=0,lte=100"
         source_subaccount:
@@ -2677,6 +2679,7 @@ components:
         exchange_index:
           allOf:
             - $ref: '#/components/schemas/ExchangeIndex'
+          description: "Deprecated: has no effect on Perps order groups. This field will be removed."
           x-go-type-skip-optional-pointer: true
           x-omitempty: false
     # Market Orderbook schemas
@@ -3166,7 +3169,8 @@ components:
           description: The market's current version. It starts at 1 and increases when trading resumes after a corporate action, such as a stock split. Pass it as market_version when creating an order to have the order rejected if the version has changed since you read it.
         exchange_index:
           type: integer
-          description: The group of markets this market belongs to for order groups. Order groups may only reference markets whose exchange_index matches theirs.
+          deprecated: true
+          description: "Deprecated: has no effect on order groups or rate limits. This field will be removed."
         contract_size:
           type: string
           description: Fixed-point number with 6 decimal places
