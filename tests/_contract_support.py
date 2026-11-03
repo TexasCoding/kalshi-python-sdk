@@ -2104,6 +2104,22 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         ),
         kind="server_omits_despite_required",
     ),
+    ("kalshi.perps.models.portfolio.MarginTrade", "is_block_trade"): Exclusion(
+        reason=(
+            "spec marks is_block_trade required; the SDK keeps it optional "
+            "(None when absent) so payloads and fixtures predating the field "
+            "still validate and the change ships as a minor release (22.7.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.perps.ws.models.trade.MarginTradePayload", "is_block_trade"): Exclusion(
+        reason=(
+            "AsyncAPI marks is_block_trade required; the SDK keeps it optional "
+            "(None when absent) so payloads and fixtures predating the field "
+            "still validate and the change ships as a minor release (22.7.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
     (
         "kalshi.perps.models.margin_account.MarginSubaccountBalance",
         "subaccount_type",

@@ -2157,7 +2157,7 @@ components:
                 name: "MVE One"
                 title: "Market 1"
                 yes_sub_title: "YES 1"
-                no_sub_title: "NO 1"
+                no_sub_title: "YES 1"
                 rules_primary: "Rule 1"
                 rules_secondary: "Rule 2"
                 can_close_early: true
@@ -3978,6 +3978,8 @@ components:
           type: string
         no_sub_title:
           type: string
+          deprecated: true
+          description: Deprecated. Use `yes_sub_title` instead. Equal to `yes_sub_title` on every market created since September 2024.
         rules_primary:
           type: string
         rules_secondary:

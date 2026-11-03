@@ -17,9 +17,10 @@ from kalshi.types import DollarDecimal, FixedPointCount
 class MarginTradePayload(BaseModel):
     """Payload for ``trade`` messages (``marginTradePayload.msg``).
 
-    All fields required per spec. ``trade_id`` is a UUID string; ``price`` is a
-    dollar-decimal string; ``count`` is a fixed-point count string;
-    ``taker_side`` is ``bid``/``ask``; ``ts_ms`` is epoch milliseconds.
+    ``trade_id`` is a UUID string; ``price`` is a dollar-decimal string;
+    ``count`` is a fixed-point count string; ``taker_side`` is ``bid``/``ask``;
+    ``ts_ms`` is epoch milliseconds. Spec marks ``is_block_trade`` required;
+    the SDK keeps it optional so payloads omitting the key still parse.
     """
 
     trade_id: str
@@ -28,6 +29,10 @@ class MarginTradePayload(BaseModel):
     count: FixedPointCount
     taker_side: PerpsBookSide
     ts_ms: int
+    # Spec marks is_block_trade required. Kept optional (None when the
+    # key is absent) so fixtures and payloads from before the field
+    # still validate. See PERPS_EXCLUSIONS.
+    is_block_trade: bool | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

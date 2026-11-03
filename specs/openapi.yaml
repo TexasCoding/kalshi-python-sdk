@@ -11398,7 +11398,9 @@ components:
           description: Shortened title for the yes side of this market
         no_sub_title:
           type: string
-          description: Shortened title for the no side of this market
+          deprecated: true
+          description: |
+            Deprecated. Use `yes_sub_title` instead. Equal to `yes_sub_title` on every market created since September 2024.
         created_time:
           type: string
           format: date-time
