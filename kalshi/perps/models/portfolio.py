@@ -128,6 +128,10 @@ class MarginTrade(BaseModel):
     price: DollarDecimal
     created_time: AwareDatetime
     taker_side: BookSideLiteral
+    # Spec marks is_block_trade required. Kept optional (None when the
+    # key is absent) so fixtures and payloads from before the field
+    # still validate. See PERPS_EXCLUSIONS.
+    is_block_trade: bool | None = None
 
     model_config = {"extra": "allow"}
 

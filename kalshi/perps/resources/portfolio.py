@@ -38,6 +38,7 @@ from kalshi.perps.models.portfolio import (
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
+    _bool_param,
     _params,
     _seg,
     _validate_limit,
@@ -71,11 +72,15 @@ def _margin_trades_params(
     max_ts: int | None,
     limit: int | None,
     cursor: str | None,
+    is_block_trade: bool | None,
 ) -> dict[str, Any]:
     """Build query params for ``GET /margin/trades``.
 
     ``ticker`` is optional — omit (``None``) to retrieve trades across all
-    margin markets. ``_params`` drops ``None`` so the query key is not sent.
+    margin markets. ``is_block_trade`` is optional — omit for all trades,
+    ``True`` for block trades only, ``False`` for non-block only (serialized
+    as ``"true"`` / ``"false"``; ``None`` is dropped). ``_params`` drops
+    ``None`` so omitted keys are not sent.
     """
     limit = _validate_limit(limit, hi=1000)
     return _params(
@@ -84,6 +89,7 @@ def _margin_trades_params(
         max_ts=max_ts,
         limit=limit,
         cursor=cursor,
+        is_block_trade=_bool_param(is_block_trade),
     )
 
 
@@ -161,12 +167,15 @@ class PerpsPortfolioResource(SyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[MarginTrade]:
         """Public margin trades (no auth required).
 
         ``ticker`` filters to one market. Omit to retrieve trades across all
-        margin markets.
+        margin markets. ``is_block_trade`` filters by block / non-block:
+        omit for all trades, ``True`` for block trades only, ``False`` for
+        non-block only.
         """
         params = _margin_trades_params(
             ticker=ticker,
@@ -174,6 +183,7 @@ class PerpsPortfolioResource(SyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=cursor,
+            is_block_trade=is_block_trade,
         )
         return self._list(
             "/margin/trades", MarginTrade, "trades", params=params, extra_headers=extra_headers
@@ -186,13 +196,16 @@ class PerpsPortfolioResource(SyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarginTrade]:
         """Auto-paginate public margin trades (no auth required).
 
         ``ticker`` filters to one market. Omit to retrieve trades across all
-        margin markets.
+        margin markets. ``is_block_trade`` filters by block / non-block:
+        omit for all trades, ``True`` for block trades only, ``False`` for
+        non-block only.
         """
         _validate_max_pages(max_pages)
         params = _margin_trades_params(
@@ -201,6 +214,7 @@ class PerpsPortfolioResource(SyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=None,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/margin/trades",
@@ -438,12 +452,15 @@ class AsyncPerpsPortfolioResource(AsyncResource):
         max_ts: int | None = None,
         limit: int | None = None,
         cursor: str | None = None,
+        is_block_trade: bool | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[MarginTrade]:
         """Public margin trades (no auth required).
 
         ``ticker`` filters to one market. Omit to retrieve trades across all
-        margin markets.
+        margin markets. ``is_block_trade`` filters by block / non-block:
+        omit for all trades, ``True`` for block trades only, ``False`` for
+        non-block only.
         """
         params = _margin_trades_params(
             ticker=ticker,
@@ -451,6 +468,7 @@ class AsyncPerpsPortfolioResource(AsyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=cursor,
+            is_block_trade=is_block_trade,
         )
         return await self._list(
             "/margin/trades", MarginTrade, "trades", params=params, extra_headers=extra_headers
@@ -463,13 +481,16 @@ class AsyncPerpsPortfolioResource(AsyncResource):
         min_ts: int | None = None,
         max_ts: int | None = None,
         limit: int | None = None,
+        is_block_trade: bool | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarginTrade]:
         """Returns an async iterator over public margin trades — use ``async for`` (no auth).
 
         ``ticker`` filters to one market. Omit to retrieve trades across all
-        margin markets.
+        margin markets. ``is_block_trade`` filters by block / non-block:
+        omit for all trades, ``True`` for block trades only, ``False`` for
+        non-block only.
         """
         _validate_max_pages(max_pages)
         params = _margin_trades_params(
@@ -478,6 +499,7 @@ class AsyncPerpsPortfolioResource(AsyncResource):
             max_ts=max_ts,
             limit=limit,
             cursor=None,
+            is_block_trade=is_block_trade,
         )
         return self._list_all(
             "/margin/trades",
