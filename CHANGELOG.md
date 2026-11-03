@@ -17,7 +17,10 @@ AsyncAPI and Klear (SCM) specs. Additive only. No breaking changes.
   `MarginTradePayload`. The spec marks it required; the SDK keeps it
   optional (contract exclusion `server_omits_despite_required`) so
   payloads omitting the key still parse.
-- Klear `MarginReport.report_type` gains the companion `*_fp` variants
+- Klear `MarginReport.report_type` now accepts every spec report type: the
+  previously missing `position_transfer_audit`, `corporate_action_payments`,
+  `cash_balance_daily`, `cash_activity_daily`, `daily_financial_summary`,
+  `interest_on_collateral_monthly`, `daily_statement`, and the companion `*_fp` variants
   (`trade_audit_fp`, `position_transfer_audit_fp`, `position_snapshot_fp`,
   `funding_periods_fp`, `settlement_periods_fp`,
   `corporate_action_payments_fp`, `cash_balance_daily_fp`,

@@ -57,6 +57,7 @@ BASE = "https://demo-api.kalshi.co/klear-api/v1"
 ALL_REPORT_TYPES = [
     "trade_audit",
     "trade_audit_fp",
+    "position_transfer_audit",
     "position_transfer_audit_fp",
     "position_snapshot",
     "position_snapshot_fp",
@@ -65,13 +66,19 @@ ALL_REPORT_TYPES = [
     "funding_periods_fp",
     "settlement_periods",
     "settlement_periods_fp",
+    "corporate_action_payments",
     "corporate_action_payments_fp",
     "maintenance_margin",
     "maintenance_margin_aggregate",
+    "cash_balance_daily",
     "cash_balance_daily_fp",
+    "cash_activity_daily",
     "cash_activity_daily_fp",
+    "daily_financial_summary",
     "daily_financial_summary_fp",
+    "interest_on_collateral_monthly",
     "interest_on_collateral_monthly_fp",
+    "daily_statement",
 ]
 
 
