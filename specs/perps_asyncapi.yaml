@@ -1346,7 +1346,7 @@ components:
           $ref: '#/components/schemas/sequenceNumber'
         msg:
           type: object
-          required: ["trade_id", "market_ticker", "price", "count", "taker_side", "ts_ms"]
+          required: ["trade_id", "market_ticker", "price", "count", "taker_side", "is_block_trade", "ts_ms"]
           properties:
             trade_id:
               type: string
@@ -1363,6 +1363,9 @@ components:
               x-rust-serialize-with: ws::dto::serde_money::serialize_amount_fixed_point_count
             taker_side:
               $ref: '#/components/schemas/bookSide'
+            is_block_trade:
+              type: boolean
+              description: True if the trade was matched off book as a block trade
             ts_ms:
               type: integer
               format: int64
