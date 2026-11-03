@@ -2,6 +2,28 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.7.0 — 2026-11-03
+
+Reconciles nightly spec drift (#567) against the latest perps OpenAPI /
+AsyncAPI and Klear (SCM) specs. Additive only. No breaking changes.
+
+### Added
+
+- **`is_block_trade`** query param on perps `portfolio.trades` /
+  `trades_all` (sync and async). Omit for all trades; `True` filters to
+  block trades; `False` filters to non-block (`"false"` is sent, not
+  dropped). (Closes #567).
+- Optional **`is_block_trade`** (`bool | None`) on `MarginTrade` and
+  `MarginTradePayload`. The spec marks it required; the SDK keeps it
+  optional (contract exclusion `server_omits_despite_required`) so
+  payloads omitting the key still parse.
+- Klear `MarginReport.report_type` gains the companion `*_fp` variants
+  (`trade_audit_fp`, `position_transfer_audit_fp`, `position_snapshot_fp`,
+  `funding_periods_fp`, `settlement_periods_fp`,
+  `corporate_action_payments_fp`, `cash_balance_daily_fp`,
+  `cash_activity_daily_fp`, `daily_financial_summary_fp`,
+  `interest_on_collateral_monthly_fp`).
+
 ## 22.6.0 — 2026-10-31
 
 Reconciles nightly spec drift (#563) against the latest Klear (SCM) spec

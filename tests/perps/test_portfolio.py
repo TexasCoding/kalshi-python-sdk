@@ -433,7 +433,7 @@ class TestTrades:
         perps_client.portfolio.trades(ticker="BTC-PERP")
         params = route.calls.last.request.url.params
         assert params["ticker"] == "BTC-PERP"
-        for key in ("min_ts", "max_ts", "limit", "cursor"):
+        for key in ("min_ts", "max_ts", "limit", "cursor", "is_block_trade"):
             assert key not in params
 
     def test_limit_out_of_range_raises(self, perps_client: PerpsClient) -> None:
@@ -508,6 +508,100 @@ class TestTrades:
         items = [t async for t in async_perps_client.portfolio.trades_all(ticker="BTC-PERP")]
         assert len(items) == 2
         await async_perps_client.close()
+
+    @respx.mock
+    def test_is_block_trade_filter_serializes(self, perps_client: PerpsClient) -> None:
+        """``False`` must be sent explicitly (not dropped) so callers can
+        request only non-block trades."""
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        perps_client.portfolio.trades(is_block_trade=True)
+        assert route.calls[0].request.url.params["is_block_trade"] == "true"
+        perps_client.portfolio.trades(is_block_trade=False)
+        assert route.calls[1].request.url.params["is_block_trade"] == "false"
+        perps_client.portfolio.trades()
+        assert "is_block_trade" not in route.calls[2].request.url.params
+
+    @respx.mock
+    def test_trades_all_is_block_trade_filter_serializes(
+        self, perps_client: PerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        list(perps_client.portfolio.trades_all(is_block_trade=True))
+        assert route.calls[0].request.url.params["is_block_trade"] == "true"
+        list(perps_client.portfolio.trades_all(is_block_trade=False))
+        assert route.calls[1].request.url.params["is_block_trade"] == "false"
+        list(perps_client.portfolio.trades_all())
+        assert "is_block_trade" not in route.calls[2].request.url.params
+
+    @respx.mock
+    async def test_async_is_block_trade_filter_serializes(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        await async_perps_client.portfolio.trades(is_block_trade=True)
+        assert route.calls[0].request.url.params["is_block_trade"] == "true"
+        await async_perps_client.portfolio.trades(is_block_trade=False)
+        assert route.calls[1].request.url.params["is_block_trade"] == "false"
+        await async_perps_client.portfolio.trades()
+        assert "is_block_trade" not in route.calls[2].request.url.params
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_trades_all_is_block_trade_filter_serializes(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(200, json={"trades": [_trade()], "cursor": ""})
+        )
+        items = [
+            t async for t in async_perps_client.portfolio.trades_all(is_block_trade=True)
+        ]
+        assert len(items) == 1
+        assert route.calls[0].request.url.params["is_block_trade"] == "true"
+        items = [
+            t async for t in async_perps_client.portfolio.trades_all(is_block_trade=False)
+        ]
+        assert len(items) == 1
+        assert route.calls[1].request.url.params["is_block_trade"] == "false"
+        items = [t async for t in async_perps_client.portfolio.trades_all()]
+        assert len(items) == 1
+        assert "is_block_trade" not in route.calls[2].request.url.params
+        await async_perps_client.close()
+
+    @respx.mock
+    def test_is_block_trade_server_4xx_raises(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            perps_client.portfolio.trades(is_block_trade=True)
+
+    @respx.mock
+    async def test_async_is_block_trade_server_4xx_raises(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/trades").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            await async_perps_client.portfolio.trades(is_block_trade=False)
+        await async_perps_client.close()
+
+    def test_parses_is_block_trade(self) -> None:
+        payload = _trade()
+        payload["is_block_trade"] = True
+        assert MarginTrade.model_validate(payload).is_block_trade is True
+        payload["is_block_trade"] = False
+        assert MarginTrade.model_validate(payload).is_block_trade is False
+
+    def test_parses_without_is_block_trade(self) -> None:
+        assert MarginTrade.model_validate(_trade()).is_block_trade is None
 
 
 def _exit_trigger(**overrides: object) -> dict[str, object]:

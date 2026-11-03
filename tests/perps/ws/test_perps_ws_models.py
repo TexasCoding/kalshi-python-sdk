@@ -420,26 +420,39 @@ class TestTicker:
 
 
 class TestTrade:
-    def test_happy(self) -> None:
-        frame = {
-            "type": "trade",
-            "sid": 3,
-            "msg": {
-                "trade_id": "11111111-1111-1111-1111-111111111111",
-                "market_ticker": "BTC-PERP",
-                "price": "100.0000",
-                "count": "5.00",
-                "taker_side": "ask",
-                "ts_ms": 1700000000000,
-            },
+    def _frame(self, **msg_overrides: Any) -> dict[str, Any]:
+        msg: dict[str, Any] = {
+            "trade_id": "11111111-1111-1111-1111-111111111111",
+            "market_ticker": "BTC-PERP",
+            "price": "100.0000",
+            "count": "5.00",
+            "taker_side": "ask",
+            "ts_ms": 1700000000000,
         }
-        msg = MarginTradeMessage.model_validate(frame)
+        msg.update(msg_overrides)
+        return {"type": "trade", "sid": 3, "msg": msg}
+
+    def test_happy(self) -> None:
+        msg = MarginTradeMessage.model_validate(self._frame())
         assert msg.msg.taker_side == "ask"
         assert msg.msg.count == Decimal("5.00")
         assert isinstance(msg.msg.count, Decimal)
         assert msg.msg.ts_ms == 1700000000000
         assert isinstance(msg.msg.ts_ms, int)
         assert msg.seq is None
+        assert msg.msg.is_block_trade is None
+
+    def test_parses_is_block_trade(self) -> None:
+        msg = MarginTradeMessage.model_validate(self._frame(is_block_trade=True))
+        assert msg.msg.is_block_trade is True
+        payload = MarginTradePayload.model_validate(
+            self._frame(is_block_trade=False)["msg"]
+        )
+        assert payload.is_block_trade is False
+
+    def test_parses_without_is_block_trade(self) -> None:
+        payload = MarginTradePayload.model_validate(self._frame()["msg"])
+        assert payload.is_block_trade is None
 
     def test_rejects_equities_yes_taker_side(self) -> None:
         frame = {

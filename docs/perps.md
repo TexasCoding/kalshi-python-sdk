@@ -107,7 +107,11 @@ key is not sent.
 rows across all subaccounts (subaccount-restricted API keys still only
 see their locked subaccount). Pass `subaccount=0` for the primary.
 `portfolio.trades()` / `trades_all()` take an optional `ticker`; omit it
-to retrieve public trades across all margin markets.
+to retrieve public trades across all margin markets. Optional
+`is_block_trade` filters by block / non-block: omit for all trades,
+`True` for block trades only, `False` for non-block only (`"false"` is
+sent, not dropped). Each `MarginTrade` also carries optional
+`is_block_trade` (`bool | None`; `None` when the server omits the key).
 
 !!! warning "Deprecated in v7.2.0 — `list_fcm` / `list_all_fcm`"
     Kalshi removed `GET /margin/fcm/orders` from the perps OpenAPI. The SDK
