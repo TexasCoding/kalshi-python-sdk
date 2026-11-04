@@ -20,7 +20,7 @@ from kalshi.models.order_groups import (
     OrderGroup,
 )
 from kalshi.models.orders import Fill, Order
-from kalshi.models.portfolio import Settlement
+from kalshi.models.portfolio import MarketPosition, Settlement
 from kalshi.types import to_decimal
 from tests._model_fixtures import (
     candlestick_dict,
@@ -31,6 +31,7 @@ from tests._model_fixtures import (
     get_order_group_response_dict,
     incentive_program_dict,
     market_dict,
+    market_position_dict,
     order_dict,
     settlement_dict,
     trade_dict,
@@ -565,6 +566,25 @@ class TestTradeV3180Fields:
         data.pop("is_block_trade")
         with pytest.raises(ValidationError):
             Trade.model_validate(data)
+
+
+class TestMarketPositionNettingEnabled:
+    """Spec 3.36.0 marks ``netting_enabled`` required; SDK keeps it optional."""
+
+    def test_parses_netting_enabled(self) -> None:
+        assert (
+            MarketPosition.model_validate(market_position_dict(netting_enabled=True)).netting_enabled
+            is True
+        )
+        assert (
+            MarketPosition.model_validate(
+                market_position_dict(netting_enabled=False)
+            ).netting_enabled
+            is False
+        )
+
+    def test_parses_without_netting_enabled(self) -> None:
+        assert MarketPosition.model_validate(market_position_dict()).netting_enabled is None
 
 
 class TestIncentiveProgramV3180Fields:

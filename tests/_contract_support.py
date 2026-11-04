@@ -1444,6 +1444,14 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
         ),
         kind="server_omits_despite_required",
     ),
+    ("kalshi.models.portfolio.MarketPosition", "netting_enabled"): Exclusion(
+        reason=(
+            "spec 3.36.0 marks netting_enabled required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.8.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
     # --- server_omits_despite_required (#183, post-#172 nightly findings) ---
     # Fields the OpenAPI spec marks `required: true` but the live demo server
     # omits in practice. Each entry MUST cite a demo+prod observation in

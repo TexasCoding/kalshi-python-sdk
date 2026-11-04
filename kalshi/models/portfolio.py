@@ -104,6 +104,10 @@ class MarketPosition(BaseModel):
         validation_alias=AliasChoices("fees_paid_dollars", "fees_paid"),
     )
     last_updated_ts: AwareDatetime
+    # Spec 3.36.0 marks netting_enabled required. Kept optional (None when
+    # the key is absent) so payloads and fixtures from before the field
+    # still validate. See EXCLUSIONS.
+    netting_enabled: bool | None = None
 
     model_config = {"extra": "allow", "populate_by_name": True}
 

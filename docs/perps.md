@@ -340,7 +340,13 @@ Credentials can also come from the environment via `KlearClient.from_env()` (rea
 `KALSHI_KLEAR_ADMIN_USER_ID` / `KALSHI_KLEAR_ACCESS_TOKEN`).
 
 `klear.margin.active_obligations()` returns all currently-active settlement
-obligations. `klear.margin.settlement_estimate_by_asset_class()` returns
+obligations. `klear.margin.obligation_history()` / `obligation_history_all()`
+page historical obligations; optional `settlement_start_ts` /
+`settlement_end_ts` (RFC3339 `datetime` or `str`) bound settlement time.
+`klear.margin.settlement_balance_history()` /
+`settlement_balance_history_all()` page settlement-buffer history; optional
+`start_ts` / `end_ts` bound entry creation time. Omit a bound to leave it
+unfiltered. `klear.margin.settlement_estimate_by_asset_class()` returns
 next-settlement estimates keyed by asset class. (The singular
 `active_obligation()` / `settlement_estimate()` endpoints were removed upstream
 in the v11.0.0 reconcile.)

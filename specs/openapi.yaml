@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kalshi Trade API Manual Endpoints
-  version: 3.35.0
+  version: 3.36.0
   description: Manually defined OpenAPI spec for endpoints being migrated to spec-first approach
 
 servers:
@@ -2564,7 +2564,10 @@ paths:
     put:
       operationId: AcceptRFQQuote
       summary: Accept RFQ Quote
-      description: ' Endpoint for accepting a quote scoped to its RFQ. This will require the quoter to confirm.'
+      description: >-
+        Endpoint for accepting a quote scoped to its RFQ. This will require the quoter to confirm.
+        The quote that fills can be another maker's quote at the same price; see
+        [RFQs](/getting_started/rfqs#flow).
       tags:
         - communications
       security:
@@ -3054,8 +3057,11 @@ paths:
       operationId: GetQuotes
       summary: Get Quotes
       description: >-
-        List quotes. The rfq_id filter requires an RFQ UUID. Pass pagination
-        cursors back unchanged; malformed RFQ IDs or cursors return HTTP 400.
+        List quotes. The rfq_id filter requires an RFQ UUID. With rfq_id, quotes
+        are sorted on the RFQ's main side (no for a target-cost RFQ, yes
+        otherwise): the best price first, then the earliest place in line at that
+        price. Pass pagination cursors back unchanged; malformed RFQ IDs or
+        cursors return HTTP 400.
       tags:
         - communications
       security:
@@ -3262,7 +3268,7 @@ paths:
       operationId: AcceptQuote
       summary: Accept Quote
       deprecated: true
-      description: 'DEPRECATED: Use PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/accept instead. Endpoint for accepting a quote. This will require the quoter to confirm.'
+      description: 'DEPRECATED: Use PUT /communications/rfqs/{rfq_id}/quotes/{quote_id}/accept instead.'
       x-mint:
         content: |
           <Warning>
@@ -7815,6 +7821,7 @@ components:
         - realized_pnl_dollars
         - fees_paid_dollars
         - last_updated_ts
+        - netting_enabled
       properties:
         ticker:
           type: string
@@ -7841,6 +7848,9 @@ components:
           type: string
           format: date-time
           description: Last time the position is updated
+        netting_enabled:
+          type: boolean
+          description: Whether netting applies to this position's event. Set at the subaccount's first order in the event.
 
     EventPosition:
       type: object

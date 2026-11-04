@@ -2,6 +2,26 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.8.0 — 2026-11-04
+
+Reconciles nightly spec drift (#569) against OpenAPI 3.36.0 and the latest
+Klear (SCM) spec. Additive only. No breaking changes.
+
+### Added
+
+- Optional **`netting_enabled`** (`bool | None`) on `MarketPosition`. Spec
+  3.36.0 marks it required; the SDK keeps it optional (contract exclusion
+  `server_omits_despite_required`) so payloads omitting the key still parse.
+  (Closes #569).
+- Optional **`settlement_start_ts` / `settlement_end_ts`** (RFC3339
+  `datetime` or `str`) on Klear `margin.obligation_history` /
+  `obligation_history_all` (sync and async). Inclusive bounds on settlement
+  time; omitted keys are not sent.
+- Optional **`start_ts` / `end_ts`** (RFC3339 `datetime` or `str`) on Klear
+  `margin.settlement_balance_history` / `settlement_balance_history_all`
+  (sync and async). Inclusive bounds on entry creation time; omitted keys
+  are not sent.
+
 ## 22.7.0 — 2026-11-03
 
 Reconciles nightly spec drift (#567) against the latest perps OpenAPI /
