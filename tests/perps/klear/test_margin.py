@@ -19,6 +19,7 @@ POST is never retried. The withdrawal POST path is
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
@@ -512,6 +513,138 @@ class TestObligationHistory:
         assert len(items) == 2
         await auth_async_klear_client.close()
 
+    @respx.mock
+    def test_settlement_window_sent_on_wire(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(
+                200, json={"obligations": [_obligation()], "cursor": ""}
+            )
+        )
+        auth_klear_client.margin.obligation_history(
+            settlement_start_ts="2026-01-01T00:00:00Z",
+            settlement_end_ts="2026-01-31T23:59:59Z",
+        )
+        params = route.calls[0].request.url.params
+        assert params["settlement_start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["settlement_end_ts"] == "2026-01-31T23:59:59Z"
+        start = datetime(2026, 2, 1, tzinfo=UTC)
+        end = datetime(2026, 2, 28, tzinfo=UTC)
+        auth_klear_client.margin.obligation_history(
+            settlement_start_ts=start, settlement_end_ts=end
+        )
+        params = route.calls[1].request.url.params
+        assert params["settlement_start_ts"] == start.isoformat()
+        assert params["settlement_end_ts"] == end.isoformat()
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_settlement_window_omitted_when_none(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(
+                200, json={"obligations": [_obligation()], "cursor": ""}
+            )
+        )
+        auth_klear_client.margin.obligation_history()
+        params = route.calls[0].request.url.params
+        assert "settlement_start_ts" not in params
+        assert "settlement_end_ts" not in params
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_all_settlement_window_sent_on_wire(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(
+                200, json={"obligations": [_obligation()], "cursor": ""}
+            )
+        )
+        list(
+            auth_klear_client.margin.obligation_history_all(
+                settlement_start_ts="2026-01-01T00:00:00Z",
+                settlement_end_ts="2026-01-31T23:59:59Z",
+            )
+        )
+        params = route.calls[0].request.url.params
+        assert params["settlement_start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["settlement_end_ts"] == "2026-01-31T23:59:59Z"
+        list(auth_klear_client.margin.obligation_history_all())
+        params = route.calls[1].request.url.params
+        assert "settlement_start_ts" not in params
+        assert "settlement_end_ts" not in params
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_settlement_window_sent_on_wire(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(
+                200, json={"obligations": [_obligation()], "cursor": ""}
+            )
+        )
+        await auth_async_klear_client.margin.obligation_history(
+            settlement_start_ts="2026-01-01T00:00:00Z",
+            settlement_end_ts="2026-01-31T23:59:59Z",
+        )
+        params = route.calls[0].request.url.params
+        assert params["settlement_start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["settlement_end_ts"] == "2026-01-31T23:59:59Z"
+        await auth_async_klear_client.margin.obligation_history()
+        params = route.calls[1].request.url.params
+        assert "settlement_start_ts" not in params
+        assert "settlement_end_ts" not in params
+        await auth_async_klear_client.close()
+
+    @respx.mock
+    async def test_async_all_settlement_window_sent_on_wire(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(
+                200, json={"obligations": [_obligation()], "cursor": ""}
+            )
+        )
+        items = [
+            o
+            async for o in auth_async_klear_client.margin.obligation_history_all(
+                settlement_start_ts="2026-01-01T00:00:00Z",
+                settlement_end_ts="2026-01-31T23:59:59Z",
+            )
+        ]
+        assert len(items) == 1
+        params = route.calls[0].request.url.params
+        assert params["settlement_start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["settlement_end_ts"] == "2026-01-31T23:59:59Z"
+        items = [o async for o in auth_async_klear_client.margin.obligation_history_all()]
+        assert len(items) == 1
+        params = route.calls[1].request.url.params
+        assert "settlement_start_ts" not in params
+        assert "settlement_end_ts" not in params
+        await auth_async_klear_client.close()
+
+    @respx.mock
+    def test_settlement_window_server_4xx_raises(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(400, json={"code": "bad", "message": "bad window"})
+        )
+        with pytest.raises(KalshiValidationError):
+            auth_klear_client.margin.obligation_history(
+                settlement_start_ts="2026-01-01T00:00:00Z"
+            )
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_settlement_window_server_4xx_raises(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/obligation_history").mock(
+            return_value=httpx.Response(400, json={"code": "bad", "message": "bad window"})
+        )
+        with pytest.raises(KalshiValidationError):
+            await auth_async_klear_client.margin.obligation_history(
+                settlement_end_ts="2026-01-31T23:59:59Z"
+            )
+        await auth_async_klear_client.close()
+
 
 # --------------------------------------------------------------------------- #
 # obligation detail pages (settlement / MM / funding)
@@ -913,6 +1046,136 @@ class TestSettlementBalanceHistory:
         respx.get(f"{BASE}/margin/settlement_balance_history").mock(side_effect=responses)
         items = [e async for e in auth_async_klear_client.margin.settlement_balance_history_all()]
         assert len(items) == 2
+        await auth_async_klear_client.close()
+
+    @respx.mock
+    def test_creation_window_sent_on_wire(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(
+                200, json={"entries": [_balance_history_entry()], "cursor": ""}
+            )
+        )
+        auth_klear_client.margin.settlement_balance_history(
+            start_ts="2026-01-01T00:00:00Z",
+            end_ts="2026-01-31T23:59:59Z",
+        )
+        params = route.calls[0].request.url.params
+        assert params["start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["end_ts"] == "2026-01-31T23:59:59Z"
+        start = datetime(2026, 2, 1, tzinfo=UTC)
+        end = datetime(2026, 2, 28, tzinfo=UTC)
+        auth_klear_client.margin.settlement_balance_history(start_ts=start, end_ts=end)
+        params = route.calls[1].request.url.params
+        assert params["start_ts"] == start.isoformat()
+        assert params["end_ts"] == end.isoformat()
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_creation_window_omitted_when_none(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(
+                200, json={"entries": [_balance_history_entry()], "cursor": ""}
+            )
+        )
+        auth_klear_client.margin.settlement_balance_history()
+        params = route.calls[0].request.url.params
+        assert "start_ts" not in params
+        assert "end_ts" not in params
+        auth_klear_client.close()
+
+    @respx.mock
+    def test_all_creation_window_sent_on_wire(self, auth_klear_client: KlearClient) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(
+                200, json={"entries": [_balance_history_entry()], "cursor": ""}
+            )
+        )
+        list(
+            auth_klear_client.margin.settlement_balance_history_all(
+                start_ts="2026-01-01T00:00:00Z",
+                end_ts="2026-01-31T23:59:59Z",
+            )
+        )
+        params = route.calls[0].request.url.params
+        assert params["start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["end_ts"] == "2026-01-31T23:59:59Z"
+        list(auth_klear_client.margin.settlement_balance_history_all())
+        params = route.calls[1].request.url.params
+        assert "start_ts" not in params
+        assert "end_ts" not in params
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_creation_window_sent_on_wire(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(
+                200, json={"entries": [_balance_history_entry()], "cursor": ""}
+            )
+        )
+        await auth_async_klear_client.margin.settlement_balance_history(
+            start_ts="2026-01-01T00:00:00Z",
+            end_ts="2026-01-31T23:59:59Z",
+        )
+        params = route.calls[0].request.url.params
+        assert params["start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["end_ts"] == "2026-01-31T23:59:59Z"
+        await auth_async_klear_client.margin.settlement_balance_history()
+        params = route.calls[1].request.url.params
+        assert "start_ts" not in params
+        assert "end_ts" not in params
+        await auth_async_klear_client.close()
+
+    @respx.mock
+    async def test_async_all_creation_window_sent_on_wire(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(
+                200, json={"entries": [_balance_history_entry()], "cursor": ""}
+            )
+        )
+        items = [
+            e
+            async for e in auth_async_klear_client.margin.settlement_balance_history_all(
+                start_ts="2026-01-01T00:00:00Z",
+                end_ts="2026-01-31T23:59:59Z",
+            )
+        ]
+        assert len(items) == 1
+        params = route.calls[0].request.url.params
+        assert params["start_ts"] == "2026-01-01T00:00:00Z"
+        assert params["end_ts"] == "2026-01-31T23:59:59Z"
+        items = [
+            e async for e in auth_async_klear_client.margin.settlement_balance_history_all()
+        ]
+        assert len(items) == 1
+        params = route.calls[1].request.url.params
+        assert "start_ts" not in params
+        assert "end_ts" not in params
+        await auth_async_klear_client.close()
+
+    @respx.mock
+    def test_creation_window_server_4xx_raises(self, auth_klear_client: KlearClient) -> None:
+        respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(400, json={"code": "bad", "message": "bad window"})
+        )
+        with pytest.raises(KalshiValidationError):
+            auth_klear_client.margin.settlement_balance_history(start_ts="2026-01-01T00:00:00Z")
+        auth_klear_client.close()
+
+    @respx.mock
+    async def test_async_creation_window_server_4xx_raises(
+        self, auth_async_klear_client: AsyncKlearClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/settlement_balance_history").mock(
+            return_value=httpx.Response(400, json={"code": "bad", "message": "bad window"})
+        )
+        with pytest.raises(KalshiValidationError):
+            await auth_async_klear_client.margin.settlement_balance_history(
+                end_ts="2026-01-31T23:59:59Z"
+            )
         await auth_async_klear_client.close()
 
 

@@ -8,7 +8,9 @@ authenticated with a **Bearer** token (not RSA-PSS):
 - ``active_obligations`` — ``GET /margin/active_obligations``: all currently-active
   obligations.
 - ``obligation_history`` / ``obligation_history_all`` — ``GET
-  /margin/obligation_history``: cursor-paginated (limit max 100).
+  /margin/obligation_history``: cursor-paginated (limit max 100);
+  optional ``settlement_start_ts`` / ``settlement_end_ts`` (RFC3339) bound
+  settlement time.
 - ``settlement_details`` / ``settlement_details_all``,
   ``maintenance_margin_details`` / ``maintenance_margin_details_all``,
   ``funding_payments`` / ``funding_payments_all``,
@@ -20,7 +22,8 @@ authenticated with a **Bearer** token (not RSA-PSS):
 - ``settlement_balance`` — ``GET /margin/settlement_balance``.
 - ``guaranty_fund_balance`` — ``GET /margin/guaranty_fund_balance``.
 - ``settlement_balance_history`` / ``settlement_balance_history_all`` — ``GET
-  /margin/settlement_balance_history``: cursor-paginated (limit max 500).
+  /margin/settlement_balance_history``: cursor-paginated (limit max 500);
+  optional ``start_ts`` / ``end_ts`` (RFC3339) bound entry creation time.
 - ``withdraw_settlement_balance`` — ``POST /margin/settlement_balance_withdrawal``:
   ``WithdrawSettlementBalanceRequest`` body; NOT retried (POST).
 - ``settlement_balance_withdrawal`` — ``GET /margin/settlement_balance_withdrawal``:
@@ -117,6 +120,21 @@ def _validate_date_range(start_date: str, end_date: str) -> None:
         raise ValueError(f"end_date ({end_date}) must be on or after start_date ({start_date})")
 
 
+def _rfc3339(value: datetime.datetime | str | None) -> str | None:
+    """Coerce a ``datetime`` to RFC3339; pass strings through. ``None`` stays ``None``.
+
+    Naive datetimes (no ``tzinfo``) are assumed UTC. Spec requires RFC3339,
+    which mandates a timezone offset. Strings are forwarded unchanged.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=datetime.UTC)
+        return value.isoformat()
+    return value
+
+
 class MarginResource(KlearSyncResource):
     """Sync Klear (SCM) margin API — obligations, estimates, balances, groups."""
 
@@ -148,10 +166,21 @@ class MarginResource(KlearSyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        settlement_start_ts: datetime.datetime | str | None = None,
+        settlement_end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[ObligationEntry]:
-        """``GET /margin/obligation_history`` — one cursor-paginated page (limit max 100)."""
-        params = _params(limit=_validate_limit(limit, hi=100), cursor=cursor)
+        """``GET /margin/obligation_history`` — one cursor-paginated page (limit max 100).
+
+        ``settlement_start_ts`` / ``settlement_end_ts`` are optional RFC3339
+        bounds on settlement time (``datetime`` or string; omitted when ``None``).
+        """
+        params = _params(
+            limit=_validate_limit(limit, hi=100),
+            cursor=cursor,
+            settlement_start_ts=_rfc3339(settlement_start_ts),
+            settlement_end_ts=_rfc3339(settlement_end_ts),
+        )
         return self._list(
             "/margin/obligation_history",
             ObligationEntry,
@@ -166,11 +195,22 @@ class MarginResource(KlearSyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        settlement_start_ts: datetime.datetime | str | None = None,
+        settlement_end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[ObligationEntry]:
-        """Auto-paginate obligation history, yielding each ``ObligationEntry``."""
+        """Auto-paginate obligation history, yielding each ``ObligationEntry``.
+
+        ``settlement_start_ts`` / ``settlement_end_ts`` are optional RFC3339
+        bounds on settlement time (``datetime`` or string; omitted when ``None``).
+        """
         _validate_max_pages(max_pages)
-        params = _params(limit=_validate_limit(limit, hi=100), cursor=None)
+        params = _params(
+            limit=_validate_limit(limit, hi=100),
+            cursor=None,
+            settlement_start_ts=_rfc3339(settlement_start_ts),
+            settlement_end_ts=_rfc3339(settlement_end_ts),
+        )
         return self._list_all(
             "/margin/obligation_history",
             ObligationEntry,
@@ -388,10 +428,21 @@ class MarginResource(KlearSyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        start_ts: datetime.datetime | str | None = None,
+        end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[SettlementBalanceHistoryEntry]:
-        """``GET /margin/settlement_balance_history`` — one page (limit max 500)."""
-        params = _params(limit=_validate_limit(limit, hi=500), cursor=cursor)
+        """``GET /margin/settlement_balance_history`` — one page (limit max 500).
+
+        ``start_ts`` / ``end_ts`` are optional RFC3339 bounds on entry
+        creation time (``datetime`` or string; omitted when ``None``).
+        """
+        params = _params(
+            limit=_validate_limit(limit, hi=500),
+            cursor=cursor,
+            start_ts=_rfc3339(start_ts),
+            end_ts=_rfc3339(end_ts),
+        )
         return self._list(
             "/margin/settlement_balance_history",
             SettlementBalanceHistoryEntry,
@@ -406,11 +457,22 @@ class MarginResource(KlearSyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        start_ts: datetime.datetime | str | None = None,
+        end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[SettlementBalanceHistoryEntry]:
-        """Auto-paginate settlement-balance history, yielding each entry."""
+        """Auto-paginate settlement-balance history, yielding each entry.
+
+        ``start_ts`` / ``end_ts`` are optional RFC3339 bounds on entry
+        creation time (``datetime`` or string; omitted when ``None``).
+        """
         _validate_max_pages(max_pages)
-        params = _params(limit=_validate_limit(limit, hi=500), cursor=None)
+        params = _params(
+            limit=_validate_limit(limit, hi=500),
+            cursor=None,
+            start_ts=_rfc3339(start_ts),
+            end_ts=_rfc3339(end_ts),
+        )
         return self._list_all(
             "/margin/settlement_balance_history",
             SettlementBalanceHistoryEntry,
@@ -759,10 +821,17 @@ class AsyncMarginResource(KlearAsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        settlement_start_ts: datetime.datetime | str | None = None,
+        settlement_end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[ObligationEntry]:
         """Async :meth:`MarginResource.obligation_history`."""
-        params = _params(limit=_validate_limit(limit, hi=100), cursor=cursor)
+        params = _params(
+            limit=_validate_limit(limit, hi=100),
+            cursor=cursor,
+            settlement_start_ts=_rfc3339(settlement_start_ts),
+            settlement_end_ts=_rfc3339(settlement_end_ts),
+        )
         return await self._list(
             "/margin/obligation_history",
             ObligationEntry,
@@ -777,11 +846,18 @@ class AsyncMarginResource(KlearAsyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        settlement_start_ts: datetime.datetime | str | None = None,
+        settlement_end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[ObligationEntry]:
         """Returns an async iterator over obligation history — use ``async for``."""
         _validate_max_pages(max_pages)
-        params = _params(limit=_validate_limit(limit, hi=100), cursor=None)
+        params = _params(
+            limit=_validate_limit(limit, hi=100),
+            cursor=None,
+            settlement_start_ts=_rfc3339(settlement_start_ts),
+            settlement_end_ts=_rfc3339(settlement_end_ts),
+        )
         return self._list_all(
             "/margin/obligation_history",
             ObligationEntry,
@@ -992,10 +1068,17 @@ class AsyncMarginResource(KlearAsyncResource):
         *,
         limit: int | None = None,
         cursor: str | None = None,
+        start_ts: datetime.datetime | str | None = None,
+        end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[SettlementBalanceHistoryEntry]:
         """Async :meth:`MarginResource.settlement_balance_history`."""
-        params = _params(limit=_validate_limit(limit, hi=500), cursor=cursor)
+        params = _params(
+            limit=_validate_limit(limit, hi=500),
+            cursor=cursor,
+            start_ts=_rfc3339(start_ts),
+            end_ts=_rfc3339(end_ts),
+        )
         return await self._list(
             "/margin/settlement_balance_history",
             SettlementBalanceHistoryEntry,
@@ -1010,11 +1093,18 @@ class AsyncMarginResource(KlearAsyncResource):
         *,
         limit: int | None = None,
         max_pages: int | None = None,
+        start_ts: datetime.datetime | str | None = None,
+        end_ts: datetime.datetime | str | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[SettlementBalanceHistoryEntry]:
         """Returns an async iterator over settlement-balance history — use ``async for``."""
         _validate_max_pages(max_pages)
-        params = _params(limit=_validate_limit(limit, hi=500), cursor=None)
+        params = _params(
+            limit=_validate_limit(limit, hi=500),
+            cursor=None,
+            start_ts=_rfc3339(start_ts),
+            end_ts=_rfc3339(end_ts),
+        )
         return self._list_all(
             "/margin/settlement_balance_history",
             SettlementBalanceHistoryEntry,

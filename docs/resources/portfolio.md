@@ -300,7 +300,9 @@ are unaffected; constructors/fixtures must pass it.
 wire-format aliases — on the wire you see `total_traded_dollars`,
 `market_exposure_dollars`, `realized_pnl_dollars`, `fees_paid_dollars`,
 `position_fp`. The SDK normalizes to short names returning `Decimal`.
-`realized_pnl` is signed.
+`realized_pnl` is signed. Optional `netting_enabled` (`bool | None`) reports
+whether netting applies to the position's event (`None` when the server
+omits the key).
 
 ## Reference
 
