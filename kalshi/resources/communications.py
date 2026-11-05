@@ -1045,6 +1045,37 @@ class BlockTradeProposalsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
+    def cancel(
+        self, block_trade_proposal_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Cancel a pending block-trade proposal.
+
+        ``DELETE /communications/block-trade-proposals/{block_trade_proposal_id}``
+        — only the proposer can cancel. Returns 204 with no body.
+        """
+        self._require_auth()
+        self._delete(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}",
+            extra_headers=extra_headers,
+        )
+
+    def reject(
+        self, block_trade_proposal_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Reject a pending block-trade proposal.
+
+        ``POST /communications/block-trade-proposals/{block_trade_proposal_id}/reject``
+        — either counterparty can reject; the proposer cancels instead.
+        Returns 204 with no request body.
+        """
+        self._require_auth()
+        self._post_void(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}/reject",
+            extra_headers=extra_headers,
+        )
+
 
 class RFQBatchQuotesResource(SyncResource):
     """Sync batch-quote sub-resource — ``client.communications.rfq_batches.quotes``.
@@ -2158,6 +2189,37 @@ class AsyncBlockTradeProposalsResource(AsyncResource):
             f"/communications/block-trade-proposals/"
             f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}/accept",
             json=body,
+            extra_headers=extra_headers,
+        )
+
+    async def cancel(
+        self, block_trade_proposal_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Cancel a pending block-trade proposal.
+
+        ``DELETE /communications/block-trade-proposals/{block_trade_proposal_id}``
+        — only the proposer can cancel. Returns 204 with no body.
+        """
+        self._require_auth()
+        await self._delete(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}",
+            extra_headers=extra_headers,
+        )
+
+    async def reject(
+        self, block_trade_proposal_id: str, *, extra_headers: dict[str, str] | None = None
+    ) -> None:
+        """Reject a pending block-trade proposal.
+
+        ``POST /communications/block-trade-proposals/{block_trade_proposal_id}/reject``
+        — either counterparty can reject; the proposer cancels instead.
+        Returns 204 with no request body.
+        """
+        self._require_auth()
+        await self._post_void(
+            f"/communications/block-trade-proposals/"
+            f"{_seg(block_trade_proposal_id, name='block_trade_proposal_id')}/reject",
             extra_headers=extra_headers,
         )
 

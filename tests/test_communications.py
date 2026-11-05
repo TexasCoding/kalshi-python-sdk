@@ -17,6 +17,7 @@ from kalshi.client import KalshiClient
 from kalshi.config import DEMO_BASE_URL, DEMO_WS_URL, KalshiConfig
 from kalshi.errors import (
     AuthRequiredError,
+    KalshiConflictError,
     KalshiNotFoundError,
     KalshiServerError,
     KalshiValidationError,
@@ -98,6 +99,31 @@ def async_client(test_auth: KalshiAuth) -> AsyncKalshiClient:
 @pytest.fixture
 def unauth_comms(config: KalshiConfig) -> CommunicationsResource:
     return CommunicationsResource(SyncTransport(None, config))
+
+
+@pytest.fixture
+def retrying_config() -> KalshiConfig:
+    return KalshiConfig(
+        base_url="https://test.kalshi.com/trade-api/v2",
+        timeout=5.0,
+        max_retries=2,
+        retry_base_delay=0.01,
+        retry_max_delay=0.05,
+    )
+
+
+@pytest.fixture
+def retrying_comms(
+    test_auth: KalshiAuth, retrying_config: KalshiConfig
+) -> CommunicationsResource:
+    return CommunicationsResource(SyncTransport(test_auth, retrying_config))
+
+
+@pytest.fixture
+def retrying_async_comms(
+    test_auth: KalshiAuth, retrying_config: KalshiConfig
+) -> AsyncCommunicationsResource:
+    return AsyncCommunicationsResource(AsyncTransport(test_auth, retrying_config))
 
 
 _MINIMAL_RFQ = {
@@ -1701,6 +1727,110 @@ class TestAcceptBlockTradeProposal:
             comms.block_trade_proposals.accept("gone")
 
 
+class TestCancelBlockTradeProposal:
+    @respx.mock
+    def test_sends_delete(self, comms: CommunicationsResource) -> None:
+        route = respx.delete(f"{_BTP_URL}/btp-1").mock(return_value=httpx.Response(204))
+        result = comms.block_trade_proposals.cancel("btp-1")
+        assert result is None
+        assert route.called
+        assert route.call_count == 1
+        req = route.calls[0].request
+        assert req.method == "DELETE"
+        assert req.url.path.endswith("/communications/block-trade-proposals/btp-1")
+
+    @respx.mock
+    def test_not_retried_on_503(self, retrying_comms: CommunicationsResource) -> None:
+        route = respx.delete(f"{_BTP_URL}/btp-1").mock(
+            return_value=httpx.Response(503, json={"message": "unavailable"})
+        )
+        with pytest.raises(KalshiServerError):
+            retrying_comms.block_trade_proposals.cancel("btp-1")
+        assert route.call_count == 1
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.delete(f"{_BTP_URL}/gone").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.block_trade_proposals.cancel("gone")
+
+    def test_empty_id_rejected(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            comms.block_trade_proposals.cancel("")
+
+    def test_dotdot_rejected(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            comms.block_trade_proposals.cancel("..")
+
+    @respx.mock
+    def test_slash_is_encoded(self, comms: CommunicationsResource) -> None:
+        route = respx.delete(f"{_BTP_URL}/%2F..%2Fadmin").mock(return_value=httpx.Response(204))
+        comms.block_trade_proposals.cancel("/../admin")
+        assert route.called
+        assert route.calls[0].request.url.path.endswith(
+            "/communications/block-trade-proposals/%2F..%2Fadmin"
+        )
+
+
+class TestRejectBlockTradeProposal:
+    @respx.mock
+    def test_sends_post(self, comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BTP_URL}/btp-1/reject").mock(return_value=httpx.Response(204))
+        result = comms.block_trade_proposals.reject("btp-1")
+        assert result is None
+        assert route.called
+        assert route.call_count == 1
+        req = route.calls[0].request
+        assert req.method == "POST"
+        assert req.url.path.endswith("/communications/block-trade-proposals/btp-1/reject")
+
+    @respx.mock
+    def test_not_retried_on_503(self, retrying_comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BTP_URL}/btp-1/reject").mock(
+            return_value=httpx.Response(503, json={"message": "unavailable"})
+        )
+        with pytest.raises(KalshiServerError):
+            retrying_comms.block_trade_proposals.reject("btp-1")
+        assert route.call_count == 1
+
+    @respx.mock
+    def test_404(self, comms: CommunicationsResource) -> None:
+        respx.post(f"{_BTP_URL}/gone/reject").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            comms.block_trade_proposals.reject("gone")
+
+    @respx.mock
+    def test_409(self, comms: CommunicationsResource) -> None:
+        respx.post(f"{_BTP_URL}/btp-1/reject").mock(
+            return_value=httpx.Response(409, json={"message": "conflict"})
+        )
+        with pytest.raises(KalshiConflictError):
+            comms.block_trade_proposals.reject("btp-1")
+
+    def test_empty_id_rejected(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            comms.block_trade_proposals.reject("")
+
+    def test_dotdot_rejected(self, comms: CommunicationsResource) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            comms.block_trade_proposals.reject("..")
+
+    @respx.mock
+    def test_slash_is_encoded(self, comms: CommunicationsResource) -> None:
+        route = respx.post(f"{_BTP_URL}/%2F..%2Fadmin/reject").mock(
+            return_value=httpx.Response(204)
+        )
+        comms.block_trade_proposals.reject("/../admin")
+        assert route.called
+        assert route.calls[0].request.url.path.endswith(
+            "/communications/block-trade-proposals/%2F..%2Fadmin/reject"
+        )
+
+
 class TestAsyncBlockTradeProposals:
     async def test_list(
         self,
@@ -1762,6 +1892,114 @@ class TestAsyncBlockTradeProposals:
         body = json.loads(route.calls[0].request.content)
         assert body == {"subtrader_id": "st-1"}
 
+    async def test_cancel(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(f"{_BTP_URL}/btp-1").mock(return_value=httpx.Response(204))
+        result = await async_comms.block_trade_proposals.cancel("btp-1")
+        assert result is None
+        assert route.called
+        assert route.call_count == 1
+        req = route.calls[0].request
+        assert req.method == "DELETE"
+        assert req.url.path.endswith("/communications/block-trade-proposals/btp-1")
+
+    async def test_cancel_not_retried_on_503(
+        self,
+        retrying_async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(f"{_BTP_URL}/btp-1").mock(
+            return_value=httpx.Response(503, json={"message": "unavailable"})
+        )
+        with pytest.raises(KalshiServerError):
+            await retrying_async_comms.block_trade_proposals.cancel("btp-1")
+        assert route.call_count == 1
+
+    async def test_cancel_404(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.delete(f"{_BTP_URL}/gone").mock(
+            return_value=httpx.Response(404, json={"message": "missing"})
+        )
+        with pytest.raises(KalshiNotFoundError):
+            await async_comms.block_trade_proposals.cancel("gone")
+
+    async def test_cancel_empty_id_rejected(
+        self, async_comms: AsyncCommunicationsResource
+    ) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            await async_comms.block_trade_proposals.cancel("")
+
+    async def test_cancel_slash_is_encoded(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.delete(f"{_BTP_URL}/%2F..%2Fadmin").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.block_trade_proposals.cancel("/../admin")
+        assert route.called
+
+    async def test_reject(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(f"{_BTP_URL}/btp-1/reject").mock(return_value=httpx.Response(204))
+        result = await async_comms.block_trade_proposals.reject("btp-1")
+        assert result is None
+        assert route.called
+        assert route.call_count == 1
+        req = route.calls[0].request
+        assert req.method == "POST"
+        assert req.url.path.endswith("/communications/block-trade-proposals/btp-1/reject")
+
+    async def test_reject_not_retried_on_503(
+        self,
+        retrying_async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(f"{_BTP_URL}/btp-1/reject").mock(
+            return_value=httpx.Response(503, json={"message": "unavailable"})
+        )
+        with pytest.raises(KalshiServerError):
+            await retrying_async_comms.block_trade_proposals.reject("btp-1")
+        assert route.call_count == 1
+
+    async def test_reject_409(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        respx_mock.post(f"{_BTP_URL}/btp-1/reject").mock(
+            return_value=httpx.Response(409, json={"message": "conflict"})
+        )
+        with pytest.raises(KalshiConflictError):
+            await async_comms.block_trade_proposals.reject("btp-1")
+
+    async def test_reject_empty_id_rejected(
+        self, async_comms: AsyncCommunicationsResource
+    ) -> None:
+        with pytest.raises(ValueError, match="block_trade_proposal_id"):
+            await async_comms.block_trade_proposals.reject("")
+
+    async def test_reject_slash_is_encoded(
+        self,
+        async_comms: AsyncCommunicationsResource,
+        respx_mock: respx.MockRouter,
+    ) -> None:
+        route = respx_mock.post(f"{_BTP_URL}/%2F..%2Fadmin/reject").mock(
+            return_value=httpx.Response(204)
+        )
+        await async_comms.block_trade_proposals.reject("/../admin")
+        assert route.called
+
 
 class TestBlockTradeProposalsAuthGuard:
     def test_list_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
@@ -1787,6 +2025,14 @@ class TestBlockTradeProposalsAuthGuard:
     def test_accept_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
         with pytest.raises(AuthRequiredError):
             unauth_comms.block_trade_proposals.accept("btp-1")
+
+    def test_cancel_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.block_trade_proposals.cancel("btp-1")
+
+    def test_reject_requires_auth(self, unauth_comms: CommunicationsResource) -> None:
+        with pytest.raises(AuthRequiredError):
+            unauth_comms.block_trade_proposals.reject("btp-1")
 
 
 # ── RFQ batches ─────────────────────────────────────────────────────────────
