@@ -214,6 +214,21 @@ class TestList:
         del payload["halt_sources"]
         assert MarginMarket.model_validate(payload).halt_sources is None
 
+    def test_minimum_quantity_optional(self) -> None:
+        payload = _market_dict()
+        payload.pop("minimum_quantity", None)
+        payload.pop("minimum_quantity_fp", None)
+        assert MarginMarket.model_validate(payload).minimum_quantity is None
+
+    def test_minimum_quantity_parses(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(minimum_quantity="1.00"))
+        assert m.minimum_quantity == Decimal("1.00")
+        assert isinstance(m.minimum_quantity, Decimal)
+
+    def test_minimum_quantity_fp_alias(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(minimum_quantity_fp="2.50"))
+        assert m.minimum_quantity == Decimal("2.50")
+
     def test_halt_sources_parses(self) -> None:
         m = MarginMarket.model_validate(_market_dict(halt_sources=["corporate_action"]))
         assert m.halt_sources == ["corporate_action"]

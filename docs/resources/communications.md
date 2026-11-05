@@ -32,6 +32,8 @@ Auth required throughout.
 | `block_trade_proposals.list(...)` / `block_trade_proposals.list_all(...)` | `GET /communications/block-trade-proposals` |
 | `block_trade_proposals.create(...)` | `POST /communications/block-trade-proposals` |
 | `block_trade_proposals.accept(block_trade_proposal_id, *, subtrader_id=None, subaccount=None)` | `POST /communications/block-trade-proposals/{block_trade_proposal_id}/accept` |
+| `block_trade_proposals.cancel(block_trade_proposal_id)` | `DELETE /communications/block-trade-proposals/{block_trade_proposal_id}` |
+| `block_trade_proposals.reject(block_trade_proposal_id)` | `POST /communications/block-trade-proposals/{block_trade_proposal_id}/reject` |
 | `rfq_batches.list(...)` / `rfq_batches.list_all(...)` | `GET /communications/rfq_batches` |
 | `rfq_batches.get(rfq_batch_id)` | `GET /communications/rfq_batches/{rfq_batch_id}` |
 | `rfq_batches.create(...)` | `POST /communications/rfq_batches` |
@@ -211,6 +213,12 @@ for proposal in client.communications.block_trade_proposals.list_all(
 # Accept (the counterparty side). The body is optional — pass subtrader_id
 # or subaccount only if you trade through a sub-trader / subaccount.
 client.communications.block_trade_proposals.accept(proposal_id)
+
+# Cancel (proposer only). 204, no body.
+client.communications.block_trade_proposals.cancel(proposal_id)
+
+# Reject (either counterparty; the proposer cancels instead). 204, no body.
+client.communications.block_trade_proposals.reject(proposal_id)
 ```
 
 !!! info "Prices are centi-cents, counts are centicounts — plain integers"

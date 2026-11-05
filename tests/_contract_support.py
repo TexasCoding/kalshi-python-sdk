@@ -680,6 +680,16 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         path_template="/communications/block-trade-proposals/{block_trade_proposal_id}/accept",
         request_body_schema="#/components/schemas/AcceptBlockTradeProposalRequest",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.cancel",
+        http_method="DELETE",
+        path_template="/communications/block-trade-proposals/{block_trade_proposal_id}",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.communications.BlockTradeProposalsResource.reject",
+        http_method="POST",
+        path_template="/communications/block-trade-proposals/{block_trade_proposal_id}/reject",
+    ),
     # RFQ batches
     MethodEndpointEntry(
         sdk_method="kalshi.resources.communications.RFQBatchesResource.list",
@@ -2101,6 +2111,14 @@ PERPS_EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "spec 3.34.0 adds halt_sources as required; the SDK keeps it optional "
             "(None when absent) so payloads/fixtures predating the field still "
             "validate and the change ships as a minor release (22.4.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.perps.models.markets.MarginMarket", "minimum_quantity"): Exclusion(
+        reason=(
+            "spec adds minimum_quantity as required; the SDK keeps it optional "
+            "(None when absent) so payloads/fixtures predating the field still "
+            "validate and the change ships as a minor release (22.9.0)."
         ),
         kind="server_omits_despite_required",
     ),

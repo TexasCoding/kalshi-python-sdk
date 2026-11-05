@@ -85,6 +85,13 @@ class MarginMarket(BaseModel):
     underlying_multiplier: str
     tick_size: DollarDecimal
     fractional_trading_enabled: bool
+    # Spec marks it required; the SDK keeps it optional so older payloads
+    # and existing constructors still validate (minor release). Minimum
+    # order quantity in contracts (FixedPointCount).
+    minimum_quantity: FixedPointCount | None = Field(
+        default=None,
+        validation_alias=AliasChoices("minimum_quantity_fp", "minimum_quantity"),
+    )
     # Spec requires the key; value is null for markets that trade 24/7
     # (``MarginMarketSchedule`` is ``nullable: true``). No default — missing
     # key hard-fails so required-drift stays aligned.

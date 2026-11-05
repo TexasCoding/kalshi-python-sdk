@@ -2,6 +2,25 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.9.0 — 2026-11-05
+
+Reconciles nightly spec drift (#571) against OpenAPI 3.36.0 and the latest
+perps spec. Additive only. No breaking changes.
+
+### Added
+
+- **`block_trade_proposals.cancel(block_trade_proposal_id)`** (sync and
+  async) — `DELETE /communications/block-trade-proposals/{id}`, 204, no
+  body. Only the proposer can cancel. POST/DELETE are never retried.
+- **`block_trade_proposals.reject(block_trade_proposal_id)`** (sync and
+  async) — `POST /communications/block-trade-proposals/{id}/reject`, 204,
+  no request body. Either counterparty can reject; the proposer cancels
+  instead. (Closes #571).
+- Optional **`MarginMarket.minimum_quantity`** (`FixedPointCount | None`).
+  Spec marks it required; the SDK keeps it optional (contract exclusion
+  `server_omits_despite_required`) so payloads omitting the key still
+  parse. Accepts `minimum_quantity_fp` and `minimum_quantity` aliases.
+
 ## 22.8.0 — 2026-11-04
 
 Reconciles nightly spec drift (#569) against OpenAPI 3.36.0 and the latest
