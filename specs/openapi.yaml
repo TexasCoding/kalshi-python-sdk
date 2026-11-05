@@ -2313,6 +2313,36 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /communications/block-trade-proposals/{block_trade_proposal_id}:
+    delete:
+      operationId: CancelBlockTradeProposal
+      summary: Cancel Block Trade Proposal
+      description: ' Endpoint for cancelling a pending block trade proposal. Only the proposer can cancel it.'
+      tags:
+        - communications
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: block_trade_proposal_id
+          in: path
+          required: true
+          description: Block trade proposal ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Block trade proposal cancelled successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /communications/block-trade-proposals/{block_trade_proposal_id}/accept:
     post:
       operationId: AcceptBlockTradeProposal
@@ -2346,6 +2376,38 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /communications/block-trade-proposals/{block_trade_proposal_id}/reject:
+    post:
+      operationId: RejectBlockTradeProposal
+      summary: Reject Block Trade Proposal
+      description: ' Endpoint for rejecting a pending block trade proposal. Either counterparty can reject it, but not the proposer, which cancels it instead.'
+      tags:
+        - communications
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      parameters:
+        - name: block_trade_proposal_id
+          in: path
+          required: true
+          description: Block trade proposal ID
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Block trade proposal rejected successfully
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -7362,7 +7424,7 @@ components:
           description: The event ticker symbol of the market that was settled.
         market_result:
           type: string
-          enum: ['yes', 'no', 'scalar']
+          enum: ['yes', 'no', 'scalar', '']
           description: The outcome of the market settlement. 'yes' = market resolved to YES, 'no' = market resolved to NO, 'scalar' = scalar market settled at a specific value.
         yes_count_fp:
           $ref: '#/components/schemas/FixedPointCount'
@@ -8850,7 +8912,7 @@ components:
           description: Expiration time of the proposal
         status:
           type: string
-          description: Current status of the proposal
+          description: 'Current status of the proposal: pending, executed, cancelled (by the proposer, or on expiry) or rejected (by a counterparty)'
         created_ts:
           type: string
           format: date-time
@@ -11394,6 +11456,7 @@ components:
         market_type:
           type: string
           enum: [binary, scalar]
+          x-enumNames: [MarketMarketTypeBinary, MarketMarketTypeScalar]
           description: Identifies the type of market
         title:
           type: string
