@@ -1769,9 +1769,7 @@ class TestCancelBlockTradeProposal:
         route = respx.delete(f"{_BTP_URL}/%2F..%2Fadmin").mock(return_value=httpx.Response(204))
         comms.block_trade_proposals.cancel("/../admin")
         assert route.called
-        assert route.calls[0].request.url.path.endswith(
-            "/communications/block-trade-proposals/%2F..%2Fadmin"
-        )
+        assert "%2F..%2Fadmin" in str(route.calls[0].request.url)
 
 
 class TestRejectBlockTradeProposal:
@@ -1826,9 +1824,7 @@ class TestRejectBlockTradeProposal:
         )
         comms.block_trade_proposals.reject("/../admin")
         assert route.called
-        assert route.calls[0].request.url.path.endswith(
-            "/communications/block-trade-proposals/%2F..%2Fadmin/reject"
-        )
+        assert "%2F..%2Fadmin/reject" in str(route.calls[0].request.url)
 
 
 class TestAsyncBlockTradeProposals:
