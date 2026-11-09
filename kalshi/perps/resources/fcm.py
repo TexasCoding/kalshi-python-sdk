@@ -1,18 +1,24 @@
 """Perps FCM resource — create margin FCM subtraders and manage IM caps.
 
 ``POST /margin/fcm/subtraders`` creates a new FCM subtrader under the
-authenticated member. Auth required; POST/PUT/DELETE are never retried.
+authenticated member. ``POST /margin/fcm/positions/transfers`` moves a
+perps position into the FCM error account. Auth required; POST/PUT/DELETE
+are never retried.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
 from typing import overload
+from uuid import UUID
 
 from kalshi.perps.models.fcm import (
+    CreateMarginFCMPositionTransferRequest,
+    CreateMarginFCMPositionTransferResponse,
     CreateMarginFCMSubtraderRequest,
     CreateMarginFCMSubtraderResponse,
     FCMAssetClassLiteral,
+    FCMPositionTransferSideLiteral,
     GetFCMSubtraderRiskControlsResponse,
     UpdateFCMNotionalRiskLimitRequest,
     UpdateFCMSubtraderRiskControlsRequest,
@@ -23,9 +29,11 @@ from kalshi.resources._base import (
     _check_request_exclusive,
     _params,
 )
+from kalshi.types import to_decimal
 
 _RISK_CONTROLS_PATH = "/margin/fcm/subtraders/risk_controls"
 _NOTIONAL_RISK_LIMIT_PATH = "/margin/fcm/notional_risk_limit"
+_POSITION_TRANSFER_PATH = "/margin/fcm/positions/transfers"
 
 
 def _build_create_subtrader_body(
@@ -96,6 +104,61 @@ def _build_update_notional_risk_limit_body(
             )
         request = UpdateFCMNotionalRiskLimitRequest(
             notional_value_risk_limit=notional_value_risk_limit,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_transfer_position_body(
+    request: CreateMarginFCMPositionTransferRequest | None,
+    *,
+    source_subtrader_id: str | None,
+    target_subtrader_id: str | None,
+    side: FCMPositionTransferSideLiteral | None,
+    count: Decimal | int | float | str | None,
+    price: Decimal | int | float | str | None,
+    client_transfer_id: UUID | str | None,
+    ticker: str | None,
+    market_id: str | None,
+) -> dict[str, object]:
+    _check_request_exclusive(
+        request,
+        source_subtrader_id=source_subtrader_id,
+        target_subtrader_id=target_subtrader_id,
+        side=side,
+        count=count,
+        price=price,
+        client_transfer_id=client_transfer_id,
+        ticker=ticker,
+        market_id=market_id,
+    )
+    if request is None:
+        if (
+            source_subtrader_id is None
+            or target_subtrader_id is None
+            or side is None
+            or count is None
+            or price is None
+            or client_transfer_id is None
+        ):
+            raise TypeError(
+                "transfer_position() requires `source_subtrader_id`, "
+                "`target_subtrader_id`, `side`, `count`, `price`, and "
+                "`client_transfer_id` (or pass `request=...`)"
+            )
+        uid = (
+            client_transfer_id
+            if isinstance(client_transfer_id, UUID)
+            else UUID(client_transfer_id)
+        )
+        request = CreateMarginFCMPositionTransferRequest(
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            side=side,
+            count=to_decimal(count),
+            price=to_decimal(price),
+            client_transfer_id=uid,
+            ticker=ticker,
+            market_id=market_id,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -255,6 +318,64 @@ class FcmResource(SyncResource):
         self._require_auth()
         self._delete(_NOTIONAL_RISK_LIMIT_PATH, extra_headers=extra_headers)
 
+    @overload
+    def transfer_position(
+        self,
+        *,
+        request: CreateMarginFCMPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse: ...
+    @overload
+    def transfer_position(
+        self,
+        *,
+        source_subtrader_id: str,
+        target_subtrader_id: str,
+        side: FCMPositionTransferSideLiteral,
+        count: Decimal | int | float | str,
+        price: Decimal | int | float | str,
+        client_transfer_id: UUID | str,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse: ...
+    def transfer_position(
+        self,
+        *,
+        request: CreateMarginFCMPositionTransferRequest | None = None,
+        source_subtrader_id: str | None = None,
+        target_subtrader_id: str | None = None,
+        side: FCMPositionTransferSideLiteral | None = None,
+        count: Decimal | int | float | str | None = None,
+        price: Decimal | int | float | str | None = None,
+        client_transfer_id: UUID | str | None = None,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse:
+        """``POST /margin/fcm/positions/transfers`` — move a perps position.
+
+        FCM members only. Kalshi must enable the endpoint for the member
+        (400 until then; 409 while transfers are off for the exchange).
+        Supply ``ticker`` or ``market_id`` (ticker wins if both).
+        ``client_transfer_id`` is a required UUID idempotency key.
+        POST is never retried.
+        """
+        self._require_auth()
+        body = _build_transfer_position_body(
+            request,
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            side=side,
+            count=count,
+            price=price,
+            client_transfer_id=client_transfer_id,
+            ticker=ticker,
+            market_id=market_id,
+        )
+        data = self._post(_POSITION_TRANSFER_PATH, json=body, extra_headers=extra_headers)
+        return CreateMarginFCMPositionTransferResponse.model_validate(data)
+
 
 class AsyncFcmResource(AsyncResource):
     """Async perps FCM API."""
@@ -399,3 +520,56 @@ class AsyncFcmResource(AsyncResource):
         """Async :meth:`FcmResource.delete_notional_risk_limit`."""
         self._require_auth()
         await self._delete(_NOTIONAL_RISK_LIMIT_PATH, extra_headers=extra_headers)
+
+    @overload
+    async def transfer_position(
+        self,
+        *,
+        request: CreateMarginFCMPositionTransferRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse: ...
+    @overload
+    async def transfer_position(
+        self,
+        *,
+        source_subtrader_id: str,
+        target_subtrader_id: str,
+        side: FCMPositionTransferSideLiteral,
+        count: Decimal | int | float | str,
+        price: Decimal | int | float | str,
+        client_transfer_id: UUID | str,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse: ...
+    async def transfer_position(
+        self,
+        *,
+        request: CreateMarginFCMPositionTransferRequest | None = None,
+        source_subtrader_id: str | None = None,
+        target_subtrader_id: str | None = None,
+        side: FCMPositionTransferSideLiteral | None = None,
+        count: Decimal | int | float | str | None = None,
+        price: Decimal | int | float | str | None = None,
+        client_transfer_id: UUID | str | None = None,
+        ticker: str | None = None,
+        market_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateMarginFCMPositionTransferResponse:
+        """Async :meth:`FcmResource.transfer_position`."""
+        self._require_auth()
+        body = _build_transfer_position_body(
+            request,
+            source_subtrader_id=source_subtrader_id,
+            target_subtrader_id=target_subtrader_id,
+            side=side,
+            count=count,
+            price=price,
+            client_transfer_id=client_transfer_id,
+            ticker=ticker,
+            market_id=market_id,
+        )
+        data = await self._post(
+            _POSITION_TRANSFER_PATH, json=body, extra_headers=extra_headers
+        )
+        return CreateMarginFCMPositionTransferResponse.model_validate(data)

@@ -34,8 +34,11 @@ Auth required throughout (you need an existing key to manage keys).
 ```python
 resp = client.api_keys.list()
 for key in resp.api_keys:
-    print(key.api_key, key.name, key.scopes, key.created_ts)
+    print(key.api_key_id, key.name, key.scopes, key.key_type)
 ```
+
+`key_type` is `"rsa"` or `"ed25519"` when the server knows the algorithm,
+and `None` when it is omitted (unknown).
 
 ## Server-minted pair (`generate`)
 

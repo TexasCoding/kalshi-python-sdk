@@ -210,8 +210,10 @@ for proposal in client.communications.block_trade_proposals.list_all(
 ):
     print(proposal.id, proposal.buyer_accepted, proposal.seller_accepted)
 
-# Accept (the counterparty side). The body is optional — pass subtrader_id
-# or subaccount only if you trade through a sub-trader / subaccount.
+# Accept as the named side. You may book that side onto any of your own
+# subaccounts (including one the proposal did not name). Omit both
+# subtrader_id and subaccount to keep the proposal's. A side that has
+# already accepted may accept again to move until the trade executes.
 client.communications.block_trade_proposals.accept(proposal_id)
 
 # Cancel (proposer only). 204, no body.

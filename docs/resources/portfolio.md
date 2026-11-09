@@ -111,12 +111,17 @@ for ep in resp.event_positions:
         cursor = resp.cursor
     ```
 
-`count_filter` filters which fields the response **includes a row for** —
-filtering by `"position"` returns only markets where your position is non-zero.
+`count_filter` is a comma-separated OR list: `"position"` (non-zero net
+contracts, including closed markets awaiting determination) or
+`"total_traded"` (any contracts traded, including fully exited positions).
+Omit it for no count filter.
 
 `settlement_status` (`SettlementStatusLiteral`: `"unsettled"`, `"settled"`,
-`"all"`) selects which live positions to return. Omit it to keep the server
-default (`unsettled`). Archived positions stay on `GET /historical/positions`.
+`"all"`) filters settlement state, not trading status. Unsettled (the
+server default) includes closed markets awaiting determination or
+settlement; those rows may still have non-zero quantities and cost basis.
+`"settled"` is unarchived settled positions; `"all"` is both live states.
+Archived positions stay on `GET /historical/positions`.
 
 ## Settlements
 

@@ -1246,7 +1246,7 @@ components:
               enum: ["activated", "deactivated"]
             is_deactivated:
               type: boolean
-              description: Whether trading on the market is paused.
+              description: Whether trading on the market is paused, because it is halted or outside its trading hours.
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 

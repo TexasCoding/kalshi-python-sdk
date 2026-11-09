@@ -66,7 +66,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()`, `corporate_actions()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
-| `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit` |
+| `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit`; `transfer_position(...)` |
 
 `markets.bulk_orderbooks(*, tickers)` fetches up to 100 margin orderbooks
 in one call (`GET /margin/markets/orderbooks`). `tickers` is required
@@ -228,10 +228,11 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
   identifying which subaccount holds the position. `subaccount_type`
-  (`"cross"` / `"isolated"` / `"auto_rebalance"`, or `None` when the key is
-  absent) is optional on `MarginPosition`, `MarginSubaccountBalance`,
-  `MarginRiskPosition`, and `MarginFundingHistoryEntry`. The spec marks it
-  required; the SDK keeps it optional so older payloads still parse.
+  (`"cross"` / `"isolated"` / `"auto_rebalance"` / `"managed_isolated"`, or
+  `None` when the key is absent) is optional on `MarginPosition`,
+  `MarginSubaccountBalance`, `MarginRiskPosition`, and
+  `MarginFundingHistoryEntry`. The spec marks it required; the SDK keeps it
+  optional so older payloads still parse.
 - **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
   `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
   the position is hedged within a portfolio so its margin is computed at the
@@ -318,7 +319,32 @@ REST-only); subscribe with `session.subscribe(channel="corporate_actions")`.
 Upcoming and recent notices are listed by `margin.corporate_actions()`.
 `subscribe_market_lifecycle()` yields `MarginMarketLifecycleV2Message` for
 activation and deactivation of every margin market (`event_type` is
-`activated` or `deactivated`). Ticker filters are not supported on that channel.
+`activated` or `deactivated`). `is_deactivated` is true when trading is
+paused because the market is halted or outside its trading hours. Ticker
+filters are not supported on that channel.
+
+## FCM position transfer
+
+FCM members can move a perps position in one market from a customer
+subtrader into a subtrader under the FCM's error account. **Kalshi must
+enable this endpoint for your FCM**; until then the server returns 400.
+While transfers are switched off for the exchange, requests return 409.
+POST is never retried. `client_transfer_id` is a required UUID
+idempotency key per source subtrader. Supply `ticker` or `market_id`
+(ticker wins if both).
+
+```python
+resp = perps.fcm.transfer_position(
+    source_subtrader_id="user_CUST123",
+    target_subtrader_id="err_ERR1",
+    ticker="KXBTCPERP",
+    side="long",
+    count="10",
+    price="63000.00",
+    client_transfer_id="6d1f0c5a-2b3e-4f7a-9c8d-0e1f2a3b4c5d",
+)
+print(resp.position_transfer_id)
+```
 
 ## Self-Clearing-Member "Klear" API
 

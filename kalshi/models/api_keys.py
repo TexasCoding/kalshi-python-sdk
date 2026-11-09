@@ -31,10 +31,16 @@ class ApiKey(BaseModel):
     fields do — Kalshi has historically returned JSON null for required
     list fields, and silently coercing None -> [] is safer than raising
     a Pydantic ValidationError on a field most callers don't use.
+    ``key_type`` is ``rsa`` or ``ed25519`` when the server knows the
+    algorithm, and omitted (``None``) when unknown.
     """
 
     api_key_id: str
     name: str
+    # Signing algorithm of this key, derived from its stored public key.
+    # Present for RSA and Ed25519 keys, including existing keys. Omitted
+    # when the algorithm is unknown.
+    key_type: ApiKeyTypeLiteral | None = None
     scopes: NullableList[str]
     # Spec v3.23.0: if set, the key is restricted to this single subaccount
     # (0-63). Optional — omitted for account-wide keys and by older servers.

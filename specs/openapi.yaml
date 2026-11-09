@@ -1993,9 +1993,12 @@ paths:
       operationId: GetPositions
       summary: Get Positions
       description: |
-        Returns unsettled positions by default. Set `settlement_status=settled` to page through settled positions that are still in the live data set, or `settlement_status=all` for both live states. Positions already archived are available via `GET /historical/positions`.
-        Settled and all-state positions are paginated by event ticker to keep large histories bounded. Cursors are specific to the selected settlement status.
-        `count_filter` restricts positions to those with a non-zero position or total traded count.
+        Returns unsettled positions by default, including closed markets awaiting determination or settlement. These may retain non-zero quantities and cost basis. Check the market's `status` via `GET /markets/{ticker}` for trading status.
+
+        Set `settlement_status=settled` for unarchived settled positions or `all` for both states. These results paginate by event ticker; cursors are specific to settlement status. Archived positions are available via `GET /historical/positions`.
+
+        Use `count_filter=position` for non-zero net holdings, including closed, unsettled markets. Without a count filter, results may include fully exited positions with trading history, realized P&L or fees.
+
         Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
@@ -2031,13 +2034,16 @@ paths:
     get:
       operationId: GetSettlements
       summary: Get Settlements
-      description: 'Returns settlement records still in the live data set. Archived positions are available via `GET /historical/positions`, which has different fields; this endpoint does not return archived settlement records.'
+      description: |
+        Returns settlement records still in the live data set. Archived positions are available via `GET /historical/positions`, which has different fields; this endpoint does not return archived settlement records.
+        Resource-bound MCP OAuth tokens may read the owner's settlements with read::mcp_portfolio.
       tags:
         - portfolio
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - $ref: '#/components/parameters/LimitQuery'
         - $ref: '#/components/parameters/CursorQuery'
@@ -2347,7 +2353,7 @@ paths:
     post:
       operationId: AcceptBlockTradeProposal
       summary: Accept Block Trade Proposal
-      description: ' Endpoint for accepting a block trade proposal.'
+      description: ' Endpoint for accepting a block trade proposal. The caller accepts as whichever side it is named on, and may book that side onto any of its own subaccounts, including one the proposal did not name. Without a subaccount, the side keeps the one the proposal named. A side that has already accepted may accept again to move to another subaccount until the trade executes.'
       tags:
         - communications
       security:
@@ -5447,14 +5453,15 @@ components:
     CountFilterQuery:
       name: count_filter
       in: query
-      description: Restricts the positions to those with any of following fields with non-zero values, as a comma separated list. The following values are accepted - position, total_traded
+      description: |
+        Comma-separated filters combined with OR: `position` (non-zero net contracts), `total_traded` (any contracts traded, including fully exited positions). Omit for no count filter.
       schema:
         type: string
 
     PositionSettlementStatusQuery:
       name: settlement_status
       in: query
-      description: Return unsettled positions by default, settled positions that have not yet been archived, or all positions in the live data set.
+      description: 'Filters settlement state, not trading status: `unsettled` (default), `settled` (not yet archived), or `all` (both live states).'
       schema:
         type: string
         enum: [unsettled, settled, all]
@@ -5943,6 +5950,10 @@ components:
         name:
           type: string
           description: User-provided name for the API key
+        key_type:
+          allOf:
+            - $ref: '#/components/schemas/ApiKeyType'
+          description: Signing algorithm of this key, derived from its stored public key. Present for RSA and Ed25519 keys, including existing keys. Omitted when the algorithm is unknown.
         scopes:
           type: array
           description: List of scopes granted to this API key.
@@ -7893,13 +7904,13 @@ components:
           $ref: '#/components/schemas/ExchangeIndex'
         total_traded_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Total spent on this market in dollars
+          description: Total spent trading this market in dollars, including past trades; not the remaining position's cost or value.
         position_fp:
           $ref: '#/components/schemas/FixedPointCount'
-          description: String representation of the number of contracts bought in this market. Negative means NO contracts and positive means YES contracts
+          description: 'Signed net contracts as a fixed-point string: positive for YES, negative for NO, zero for no net position.'
         market_exposure_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Cost of the aggregate market position in dollars
+          description: Cost basis of the remaining position in dollars, excluding fees; not current market value or realized loss.
         realized_pnl_dollars:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Locked in profit and loss, in dollars
@@ -9048,13 +9059,13 @@ components:
       properties:
         subtrader_id:
           type: string
-          description: Subtrader ID to accept as. Provide either this or subaccount, not both.
+          description: Subtrader ID to book your side onto. It may differ from the one the proposal named. Omit both this and subaccount to keep the proposal's. Provide either this or subaccount, not both.
           x-go-type-skip-optional-pointer: true
         subaccount:
           type: integer
           minimum: 0
           maximum: 63
-          description: User-managed subaccount number to accept as (0 for primary, 1-63 for numbered subaccounts). Provide either this or subtrader_id, not both.
+          description: User-managed subaccount number to book your side onto (0 for primary, 1-63 for numbered subaccounts). It may differ from the one the proposal named. Omit both this and subtrader_id to keep the proposal's. Provide either this or subtrader_id, not both.
 
     RFQ:
       type: object

@@ -2,6 +2,41 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.10.0 — 2026-11-09
+
+Reconciles nightly spec drift (#574) against OpenAPI 3.36.0 and the latest
+perps spec. Additive only. No breaking changes.
+
+### Added
+
+- Optional **`ApiKey.key_type`** (`"rsa"` / `"ed25519"` / `None`). Present
+  for RSA and Ed25519 keys; omitted when the algorithm is unknown.
+- Perps **`SubaccountTypeLiteral`** gains `"managed_isolated"` (a managed
+  isolated position whose subaccount number is its slot number rather than
+  the market's isolated subaccount number).
+- **`perps.fcm.transfer_position(...)`** (sync and async) —
+  `POST /margin/fcm/positions/transfers`, 201
+  `CreateMarginFCMPositionTransferResponse`. FCM members only; Kalshi must
+  enable the endpoint (400 until then; 409 while transfers are off).
+  Required: `source_subtrader_id`, `target_subtrader_id`, `side`
+  (`"long"` / `"short"`), `count`, `price`, `client_transfer_id` (UUID).
+  Supply `ticker` or `market_id` (ticker wins if both). POST is never
+  retried. (Closes #574).
+
+### Docs
+
+- Positions / settlement: unsettled includes closed markets awaiting
+  determination; `count_filter` and `settlement_status` descriptions
+  clarified.
+- Block-trade `accept` may book the caller's side onto a different
+  subaccount than the proposal named, and a side that has already accepted
+  may accept again to move until the trade executes.
+- Resource-bound MCP OAuth tokens may read owner data with
+  `read::mcp_portfolio` on settlements and perps orders / fills /
+  positions / balance / risk.
+- Perps `market_lifecycle_v2.is_deactivated` is true when trading is
+  paused because the market is halted or outside its trading hours.
+
 ## 22.9.0 — 2026-11-05
 
 Reconciles nightly spec drift (#571) against OpenAPI 3.36.0 and the latest

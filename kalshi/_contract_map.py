@@ -1047,6 +1047,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="UpdateFCMNotionalRiskLimitRequest",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.CreateMarginFCMPositionTransferRequest",
+        spec_schema="CreateMarginFCMPositionTransferRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.fcm.CreateMarginFCMPositionTransferResponse",
+        spec_schema="CreateMarginFCMPositionTransferResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.models.portfolio.ExitTrigger",
         spec_schema="ExitTrigger",
     ),
