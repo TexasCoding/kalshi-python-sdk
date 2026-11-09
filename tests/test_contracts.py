@@ -1555,6 +1555,9 @@ PERPS_BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/UpdateFCMNotionalRiskLimitRequest": (
         "kalshi.perps.models.fcm.UpdateFCMNotionalRiskLimitRequest"
     ),
+    "#/components/schemas/CreateMarginFCMPositionTransferRequest": (
+        "kalshi.perps.models.fcm.CreateMarginFCMPositionTransferRequest"
+    ),
     "#/components/schemas/SetCrossExitTriggerRequest": (
         "kalshi.perps.models.portfolio.SetCrossExitTriggerRequest"
     ),

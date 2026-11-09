@@ -72,6 +72,24 @@ class TestApiKeyModels:
         assert k.name == "bot"
         assert k.scopes == ["read", "write"]
 
+    @pytest.mark.parametrize("key_type", ["rsa", "ed25519"])
+    def test_api_key_parses_key_type(self, key_type: str) -> None:
+        k = ApiKey.model_validate(
+            {
+                "api_key_id": "k-1",
+                "name": "bot",
+                "scopes": ["read"],
+                "key_type": key_type,
+            },
+        )
+        assert k.key_type == key_type
+
+    def test_api_key_key_type_absent_is_none(self) -> None:
+        k = ApiKey.model_validate(
+            {"api_key_id": "k-1", "name": "bot", "scopes": ["read"]},
+        )
+        assert k.key_type is None
+
     def test_get_api_keys_response_wraps_list(self) -> None:
         resp = GetApiKeysResponse.model_validate(
             {

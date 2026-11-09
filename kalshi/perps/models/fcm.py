@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from kalshi.types import DollarDecimal, OrderPrice
+from kalshi.types import DollarDecimal, FixedPointCount, OrderPrice
 
 FCMAssetClassLiteral = Literal[
     "Crypto",
@@ -115,3 +116,40 @@ class UpdateFCMNotionalRiskLimitRequest(BaseModel):
     notional_value_risk_limit: OrderPrice
 
     model_config = {"extra": "forbid"}
+
+
+FCMPositionTransferSideLiteral = Literal["long", "short"]
+"""Side of a position being moved. Spec inline enum on
+``CreateMarginFCMPositionTransferRequest.side``.
+"""
+
+
+class CreateMarginFCMPositionTransferRequest(BaseModel):
+    """Body for POST /margin/fcm/positions/transfers.
+
+    Moves a perps position in one market from a source FCM subtrader into a
+    subtrader under the FCM's error account. Supply ``ticker`` or
+    ``market_id`` (ticker wins if both). ``count`` is a FixedPointCount
+    string of whole contracts; ``price`` is a FixedPointDollars transfer
+    price per contract (greater than zero). ``client_transfer_id`` is a
+    required UUID idempotency key per source subtrader.
+    """
+
+    source_subtrader_id: str
+    target_subtrader_id: str
+    side: FCMPositionTransferSideLiteral
+    count: FixedPointCount = Field(gt=0)
+    price: OrderPrice = Field(gt=0)
+    client_transfer_id: UUID
+    ticker: str | None = None
+    market_id: str | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateMarginFCMPositionTransferResponse(BaseModel):
+    """Response from POST /margin/fcm/positions/transfers."""
+
+    position_transfer_id: str
+
+    model_config = {"extra": "allow"}

@@ -1842,6 +1842,12 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="DELETE",
         path_template="/margin/fcm/notional_risk_limit",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.fcm.FcmResource.transfer_position",
+        http_method="POST",
+        path_template="/margin/fcm/positions/transfers",
+        request_body_schema="#/components/schemas/CreateMarginFCMPositionTransferRequest",
+    ),
     # ── perps exit triggers ──
     MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.portfolio.PerpsPortfolioResource.cross_exit_triggers",

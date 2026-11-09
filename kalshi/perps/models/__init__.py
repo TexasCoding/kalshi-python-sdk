@@ -28,7 +28,10 @@ from kalshi.perps.models.exchange import (
     MarginEnabledResponse,
 )
 from kalshi.perps.models.fcm import (
+    CreateMarginFCMPositionTransferRequest,
+    CreateMarginFCMPositionTransferResponse,
     FCMAssetClassLiteral,
+    FCMPositionTransferSideLiteral,
     FCMSubtraderNotionalRiskLimit,
     FCMSubtraderRiskControls,
     GetFCMSubtraderRiskControlsResponse,
@@ -130,6 +133,8 @@ __all__ = [
     "BookSide",
     "BookSideLiteral",
     "CancelMarginOrderResponse",
+    "CreateMarginFCMPositionTransferRequest",
+    "CreateMarginFCMPositionTransferResponse",
     "CreateMarginOrderRequest",
     "CreateMarginOrderResponse",
     "CreateOrderGroupRequest",
@@ -150,6 +155,7 @@ __all__ = [
     "ExitTriggerReasonLiteral",
     "ExitTriggerStatusLiteral",
     "FCMAssetClassLiteral",
+    "FCMPositionTransferSideLiteral",
     "FCMSubtraderNotionalRiskLimit",
     "FCMSubtraderRiskControls",
     "FeeScheduleLiteral",

@@ -791,6 +791,13 @@ class TestSubaccountType:
         payload["subaccount_type"] = "cross"
         assert MarginPosition.model_validate(payload).subaccount_type == "cross"
 
+    def test_parses_managed_isolated(self) -> None:
+        payload = _long_position()
+        payload["subaccount_type"] = "managed_isolated"
+        assert (
+            MarginPosition.model_validate(payload).subaccount_type == "managed_isolated"
+        )
+
     def test_invalid_raises(self) -> None:
         payload = _long_position()
         payload["subaccount_type"] = "hedged"

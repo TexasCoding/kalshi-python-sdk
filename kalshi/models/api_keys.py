@@ -35,6 +35,10 @@ class ApiKey(BaseModel):
 
     api_key_id: str
     name: str
+    # Signing algorithm of this key, derived from its stored public key.
+    # Present for RSA and Ed25519 keys, including existing keys. Omitted
+    # when the algorithm is unknown.
+    key_type: ApiKeyTypeLiteral | None = None
     scopes: NullableList[str]
     # Spec v3.23.0: if set, the key is restricted to this single subaccount
     # (0-63). Optional — omitted for account-wide keys and by older servers.
