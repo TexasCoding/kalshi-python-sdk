@@ -235,6 +235,115 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /margin/fcm/positions/transfers:
+    post:
+      operationId: CreateMarginFCMPositionTransfer
+      summary: Create Margin FCM Position Transfer
+      description: |
+        Endpoint for FCM members to move a perps position in one market from one of their subtraders
+        into a subtrader under their FCM's error account.
+
+        **This endpoint must be enabled for your FCM by Kalshi.** Kalshi enables it by configuring the
+        error account that receives transferred positions and gives you that account's user id, which
+        prefixes `target_subtrader_id`. Contact Kalshi to enable it; until then, requests return 400.
+        Position transfers are also switched on per exchange; while they are off, requests return 409.
+
+        - The destination is always your FCM's error account. `target_subtrader_id` picks the subtrader
+          under it, which is created on first use.
+        - Each request moves one market for one source subtrader. To move many positions, send one
+          request per subtrader and market.
+        - No cash moves when a transfer is booked. Both sides' positions and cost basis change as for a
+          fee-free trade at `price`: the source closes at `price` and the error account opens at
+          `price`. Both settle in the next settlement cycle: the source realizes the difference
+          between `price` and the market's last settlement mark, and the error account's variation
+          margin runs from `price` to the next settlement mark. To make a customer whole, use the
+          price of the fill being reversed.
+        - `side` and `count` describe the position being moved: `long` moves a long of `count`
+          contracts, `short` moves a short. `count` must be a whole number of contracts. The source's
+          current position is not checked; moving more than it holds, or the other side, flips or
+          grows its position.
+        - `client_transfer_id` makes the request idempotent per source subtrader: once a transfer
+          with that id has been booked from `source_subtrader_id`, a later request with the same id
+          from that subtrader, to any target, books nothing unless the exchange has restarted in
+          between. The exchange checks the id only after it re-checks the transfer switch, trading
+          status and both accounts' current risk, so a repeat returns 409 with error code
+          `transfer_already_applied` only when it passes those checks. Otherwise it gets the error
+          for the check it failed, such as 400 `insufficient_balance` once the earlier transfer has
+          used the error account's margin, or 409 while trading is paused.
+        - After a timeout or 5xx, retry with the same id. `transfer_already_applied` confirms that the
+          earlier attempt was booked. Any other error refuses only the retry and leaves the earlier
+          attempt's outcome unknown: check the source subtrader's position before you send the
+          transfer again under a new id.
+        - The exchange does not keep transfer ids across a restart, such as a maintenance window, so a
+          retry sent after one can book the transfer a second time. If the exchange may have
+          restarted since the first attempt, check the source subtrader's position before retrying,
+          even with the same id.
+        - The market must have traded at least once and trading must not be paused; otherwise the
+          request returns 409. Both accounts must also pass the exchange's risk checks for their
+          post-transfer positions (available margin, FCM initial-margin caps, notional risk limits);
+          a failed risk check returns 400 with the exchange's reason, such as `insufficient_balance`,
+          and a blocked account returns 409.
+        - Transfers appear on the daily statement and in the `position_transfer_audit` report. They
+          never appear as fills or in `trade_audit`.
+
+        **Example.** A customer subtrader holds 10 long in `KXBTCPERP`, filled at $63,000. Send
+        `side` `long`, `count` `10`, `price` `63000.00`: the customer goes from 10 long to flat and the
+        error account subtrader from flat to 10 long, both at $63,000, with no cash moving.
+      tags:
+        - fcm
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMarginFCMPositionTransferRequest'
+            examples:
+              move_long:
+                summary: Move 10 long at $63,000
+                value:
+                  source_subtrader_id: 3f2a8c1e-5b7d-4e9a-8c6f-1d2b3a4e5f60_CUST123
+                  target_subtrader_id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e_ERR1
+                  ticker: KXBTCPERP
+                  side: long
+                  count: "10"
+                  price: "63000.00"
+                  client_transfer_id: 6d1f0c5a-2b3e-4f7a-9c8d-0e1f2a3b4c5d
+              move_short_by_market_id:
+                summary: Move 5 short at $4,500, selecting the market by id
+                value:
+                  source_subtrader_id: 3f2a8c1e-5b7d-4e9a-8c6f-1d2b3a4e5f60_CUST123
+                  target_subtrader_id: 9b8c7d6e-5f4a-4b3c-9d2e-1f0a9b8c7d6e_ERR1
+                  market_id: 0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+                  side: short
+                  count: "5"
+                  price: "4500.00"
+                  client_transfer_id: 7e2a1d6b-3c4f-4a8b-9d0e-1f2a3b4c5d6e
+      responses:
+        '201':
+          description: Position transferred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateMarginFCMPositionTransferResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /margin/fcm/notional_risk_limit:
     put:
       operationId: UpdateFCMNotionalRiskLimit
@@ -377,13 +486,16 @@ paths:
     get:
       operationId: GetMarginOrders
       summary: Get Orders
-      description: 'Endpoint for listing margin orders with optional filtering.'
+      description: |
+        Endpoint for listing margin orders with optional filtering.
+        Resource-bound MCP OAuth tokens may read the owner's orders with read::mcp_portfolio.
       tags:
         - orders
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - $ref: '#/components/parameters/TickerQuery'
         - $ref: '#/components/parameters/MinTsQuery'
@@ -847,6 +959,7 @@ paths:
       summary: Get Fills
       description: |
         Endpoint for retrieving the authenticated user's margin fills.
+        Resource-bound MCP OAuth tokens may read the owner's data with read::mcp_portfolio.
         Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
@@ -913,6 +1026,7 @@ paths:
       summary: Get Positions
       description: |
         Endpoint for retrieving the authenticated user's margin positions.
+        Resource-bound MCP OAuth tokens may read the owner's data with read::mcp_portfolio.
         Registered partners may also use a user OAuth access token with the explicitly granted read::compliance_partner scope.
       tags:
         - portfolio
@@ -1064,7 +1178,9 @@ paths:
     get:
       operationId: GetMarginBalance
       summary: Get Balance
-      description: 'Endpoint for retrieving the balance breakdown for the authenticated direct margin user. Returns cash balance (aggregate and per-subaccount), position value, total balance, and maintenance margin requirement.'
+      description: |
+        Endpoint for retrieving the balance breakdown for the authenticated direct margin user. Returns cash balance (aggregate and per-subaccount), position value, total balance, and maintenance margin requirement.
+        Resource-bound MCP OAuth tokens may read the owner's balance with read::mcp_portfolio.
       x-mint:
         content: |
           <Note>
@@ -1076,6 +1192,7 @@ paths:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       parameters:
         - name: compute_available_balance
           in: query
@@ -1105,13 +1222,16 @@ paths:
     get:
       operationId: GetMarginRisk
       summary: Get Risk
-      description: 'Endpoint for retrieving leverage and liquidation price data for the authenticated direct margin user. Returns account-level leverage plus per-position leverage and liquidation prices, grouped by subaccount and market.'
+      description: |
+        Endpoint for retrieving leverage and liquidation price data for the authenticated direct margin user. Returns account-level leverage plus per-position leverage and liquidation prices, grouped by subaccount and market.
+        Resource-bound MCP OAuth tokens may read the owner's risk data with read::mcp_portfolio.
       tags:
         - risk
       security:
         - kalshiAccessKey: []
           kalshiAccessSignature: []
           kalshiAccessTimestamp: []
+        - kalshiOauthAccessToken: []
       responses:
         '200':
           description: Margin risk data retrieved successfully
@@ -2125,6 +2245,66 @@ components:
         subaccount_number:
           type: integer
           description: The sequential number assigned to this subaccount (1-63).
+    CreateMarginFCMPositionTransferRequest:
+      type: object
+      required:
+        - source_subtrader_id
+        - target_subtrader_id
+        - side
+        - count
+        - price
+        - client_transfer_id
+      properties:
+        source_subtrader_id:
+          type: string
+          description: Full id of the FCM subtrader giving up the position, `{user_id}_{subtrader_suffix}`, as returned by `POST /margin/fcm/subtraders`.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        target_subtrader_id:
+          type: string
+          description: Subtrader under your error account that receives the position, `{error_account_id}_{suffix}` with a 1-16 character alphanumeric suffix. Created if it does not exist.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        ticker:
+          type: string
+          description: Market ticker. Supply ticker or market_id; ticker takes precedence when both are provided.
+          x-go-type-skip-optional-pointer: true
+        market_id:
+          type: string
+          description: Stable exchange market UUID. May be supplied instead of ticker.
+          x-go-type-skip-optional-pointer: true
+        side:
+          type: string
+          enum: [long, short]
+          description: Side of the position being moved. `long` moves a long position, `short` moves a short one.
+          x-oapi-codegen-extra-tags:
+            validate: required,oneof=long short
+        count:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointCount'
+          description: Contracts to move, as a whole number of exchange contracts (e.g. "10").
+          x-oapi-codegen-extra-tags:
+            validate: required
+        price:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          description: Transfer price in dollars per contract with 2-4 decimal places (e.g. "63000.00"), greater than zero. Both sides' cost basis moves at this price.
+          x-oapi-codegen-extra-tags:
+            validate: required
+        client_transfer_id:
+          type: string
+          format: uuid
+          description: Client-chosen UUID that makes the request idempotent for the source subtrader. A repeat from the same source, to any target, returns 409 with code `transfer_already_applied`.
+          x-oapi-codegen-extra-tags:
+            validate: required,uuid
+    CreateMarginFCMPositionTransferResponse:
+      type: object
+      required:
+        - position_transfer_id
+      properties:
+        position_transfer_id:
+          type: string
+          description: Id of the executed transfer, as it appears in the `position_transfer_audit` report.
     UpdateFCMNotionalRiskLimitRequest:
       type: object
       required:
@@ -3404,9 +3584,9 @@ components:
 
     SubaccountType:
       type: string
-      enum: ['cross', 'isolated', 'auto_rebalance']
-      x-enum-varnames: [SubaccountTypeCross, SubaccountTypeIsolated, SubaccountTypeAutoRebalance]
-      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, and `auto_rebalance` for an auto-rebalanced isolated position, which shares its market's isolated subaccount number.
+      enum: ['cross', 'isolated', 'auto_rebalance', 'managed_isolated']
+      x-enum-varnames: [SubaccountTypeCross, SubaccountTypeIsolated, SubaccountTypeAutoRebalance, SubaccountTypeManagedIsolated]
+      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, `auto_rebalance` for an auto-rebalanced isolated position, which shares its market's isolated subaccount number, and `managed_isolated` for a managed isolated position, whose subaccount number is its slot number rather than the market's isolated subaccount number.
 
     LastUpdateReason:
       type: string
