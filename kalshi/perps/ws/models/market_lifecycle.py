@@ -18,7 +18,9 @@ class MarginMarketLifecycleV2Payload(BaseModel):
     """Payload for ``market_lifecycle_v2`` (``marginMarketLifecycleV2Payload.msg``).
 
     All three fields are required: ``market_ticker``, ``event_type``
-    (``activated`` / ``deactivated``), and ``is_deactivated``.
+    (``activated`` / ``deactivated``), and ``is_deactivated`` (true when
+    trading is paused because the market is halted or outside its trading
+    hours).
     """
 
     market_ticker: str
