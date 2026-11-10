@@ -38,6 +38,7 @@ info:
     | 20 | shard_factor is required when shard_key is set | Missing shard_factor when shard_key is set |
     | 21 | shard_key must be >= 0 and < shard_factor | Invalid shard_key |
     | 22 | shard_factor must be <= 100 | shard_factor too large |
+    | 23 | Match IDs required | Missing match_ids for subscribe_matches/unsubscribe_matches on ebattle_scores |
     | 26 | Subscription market limit exceeded | Adding markets would exceed the per-subscription market limit |
     | 27 | Too many requests | The subscription exceeded its command rate limit |
     | 28 | Underlying tickers required | Missing underlying_tickers for subscribe_underlyings/unsubscribe_underlyings on pyth_value |
@@ -105,6 +106,8 @@ channels:
         $ref: '#/components/messages/updateSubscriptionDeleteCommand'
       updateSubscriptionSingleSidCommand:
         $ref: '#/components/messages/updateSubscriptionSingleSidCommand'
+      ebattleUpdateSubscriptionCommand:
+        $ref: '#/components/messages/ebattleUpdateSubscriptionCommand'
       cfbenchmarksUpdateSubscriptionCommand:
         $ref: '#/components/messages/cfbenchmarksUpdateSubscriptionCommand'
       pythUpdateSubscriptionCommand:
@@ -118,6 +121,8 @@ channels:
         $ref: '#/components/messages/listSubscriptionsResponse'
       unsubscribedResponse:
         $ref: '#/components/messages/unsubscribedResponse'
+      subscribedMatchesResponse:
+        $ref: '#/components/messages/subscribedMatchesResponse'
       subscribedIndicesResponse:
         $ref: '#/components/messages/subscribedIndicesResponse'
       subscribedUnderlyingsResponse:
@@ -380,6 +385,38 @@ channels:
     messages:
       userOrder:
         $ref: '#/components/messages/userOrder'
+
+  ebattle_scores:
+    address: ebattle_scores
+    title: eBattle Scores
+    description: |
+      Live eSoccer/eFootball and eBasketball score updates. Authentication is required.
+      Public access is temporary and can return to individual approval; subscriptions
+      without approval then end. Other sports and esports feeds are excluded.
+
+      Subscribe with `{"id":1,"cmd":"subscribe","params":{"channels":["ebattle_scores"]}}`.
+      After receiving the assigned `sid`, request matches with
+      `{"id":2,"cmd":"update_subscription","params":{"sid":1,"action":"subscribe_matches","match_ids":["all"]}}`.
+      Replace `1` with the assigned subscription ID. Match IDs are Kalshi milestone IDs.
+      Use specific IDs instead of `all` to filter; `unsubscribe_matches` removes IDs.
+      `matchlist` returns IDs seen within the past two hours, not a complete fixture catalog.
+      A new subscription is empty until `subscribe_matches` is sent. There is no initial
+      snapshot or replay; subsequent updates contain the current full score state.
+
+      `msg.data` is a JSON-encoded string with `game`, `status`, and available score/clock
+      fields: `home_score`, `away_score`, `home_periods`, `away_periods`, `score_format`,
+      `period_unit`, `clock_ticking`, `duration_seconds`, `current_game_duration_seconds`,
+      `last_updated_ts`, and `live_data_delayed`. A home/away side follows the milestone's orientation.
+      `live_data_delayed: true` means the score source has stopped updating and the scores
+      may be stale; the same scores can be resent with only this flag changed.
+      eBasketball scores are points per quarter; eSoccer/eFootball scores are goals per half.
+      Period maps use keys such as `period_1`. Missing fields mean unavailable data.
+      `received_at` is the publication timestamp in milliseconds; it is not a vendor timestamp.
+    messages:
+      ebattleScores:
+        $ref: '#/components/messages/ebattleScores'
+      ebattleScoresMatchlist:
+        $ref: '#/components/messages/ebattleScoresMatchlist'
 
   cfbenchmarks_value:
     address: cfbenchmarks_value
@@ -691,6 +728,30 @@ channels:
         $ref: '#/components/messages/pythUnderlyingList'
 
 operations:
+  sendEbattleUpdateSubscription:
+    action: receive
+    title: Update eBattle Match Subscription
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/channels/root/messages/ebattleUpdateSubscriptionCommand'
+
+  receiveEbattleScores:
+    action: send
+    title: ebattleScores
+    channel:
+      $ref: '#/channels/ebattle_scores'
+    messages:
+      - $ref: '#/channels/ebattle_scores/messages/ebattleScores'
+
+  receiveEbattleScoresMatchlist:
+    action: send
+    title: ebattleScoresMatchlist
+    channel:
+      $ref: '#/channels/ebattle_scores'
+    messages:
+      - $ref: '#/channels/ebattle_scores/messages/ebattleScoresMatchlist'
+
   sendPing:
     action: receive
     title: Send Ping
@@ -856,6 +917,7 @@ operations:
       - $ref: '#/channels/root/messages/okResponse'
       - $ref: '#/channels/root/messages/subscribedUnderlyingsResponse'
       - $ref: '#/channels/root/messages/subscribedIndicesResponse'
+      - $ref: '#/channels/root/messages/subscribedMatchesResponse'
     tags:
       - name: responses
 
@@ -1230,6 +1292,27 @@ operations:
 
 components:
   messages:
+    ebattleScores:
+      name: ebattle_scores
+      title: ebattleScores
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ebattleScoresPayload'
+
+    ebattleScoresMatchlist:
+      name: ebattle_scores_matchlist
+      title: ebattleScoresMatchlist
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ebattleScoresMatchlistPayload'
+
+    ebattleUpdateSubscriptionCommand:
+      name: update_subscription_ebattle
+      title: ebattleUpdateSubscriptionCommand
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ebattleUpdateSubscriptionCommandPayload'
+
     # Control Frame Messages (Client -> Server)
     incomingPing:
       name: ping
@@ -1594,6 +1677,14 @@ components:
             seq: 7
             type: unsubscribed
             sending_ts_ms: 1669149841234
+
+    subscribedMatchesResponse:
+      name: ok
+      title: Subscribed Matches
+      summary: Current eBattle match filter after an update; all-mode is ["all"]
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/subscribedMatchesResponsePayload'
 
     subscribedIndicesResponse:
       name: ok
@@ -2715,6 +2806,85 @@ components:
               subaccount: 2
 
   schemas:
+    ebattleUpdateSubscriptionCommandPayload:
+      type: object
+      required: [id, cmd, params]
+      properties:
+        id:
+          $ref: '#/components/schemas/commandId'
+        cmd:
+          type: string
+          const: update_subscription
+        params:
+          type: object
+          required: [sid, action]
+          properties:
+            sid:
+              $ref: '#/components/schemas/subscriptionId'
+            action:
+              type: string
+              enum: [subscribe_matches, unsubscribe_matches, matchlist]
+            match_ids:
+              type: array
+              description: Required for subscribe_matches and unsubscribe_matches. Use ["all"] to select all matches.
+              items:
+                type: string
+
+    ebattleScoresPayload:
+      type: object
+      required: [type, sid, seq, msg]
+      properties:
+        type:
+          type: string
+          const: ebattle_scores
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: [event_id, match_id, received_at, data]
+          properties:
+            event_id:
+              type: string
+            match_id:
+              type: string
+              description: Kalshi milestone ID.
+            received_at:
+              type: integer
+              format: int64
+            data:
+              type: string
+              description: JSON-encoded full score state, as described by the channel.
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
+
+    ebattleScoresMatchlistPayload:
+      type: object
+      required: [type, sid, seq, msg]
+      properties:
+        type:
+          type: string
+          const: ebattle_scores_matchlist
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: [match_ids]
+          properties:
+            match_ids:
+              type: array
+              items:
+                type: string
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
+
     sendingTimestampMs:
       type: integer
       format: int64
@@ -2790,7 +2960,7 @@ components:
               description: List of channels to subscribe to
               items:
                 type: string
-                enum: ["orderbook_delta", "ticker", "trade", "fill", "market_positions", "market_lifecycle_v2", "multivariate_market_lifecycle", "communications", "order_group_updates", "user_orders", "cfbenchmarks_value", "cfbenchmarks_value_5hz", "pyth_value"]
+                enum: ["orderbook_delta", "ticker", "trade", "fill", "market_positions", "market_lifecycle_v2", "multivariate_market_lifecycle", "communications", "order_group_updates", "user_orders", "cfbenchmarks_value", "cfbenchmarks_value_5hz", "pyth_value", "ebattle_scores"]
               minItems: 1
             market_ticker:
               description: 'Subscribe to a single market. Type: string. Example: "KXBTCD-25AUG0517-T114999.99" (mutually exclusive with market_tickers)'
@@ -3052,6 +3222,31 @@ components:
           $ref: '#/components/schemas/subscriptionId'
         seq:
           $ref: '#/components/schemas/sequenceNumber'
+        sending_ts_ms:
+          $ref: '#/components/schemas/sendingTimestampMs'
+
+    subscribedMatchesResponsePayload:
+      type: object
+      required: ["type", "sid", "seq", "msg"]
+      properties:
+        type:
+          type: string
+          const: "ok"
+        id:
+          $ref: '#/components/schemas/commandId'
+        sid:
+          $ref: '#/components/schemas/subscriptionId'
+        seq:
+          $ref: '#/components/schemas/sequenceNumber'
+        msg:
+          type: object
+          required: ["match_ids"]
+          properties:
+            match_ids:
+              type: array
+              description: Current eBattle match filter after an update; all-mode is ["all"]
+              items:
+                type: string
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 

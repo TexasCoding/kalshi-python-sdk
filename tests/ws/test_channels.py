@@ -286,6 +286,54 @@ class TestUpdateSubscription:
         )
         assert "index_ids" not in cmd["params"]
 
+    async def test_update_subscription_subscribe_matches_uses_sid(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        sub = await sub_mgr.subscribe("ebattle_scores")
+        await sub_mgr.update_subscription(
+            sub.client_id, "subscribe_matches", match_ids=["milestone-abc", "all"]
+        )
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert cmd["params"]["action"] == "subscribe_matches"
+        assert cmd["params"]["sid"] == sub.server_sid
+        assert "sids" not in cmd["params"]
+        assert cmd["params"]["match_ids"] == ["milestone-abc", "all"]
+
+    async def test_update_subscription_matchlist_omits_match_ids(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        sub = await sub_mgr.subscribe("ebattle_scores")
+        await sub_mgr.update_subscription(sub.client_id, "matchlist")
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert cmd["params"]["action"] == "matchlist"
+        assert cmd["params"]["sid"] == sub.server_sid
+        assert "sids" not in cmd["params"]
+        assert "match_ids" not in cmd["params"]
+
+    async def test_update_subscription_empty_match_ids_omitted(
+        self,
+        sub_mgr: SubscriptionManager,
+        fake_ws,  # type: ignore[no-untyped-def]
+    ) -> None:
+        sub = await sub_mgr.subscribe("ebattle_scores")
+        await sub_mgr.update_subscription(
+            sub.client_id, "subscribe_matches", match_ids=[]
+        )
+        cmd = next(
+            c for c in fake_ws.received_commands if c.get("cmd") == "update_subscription"
+        )
+        assert "match_ids" not in cmd["params"]
+        assert cmd["params"]["sid"] == sub.server_sid
+        assert "sids" not in cmd["params"]
+
 
 # ---------------------------------------------------------------------------
 # SubscriptionManager — resubscribe_all

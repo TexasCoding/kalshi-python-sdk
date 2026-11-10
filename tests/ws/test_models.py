@@ -29,6 +29,10 @@ from kalshi.ws.models.communications import (
     QuoteExecutedPayload,
     RfqCreatedPayload,
 )
+from kalshi.ws.models.ebattle import (
+    EbattleScoresMatchlistMessage,
+    EbattleScoresMessage,
+)
 from kalshi.ws.models.fill import FillMessage, FillPayload
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage, MarketPositionsPayload
@@ -377,6 +381,82 @@ class TestCFBenchmarksModels:
         msg = CFBenchmarks5HzIndexListMessage.model_validate(raw)
         assert msg.type == "cfbenchmarks_value_5hz_indexlist"
         assert msg.msg.index_ids == ["BRTI", "ETHUSD_RTI"]
+
+
+# ---------- eBattle scores ----------
+
+
+class TestEbattleScoresModels:
+    def test_parse_scores_envelope_leaves_data_as_str(self) -> None:
+        raw = {
+            "type": "ebattle_scores",
+            "id": 7,
+            "sid": 3,
+            "seq": 12,
+            "sending_ts_ms": 1715793600123,
+            "msg": {
+                "event_id": "KXESOCCER-26",
+                "match_id": "milestone-abc",
+                "received_at": 1715793600000,
+                "data": '{"game":"esoccer","status":"live","home_score":1}',
+            },
+        }
+        msg = EbattleScoresMessage.model_validate(raw)
+        assert msg.type == "ebattle_scores"
+        assert msg.id == 7
+        assert msg.sid == 3
+        assert msg.seq == 12
+        assert msg.msg.event_id == "KXESOCCER-26"
+        assert msg.msg.match_id == "milestone-abc"
+        assert msg.msg.received_at == 1715793600000
+        assert msg.msg.data == '{"game":"esoccer","status":"live","home_score":1}'
+        assert isinstance(msg.msg.data, str)
+
+    def test_parse_matchlist(self) -> None:
+        raw = {
+            "type": "ebattle_scores_matchlist",
+            "id": 2,
+            "sid": 3,
+            "seq": 1,
+            "msg": {"match_ids": ["milestone-abc", "milestone-def"]},
+        }
+        msg = EbattleScoresMatchlistMessage.model_validate(raw)
+        assert msg.type == "ebattle_scores_matchlist"
+        assert msg.id == 2
+        assert msg.sid == 3
+        assert msg.msg.match_ids == ["milestone-abc", "milestone-def"]
+
+    def test_missing_required_field_raises(self) -> None:
+        raw = {
+            "type": "ebattle_scores",
+            "sid": 1,
+            "seq": 1,
+            "msg": {
+                "event_id": "e1",
+                "match_id": "m1",
+                "received_at": 1,
+            },
+        }
+        with pytest.raises(ValidationError):
+            EbattleScoresMessage.model_validate(raw)
+
+    def test_extra_unknown_fields_allowed(self) -> None:
+        raw = {
+            "type": "ebattle_scores",
+            "sid": 1,
+            "seq": 1,
+            "unknown_envelope": True,
+            "msg": {
+                "event_id": "e1",
+                "match_id": "m1",
+                "received_at": 1,
+                "data": "{}",
+                "unknown_inner": 1,
+            },
+        }
+        msg = EbattleScoresMessage.model_validate(raw)
+        assert msg.msg.event_id == "e1"
+        assert msg.msg.data == "{}"
 
 
 # ---------- Trade ----------

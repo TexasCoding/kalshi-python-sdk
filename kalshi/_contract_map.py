@@ -701,6 +701,16 @@ WS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="cfbenchmarks5HzIndexListPayload",
     ),
     ContractEntry(
+        sdk_model="kalshi.ws.models.ebattle.EbattleScoresPayload",
+        spec_schema="ebattleScoresPayload",
+        notes="data is a JSON-encoded string of the full score state; left unparsed.",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.ws.models.ebattle.EbattleScoresMatchlistPayload",
+        spec_schema="ebattleScoresMatchlistPayload",
+        notes="matchlist response: msg.match_ids only (IDs seen in the past two hours).",
+    ),
+    ContractEntry(
         sdk_model="kalshi.ws.models.fill.FillPayload",
         spec_schema="fillPayload",
     ),

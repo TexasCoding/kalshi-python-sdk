@@ -11,6 +11,10 @@ import pytest
 from kalshi.ws.backpressure import MessageQueue
 from kalshi.ws.channels import Subscription
 from kalshi.ws.dispatch import CONTROL_TYPES, MESSAGE_MODELS, MessageDispatcher
+from kalshi.ws.models.ebattle import (
+    EbattleScoresMatchlistMessage,
+    EbattleScoresMessage,
+)
 from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.market_positions import MarketPositionsMessage
 from kalshi.ws.models.user_orders import UserOrdersMessage
@@ -395,8 +399,43 @@ class TestMessageDispatcher:
             "cfbenchmarks_value_indexlist",
             "cfbenchmarks_value_5hz",
             "cfbenchmarks_value_5hz_indexlist",
+            "ebattle_scores",
+            "ebattle_scores_matchlist",
         }
         assert expected == set(MESSAGE_MODELS.keys())
+
+    async def test_dispatch_ebattle_scores(self) -> None:
+        mgr = FakeSubManager()
+        sub = mgr.add(1, "ebattle_scores")
+        dispatcher = MessageDispatcher(sub_mgr=mgr)  # type: ignore[arg-type]
+        await dispatcher.dispatch(
+            {
+                "type": "ebattle_scores",
+                "sid": 1,
+                "seq": 1,
+                "msg": {
+                    "event_id": "e1",
+                    "match_id": "m1",
+                    "received_at": 1,
+                    "data": "{}",
+                },
+            }
+        )
+        msg = await sub.queue.get()
+        assert isinstance(msg, EbattleScoresMessage)
+        assert msg.msg.match_id == "m1"
+
+        await dispatcher.dispatch(
+            {
+                "type": "ebattle_scores_matchlist",
+                "sid": 1,
+                "seq": 2,
+                "msg": {"match_ids": ["m1"]},
+            }
+        )
+        listed = await sub.queue.get()
+        assert isinstance(listed, EbattleScoresMatchlistMessage)
+        assert listed.msg.match_ids == ["m1"]
 
     async def test_control_types(self) -> None:
         assert {"subscribed", "unsubscribed", "ok", "error"} == CONTROL_TYPES

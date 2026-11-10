@@ -1,4 +1,4 @@
-"""WebSocket message models for all 11 Kalshi channels."""
+"""WebSocket message models for Kalshi channels."""
 from kalshi.ws.models.base import (
     BaseMessage,
     ErrorMessage,
@@ -26,6 +26,12 @@ from kalshi.ws.models.communications import (
     QuoteExecutedPayload,
     RfqCreatedPayload,
     RfqDeletedPayload,
+)
+from kalshi.ws.models.ebattle import (
+    EbattleScoresMatchlistMessage,
+    EbattleScoresMatchlistPayload,
+    EbattleScoresMessage,
+    EbattleScoresPayload,
 )
 from kalshi.ws.models.event_fee import (
     EventFeeUpdateMessage,
@@ -72,6 +78,11 @@ __all__ = [
     "CFBenchmarksValuePayload",
     # Communications
     "CommunicationsMessage",
+    # eBattle scores
+    "EbattleScoresMatchlistMessage",
+    "EbattleScoresMatchlistPayload",
+    "EbattleScoresMessage",
+    "EbattleScoresPayload",
     "ErrorMessage",
     "ErrorPayload",
     # Event fee update
