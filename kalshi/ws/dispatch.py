@@ -16,6 +16,7 @@ from kalshi.ws.models.cfbenchmarks import (
     CFBenchmarksValueMessage,
 )
 from kalshi.ws.models.communications import CommunicationsMessage
+from kalshi.ws.models.ebattle import EbattleScoresMatchlistMessage, EbattleScoresMessage
 from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
@@ -49,6 +50,8 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "cfbenchmarks_value_indexlist": CFBenchmarksIndexListMessage,
     "cfbenchmarks_value_5hz": CFBenchmarksValue5HzMessage,
     "cfbenchmarks_value_5hz_indexlist": CFBenchmarks5HzIndexListMessage,
+    "ebattle_scores": EbattleScoresMessage,
+    "ebattle_scores_matchlist": EbattleScoresMatchlistMessage,
 }
 
 # Control message types (not routed to subscription queues)

@@ -11,7 +11,7 @@ markets API.
 - **Funding + cost introspection** — `portfolio.deposits()`,
   `portfolio.withdrawals()`, `portfolio.intra_exchange_transfers()`,
   `account.endpoint_costs()`.
-- **Full WebSocket coverage** — 12 typed channels with sequence-gap detection,
+- **Full WebSocket coverage** — 13 typed channels with sequence-gap detection,
   automatic reconnection (with resubscribe-window frame stashing for high-volume
   channels), backpressure strategies, and an in-memory orderbook builder.
   Async-only — access via `AsyncKalshiClient.ws`.

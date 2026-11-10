@@ -14,6 +14,10 @@ from kalshi.config import KalshiConfig
 from kalshi.errors import KalshiConnectionError, KalshiSubscriptionError
 from kalshi.ws.client import KalshiWebSocket, _WebSocketSession
 from kalshi.ws.connection import ConnectionState
+from kalshi.ws.models.ebattle import (
+    EbattleScoresMatchlistMessage,
+    EbattleScoresMessage,
+)
 from tests._model_fixtures import (
     fill_payload_dict,
     ticker_payload_dict,
@@ -238,6 +242,97 @@ class TestSubscribeCFBenchmarks:
             msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
             assert msg.msg.index_id == "BRTI"
             assert msg.msg.avg_60s_data.value == Decimal("65000.12345678")
+
+
+class TestSubscribeEbattleScores:
+    async def test_subscribe_without_match_ids_sends_only_subscribe(  # type: ignore[no-untyped-def]
+        self, fake_ws, test_auth
+    ) -> None:
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ebattle_scores()
+            assert len(fake_ws.received_commands) == 1
+            cmd = fake_ws.received_commands[0]
+            assert cmd["cmd"] == "subscribe"
+            assert cmd["params"]["channels"] == ["ebattle_scores"]
+            assert "match_ids" not in cmd["params"]
+
+    async def test_subscribe_all_sends_subscribe_then_update(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ebattle_scores(match_ids=["all"])
+            assert [c["cmd"] for c in fake_ws.received_commands] == [
+                "subscribe",
+                "update_subscription",
+            ]
+            sub_cmd = fake_ws.received_commands[0]
+            assert sub_cmd["params"]["channels"] == ["ebattle_scores"]
+            assert "match_ids" not in sub_cmd["params"]
+            upd = fake_ws.received_commands[1]
+            assert upd["params"]["sid"] == 1
+            assert "sids" not in upd["params"]
+            assert isinstance(upd["params"]["sid"], int)
+            assert upd["params"]["action"] == "subscribe_matches"
+            assert upd["params"]["match_ids"] == ["all"]
+
+    async def test_subscribe_specific_ids_passthrough(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            await session.subscribe_ebattle_scores(
+                match_ids=["milestone-abc", "milestone-def"]
+            )
+            upd = fake_ws.received_commands[1]
+            assert upd["cmd"] == "update_subscription"
+            assert upd["params"]["match_ids"] == ["milestone-abc", "milestone-def"]
+            assert upd["params"]["sid"] == 1
+            assert "sids" not in upd["params"]
+
+    async def test_receives_scores_message(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ebattle_scores(match_ids=["all"])
+            await fake_ws.send_to_all(
+                {
+                    "type": "ebattle_scores",
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {
+                        "event_id": "KXESOCCER-26",
+                        "match_id": "milestone-abc",
+                        "received_at": 1715793600000,
+                        "data": '{"home_score": 1}',
+                    },
+                }
+            )
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert isinstance(msg, EbattleScoresMessage)
+            assert msg.msg.event_id == "KXESOCCER-26"
+            assert msg.msg.match_id == "milestone-abc"
+            assert msg.msg.received_at == 1715793600000
+            assert msg.msg.data == '{"home_score": 1}'
+            assert isinstance(msg.msg.data, str)
+
+    async def test_receives_matchlist_message(self, fake_ws, test_auth) -> None:  # type: ignore[no-untyped-def]
+        config = KalshiConfig(ws_base_url=fake_ws.url, timeout=5.0)
+        ws = KalshiWebSocket(auth=test_auth, config=config)
+        async with ws.connect() as session:
+            stream = await session.subscribe_ebattle_scores()
+            await fake_ws.send_to_all(
+                {
+                    "type": "ebattle_scores_matchlist",
+                    "id": 2,
+                    "sid": 1,
+                    "seq": 1,
+                    "msg": {"match_ids": ["milestone-abc"]},
+                }
+            )
+            msg = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+            assert isinstance(msg, EbattleScoresMatchlistMessage)
+            assert msg.msg.match_ids == ["milestone-abc"]
 
 
 class TestSubscribeOrderbookDelta:

@@ -2,6 +2,37 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.11.0 — 2026-11-10
+
+Reconciles nightly spec drift (#575) against the latest AsyncAPI (new
+`ebattle_scores` channel; 15 → 16 spec channels) and OpenAPI description-only
+updates. Additive only. No breaking changes.
+
+### Added
+
+- Typed **`KalshiWebSocket.subscribe_ebattle_scores(...)`** plus
+  `EbattleScoresMessage` / `EbattleScoresPayload` /
+  `EbattleScoresMatchlistMessage` / `EbattleScoresMatchlistPayload`. Live
+  eSoccer/eFootball and eBasketball score updates. Auth required. Public
+  access is temporary and can return to individual approval. Other sports
+  and esports are excluded. A fresh subscription is empty until
+  `subscribe_matches`; pass `match_ids=["all"]` (or specific Kalshi
+  milestone IDs) to seed immediately. `msg.data` is a JSON-encoded string.
+  (Closes #575).
+
+### Docs
+
+- RFQ create: 429 with code `open_rfq_limit_exceeded` at the 100-open-RFQ
+  cap (retrying does not help until RFQs close or expire); 400 with code
+  `rfq_market_not_open` when the market is not open.
+- `balance_breakdown`: balance for every exchange index, summed across all
+  subaccounts, including zeros; omitted when access is restricted to a
+  subaccount.
+- `GET /portfolio/subaccounts/balances` is the per-subaccount view
+  (existing subaccount and exchange-index pairs, including zeros). Pointer
+  from `GET /portfolio/balance`: use the subaccount-balances endpoint for
+  that breakdown; entry counts can differ from `balance_breakdown`.
+
 ## 22.10.0 — 2026-11-09
 
 Reconciles nightly spec drift (#574) against OpenAPI 3.36.0 and the latest

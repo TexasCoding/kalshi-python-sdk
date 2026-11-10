@@ -72,6 +72,10 @@ _CHANNEL_PARAMS: dict[str, frozenset[str]] = {
     # params are not supported on this channel.
     "cfbenchmarks_value": frozenset({"index_ids"}),
     "cfbenchmarks_value_5hz": frozenset({"index_ids"}),
+    # eBattle scores: a fresh subscribe is empty. Match IDs are requested
+    # afterwards via update_subscription (subscribe_matches), never on the
+    # initial subscribe command.
+    "ebattle_scores": frozenset(),
 }
 
 
@@ -370,12 +374,14 @@ class SubscriptionManager:
         self,
         client_id: int,
         # markets: "add_markets"/"delete_markets"; cfbenchmarks_value:
-        # "subscribe_indices"/"unsubscribe_indices"/"indexlist".
+        # "subscribe_indices"/"unsubscribe_indices"/"indexlist";
+        # ebattle_scores: "subscribe_matches"/"unsubscribe_matches"/"matchlist".
         action: str,
         market_tickers: list[str] | None = None,
         market_ids: list[str] | None = None,
         send_initial_snapshot: bool | None = None,
         index_ids: list[str] | None = None,
+        match_ids: list[str] | None = None,
     ) -> None:
         """Mutate an existing subscription.
 
@@ -384,6 +390,11 @@ class SubscriptionManager:
         ``cfbenchmarks_value`` channel
         takes ``subscribe_indices``/``unsubscribe_indices`` with ``index_ids``,
         or ``indexlist`` (no ids) to request the available index list.
+        The ``ebattle_scores`` channel takes ``subscribe_matches``/
+        ``unsubscribe_matches`` with ``match_ids`` (use ``["all"]`` for every
+        match), or ``matchlist`` (no ids) to list IDs seen in the past two
+        hours. eBattle match actions send ``params.sid`` (scalar); markets
+        and CF Benchmarks keep sending ``params.sids`` (array).
         """
         sub = self._subscriptions.get(client_id)
         if not sub or sub.server_sid is None:
@@ -395,18 +406,26 @@ class SubscriptionManager:
             )
 
         msg_id = self._get_msg_id()
-        params: dict[str, Any] = {"sids": [sub.server_sid], "action": action}
-        if market_tickers:
-            params["market_tickers"] = market_tickers
-        if market_ids:
-            params["market_ids"] = market_ids
-        if send_initial_snapshot is not None:
-            params["send_initial_snapshot"] = send_initial_snapshot
-        # Truthy check (like market_tickers/market_ids above): an empty list is
-        # intentionally omitted — subscribe_indices/unsubscribe_indices require
-        # >=1 id (server returns error code 24 "Index IDs required" otherwise).
-        if index_ids:
-            params["index_ids"] = index_ids
+        if action in {"subscribe_matches", "unsubscribe_matches", "matchlist"}:
+            # eBattle schema requires params.sid (singular) and must not
+            # also send sids. Empty match_ids is omitted — the server
+            # returns error 23 "Match IDs required" otherwise.
+            params: dict[str, Any] = {"sid": sub.server_sid, "action": action}
+            if match_ids:
+                params["match_ids"] = match_ids
+        else:
+            params = {"sids": [sub.server_sid], "action": action}
+            if market_tickers:
+                params["market_tickers"] = market_tickers
+            if market_ids:
+                params["market_ids"] = market_ids
+            if send_initial_snapshot is not None:
+                params["send_initial_snapshot"] = send_initial_snapshot
+            # Truthy check (like market_tickers/market_ids above): an empty list is
+            # intentionally omitted — subscribe_indices/unsubscribe_indices require
+            # >=1 id (server returns error code 24 "Index IDs required" otherwise).
+            if index_ids:
+                params["index_ids"] = index_ids
 
         cmd = {"id": msg_id, "cmd": "update_subscription", "params": params}
         await self._connection.send(cmd)

@@ -34,6 +34,7 @@ from kalshi.ws.models.cfbenchmarks import (
     CFBenchmarksValueMessage,
 )
 from kalshi.ws.models.communications import CommunicationsMessage
+from kalshi.ws.models.ebattle import EbattleScoresMatchlistMessage, EbattleScoresMessage
 from kalshi.ws.models.event_fee import EventFeeUpdateMessage
 from kalshi.ws.models.fill import FillMessage
 from kalshi.ws.models.market_lifecycle import MarketLifecycleMessage
@@ -927,6 +928,62 @@ class KalshiWebSocket:
             "cfbenchmarks_value_5hz", params=params,
             overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
+
+    async def subscribe_ebattle_scores(
+        self, *, match_ids: list[str] | None = None, maxsize: int = 1000,
+    ) -> AsyncIterator[EbattleScoresMessage | EbattleScoresMatchlistMessage]:
+        """Subscribe to live eSoccer/eFootball and eBasketball score updates.
+
+        Auth is required. Public access is temporary and can return to
+        individual approval; subscriptions without approval then end. Other
+        sports and esports feeds are excluded.
+
+        A fresh subscription is empty until matches are requested — there is
+        no initial snapshot or replay. Pass ``match_ids=["all"]`` (or specific
+        Kalshi milestone IDs) to send ``subscribe_matches`` immediately after
+        the subscribe ack. Without ``match_ids``, nothing arrives until
+        ``subscribe_matches``.
+
+        The stream yields both ``ebattle_scores`` data messages and
+        ``ebattle_scores_matchlist`` responses, so discriminate with
+        ``isinstance`` (or ``msg.type``) before reading ``msg.msg``.
+        ``msg.data`` is a JSON-encoded string of the full score state —
+        call ``json.loads(msg.msg.data)`` to parse it.
+        """
+        if not self._running or self._sub_mgr is None or self._connection is None:
+            raise RuntimeError(
+                "KalshiWebSocket session is not active. The recv loop tore "
+                "down after a fatal error (e.g. KalshiBackpressureError); "
+                "exit the current `async with ws.connect()` block and start "
+                "a fresh session before subscribing again."
+            )
+        async with self._subscribe_lock:
+            await self._pause_recv_loop()
+            if (
+                not self._running
+                or self._sub_mgr is None
+                or self._connection is None
+            ):
+                raise RuntimeError(
+                    "KalshiWebSocket session is not active. The recv loop "
+                    "tore down after a fatal error (e.g. "
+                    "KalshiBackpressureError); exit the current `async with "
+                    "ws.connect()` block and start a fresh session before "
+                    "subscribing again."
+                )
+            try:
+                sub = await self._sub_mgr.subscribe(
+                    "ebattle_scores",
+                    overflow=OverflowStrategy.DROP_OLDEST,
+                    maxsize=maxsize,
+                )
+                if match_ids:
+                    await self._sub_mgr.update_subscription(
+                        sub.client_id, "subscribe_matches", match_ids=match_ids,
+                    )
+            finally:
+                self._ensure_recv_loop()
+        return sub.queue
 
     # ------------------------------------------------------------------
     # Generic subscribe

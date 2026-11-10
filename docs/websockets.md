@@ -1,7 +1,7 @@
 # WebSocket
 
 The SDK ships an async-only WebSocket client, `KalshiWebSocket`, that covers
-the Kalshi market-data WebSocket surface (12 typed channels plus the generic
+the Kalshi market-data WebSocket surface (13 typed channels plus the generic
 escape hatch). It handles RSA-PSS auth on the upgrade handshake,
 per-subscription sequence-gap detection, automatic reconnection with
 re-subscription, and a configurable backpressure strategy on each per-channel
@@ -30,7 +30,7 @@ SDK's perspective on it.
   on every delta.
 - `on_state_change=` and `on_error=` hooks on the constructor for observability.
 
-## The 12 channels
+## The 13 channels
 
 | SDK method | Wire channel | Message `type` field | Message class | Auth |
 |---|---|---|---|---|
@@ -46,6 +46,7 @@ SDK's perspective on it.
 | `subscribe_communications` | `communications` | `communications` | `CommunicationsMessage` | private |
 | `subscribe_cfbenchmarks_value` | `cfbenchmarks_value` | `cfbenchmarks_value` / `cfbenchmarks_value_indexlist` | `CFBenchmarksValueMessage` / `CFBenchmarksIndexListMessage` | private |
 | `subscribe_cfbenchmarks_value_5hz` | `cfbenchmarks_value_5hz` | `cfbenchmarks_value_5hz` / `cfbenchmarks_value_5hz_indexlist` | `CFBenchmarksValue5HzMessage` / `CFBenchmarks5HzIndexListMessage` | private |
+| `subscribe_ebattle_scores` | `ebattle_scores` | `ebattle_scores` / `ebattle_scores_matchlist` | `EbattleScoresMessage` / `EbattleScoresMatchlistMessage` | private |
 
 The `type` column matters when filtering raw logs — note the singular forms
 for `user_order` and `market_position`. The standalone `multivariate` /
@@ -53,7 +54,9 @@ for `user_order` and `market_position`. The standalone `multivariate` /
 The standalone `batch_communications` channel was removed from AsyncAPI
 (SDK v22.4.0, 16 → 15 spec channels); RFQ-batch notifications now ride
 `communications`. The SDK never shipped a typed
-`subscribe_batch_communications` helper.
+`subscribe_batch_communications` helper. AsyncAPI later added
+`ebattle_scores` (SDK v22.11.0, 15 → 16 spec channels);
+`batch_communications` remains gone.
 
 !!! warning "Migration (v3.1.0): `event_fee_update` rides `market_lifecycle_v2`"
     Since the v3.20.0 spec sync (SDK v3.1.0) the `market_lifecycle_v2` channel
@@ -117,6 +120,42 @@ channel does not accept `market_ticker`/`market_tickers`. The
 `CFBenchmarksValueMessage`, `CFBenchmarksValuePayload`, `CFBenchmarksAvgData`,
 `CFBenchmarksIndexListMessage`, and `CFBenchmarksIndexListPayload` models are
 exported from `kalshi.ws.models`.
+
+## eBattle scores
+
+The auth-required `ebattle_scores` channel (new in v22.11.0) streams live
+eSoccer/eFootball and eBasketball score updates. Other sports and esports
+feeds are excluded. Public access is temporary and can return to individual
+approval.
+
+Subscribe, then request matches. A fresh subscription is empty until
+`subscribe_matches` — there is no initial snapshot or replay. Seed with
+`match_ids=["all"]` (or specific Kalshi milestone IDs) on
+`subscribe_ebattle_scores` to send `subscribe_matches` immediately after the
+subscribe ack. `matchlist` returns IDs seen in the past two hours, not a
+complete fixture catalog.
+
+The stream yields a **union** of `EbattleScoresMessage` (data) and
+`EbattleScoresMatchlistMessage` (the response to a `matchlist` action), so
+discriminate with `isinstance` (or `msg.type`) before reading `msg.msg`.
+`msg.data` is a JSON-encoded string of the full score state — call
+`json.loads(...)` to parse it.
+
+```python
+import json
+from kalshi.ws.models import EbattleScoresMatchlistMessage, EbattleScoresMessage
+
+async for msg in session.subscribe_ebattle_scores(match_ids=["all"]):
+    if isinstance(msg, EbattleScoresMessage):
+        score = json.loads(msg.msg.data)            # full score state
+        print(msg.msg.event_id, msg.msg.match_id, score)
+    else:  # EbattleScoresMatchlistMessage
+        print(msg.msg.match_ids)                    # IDs seen in the past two hours
+```
+
+The `EbattleScoresMessage`, `EbattleScoresPayload`,
+`EbattleScoresMatchlistMessage`, and `EbattleScoresMatchlistPayload` models
+are exported from `kalshi.ws.models`.
 
 ## Connect and subscribe
 
