@@ -4184,6 +4184,104 @@ paths:
           description: Internal Server Error
 
   # Communications endpoints
+  /weather_point_markets:
+    post:
+      operationId: CreateWeatherPointMarket
+      summary: Create Weather Point Market
+      description: |
+        Returns the on-request weather market for a location, time window and
+        threshold, creating it if it doesn't exist yet. The same request always
+        returns the same market, so call this before sending an RFQ for a
+        market you haven't seen. `created` tells you whether the market is new.
+        An existing market is returned until its window ends, even where new
+        markets like it are no longer offered. The exception is when weather
+        markets are switched off (`enabled` is false in the availability
+        response) or the variable has been withdrawn entirely: the request is
+        then refused whether or not the market exists.
+
+        The location snaps to the center of the NOAA MRMS grid cell containing
+        it; the response carries the snapped coordinates. Markets are only
+        offered where `GET /weather_point_markets/availability` says so, and
+        not over open water.
+
+        The window is whole local hours on one calendar day. A new market's
+        window must start at least 15 minutes from now and within 365 days.
+
+        A market is traded through RFQs: pass the returned `market_ticker` to
+        `POST /communications/rfqs`. These markets are in series starting with
+        `KXRFQ` and are left out of unscoped market listings.
+
+        A market created a moment ago may not be readable yet: if
+        `GET /markets/{ticker}` returns 404 right after creation, retry.
+
+        Errors carry the specific reason in `details`:
+
+        | Status | `code` | When |
+        | --- | --- | --- |
+        | 400 | `bad_request` | The body isn't valid JSON, or a field has the wrong type. |
+        | 400 | `missing_parameters` | A required field is missing or empty. |
+        | 400 | `invalid_parameters` | A field is present but unusable, or the request can't define a market: a latitude or hour out of range, an `end_hour` not after `start_hour`, an unknown variable or strike type, thresholds that don't fit the strike type or the variable's range, a location outside NOAA MRMS coverage, an unknown time zone, a window that doesn't start and end on whole UTC hours, has already ended or starts more than 365 days out, or an hour that a clock change skips or repeats. |
+        | 409 | `weather_point_market_unavailable` | The request is valid but the market isn't offered: the variable isn't offered at that location, the location is over open water, or the window starts in less than 15 minutes. |
+        | 429 | `weather_point_market_limit_exceeded` | A creation limit was reached: the daily limit on new weather markets across all users, or 40 markets for one variable, location and window. Retrying at once doesn't help. |
+        | 429 | `too_many_requests` | Your API rate limit. This endpoint is charged against your write budget. |
+      tags:
+        - markets
+      security:
+        - kalshiAccessKey: []
+          kalshiAccessSignature: []
+          kalshiAccessTimestamp: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWeatherPointMarketRequest'
+      responses:
+        '200':
+          description: Market returned or created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateWeatherPointMarketResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /weather_point_markets/availability:
+    get:
+      operationId: GetWeatherPointAvailability
+      summary: Get Weather Point Market Availability
+      description: |
+        Returns which on-request weather markets can be created: whether
+        creation is on, the NOAA MRMS domains a location may lie in, and the
+        domains each offered variable may use. A variable missing from
+        `variables` can't be created. Existing markets are unaffected.
+
+        A location inside an offered domain can still be refused at creation
+        when it is over open water.
+      tags:
+        - markets
+      responses:
+        '200':
+          description: Availability retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetWeatherPointAvailabilityResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /multivariate_event_collections/{collection_ticker}:
     get:
       operationId: GetMultivariateEventCollection
@@ -10860,6 +10958,204 @@ components:
         market:
           $ref: '#/components/schemas/Market'
           description: Market payload of the created market.
+    WeatherPointVariable:
+      type: string
+      enum:
+        - precip_hours
+        - precip_total
+        - max_temp
+        - min_temp
+      description: |
+        What a weather point market measures over its window, and the unit
+        and allowed range of its thresholds:
+        - `precip_hours`: number of whole hours with at least 0.01 inch of
+          precipitation. Whole hours, 0 to the length of the window.
+        - `precip_total`: total precipitation. Hundredths of an inch, 0 to
+          2000 (so 25 is 0.25 inch).
+        - `max_temp`: highest temperature. Whole °F, -80 to 140.
+        - `min_temp`: lowest temperature. Whole °F, -80 to 140.
+
+    CreateWeatherPointMarketRequest:
+      type: object
+      required:
+        - latitude
+        - longitude
+        - variable
+        - strike_type
+        - date
+        - start_hour
+        - end_hour
+        - timezone
+      properties:
+        latitude:
+          type: number
+          format: double
+          description: Latitude of the location in degrees.
+          example: 40.785
+          # A pointer, so that 0 is told apart from a missing field.
+          x-go-type: '*float64'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=-90,lte=90
+        longitude:
+          type: number
+          format: double
+          description: Longitude of the location in degrees.
+          example: -73.965
+          x-go-type: '*float64'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=-180,lte=180
+        variable:
+          $ref: '#/components/schemas/WeatherPointVariable'
+        strike_type:
+          type: string
+          enum:
+            - greater
+            - less
+            - between
+          # Named so the generated constants don't collide with Market's
+          # strike_type values.
+          x-enum-varnames:
+            - WeatherPointStrikeGreater
+            - WeatherPointStrikeLess
+            - WeatherPointStrikeBetween
+          description: |
+            How the measured value is compared to the thresholds:
+            `greater` settles Yes strictly above `floor_value`, `less`
+            strictly below `cap_value`, and `between` from `floor_value` to
+            `cap_value` inclusive.
+          x-oapi-codegen-extra-tags:
+            validate: required,oneof=greater less between
+        floor_value:
+          type: integer
+          format: int32
+          description: Lower threshold, in the variable's unit. Required for `greater` and `between`, and must be left out for `less`. For `precip_hours` with `greater` it must be below the number of hours in the window.
+        cap_value:
+          type: integer
+          format: int32
+          description: Upper threshold, in the variable's unit. Required for `less` and `between`, and must be left out for `greater`. For the precipitation variables with `less` it must be above 0. For `between` it must not be below `floor_value`.
+        date:
+          type: string
+          description: Local calendar date the window starts on, as YYYY-MM-DD in `timezone`.
+          example: '2026-11-11'
+          x-oapi-codegen-extra-tags:
+            validate: required,datetime=2006-01-02
+        start_hour:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 23
+          description: First local hour of the window (0-23).
+          x-go-type: '*int32'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=0,lte=23
+        end_hour:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 24
+          description: Local hour the window ends at, exclusive (1-24, after `start_hour`). 24 is the following midnight, so 0 to 24 is the whole day.
+          x-go-type: '*int32'
+          x-oapi-codegen-extra-tags:
+            validate: required,gte=1,lte=24,gtfield=StartHour
+        timezone:
+          type: string
+          description: IANA time zone of the location, which the date and hours are read in. The window must start and end on whole UTC hours, so zones offset by a fraction of an hour are refused.
+          example: America/New_York
+          x-oapi-codegen-extra-tags:
+            validate: required
+
+    CreateWeatherPointMarketResponse:
+      type: object
+      required:
+        - event_ticker
+        - market_ticker
+        - created
+        - latitude
+        - longitude
+      properties:
+        event_ticker:
+          type: string
+          description: Event ticker of the market.
+        market_ticker:
+          type: string
+          description: Market ticker of the market.
+          example: KXRFQRAINHOURS-40785N73965W-26NOV1105Z-24H-G2
+        created:
+          type: boolean
+          description: False when a market for the same request already existed.
+        latitude:
+          type: number
+          format: double
+          description: Latitude of the market's location, the center of the grid cell containing the request, to three decimal places.
+        longitude:
+          type: number
+          format: double
+          description: Longitude of the market's location, the center of the grid cell containing the request, to three decimal places.
+
+    WeatherPointDomain:
+      type: object
+      required:
+        - name
+        - north
+        - south
+        - west
+        - east
+      properties:
+        name:
+          type: string
+          description: Domain name, such as `conus`.
+        north:
+          type: number
+          format: double
+          description: Northernmost grid cell center, in degrees latitude.
+        south:
+          type: number
+          format: double
+          description: Southernmost grid cell center, in degrees latitude.
+        west:
+          type: number
+          format: double
+          description: Westernmost grid cell center, in degrees longitude.
+        east:
+          type: number
+          format: double
+          description: Easternmost grid cell center, in degrees longitude.
+
+    WeatherPointVariableAvailability:
+      type: object
+      required:
+        - variable
+        - domains
+      properties:
+        variable:
+          $ref: '#/components/schemas/WeatherPointVariable'
+        domains:
+          type: array
+          items:
+            type: string
+          description: Names of the domains new markets of this variable may be created in.
+
+    GetWeatherPointAvailabilityResponse:
+      type: object
+      required:
+        - enabled
+        - domains
+        - variables
+      properties:
+        enabled:
+          type: boolean
+          description: Whether weather point markets can be created at all.
+        domains:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeatherPointDomain'
+          description: The NOAA MRMS domains a location may lie in.
+        variables:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeatherPointVariableAvailability'
+          description: The variables on offer and where. A variable left out can't be created.
+
     # Market Orderbook schemas
     PriceLevelDollarsCountFp:
       type: array

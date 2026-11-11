@@ -2,6 +2,31 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.12.0 — 2026-11-11
+
+Adds on-request weather point markets (#578) against OpenAPI v3.36.0.
+Additive only. No breaking changes.
+
+### Added
+
+- **`markets.create_weather_point_market(...)`** (sync and async) —
+  `POST /weather_point_markets`, 200 `CreateWeatherPointMarketResponse`.
+  Authenticated. Returns the weather market for a location, time window and
+  threshold, creating it if it does not exist. `created` is false when a
+  market for the same request already existed. Required: `latitude`,
+  `longitude`, `variable` (`WeatherPointVariableLiteral`: `"precip_hours"` /
+  `"precip_total"` / `"max_temp"` / `"min_temp"`), `strike_type`
+  (`"greater"` / `"less"` / `"between"`), `date` (YYYY-MM-DD), `start_hour`,
+  `end_hour`, `timezone` (IANA). Optional: `floor_value`, `cap_value`.
+  Accepts `request=CreateWeatherPointMarketRequest(...)` or keyword fields.
+  POST is never retried. (Closes #578).
+- **`markets.weather_point_availability()`** (sync and async) —
+  `GET /weather_point_markets/availability`, 200
+  `GetWeatherPointAvailabilityResponse` (`enabled`, `domains` as
+  `WeatherPointDomain`, `variables` as `WeatherPointVariableAvailability`).
+  Public. Whether creation is on, the NOAA MRMS domains a location may lie
+  in, and which variables are offered in which domains.
+
 ## 22.11.0 — 2026-11-10
 
 Reconciles nightly spec drift (#575) against the latest AsyncAPI (new

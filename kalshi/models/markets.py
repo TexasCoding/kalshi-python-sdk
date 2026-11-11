@@ -310,3 +310,73 @@ class GetMarketOrderbooksResponse(BaseModel):
     orderbooks: NullableList[dict[str, Any]]
 
     model_config = {"extra": "allow"}
+
+
+WeatherPointVariableLiteral = Literal["precip_hours", "precip_total", "max_temp", "min_temp"]
+"""What a weather point market measures. Spec: WeatherPointVariable enum."""
+
+
+class CreateWeatherPointMarketRequest(BaseModel):
+    """Body for POST /weather_point_markets.
+
+    Matches spec ``components.schemas.CreateWeatherPointMarketRequest``.
+    Required: ``latitude``, ``longitude``, ``variable``, ``strike_type``,
+    ``date``, ``start_hour``, ``end_hour``, ``timezone``. Optional:
+    ``floor_value``, ``cap_value``.
+    """
+
+    latitude: float
+    longitude: float
+    variable: WeatherPointVariableLiteral
+    strike_type: Literal["greater", "less", "between"]
+    date: str
+    start_hour: int
+    end_hour: int
+    timezone: str
+    floor_value: int | None = None
+    cap_value: int | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateWeatherPointMarketResponse(BaseModel):
+    """Response from POST /weather_point_markets."""
+
+    event_ticker: str
+    market_ticker: str
+    created: bool
+    latitude: float
+    longitude: float
+
+    model_config = {"extra": "allow"}
+
+
+class WeatherPointDomain(BaseModel):
+    """A NOAA MRMS domain a weather-point location may lie in."""
+
+    name: str
+    north: float
+    south: float
+    west: float
+    east: float
+
+    model_config = {"extra": "allow"}
+
+
+class WeatherPointVariableAvailability(BaseModel):
+    """Where new markets of one weather-point variable may be created."""
+
+    variable: WeatherPointVariableLiteral
+    domains: NullableList[str]
+
+    model_config = {"extra": "allow"}
+
+
+class GetWeatherPointAvailabilityResponse(BaseModel):
+    """Response from GET /weather_point_markets/availability."""
+
+    enabled: bool
+    domains: NullableList[WeatherPointDomain]
+    variables: NullableList[WeatherPointVariableAvailability]
+
+    model_config = {"extra": "allow"}

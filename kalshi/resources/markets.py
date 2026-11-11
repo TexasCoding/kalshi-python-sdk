@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, Literal, overload
 
 from typing_extensions import deprecated
 
@@ -14,19 +14,24 @@ from kalshi.models.historical import Trade
 from kalshi.models.markets import (
     BatchGetMarketCandlesticksResponse,
     Candlestick,
+    CreateWeatherPointMarketRequest,
+    CreateWeatherPointMarketResponse,
     GetMarketCandlesticksResponse,
     GetMarketOrderbooksResponse,
+    GetWeatherPointAvailabilityResponse,
     Market,
     MarketCandlesticks,
     MarketStatusLiteral,
     MveFilterLiteral,
     Orderbook,
     OrderbookLevel,
+    WeatherPointVariableLiteral,
 )
 from kalshi.resources._base import (
     AsyncResource,
     SyncResource,
     _bool_param,
+    _check_request_exclusive,
     _join_tickers,
     _params,
     _seg,
@@ -216,6 +221,64 @@ def _orderbook_from_item(item: dict[str, Any]) -> Orderbook:
         OrderbookLevel(price=pair[0], quantity=pair[1]) for pair in no_raw if len(pair) >= 2
     ]
     return Orderbook(ticker=ticker, yes=yes_levels, no=no_levels)
+
+
+def _build_create_weather_point_market_body(
+    request: CreateWeatherPointMarketRequest | None,
+    *,
+    latitude: float | None,
+    longitude: float | None,
+    variable: WeatherPointVariableLiteral | None,
+    strike_type: Literal["greater", "less", "between"] | None,
+    date: str | None,
+    start_hour: int | None,
+    end_hour: int | None,
+    timezone: str | None,
+    floor_value: int | None,
+    cap_value: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        latitude=latitude,
+        longitude=longitude,
+        variable=variable,
+        strike_type=strike_type,
+        date=date,
+        start_hour=start_hour,
+        end_hour=end_hour,
+        timezone=timezone,
+        floor_value=floor_value,
+        cap_value=cap_value,
+    )
+    if request is None:
+        if (
+            latitude is None
+            or longitude is None
+            or variable is None
+            or strike_type is None
+            or date is None
+            or start_hour is None
+            or end_hour is None
+            or timezone is None
+        ):
+            raise TypeError(
+                "create_weather_point_market() requires `latitude`, `longitude`, "
+                "`variable`, `strike_type`, `date`, `start_hour`, `end_hour`, "
+                "and `timezone` (or pass `request=...`)"
+            )
+        request = CreateWeatherPointMarketRequest(
+            latitude=latitude,
+            longitude=longitude,
+            variable=variable,
+            strike_type=strike_type,
+            date=date,
+            start_hour=start_hour,
+            end_hour=end_hour,
+            timezone=timezone,
+            floor_value=floor_value,
+            cap_value=cap_value,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
 
 class MarketsResource(SyncResource):
@@ -466,6 +529,75 @@ class MarketsResource(SyncResource):
         data = self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
         raw = GetMarketOrderbooksResponse.model_validate(data).orderbooks
         return [_orderbook_from_item(item) for item in raw]
+
+    @overload
+    def create_weather_point_market(
+        self,
+        *,
+        request: CreateWeatherPointMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse: ...
+    @overload
+    def create_weather_point_market(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        variable: WeatherPointVariableLiteral,
+        strike_type: Literal["greater", "less", "between"],
+        date: str,
+        start_hour: int,
+        end_hour: int,
+        timezone: str,
+        floor_value: int | None = ...,
+        cap_value: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse: ...
+    def create_weather_point_market(
+        self,
+        *,
+        request: CreateWeatherPointMarketRequest | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        variable: WeatherPointVariableLiteral | None = None,
+        strike_type: Literal["greater", "less", "between"] | None = None,
+        date: str | None = None,
+        start_hour: int | None = None,
+        end_hour: int | None = None,
+        timezone: str | None = None,
+        floor_value: int | None = None,
+        cap_value: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse:
+        """``POST /weather_point_markets``. Not retried.
+
+        Returns the on-request weather market for a location, time window and
+        threshold, creating it if it does not exist. ``created`` is false when
+        a market for the same request already existed.
+        """
+        self._require_auth()
+        body = _build_create_weather_point_market_body(
+            request,
+            latitude=latitude,
+            longitude=longitude,
+            variable=variable,
+            strike_type=strike_type,
+            date=date,
+            start_hour=start_hour,
+            end_hour=end_hour,
+            timezone=timezone,
+            floor_value=floor_value,
+            cap_value=cap_value,
+        )
+        data = self._post("/weather_point_markets", json=body, extra_headers=extra_headers)
+        return CreateWeatherPointMarketResponse.model_validate(data)
+
+    def weather_point_availability(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetWeatherPointAvailabilityResponse:
+        """``GET /weather_point_markets/availability``. Public."""
+        data = self._get("/weather_point_markets/availability", extra_headers=extra_headers)
+        return GetWeatherPointAvailabilityResponse.model_validate(data)
 
 
 class AsyncMarketsResource(AsyncResource):
@@ -722,3 +854,67 @@ class AsyncMarketsResource(AsyncResource):
         data = await self._get("/markets/orderbooks", params=params, extra_headers=extra_headers)
         raw = GetMarketOrderbooksResponse.model_validate(data).orderbooks
         return [_orderbook_from_item(item) for item in raw]
+
+    @overload
+    async def create_weather_point_market(
+        self,
+        *,
+        request: CreateWeatherPointMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse: ...
+    @overload
+    async def create_weather_point_market(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        variable: WeatherPointVariableLiteral,
+        strike_type: Literal["greater", "less", "between"],
+        date: str,
+        start_hour: int,
+        end_hour: int,
+        timezone: str,
+        floor_value: int | None = ...,
+        cap_value: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse: ...
+    async def create_weather_point_market(
+        self,
+        *,
+        request: CreateWeatherPointMarketRequest | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        variable: WeatherPointVariableLiteral | None = None,
+        strike_type: Literal["greater", "less", "between"] | None = None,
+        date: str | None = None,
+        start_hour: int | None = None,
+        end_hour: int | None = None,
+        timezone: str | None = None,
+        floor_value: int | None = None,
+        cap_value: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateWeatherPointMarketResponse:
+        """Async :meth:`MarketsResource.create_weather_point_market`."""
+        self._require_auth()
+        body = _build_create_weather_point_market_body(
+            request,
+            latitude=latitude,
+            longitude=longitude,
+            variable=variable,
+            strike_type=strike_type,
+            date=date,
+            start_hour=start_hour,
+            end_hour=end_hour,
+            timezone=timezone,
+            floor_value=floor_value,
+            cap_value=cap_value,
+        )
+        data = await self._post("/weather_point_markets", json=body, extra_headers=extra_headers)
+        return CreateWeatherPointMarketResponse.model_validate(data)
+
+    async def weather_point_availability(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetWeatherPointAvailabilityResponse:
+        """Async :meth:`MarketsResource.weather_point_availability`."""
+        data = await self._get("/weather_point_markets/availability", extra_headers=extra_headers)
+        return GetWeatherPointAvailabilityResponse.model_validate(data)

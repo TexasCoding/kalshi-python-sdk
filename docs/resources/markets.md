@@ -17,6 +17,8 @@ recent trades.
 | `bulk_orderbooks(*, tickers)` | `GET /markets/orderbooks` | **yes** |
 | `list_trades(...)` | `GET /markets/trades` | no |
 | `list_all_trades(...)` | walks `list_trades` | no |
+| `create_weather_point_market(...)` | `POST /weather_point_markets` | **yes** |
+| `weather_point_availability()` | `GET /weather_point_markets/availability` | no |
 
 !!! warning "Orderbook endpoints require auth"
     `orderbook()` and `bulk_orderbooks()` raise `AuthRequiredError` on an
@@ -141,6 +143,35 @@ block trade. Omit it to return all trades. Each `Trade` also carries an
     `list_all_trades` instead — see [#349][issue-349].
 
     [issue-349]: https://github.com/TexasCoding/kalshi-python-sdk/issues/349
+
+## Weather point markets
+
+On-request weather markets for a location, time window, and threshold.
+Creation is authenticated; availability is public. POST is never retried.
+
+```python
+avail = client.markets.weather_point_availability()
+print(avail.enabled, [d.name for d in avail.domains])
+
+resp = client.markets.create_weather_point_market(
+    latitude=40.785,
+    longitude=-73.965,
+    variable="precip_hours",       # WeatherPointVariableLiteral
+    strike_type="greater",         # "greater" / "less" / "between"
+    date="2026-11-11",             # YYYY-MM-DD in timezone
+    start_hour=0,
+    end_hour=24,
+    timezone="America/New_York",
+    floor_value=2,
+)
+print(resp.market_ticker, resp.created, resp.latitude, resp.longitude)
+```
+
+`floor_value` is required by the server for `"greater"` and `"between"`;
+`cap_value` for `"less"` and `"between"`. The SDK does not enforce that —
+unset optional fields are omitted from the wire body. The same request
+always returns the same market; `created` is false when it already existed.
+The response coordinates are the snapped NOAA MRMS grid-cell center.
 
 ## Reference
 
