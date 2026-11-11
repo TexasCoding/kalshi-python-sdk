@@ -233,10 +233,8 @@ paths:
         large-trader reporting obligations; this endpoint provides the position
         data needed to meet them. Empty when no positions meet the reporting
         levels and no prior-day reportable positions need exit reporting. See the
-        CFTC's Large Trader Reporting Program
-        (https://www.cftc.gov/IndustryOversight/MarketSurveillance/LargeTraderReportingProgram/index.htm)
-        and reporting levels at 17 CFR 15.03
-        (https://www.ecfr.gov/current/title-17/chapter-I/part-15).
+        [CFTC's Large Trader Reporting Program](https://www.cftc.gov/IndustryOversight/MarketSurveillance/LargeTraderReportingProgram/index.htm)
+        and reporting levels at [17 CFR 15.03](https://www.ecfr.gov/current/title-17/chapter-I/part-15).
 
       parameters:
         - { name: report_date, in: query, required: false, schema: { type: string, format: date }, description: "ET settlement day to report, YYYY-MM-DD. Defaults to the most recent ET settlement day whose settlement window has closed." }
