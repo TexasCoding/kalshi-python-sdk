@@ -121,6 +121,9 @@ from kalshi.models.live_data import (
 from kalshi.models.markets import (
     BidAskDistribution,
     Candlestick,
+    CreateWeatherPointMarketRequest,
+    CreateWeatherPointMarketResponse,
+    GetWeatherPointAvailabilityResponse,
     Market,
     MarketCandlesticks,
     MarketStatusLiteral,
@@ -128,6 +131,9 @@ from kalshi.models.markets import (
     Orderbook,
     OrderbookLevel,
     PriceDistribution,
+    WeatherPointDomain,
+    WeatherPointVariableAvailability,
+    WeatherPointVariableLiteral,
 )
 from kalshi.models.milestones import (
     GetMilestoneResponse,
@@ -295,6 +301,8 @@ __all__ = [
     "CreateRFQResponse",
     "CreateSubaccountRequest",
     "CreateSubaccountResponse",
+    "CreateWeatherPointMarketRequest",
+    "CreateWeatherPointMarketResponse",
     "CreditHistory",
     "CreditStatusLiteral",
     "DailySchedule",
@@ -357,6 +365,7 @@ __all__ = [
     "GetTargetBalanceAllocationResponse",
     "GetWeatherIndexCalibrationsResponse",
     "GetWeatherIndexResponse",
+    "GetWeatherPointAvailabilityResponse",
     "HistoricalCutoff",
     "IncentiveProgram",
     "IncentiveProgramStatusLiteral",
@@ -440,6 +449,9 @@ __all__ = [
     "WeatherIndexCalibrationStation",
     "WeatherIndexPoint",
     "WeatherIndexStationReading",
+    "WeatherPointDomain",
+    "WeatherPointVariableAvailability",
+    "WeatherPointVariableLiteral",
     "WeeklySchedule",
     "Withdrawal",
 ]

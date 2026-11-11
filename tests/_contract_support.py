@@ -151,6 +151,17 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/markets/orderbooks",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.create_weather_point_market",
+        http_method="POST",
+        path_template="/weather_point_markets",
+        request_body_schema="#/components/schemas/CreateWeatherPointMarketRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.weather_point_availability",
+        http_method="GET",
+        path_template="/weather_point_markets/availability",
+    ),
     # ── account ─────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.account.AccountResource.limits",

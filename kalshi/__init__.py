@@ -81,6 +81,8 @@ from kalshi.models import (
     CreateRFQResponse,
     CreateSubaccountRequest,
     CreateSubaccountResponse,
+    CreateWeatherPointMarketRequest,
+    CreateWeatherPointMarketResponse,
     CreditHistory,
     CreditStatusLiteral,
     DailySchedule,
@@ -143,6 +145,7 @@ from kalshi.models import (
     GetTargetBalanceAllocationResponse,
     GetWeatherIndexCalibrationsResponse,
     GetWeatherIndexResponse,
+    GetWeatherPointAvailabilityResponse,
     HistoricalCutoff,
     IncentiveProgram,
     IncentiveProgramStatusLiteral,
@@ -226,6 +229,9 @@ from kalshi.models import (
     WeatherIndexCalibrationStation,
     WeatherIndexPoint,
     WeatherIndexStationReading,
+    WeatherPointDomain,
+    WeatherPointVariableAvailability,
+    WeatherPointVariableLiteral,
     WeeklySchedule,
     Withdrawal,
 )
@@ -318,6 +324,8 @@ __all__ = [
     "CreateRFQResponse",
     "CreateSubaccountRequest",
     "CreateSubaccountResponse",
+    "CreateWeatherPointMarketRequest",
+    "CreateWeatherPointMarketResponse",
     "CreditHistory",
     "CreditStatusLiteral",
     "DailySchedule",
@@ -384,6 +392,7 @@ __all__ = [
     "GetTargetBalanceAllocationResponse",
     "GetWeatherIndexCalibrationsResponse",
     "GetWeatherIndexResponse",
+    "GetWeatherPointAvailabilityResponse",
     "HistoricalCutoff",
     "IncentiveProgram",
     "IncentiveProgramStatusLiteral",
@@ -499,8 +508,11 @@ __all__ = [
     "WeatherIndexCalibrationStation",
     "WeatherIndexPoint",
     "WeatherIndexStationReading",
+    "WeatherPointDomain",
+    "WeatherPointVariableAvailability",
+    "WeatherPointVariableLiteral",
     "WeeklySchedule",
     "Withdrawal",
 ]
 
-__version__ = "22.11.0"
+__version__ = "22.12.0"

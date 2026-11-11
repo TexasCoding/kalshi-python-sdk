@@ -1457,6 +1457,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/CreateMarketInMultivariateEventCollectionRequest": (
         "kalshi.models.multivariate.CreateMarketInMultivariateEventCollectionRequest"
     ),
+    "#/components/schemas/CreateWeatherPointMarketRequest": (
+        "kalshi.models.markets.CreateWeatherPointMarketRequest"
+    ),
     "#/components/schemas/CreateOrderGroupRequest": (
         "kalshi.models.order_groups.CreateOrderGroupRequest"
     ),
