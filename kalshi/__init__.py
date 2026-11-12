@@ -124,6 +124,7 @@ from kalshi.models import (
     GetFiltersBySportsResponse,
     GetGameStatsResponse,
     GetIncentiveProgramsResponse,
+    GetIncentiveSchedulesResponse,
     GetLiveDataResponse,
     GetLiveDatasResponse,
     GetMilestoneResponse,
@@ -150,6 +151,7 @@ from kalshi.models import (
     IncentiveProgram,
     IncentiveProgramStatusLiteral,
     IncentiveProgramTypeLiteral,
+    IncentiveSchedule,
     IndexedBalance,
     IntraExchangeInstanceTransfer,
     IntraExchangeInstanceTransferStatusLiteral,
@@ -371,6 +373,7 @@ __all__ = [
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",
+    "GetIncentiveSchedulesResponse",
     "GetLiveDataResponse",
     "GetLiveDatasResponse",
     "GetMilestoneResponse",
@@ -397,6 +400,7 @@ __all__ = [
     "IncentiveProgram",
     "IncentiveProgramStatusLiteral",
     "IncentiveProgramTypeLiteral",
+    "IncentiveSchedule",
     "IndexedBalance",
     "IntraExchangeInstanceTransfer",
     "IntraExchangeInstanceTransferStatusLiteral",
@@ -515,4 +519,4 @@ __all__ = [
     "Withdrawal",
 ]
 
-__version__ = "22.12.0"
+__version__ = "22.13.0"

@@ -1024,6 +1024,11 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/incentive_programs",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.incentive_programs.IncentiveProgramsResource.list_schedules",
+        http_method="GET",
+        path_template="/incentive_schedules",
+    ),
     # ── search ──────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.search.SearchResource.tags_by_categories",
@@ -1470,6 +1475,33 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "spec 3.36.0 marks netting_enabled required; the SDK keeps it "
             "optional (None when absent) so payloads and fixtures predating the "
             "field still validate and the change ships as a minor release (22.8.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.models.incentive_programs.IncentiveSchedule", "event_ticker"): Exclusion(
+        reason=(
+            "spec marks event_ticker required (empty when the schedule covers "
+            "the whole series); the server may omit empties. SDK keeps it "
+            "optional (None when absent) so those payloads parse (22.13.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    ("kalshi.models.incentive_programs.IncentiveSchedule", "event_title"): Exclusion(
+        reason=(
+            "spec marks event_title required (empty when the schedule covers "
+            "the whole series); the server may omit empties. SDK keeps it "
+            "optional (None when absent) so those payloads parse (22.13.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.models.incentive_programs.GetIncentiveSchedulesResponse",
+        "schedules",
+    ): Exclusion(
+        reason=(
+            "spec marks schedules required; SDK defaults to [] so a missing "
+            "or null array parses as an empty list, matching "
+            "GetIncentiveProgramsResponse (22.13.0)."
         ),
         kind="server_omits_despite_required",
     ),

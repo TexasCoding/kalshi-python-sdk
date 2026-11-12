@@ -757,8 +757,8 @@ components:
 
     lastUpdateReason:
       type: string
-      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel"]
-      description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
+      enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel", "SettlementBoundsCancel"]
+      description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement, and SettlementBoundsCancel means the overnight settlement band canceled a resting order priced outside it. The field is omitted when no reason applies.
 
     tickerPrice:
       type: object

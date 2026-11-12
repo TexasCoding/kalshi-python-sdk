@@ -82,6 +82,14 @@ class TestBalance:
         assert "compute_available_balance" not in route.calls.last.request.url.params
 
     @respx.mock
+    def test_omitted_settled_funds_parses_as_none(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/balance").mock(
+            return_value=httpx.Response(200, json={"subaccount_balances": []})
+        )
+        resp = perps_client.margin.balance()
+        assert resp.settled_funds is None
+
+    @respx.mock
     def test_null_subaccount_balances_tolerated(self, perps_client: PerpsClient) -> None:
         # #407: NullableList coerces a server-returned null array to [].
         respx.get(f"{BASE}/margin/balance").mock(

@@ -55,7 +55,8 @@ class GetMarginBalanceResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     subaccount_balances: NullableList[MarginSubaccountBalance]
-    settled_funds: DollarDecimal
+    # Omitted for subaccount-restricted API keys.
+    settled_funds: DollarDecimal | None = None
 
 
 class MarginRiskPosition(BaseModel):

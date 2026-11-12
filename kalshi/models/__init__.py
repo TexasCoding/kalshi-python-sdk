@@ -98,9 +98,11 @@ from kalshi.models.fcm import (
 from kalshi.models.historical import HistoricalCutoff, MveHistoricalFilterLiteral, Trade
 from kalshi.models.incentive_programs import (
     GetIncentiveProgramsResponse,
+    GetIncentiveSchedulesResponse,
     IncentiveProgram,
     IncentiveProgramStatusLiteral,
     IncentiveProgramTypeLiteral,
+    IncentiveSchedule,
 )
 from kalshi.models.live_data import (
     EventLiveData,
@@ -344,6 +346,7 @@ __all__ = [
     "GetFiltersBySportsResponse",
     "GetGameStatsResponse",
     "GetIncentiveProgramsResponse",
+    "GetIncentiveSchedulesResponse",
     "GetLiveDataResponse",
     "GetLiveDatasResponse",
     "GetMilestoneResponse",
@@ -370,6 +373,7 @@ __all__ = [
     "IncentiveProgram",
     "IncentiveProgramStatusLiteral",
     "IncentiveProgramTypeLiteral",
+    "IncentiveSchedule",
     "IndexedBalance",
     "IntraExchangeInstanceTransfer",
     "IntraExchangeInstanceTransferStatusLiteral",

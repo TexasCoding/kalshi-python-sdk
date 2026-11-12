@@ -7,13 +7,16 @@ helpers accept a ``cursor_key`` kwarg to handle the difference.
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Iterator
 
 from kalshi.models.common import Page
 from kalshi.models.incentive_programs import (
+    GetIncentiveSchedulesResponse,
     IncentiveProgram,
     IncentiveProgramStatusLiteral,
     IncentiveProgramTypeLiteral,
+    IncentiveSchedule,
 )
 from kalshi.resources._base import (
     AsyncResource,
@@ -37,6 +40,8 @@ class IncentiveProgramsResource(SyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         incentive_description: str | None = None,
+        series_ticker: str | None = None,
+        event_ticker: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -46,6 +51,8 @@ class IncentiveProgramsResource(SyncResource):
             status=status,
             type=incentive_type,
             incentive_description=incentive_description,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
             limit=limit,
             cursor=cursor,
         )
@@ -64,6 +71,8 @@ class IncentiveProgramsResource(SyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         incentive_description: str | None = None,
+        series_ticker: str | None = None,
+        event_ticker: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -74,6 +83,8 @@ class IncentiveProgramsResource(SyncResource):
             status=status,
             type=incentive_type,
             incentive_description=incentive_description,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
             limit=limit,
         )
         return self._list_all(
@@ -86,6 +97,13 @@ class IncentiveProgramsResource(SyncResource):
             extra_headers=extra_headers,
         )
 
+    def list_schedules(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> builtins.list[IncentiveSchedule]:
+        """``GET /incentive_schedules``. Public. No pagination."""
+        data = self._get("/incentive_schedules", extra_headers=extra_headers)
+        return GetIncentiveSchedulesResponse.model_validate(data).schedules
+
 
 class AsyncIncentiveProgramsResource(AsyncResource):
     """Async incentive programs API."""
@@ -96,6 +114,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         incentive_description: str | None = None,
+        series_ticker: str | None = None,
+        event_ticker: str | None = None,
         limit: int | None = None,
         cursor: str | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -105,6 +125,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             status=status,
             type=incentive_type,
             incentive_description=incentive_description,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
             limit=limit,
             cursor=cursor,
         )
@@ -123,6 +145,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
         status: IncentiveProgramStatusLiteral | None = None,
         incentive_type: IncentiveProgramTypeLiteral | None = None,
         incentive_description: str | None = None,
+        series_ticker: str | None = None,
+        event_ticker: str | None = None,
         limit: int | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
@@ -134,6 +158,8 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             status=status,
             type=incentive_type,
             incentive_description=incentive_description,
+            series_ticker=series_ticker,
+            event_ticker=event_ticker,
             limit=limit,
         )
         return self._list_all(
@@ -145,3 +171,10 @@ class AsyncIncentiveProgramsResource(AsyncResource):
             cursor_key="next_cursor",
             extra_headers=extra_headers,
         )
+
+    async def list_schedules(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> builtins.list[IncentiveSchedule]:
+        """Async :meth:`IncentiveProgramsResource.list_schedules`."""
+        data = await self._get("/incentive_schedules", extra_headers=extra_headers)
+        return GetIncentiveSchedulesResponse.model_validate(data).schedules

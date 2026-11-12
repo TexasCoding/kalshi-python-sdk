@@ -27,6 +27,8 @@ class IncentiveProgram(BaseModel):
     id: str
     market_id: str
     market_ticker: str
+    series_ticker: str | None = None
+    event_ticker: str | None = None
     incentive_type: str  # "liquidity" | "volume"
     start_date: AwareDatetime
     end_date: AwareDatetime
@@ -52,5 +54,39 @@ class GetIncentiveProgramsResponse(BaseModel):
 
     incentive_programs: NullableList[IncentiveProgram] = []
     next_cursor: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class IncentiveSchedule(BaseModel):
+    """Recurring incentive terms for a series, or for one event of a series."""
+
+    series_ticker: str
+    series_title: str
+    series_category: str
+    # Spec-required but empty when the schedule covers the whole series;
+    # the server may omit empties.
+    event_ticker: str | None = None
+    event_title: str | None = None
+    incentive_type: str  # "liquidity" | "volume"
+    source: str
+    # Spec: integer (int64), centi-cents. Same convention as period_reward.
+    reward: int
+    window_days: int
+    discount_factor_bps: int | None = None
+    target_size_fp: FixedPointCount | None = None
+    ends: AwareDatetime | None = None
+    description: str
+    all_markets: bool
+    posted_ts: AwareDatetime
+    updated_ts: AwareDatetime
+
+    model_config = {"extra": "allow"}
+
+
+class GetIncentiveSchedulesResponse(BaseModel):
+    """Response for GET /incentive_schedules."""
+
+    schedules: NullableList[IncentiveSchedule] = []
 
     model_config = {"extra": "allow"}
