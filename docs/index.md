@@ -3,7 +3,7 @@
 A professional, spec-first Python SDK for the [Kalshi](https://kalshi.com) prediction
 markets API.
 
-- **Full REST coverage** — 136 mapped of 137 operations across 19 resources
+- **Full REST coverage** — 137 mapped of 138 operations across 19 resources
   (OpenAPI v3.36.0), every kwarg drift-tested against the spec.
 - **V2 event-market orders** — new `create_v2` / `amend_v2` / `decrease_v2` /
   `cancel_v2` / `cancel_all_v2` family on `/portfolio/events/orders/*`. Legacy `/portfolio/orders`

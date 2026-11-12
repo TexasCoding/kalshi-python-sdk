@@ -2,6 +2,33 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.13.0 — 2026-11-12
+
+Reconciles spec drift (#580): incentive schedules, incentive-program
+series/event filters, optional perps `settled_funds`, and new perps WS
+`lastUpdateReason` values. Additive only. No breaking changes.
+
+### Added
+
+- **`incentive_programs.list_schedules()`** (sync and async) —
+  `GET /incentive_schedules`, 200 list of `IncentiveSchedule`. Public.
+  Recurring incentive terms for a series, or for one event of a series.
+  No pagination. `event_ticker` / `event_title` are empty (or `None`) when
+  the schedule covers the whole series; `ends` is `None` when it has no end.
+  `reward` is int64 centi-cents (same convention as `period_reward`).
+- Optional **`series_ticker`** / **`event_ticker`** query filters on
+  `incentive_programs.list` / `list_all`, and matching optional fields on
+  `IncentiveProgram`. A perpetual's incentives belong to no event.
+  (Closes #580).
+
+### Changed
+
+- Perps **`GetMarginBalanceResponse.settled_funds`** is optional
+  (`DollarDecimal | None`). Omitted for subaccount-restricted API keys.
+- Perps WS **`PerpsLastUpdateReason`** gains `"CloseCancel"`,
+  `"HaltCancel"`, and `"SettlementBoundsCancel"` (spec order). REST
+  `LastUpdateReason` is unchanged.
+
 ## 22.12.0 — 2026-11-11
 
 Adds on-request weather point markets (#578) against OpenAPI v3.36.0.

@@ -430,6 +430,15 @@ CONTRACT_MAP: list[ContractEntry] = [
         notes="period_reward is int centi-cents; target_size_fp DollarDecimal",
     ),
     ContractEntry(
+        sdk_model="kalshi.models.incentive_programs.IncentiveSchedule",
+        spec_schema="IncentiveSchedule",
+        notes="reward is int centi-cents; event_ticker/event_title optional (server omits empties)",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.incentive_programs.GetIncentiveSchedulesResponse",
+        spec_schema="GetIncentiveSchedulesResponse",
+    ),
+    ContractEntry(
         sdk_model="kalshi.models.portfolio.TotalRestingOrderValue",
         spec_schema="GetPortfolioRestingOrderTotalValueResponse",
         notes="total_resting_order_value in cents + IndexedBalance breakdown",

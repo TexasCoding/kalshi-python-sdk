@@ -11,6 +11,7 @@ Public — no auth required.
 | Method | Endpoint |
 |---|---|
 | `list(...)` / `list_all(...)` | `GET /incentive_programs` |
+| `list_schedules()` | `GET /incentive_schedules` |
 
 ## List active programs
 
@@ -19,6 +20,8 @@ page = client.incentive_programs.list(
     status="active",                     # IncentiveProgramStatusLiteral
     incentive_type="liquidity",          # IncentiveProgramTypeLiteral — spec "type"
     incentive_description="Q2 maker",    # new in v2.1.0 — exact-match filter
+    series_ticker="KXHIGHNY",            # optional — one series' incentives
+    event_ticker="KXHIGHNY-24",          # optional — one event; omit for a perpetual
     limit=100,
 )
 for p in page:
@@ -27,6 +30,8 @@ for p in page:
 
 `incentive_description` (added in v2.1.0) is an exact-string filter on the
 program's description — useful when multiple programs share a status/type.
+`series_ticker` and `event_ticker` (added in v22.13.0) restrict the list to
+one series or one event. A perpetual's incentives belong to no event.
 
 Use `list_all` to walk every program:
 
@@ -50,6 +55,23 @@ for p in client.incentive_programs.list_all(status="active"):
 - `IncentiveProgramStatusLiteral`: `"all"`, `"active"`, `"upcoming"`,
   `"closed"`, and additional server-side categories.
 - `IncentiveProgramTypeLiteral`: `"all"`, `"liquidity"`, `"volume"`.
+
+## Incentive schedules
+
+Recurring terms for what each market of a series — or of one event — can
+expect to earn window after window. Public, no pagination. A schedule is
+anticipated unless `all_markets` is true.
+
+```python
+schedules = client.incentive_programs.list_schedules()
+for s in schedules:
+    print(s.series_ticker, s.incentive_type, s.reward, s.window_days)
+```
+
+`event_ticker` / `event_title` are empty (or `None` if the server omits
+them) when the schedule covers the whole series. `ends` is `None` when the schedule has
+no end. `reward` is centi-cents, the same convention as
+`IncentiveProgram.period_reward`.
 
 ## Reference
 

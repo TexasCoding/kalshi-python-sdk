@@ -4193,11 +4193,10 @@ paths:
         threshold, creating it if it doesn't exist yet. The same request always
         returns the same market, so call this before sending an RFQ for a
         market you haven't seen. `created` tells you whether the market is new.
-        An existing market is returned until its window ends, even where new
-        markets like it are no longer offered. The exception is when weather
-        markets are switched off (`enabled` is false in the availability
-        response) or the variable has been withdrawn entirely: the request is
-        then refused whether or not the market exists.
+        An existing market is normally returned until its window ends, even
+        where new markets like it are no longer offered. If weather markets
+        are switched off entirely, the request can be refused whether or not
+        the market exists.
 
         The location snaps to the center of the NOAA MRMS grid cell containing
         it; the response carries the snapped coordinates. Markets are only
@@ -4425,6 +4424,18 @@ paths:
           description: Filter by exact incentive description.
           schema:
             type: string
+        - name: series_ticker
+          in: query
+          required: false
+          description: Filter to one series' incentives.
+          schema:
+            type: string
+        - name: event_ticker
+          in: query
+          required: false
+          description: Filter to one event's incentives. A perpetual's incentives belong to no event.
+          schema:
+            type: string
         - name: limit
           in: query
           required: false
@@ -4458,6 +4469,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /incentive_schedules:
+    get:
+      operationId: GetIncentiveSchedules
+      summary: Get Incentive Schedules
+      description: ' Recurring incentives: what each market of a series, or of one event, can expect to earn window after window. A schedule is anticipated, not promised, unless `all_markets` is true. The incentives themselves are listed by Get Incentives.'
+      tags:
+        - incentive-programs
+      responses:
+        '200':
+          description: Incentive schedules retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetIncentiveSchedulesResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /fcm/fills:
     get:
@@ -8171,6 +8199,12 @@ components:
         market_ticker:
           type: string
           description: The ticker symbol of the market associated with this incentive program
+        series_ticker:
+          type: string
+          description: The series of the market associated with this incentive program
+        event_ticker:
+          type: string
+          description: The event of the market associated with this incentive program; empty for a perpetual
         incentive_type:
           type: string
           enum: ['liquidity', 'volume', 'margin_maker_volume', 'margin_taker_volume']
@@ -8207,6 +8241,93 @@ components:
           format: int64
           nullable: true
           description: Maximum reward per account in centi-cents (optional)
+
+    GetIncentiveSchedulesResponse:
+      type: object
+      required:
+        - schedules
+      properties:
+        schedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncentiveSchedule'
+
+    IncentiveSchedule:
+      type: object
+      required:
+        - series_ticker
+        - series_title
+        - series_category
+        - event_ticker
+        - event_title
+        - incentive_type
+        - source
+        - reward
+        - window_days
+        - description
+        - all_markets
+        - posted_ts
+        - updated_ts
+      properties:
+        series_ticker:
+          type: string
+          description: The series the schedule covers
+        series_title:
+          type: string
+          description: The series' title
+        series_category:
+          type: string
+          description: The series' category
+        event_ticker:
+          type: string
+          description: The one event of the series the schedule covers; empty when it covers the whole series
+        event_title:
+          type: string
+          description: The event's title; empty when the schedule covers the whole series
+        incentive_type:
+          type: string
+          enum: ['liquidity', 'volume']
+          description: Type of the incentives the schedule creates
+        source:
+          type: string
+          description: The job that publishes the schedule. With the series, event and type, it identifies the schedule.
+        reward:
+          type: integer
+          format: int64
+          description: What each market earns per window, in centi-cents, as period_reward is on an incentive program
+        window_days:
+          type: integer
+          format: int32
+          description: Days per window; 0 rewards each market once, up to its close
+        discount_factor_bps:
+          type: integer
+          format: int32
+          nullable: true
+          description: Discount factor in basis points (liquidity only)
+        target_size_fp:
+          $ref: '#/components/schemas/FixedPointCount'
+          nullable: true
+          description: String representation of the target size (liquidity only)
+        ends:
+          type: string
+          format: date-time
+          nullable: true
+          x-omitempty: false
+          description: When the schedule stops (exclusive); null when it has no end
+        description:
+          type: string
+          description: Plain text description of the schedule
+        all_markets:
+          type: boolean
+          description: A promise that every market the schedule covers, including markets listed later, gets these terms window after window, from posted_ts until ends. When false the schedule is anticipated, not promised.
+        posted_ts:
+          type: string
+          format: date-time
+          description: When the schedule was first published on its current terms
+        updated_ts:
+          type: string
+          format: date-time
+          description: When the schedule was last published
 
     GetTradesResponse:
       type: object

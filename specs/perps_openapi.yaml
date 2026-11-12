@@ -1180,6 +1180,7 @@ paths:
       summary: Get Balance
       description: |
         Endpoint for retrieving the balance breakdown for the authenticated direct margin user. Returns cash balance (aggregate and per-subaccount), position value, total balance, and maintenance margin requirement.
+        Subaccount-restricted API keys read only their locked subaccount's balance, and the response omits the account-wide `settled_funds` total.
         Resource-bound MCP OAuth tokens may read the owner's balance with read::mcp_portfolio.
       x-mint:
         content: |
@@ -1333,7 +1334,12 @@ paths:
             x-go-type-skip-optional-pointer: true
             x-oapi-codegen-extra-tags:
               validate: required
-        - $ref: '#/components/parameters/SubaccountQuery'
+        - name: subaccount
+          in: query
+          required: false
+          description: Subaccount number (0 for primary, 1-63 for subaccounts). If omitted, defaults to all subaccounts. Subaccount-restricted API keys must omit this or pass their locked subaccount, and read only that subaccount's funding payments.
+          schema:
+            type: integer
       responses:
         '200':
           description: Funding history retrieved successfully
@@ -3887,16 +3893,15 @@ components:
       type: object
       required:
         - subaccount_balances
-        - settled_funds
       properties:
         subaccount_balances:
           type: array
           items:
             $ref: '#/components/schemas/MarginSubaccountBalance'
-          description: Per-subaccount balance breakdown
+          description: Per-subaccount balance breakdown. Subaccount-restricted API keys receive only their locked subaccount.
         settled_funds:
           $ref: '#/components/schemas/FixedPointDollars'
-          description: Total settled funds across all subaccounts in fixed-point dollars
+          description: Total settled funds across all subaccounts in fixed-point dollars. Omitted when access is restricted to a subaccount.
 
     MarginRiskPosition:
       type: object
