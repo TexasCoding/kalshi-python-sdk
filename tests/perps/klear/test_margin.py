@@ -1454,8 +1454,52 @@ class TestEstimateMaintenanceMargin:
         body = json.loads(route.calls[0].request.content)
         assert body["asset_class"] == "Crypto"
         assert body["positions"][0]["quantity"] == 2
+        assert "quantity_fp" not in body["positions"][0]
         assert body["positions"][0]["price"] == "6.8000"
         auth_klear_client.close()
+
+    @respx.mock
+    def test_quantity_fp_only(self, auth_klear_client: KlearClient) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        route = respx.post(f"{BASE}/margin/estimate_maintenance_margin").mock(
+            return_value=httpx.Response(200, json={"maintenance_margin_fp": "1234.5600"})
+        )
+        pos = EstimatePortfolioMaintenanceMarginPosition(
+            market_ticker="BTC-PERP",
+            quantity_fp=Decimal("0.25"),
+            price=Decimal("6.8000"),
+        )
+        auth_klear_client.margin.estimate_maintenance_margin(
+            asset_class="Crypto", positions=[pos]
+        )
+        body = json.loads(route.calls[0].request.content)
+        assert "quantity" not in body["positions"][0]
+        assert body["positions"][0]["quantity_fp"] == "0.25"
+        assert body["positions"][0]["price"] == "6.8000"
+        auth_klear_client.close()
+
+    def test_neither_quantity_raises(self) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        with pytest.raises(ValidationError):
+            EstimatePortfolioMaintenanceMarginPosition(
+                market_ticker="BTC-PERP", price=Decimal("1.00")
+            )
+
+    def test_rejects_zero_quantity_fp(self) -> None:
+        from kalshi.perps.klear.models.margin import (
+            EstimatePortfolioMaintenanceMarginPosition,
+        )
+
+        with pytest.raises(ValidationError):
+            EstimatePortfolioMaintenanceMarginPosition(
+                market_ticker="BTC-PERP", quantity_fp="0", price=Decimal("1.00")
+            )
 
     def test_rejects_zero_quantity(self) -> None:
         from kalshi.perps.klear.models.margin import (

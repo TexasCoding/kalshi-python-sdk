@@ -381,9 +381,10 @@ in the v11.0.0 reconcile.)
 or `"Energy"`. `klear.margin.settlement_prices(asset_class="Crypto", settlement_time=...)`
 returns a ticker → centicents map at a settlement cycle.
 `klear.margin.estimate_maintenance_margin(asset_class="Crypto", positions=[...])`
-margins a hypothetical portfolio. Optional `date=` (YYYY-MM-DD) and
-`clearing_type=` (`"FCM"` / `"SelfClearing"`) select the matrix day and
-clearing arrangement.
+margins a hypothetical portfolio. Each position takes `market_ticker` and a
+size — `quantity` (whole contracts) or `quantity_fp` (fixed-point string such
+as `"0.25"`). Optional `date=` (YYYY-MM-DD) and `clearing_type=` (`"FCM"` /
+`"SelfClearing"`) select the matrix day and clearing arrangement.
 `klear.margin.estimate_maintenance_margin_metadata(asset_class="Crypto", date=...)`
 returns the matrices, liquidation configs, and subgroups that feed that
 estimate.

@@ -14,8 +14,13 @@ from kalshi.models.historical import Trade
 from kalshi.models.markets import (
     BatchGetMarketCandlesticksResponse,
     Candlestick,
+    ConcertCoverLiteral,
+    CreateConcertCancellationMarketRequest,
+    CreateConcertCancellationMarketResponse,
     CreateWeatherPointMarketRequest,
     CreateWeatherPointMarketResponse,
+    GetConcertCancellationAvailabilityResponse,
+    GetConcertsResponse,
     GetMarketCandlesticksResponse,
     GetMarketOrderbooksResponse,
     GetWeatherPointAvailabilityResponse,
@@ -25,6 +30,7 @@ from kalshi.models.markets import (
     MveFilterLiteral,
     Orderbook,
     OrderbookLevel,
+    SearchConcertsResponse,
     WeatherPointVariableLiteral,
 )
 from kalshi.resources._base import (
@@ -277,6 +283,33 @@ def _build_create_weather_point_market_body(
             timezone=timezone,
             floor_value=floor_value,
             cap_value=cap_value,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_create_concert_cancellation_market_body(
+    request: CreateConcertCancellationMarketRequest | None,
+    *,
+    jambase_event_id: str | None,
+    scheduled_date: str | None,
+    cover: ConcertCoverLiteral | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        jambase_event_id=jambase_event_id,
+        scheduled_date=scheduled_date,
+        cover=cover,
+    )
+    if request is None:
+        if jambase_event_id is None or scheduled_date is None or cover is None:
+            raise TypeError(
+                "create_concert_cancellation_market() requires `jambase_event_id`, "
+                "`scheduled_date`, and `cover` (or pass `request=...`)"
+            )
+        request = CreateConcertCancellationMarketRequest(
+            jambase_event_id=jambase_event_id,
+            scheduled_date=scheduled_date,
+            cover=cover,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -599,6 +632,100 @@ class MarketsResource(SyncResource):
         data = self._get("/weather_point_markets/availability", extra_headers=extra_headers)
         return GetWeatherPointAvailabilityResponse.model_validate(data)
 
+    @overload
+    def create_concert_cancellation_market(
+        self,
+        *,
+        request: CreateConcertCancellationMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse: ...
+    @overload
+    def create_concert_cancellation_market(
+        self,
+        *,
+        jambase_event_id: str,
+        scheduled_date: str,
+        cover: ConcertCoverLiteral,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse: ...
+    def create_concert_cancellation_market(
+        self,
+        *,
+        request: CreateConcertCancellationMarketRequest | None = None,
+        jambase_event_id: str | None = None,
+        scheduled_date: str | None = None,
+        cover: ConcertCoverLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse:
+        """``POST /concert_cancellation_markets``. Not retried.
+
+        Returns the on-request concert cancellation market for a show, date and
+        cover, creating it if it does not exist. ``created`` is false when a
+        market for the same request already existed.
+        """
+        self._require_auth()
+        body = _build_create_concert_cancellation_market_body(
+            request,
+            jambase_event_id=jambase_event_id,
+            scheduled_date=scheduled_date,
+            cover=cover,
+        )
+        data = self._post("/concert_cancellation_markets", json=body, extra_headers=extra_headers)
+        return CreateConcertCancellationMarketResponse.model_validate(data)
+
+    def concert_cancellation_availability(
+        self,
+        *,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetConcertCancellationAvailabilityResponse:
+        """``GET /concert_cancellation_markets/availability``. Public."""
+        params = _params(date_from=date_from, date_to=date_to)
+        data = self._get(
+            "/concert_cancellation_markets/availability",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetConcertCancellationAvailabilityResponse.model_validate(data)
+
+    def list_concerts(
+        self,
+        *,
+        metro_id: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetConcertsResponse:
+        """``GET /concert_cancellation_markets/concerts``. Authenticated."""
+        self._require_auth()
+        params = _params(
+            metro_id=metro_id,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+        )
+        data = self._get(
+            "/concert_cancellation_markets/concerts",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetConcertsResponse.model_validate(data)
+
+    def search_concerts(
+        self, *, q: str, extra_headers: dict[str, str] | None = None
+    ) -> SearchConcertsResponse:
+        """``GET /concert_cancellation_markets/concerts/search``. Authenticated."""
+        self._require_auth()
+        params = _params(q=q)
+        data = self._get(
+            "/concert_cancellation_markets/concerts/search",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return SearchConcertsResponse.model_validate(data)
+
 
 class AsyncMarketsResource(AsyncResource):
     """Async markets API."""
@@ -918,3 +1045,94 @@ class AsyncMarketsResource(AsyncResource):
         """Async :meth:`MarketsResource.weather_point_availability`."""
         data = await self._get("/weather_point_markets/availability", extra_headers=extra_headers)
         return GetWeatherPointAvailabilityResponse.model_validate(data)
+
+    @overload
+    async def create_concert_cancellation_market(
+        self,
+        *,
+        request: CreateConcertCancellationMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse: ...
+    @overload
+    async def create_concert_cancellation_market(
+        self,
+        *,
+        jambase_event_id: str,
+        scheduled_date: str,
+        cover: ConcertCoverLiteral,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse: ...
+    async def create_concert_cancellation_market(
+        self,
+        *,
+        request: CreateConcertCancellationMarketRequest | None = None,
+        jambase_event_id: str | None = None,
+        scheduled_date: str | None = None,
+        cover: ConcertCoverLiteral | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateConcertCancellationMarketResponse:
+        """Async :meth:`MarketsResource.create_concert_cancellation_market`."""
+        self._require_auth()
+        body = _build_create_concert_cancellation_market_body(
+            request,
+            jambase_event_id=jambase_event_id,
+            scheduled_date=scheduled_date,
+            cover=cover,
+        )
+        data = await self._post(
+            "/concert_cancellation_markets", json=body, extra_headers=extra_headers
+        )
+        return CreateConcertCancellationMarketResponse.model_validate(data)
+
+    async def concert_cancellation_availability(
+        self,
+        *,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetConcertCancellationAvailabilityResponse:
+        """Async :meth:`MarketsResource.concert_cancellation_availability`."""
+        params = _params(date_from=date_from, date_to=date_to)
+        data = await self._get(
+            "/concert_cancellation_markets/availability",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetConcertCancellationAvailabilityResponse.model_validate(data)
+
+    async def list_concerts(
+        self,
+        *,
+        metro_id: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetConcertsResponse:
+        """Async :meth:`MarketsResource.list_concerts`."""
+        self._require_auth()
+        params = _params(
+            metro_id=metro_id,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+        )
+        data = await self._get(
+            "/concert_cancellation_markets/concerts",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetConcertsResponse.model_validate(data)
+
+    async def search_concerts(
+        self, *, q: str, extra_headers: dict[str, str] | None = None
+    ) -> SearchConcertsResponse:
+        """Async :meth:`MarketsResource.search_concerts`."""
+        self._require_auth()
+        params = _params(q=q)
+        data = await self._get(
+            "/concert_cancellation_markets/concerts/search",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return SearchConcertsResponse.model_validate(data)

@@ -516,6 +516,38 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.markets.GetWeatherPointAvailabilityResponse",
         spec_schema="GetWeatherPointAvailabilityResponse",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.CreateConcertCancellationMarketRequest",
+        spec_schema="CreateConcertCancellationMarketRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.CreateConcertCancellationMarketResponse",
+        spec_schema="CreateConcertCancellationMarketResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.ConcertMetro",
+        spec_schema="ConcertMetro",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetConcertCancellationAvailabilityResponse",
+        spec_schema="GetConcertCancellationAvailabilityResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.ConcertMarket",
+        spec_schema="ConcertMarket",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.Concert",
+        spec_schema="Concert",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetConcertsResponse",
+        spec_schema="GetConcertsResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.SearchConcertsResponse",
+        spec_schema="SearchConcertsResponse",
+    ),
     # -- orders V2 family (#171) -----------------------------------------
     ContractEntry(
         sdk_model="kalshi.models.orders.CreateOrderV2Request",

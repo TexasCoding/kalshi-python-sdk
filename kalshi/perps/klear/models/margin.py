@@ -44,7 +44,7 @@ import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, SecretStr
+from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, SecretStr, model_validator
 
 from kalshi.types import DollarDecimal, FixedPointCount, NullableList
 
@@ -615,6 +615,12 @@ def _require_nonzero_quantity(value: int) -> int:
     return value
 
 
+def _require_nonzero_quantity_fp(value: Decimal) -> Decimal:
+    if value == 0:
+        raise ValueError("quantity_fp must be non-zero")
+    return value
+
+
 def _require_positive_price(value: Decimal) -> Decimal:
     if value <= 0:
         raise ValueError(f"price must be positive (got {value})")
@@ -622,13 +628,26 @@ def _require_positive_price(value: Decimal) -> Decimal:
 
 
 class EstimatePortfolioMaintenanceMarginPosition(BaseModel):
-    """One hypothetical position in an estimate-maintenance-margin request."""
+    """One hypothetical position in an estimate-maintenance-margin request.
+
+    Provide ``quantity`` (whole contracts) or ``quantity_fp`` (fixed-point
+    string). At least one size field is required.
+    """
 
     market_ticker: str
-    quantity: Annotated[int, AfterValidator(_require_nonzero_quantity)]
+    quantity: Annotated[int, AfterValidator(_require_nonzero_quantity)] | None = None
+    quantity_fp: Annotated[FixedPointCount, AfterValidator(_require_nonzero_quantity_fp)] | None = (
+        None
+    )
     price: Annotated[DollarDecimal, AfterValidator(_require_positive_price)]
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def _require_size(self) -> EstimatePortfolioMaintenanceMarginPosition:
+        if self.quantity is None and self.quantity_fp is None:
+            raise ValueError("a position must have a size")
+        return self
 
 
 ClearingTypeLiteral = Literal["FCM", "SelfClearing"]

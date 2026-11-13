@@ -162,6 +162,27 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/weather_point_markets/availability",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.create_concert_cancellation_market",
+        http_method="POST",
+        path_template="/concert_cancellation_markets",
+        request_body_schema="#/components/schemas/CreateConcertCancellationMarketRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.concert_cancellation_availability",
+        http_method="GET",
+        path_template="/concert_cancellation_markets/availability",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.list_concerts",
+        http_method="GET",
+        path_template="/concert_cancellation_markets/concerts",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.search_concerts",
+        http_method="GET",
+        path_template="/concert_cancellation_markets/concerts/search",
+    ),
     # ── account ─────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.account.AccountResource.limits",
