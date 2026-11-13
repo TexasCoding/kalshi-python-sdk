@@ -2,6 +2,44 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.14.0 — 2026-11-13
+
+Adds on-request concert cancellation markets (#582) against OpenAPI v3.36.0
+and reconciles perps SCM estimate-position quantity drift. Additive only.
+No breaking changes.
+
+### Added
+
+- **`markets.create_concert_cancellation_market(...)`** (sync and async) —
+  `POST /concert_cancellation_markets`, 200 `CreateConcertCancellationMarketResponse`.
+  Authenticated. Returns the concert cancellation market for a show, date and
+  cover, creating it if it does not exist. `created` is false when a market
+  for the same request already existed. Required: `jambase_event_id`,
+  `scheduled_date` (YYYY-MM-DD), `cover` (`ConcertCoverLiteral`: `"postponed"`
+  / `"cancelled"` / `"either"`). Accepts
+  `request=CreateConcertCancellationMarketRequest(...)` or keyword fields.
+  POST is never retried.
+- **`markets.concert_cancellation_availability(...)`** (sync and async) —
+  `GET /concert_cancellation_markets/availability`, 200
+  `GetConcertCancellationAvailabilityResponse` (`enabled`, `covers`,
+  `max_days_ahead`, `metros` as `ConcertMetro`). Public. Optional `date_from`
+  / `date_to` bound the upcoming-show counts.
+- **`markets.list_concerts(*, metro_id, ...)`** (sync and async) —
+  `GET /concert_cancellation_markets/concerts`, 200 `GetConcertsResponse`.
+  Authenticated. Lists a metro's upcoming concerts. Optional `date_from`,
+  `date_to`, `page`. No SDK paginator.
+- **`markets.search_concerts(*, q)`** (sync and async) —
+  `GET /concert_cancellation_markets/concerts/search`, 200
+  `SearchConcertsResponse`. Authenticated. Name search across metros.
+  (Closes #582).
+
+### Changed
+
+- Perps Klear **`EstimatePortfolioMaintenanceMarginPosition.quantity`** is
+  optional; new optional **`quantity_fp`** (`FixedPointCount`, serialized as a
+  string). Provide `quantity` or `quantity_fp`. A position with neither size
+  field fails validation.
+
 ## 22.13.0 — 2026-11-12
 
 Reconciles spec drift (#580): incentive schedules, incentive-program

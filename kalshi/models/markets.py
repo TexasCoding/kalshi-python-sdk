@@ -380,3 +380,105 @@ class GetWeatherPointAvailabilityResponse(BaseModel):
     variables: NullableList[WeatherPointVariableAvailability]
 
     model_config = {"extra": "allow"}
+
+
+ConcertCoverLiteral = Literal["postponed", "cancelled", "either"]
+"""What a concert cancellation market pays on. Spec: ConcertCover enum."""
+
+
+class CreateConcertCancellationMarketRequest(BaseModel):
+    """Body for POST /concert_cancellation_markets.
+
+    Matches spec ``components.schemas.CreateConcertCancellationMarketRequest``.
+    Required: ``jambase_event_id``, ``scheduled_date`` (YYYY-MM-DD), ``cover``.
+    """
+
+    jambase_event_id: str
+    scheduled_date: str
+    cover: ConcertCoverLiteral
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateConcertCancellationMarketResponse(BaseModel):
+    """Response from POST /concert_cancellation_markets."""
+
+    cover: ConcertCoverLiteral
+    event_ticker: str
+    market_ticker: str
+    created: bool
+
+    model_config = {"extra": "allow"}
+
+
+class ConcertMetro(BaseModel):
+    """A metro whose concerts ``GET /concert_cancellation_markets/concerts`` lists."""
+
+    id: str
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
+    upcoming_shows: int
+
+    model_config = {"extra": "allow"}
+
+
+class GetConcertCancellationAvailabilityResponse(BaseModel):
+    """Response from GET /concert_cancellation_markets/availability."""
+
+    enabled: bool
+    covers: NullableList[ConcertCoverLiteral]
+    max_days_ahead: int
+    metros: NullableList[ConcertMetro]
+
+    model_config = {"extra": "allow"}
+
+
+class ConcertMarket(BaseModel):
+    """Event and market tickers a show has or would get for one cover."""
+
+    cover: ConcertCoverLiteral
+    event_ticker: str
+    market_ticker: str
+
+    model_config = {"extra": "allow"}
+
+
+class Concert(BaseModel):
+    """A concert listing that a cancellation market can still be created for."""
+
+    jambase_event_id: str
+    name: str
+    lineup: NullableList[str]
+    venue_name: str
+    timezone: str
+    scheduled_date: str
+    markets: NullableList[ConcertMarket]
+    headliner: str | None = None
+    city: str | None = None
+    region: str | None = None
+    country: str | None = None
+    start_time: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    url: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetConcertsResponse(BaseModel):
+    """Response from GET /concert_cancellation_markets/concerts."""
+
+    concerts: NullableList[Concert]
+    page: int
+    total_pages: int
+
+    model_config = {"extra": "allow"}
+
+
+class SearchConcertsResponse(BaseModel):
+    """Response from GET /concert_cancellation_markets/concerts/search."""
+
+    concerts: NullableList[Concert]
+
+    model_config = {"extra": "allow"}

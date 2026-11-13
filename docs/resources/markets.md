@@ -19,6 +19,10 @@ recent trades.
 | `list_all_trades(...)` | walks `list_trades` | no |
 | `create_weather_point_market(...)` | `POST /weather_point_markets` | **yes** |
 | `weather_point_availability()` | `GET /weather_point_markets/availability` | no |
+| `create_concert_cancellation_market(...)` | `POST /concert_cancellation_markets` | **yes** |
+| `concert_cancellation_availability(...)` | `GET /concert_cancellation_markets/availability` | no |
+| `list_concerts(*, metro_id, ...)` | `GET /concert_cancellation_markets/concerts` | **yes** |
+| `search_concerts(*, q)` | `GET /concert_cancellation_markets/concerts/search` | **yes** |
 
 !!! warning "Orderbook endpoints require auth"
     `orderbook()` and `bulk_orderbooks()` raise `AuthRequiredError` on an
@@ -172,6 +176,36 @@ print(resp.market_ticker, resp.created, resp.latitude, resp.longitude)
 unset optional fields are omitted from the wire body. The same request
 always returns the same market; `created` is false when it already existed.
 The response coordinates are the snapped NOAA MRMS grid-cell center.
+
+## Concert cancellation markets
+
+On-request markets on whether a concert is called off. Creation, listing, and
+search are authenticated; availability is public. POST is never retried.
+
+```python
+avail = client.markets.concert_cancellation_availability()
+print(avail.enabled, avail.covers, avail.max_days_ahead)
+print([m.name for m in avail.metros])
+
+page = client.markets.list_concerts(metro_id=avail.metros[0].id)
+show = page.concerts[0]
+
+hits = client.markets.search_concerts(q="Madison Square")
+
+resp = client.markets.create_concert_cancellation_market(
+    jambase_event_id=show.jambase_event_id,
+    scheduled_date=show.scheduled_date,  # YYYY-MM-DD
+    cover="postponed",                   # ConcertCoverLiteral: "postponed" / "cancelled" / "either"
+)
+print(resp.market_ticker, resp.created, resp.cover)
+```
+
+Take `jambase_event_id` and `scheduled_date` from `list_concerts` or
+`search_concerts`. A cover missing from `avail.covers` cannot be created. The
+same request always returns the same market; `created` is false when it already
+existed. Pass the returned `market_ticker` to `POST /communications/rfqs`.
+`list_concerts` is paged by the server (`page` / `total_pages`); there is no
+SDK paginator.
 
 ## Reference
 

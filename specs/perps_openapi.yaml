@@ -520,7 +520,7 @@ paths:
     post:
       operationId: CreateMarginOrder
       summary: Create Order
-      description: Endpoint for submitting orders in a market.
+      description: Endpoint for submitting orders in a market. Rejections return an error `code` that names the cause; see Order rejections in the Perps API overview (https://docs.kalshi.com/margin#order-rejections) for the codes and HTTP statuses.
       tags:
         - orders
       security:
@@ -558,7 +558,7 @@ paths:
       x-mint:
         content: |
           <Note>
-          **Rate limit:** 10 tokens per request, the same cost as cancelling one margin order. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
+          **Rate limit:** 10 tokens per request. Cancelling one margin order by ID costs 1 token. See `GET /trade-api/v2/account/endpoint_costs` for current non-default endpoint costs.
           </Note>
       tags:
         - orders
@@ -1482,7 +1482,7 @@ paths:
     post:
       operationId: IntraExchangeInstanceTransfer
       summary: Intra Account Transfer
-      description: "Endpoint for transferring funds within the same account."
+      description: "Endpoint for transferring funds within the same account. Transfers out of the margin balance are refused with HTTP 403 and error code `permission_denied` (details: `margin withdrawals are temporarily disabled during settlement and funding`) from shortly before each scheduled settlement or funding run until that run has been processed, and while a cash corporate action is being processed. The details text is the same in each case. Retry with a backoff until the transfer is accepted."
       tags:
         - portfolio
       security:
@@ -1544,7 +1544,7 @@ paths:
     post:
       operationId: ApplyMarginSubaccountTransfer
       summary: Transfer Between Subaccounts
-      description: 'Transfers funds between the authenticated user''s margin subaccounts. Use 0 for the primary account, or 1-63 for numbered subaccounts.'
+      description: 'Transfers funds between the authenticated user''s margin subaccounts. Use 0 for the primary account, or 1-63 for numbered subaccounts. Transfers are refused with HTTP 403 and error code `permission_denied` (details: `margin withdrawals are temporarily disabled during settlement and funding`) from shortly before each scheduled settlement or funding run until that run has been processed, and while a cash corporate action is being processed. The details text is the same in each case. Retry with a backoff until the transfer is accepted.'
       tags:
         - portfolio
       security:
@@ -1863,7 +1863,10 @@ paths:
         Endpoint for setting a stop-loss / take-profit bracket or a trailing stop on a
         non-isolated margin position. A position holds one trailing stop and up to 20 brackets,
         so long as their counts fit the position. Requires an open position unless
-        `anchor_order_id` is supplied, and fires reduce-only orders.
+        `anchor_order_id` is supplied, and fires reduce-only orders. A fired trigger places an
+        immediate-or-cancel limit order near the stop price, not a market order, so it can fill
+        partially or not at all. See Exit triggers in the Perps API overview
+        (https://docs.kalshi.com/margin#exit-triggers) for validation errors and retry behavior.
       tags:
         - exit-triggers
       security:
@@ -2518,7 +2521,7 @@ components:
           description: 'How the grant was created: "volume" (earned from trading volume) or "manual" (assigned by Kalshi).'
     FixedPointCount:
       type: string
-      description: Fixed-point contract count string (2 decimals, e.g., "10.00"; referred to as "fp" in field names). Requests accept 0-2 decimal places (e.g., "10", "10.0", "10.00"); responses always emit 2 decimals. Fractional contract values (e.g., "2.50") are supported; the minimum granularity is 0.01 contracts.
+      description: Fixed-point contract count string (2 decimals, e.g., "10.00"; referred to as "fp" in field names). Requests accept 0-2 decimal places (e.g., "10", "10.0", "10.00"); responses always emit 2 decimals. A market whose `fractional_trading_enabled` is false trades whole contracts only. There, an order for a fractional count (e.g., "2.50") is rejected with HTTP 400 and error code `invalid_order_size`, and an amend or decrease that would leave a fractional count is rejected with HTTP 400 and error code `invalid_amend_quantity_for_order`.
       example: "10.00"
     ExitTriggerKind:
       type: string
@@ -3372,7 +3375,7 @@ components:
           $ref: '#/components/schemas/MarginMarketStatus'
         fractional_trading_enabled:
           type: boolean
-          description: Whether fractional trading is enabled for this market.
+          description: Whether fractional trading is enabled for this market. When false, order counts must be whole numbers of contracts.
         minimum_quantity:
           $ref: '#/components/schemas/FixedPointCount'
           description: Minimum order quantity in contracts.
@@ -3597,7 +3600,7 @@ components:
     LastUpdateReason:
       type: string
       enum: ['', 'Decrease', 'Amend', 'MarginCancel', 'SelfTradeCancel', 'ExpiryCancel', 'Trade', 'PostOnlyCrossCancel', 'ReduceOnlyCancel']
-      description: ReduceOnlyCancel means reduce_only capped the order at placement.
+      description: ReduceOnlyCancel means reduce_only capped the order at placement. The empty string is returned for every other update, including an order canceled because its market closed or halted, or because its order group triggered. The WebSocket `user_orders` channel reports those reasons by name.
 
     MarginMarketResponse:
       type: object
@@ -3679,6 +3682,7 @@ components:
           description: Incremental realized PnL contributed by this fill, in fixed-point dollars
         order_source:
           $ref: '#/components/schemas/OrderSource'
+          description: Whether the order behind this fill was placed by the user or by the system. `system` covers liquidation, TP/SL and auto-rebalance orders alike; to tell them apart, fetch the order by `order_id` and read its `order_reason`.
 
     GetMarginPositionsResponse:
       type: object
