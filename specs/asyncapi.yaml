@@ -619,7 +619,7 @@ channels:
 
       ## Underlying tickers
 
-      The reference table below lists supported underlyings: spot metals, metal and commodity indices, an equity index, FX pairs, and Treasury yields. Index descriptions note Pyth's publishing schedule (24/7, 24/5, or 23/5); spot metals, FX pairs, and Treasury yields follow their market sessions.
+      The reference table below lists supported underlyings: spot metals, metal, commodity and agriculture indices, an equity index, FX pairs, and Treasury yields. Index descriptions note Pyth's publishing schedule (24/7, 24/5, or 23/5); spot metals, agriculture indices, FX pairs, and Treasury yields follow their market sessions. Agriculture indices marked `/USc` are quoted in US cents.
 
       | Pyth feed ID | Pyth symbol                     | Description                                             |
       |--------------|---------------------------------|---------------------------------------------------------|
@@ -636,6 +636,12 @@ channels:
       | 3265         | `Commodities.Index.NATGAS/USD`  | Natural Gas Index in USD (24/7)                         |
       | 3525         | `Commodities.Index.CU/USD`      | Copper Index in USD (24/7)                              |
       | 3266         | `Commodities.Index.COPPER/USD`  | Copper Index in USD (23/5)                              |
+      | 3967         | `Commodities.Index.RCOFFEE/USc` | Coffee Index in US cents (exchange session hours)       |
+      | 3977         | `Commodities.Index.RCOCOA/USD`  | Cocoa Index in USD (exchange session hours)             |
+      | 3978         | `Commodities.Index.RCORN/USc`   | Corn Index in US cents (exchange session hours)         |
+      | 3979         | `Commodities.Index.RWHEAT/USc`  | Wheat Index in US cents (exchange session hours)        |
+      | 3980         | `Commodities.Index.RSOYBEANS/USc` | Soybeans Index in US cents (exchange session hours)   |
+      | 3981         | `Commodities.Index.RLIVECATTLE/USc` | Live Cattle Index in US cents (exchange session hours) |
       | 3292         | `Equity.Index.US30/USD`         | US30 (Dow Jones Industrial Average) Index in USD (24/5) |
       | 1530         | `InterestRate.US2Y`             | US 2-year Treasury yield in percent                     |
       | 1534         | `InterestRate.US5Y`             | US 5-year Treasury yield in percent                     |
