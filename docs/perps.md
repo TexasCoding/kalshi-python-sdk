@@ -83,12 +83,15 @@ for ticker, details in schedules.items():
     print(ticker, len(details.kalshi_trading_holidays))
 ```
 
-`markets.schedules(*, tickers)` returns Kalshi trading-holiday closures
-(`GET /margin/markets/schedules`) as a ticker → `MarginMarketScheduleDetails`
-map. `tickers` is required (1–100, each 1–200 characters) and serializes as a
-comma-separated query string. Regular daily and weekend closures are not
-included. Each holiday window's spec field `from` is `start` on
-`MarginHolidayWindow` (`until` is the exclusive end).
+`markets.schedules(*, tickers)` returns recurring Kalshi trading hours and
+holiday closures (`GET /margin/markets/schedules`) as a ticker →
+`MarginMarketScheduleDetails` map. `tickers` is required (1–100, each 1–200
+characters) and serializes as a comma-separated query string. Optional
+`kalshi_trading_schedule` is a `MarginTradingCronSchedule` (`timezone` is
+`America/New_York`; `open_crons` / `close_crons` are five-field cron lists).
+Empty cron arrays mean continuous trading except for
+`kalshi_trading_holidays`. Each holiday window's spec field `from` is
+`start` on `MarginHolidayWindow` (`until` is the exclusive end).
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
@@ -231,8 +234,9 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   (`"cross"` / `"isolated"` / `"auto_rebalance"` / `"managed_isolated"`, or
   `None` when the key is absent) is optional on `MarginPosition`,
   `MarginSubaccountBalance`, `MarginRiskPosition`, and
-  `MarginFundingHistoryEntry`. The spec marks it required; the SDK keeps it
-  optional so older payloads still parse.
+  `MarginFundingHistoryEntry`. `managed_isolated` uses the same subaccount
+  number as the market's isolated subaccount. The spec marks it required; the
+  SDK keeps it optional so older payloads still parse.
 - **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
   `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
   the position is hedged within a portfolio so its margin is computed at the

@@ -183,6 +183,22 @@ METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/concert_cancellation_markets/concerts/search",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.create_flight_disruption_market",
+        http_method="POST",
+        path_template="/flight_disruption_markets",
+        request_body_schema="#/components/schemas/CreateFlightDisruptionMarketRequest",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.flight_disruption_availability",
+        http_method="GET",
+        path_template="/flight_disruption_markets/availability",
+    ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.resources.markets.MarketsResource.list_flights",
+        http_method="GET",
+        path_template="/flight_disruption_markets/flights",
+    ),
     # ── account ─────────────────────────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.resources.account.AccountResource.limits",
@@ -1523,6 +1539,28 @@ EXCLUSIONS: dict[tuple[str, str], Exclusion] = {
             "spec marks schedules required; SDK defaults to [] so a missing "
             "or null array parses as an empty list, matching "
             "GetIncentiveProgramsResponse (22.13.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.models.markets.GetWeatherPointAvailabilityResponse",
+        "max_window_days",
+    ): Exclusion(
+        reason=(
+            "spec 3.37.0 marks max_window_days required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.15.0)."
+        ),
+        kind="server_omits_despite_required",
+    ),
+    (
+        "kalshi.models.markets.GetWeatherPointAvailabilityResponse",
+        "max_window_hours",
+    ): Exclusion(
+        reason=(
+            "spec 3.37.0 marks max_window_hours required; the SDK keeps it "
+            "optional (None when absent) so payloads and fixtures predating the "
+            "field still validate and the change ships as a minor release (22.15.0)."
         ),
         kind="server_omits_despite_required",
     ),

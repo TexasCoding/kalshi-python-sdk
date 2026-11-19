@@ -19,12 +19,14 @@ from kalshi.errors import KalshiError, KalshiNotFoundError, KalshiServerError
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
+    MarginAskDistributionHistorical,
     MarginHolidayWindow,
     MarginMarket,
     MarginMarketCandlestick,
     MarginMarketSchedule,
     MarginMarketScheduleDetails,
     MarginOrderbook,
+    MarginTradingCronSchedule,
     PriceDistributionHistorical,
 )
 
@@ -597,6 +599,7 @@ class TestCandlesticks:
         assert isinstance(c.bid, BidAskDistributionHistorical)
         assert c.bid.open == Decimal("0.5500")
         assert c.bid.close == Decimal("0.5550")
+        assert isinstance(c.ask, MarginAskDistributionHistorical)
         assert c.ask.high == Decimal("0.5800")
         assert isinstance(c.price, PriceDistributionHistorical)
         assert c.price.open == Decimal("0.5600")
@@ -636,8 +639,42 @@ class TestCandlesticks:
         assert c.price.close is None
         assert c.price.mean is None
         assert c.price.previous is None
-        # bid/ask OHLC are still required + present.
+        # bid OHLC are still required + present; ask may be null.
         assert c.bid.open == Decimal("0.5500")
+
+    def test_nullable_ask_prices(self) -> None:
+        frame = _candle_dict(
+            ask={"open": None, "high": None, "low": None, "close": None},
+        )
+        c = MarginMarketCandlestick.model_validate(frame)
+        assert isinstance(c.ask, MarginAskDistributionHistorical)
+        assert c.ask.open is None
+        assert c.ask.high is None
+        assert c.ask.low is None
+        assert c.ask.close is None
+        assert c.bid.open == Decimal("0.5500")
+
+    def test_ask_dollars_alias_and_partial_null(self) -> None:
+        frame = _candle_dict(
+            ask={
+                "open_dollars": None,
+                "high_dollars": "0.5800",
+                "low_dollars": None,
+                "close_dollars": "0.5750",
+            }
+        )
+        c = MarginMarketCandlestick.model_validate(frame)
+        assert c.ask.open is None
+        assert c.ask.high == Decimal("0.5800")
+        assert c.ask.low is None
+        assert c.ask.close == Decimal("0.5750")
+
+    def test_bid_still_rejects_null(self) -> None:
+        frame = _candle_dict(
+            bid={"open": None, "high": "0.5600", "low": "0.5400", "close": "0.5550"},
+        )
+        with pytest.raises((ValidationError, TypeError)):
+            MarginMarketCandlestick.model_validate(frame)
 
     def test_notional_value_required_on_candlestick(self) -> None:
         # Spec lists both notional fields under `required`; the model enforces it
@@ -751,6 +788,56 @@ class TestSchedules:
         assert window.reason == "Christmas"
         assert window.start.year == 2026
         assert window.until.day == 26
+        assert details["BTC-PERP"].kalshi_trading_schedule is None
+
+    @respx.mock
+    def test_parses_cron_schedule(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/markets/schedules").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "BTC-PERP": {
+                        "kalshi_trading_holidays": [],
+                        "kalshi_trading_schedule": {
+                            "timezone": "America/New_York",
+                            "open_crons": ["0 9 * * 1-5"],
+                            "close_crons": ["0 16 * * 1-5"],
+                        },
+                    }
+                },
+            )
+        )
+        details = perps_client.markets.schedules(tickers=["BTC-PERP"])
+        schedule = details["BTC-PERP"].kalshi_trading_schedule
+        assert isinstance(schedule, MarginTradingCronSchedule)
+        assert schedule.timezone == "America/New_York"
+        assert schedule.open_crons == ["0 9 * * 1-5"]
+        assert schedule.close_crons == ["0 16 * * 1-5"]
+
+    def test_cron_empty_arrays_and_null_lists(self) -> None:
+        parsed = MarginMarketScheduleDetails.model_validate(
+            {
+                "kalshi_trading_holidays": [],
+                "kalshi_trading_schedule": {
+                    "timezone": "America/New_York",
+                    "open_crons": [],
+                    "close_crons": None,
+                },
+            }
+        )
+        assert parsed.kalshi_trading_schedule is not None
+        assert parsed.kalshi_trading_schedule.open_crons == []
+        assert parsed.kalshi_trading_schedule.close_crons == []
+
+    def test_cron_rejects_other_timezone(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginTradingCronSchedule.model_validate(
+                {
+                    "timezone": "UTC",
+                    "open_crons": [],
+                    "close_crons": [],
+                }
+            )
 
     def test_rejects_empty_blank_long_and_over_max(self, perps_client: PerpsClient) -> None:
         with pytest.raises(ValueError, match="non-empty"):

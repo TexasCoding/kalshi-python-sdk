@@ -548,6 +548,30 @@ CONTRACT_MAP: list[ContractEntry] = [
         sdk_model="kalshi.models.markets.SearchConcertsResponse",
         spec_schema="SearchConcertsResponse",
     ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.CreateFlightDisruptionMarketRequest",
+        spec_schema="CreateFlightDisruptionMarketRequest",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.CreateFlightDisruptionMarketResponse",
+        spec_schema="CreateFlightDisruptionMarketResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetFlightDisruptionAvailabilityResponse",
+        spec_schema="GetFlightDisruptionAvailabilityResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.FlightCoverEvent",
+        spec_schema="FlightCoverEvent",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.Flight",
+        spec_schema="Flight",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.models.markets.GetFlightsResponse",
+        spec_schema="GetFlightsResponse",
+    ),
     # -- orders V2 family (#171) -----------------------------------------
     ContractEntry(
         sdk_model="kalshi.models.orders.CreateOrderV2Request",
@@ -899,12 +923,20 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MarginMarketScheduleDetails",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginTradingCronSchedule",
+        spec_schema="MarginTradingCronSchedule",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.models.markets.MarginMarketCandlestick",
         spec_schema="MarginMarketCandlestick",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.models.markets.BidAskDistributionHistorical",
         spec_schema="BidAskDistributionHistorical",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.markets.MarginAskDistributionHistorical",
+        spec_schema="MarginAskDistributionHistorical",
     ),
     ContractEntry(
         sdk_model="kalshi.perps.models.markets.PriceDistributionHistorical",

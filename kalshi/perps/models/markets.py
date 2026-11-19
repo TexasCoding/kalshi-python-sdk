@@ -207,7 +207,7 @@ class MarginOrderbook(BaseModel):
 
 
 class BidAskDistributionHistorical(BaseModel):
-    """Spec ``BidAskDistributionHistorical`` — OHLC for quoted bid/ask prices.
+    """Spec ``BidAskDistributionHistorical`` — OHLC for quoted bid prices.
 
     All four fields are required and non-null per spec.
     """
@@ -222,6 +222,29 @@ class BidAskDistributionHistorical(BaseModel):
         validation_alias=AliasChoices("low_dollars", "low"),
     )
     close: DollarDecimal = Field(
+        validation_alias=AliasChoices("close_dollars", "close"),
+    )
+
+    model_config = {"extra": "allow", "populate_by_name": True}
+
+
+class MarginAskDistributionHistorical(BaseModel):
+    """Spec ``MarginAskDistributionHistorical`` — OHLC for ask quotes.
+
+    All four fields are required keys and JSON-nullable when the orderbook
+    had no asks.
+    """
+
+    open: DollarDecimal | None = Field(
+        validation_alias=AliasChoices("open_dollars", "open"),
+    )
+    high: DollarDecimal | None = Field(
+        validation_alias=AliasChoices("high_dollars", "high"),
+    )
+    low: DollarDecimal | None = Field(
+        validation_alias=AliasChoices("low_dollars", "low"),
+    )
+    close: DollarDecimal | None = Field(
         validation_alias=AliasChoices("close_dollars", "close"),
     )
 
@@ -261,7 +284,7 @@ class MarginMarketCandlestick(BaseModel):
 
     end_period_ts: int
     bid: BidAskDistributionHistorical
-    ask: BidAskDistributionHistorical
+    ask: MarginAskDistributionHistorical
     price: PriceDistributionHistorical
     volume: FixedPointCount = Field(
         validation_alias=AliasChoices("volume_fp", "volume"),
@@ -344,13 +367,27 @@ class MarginHolidayWindow(BaseModel):
     model_config = {"extra": "allow", "populate_by_name": True}
 
 
-class MarginMarketScheduleDetails(BaseModel):
-    """Holiday closures for one margin market.
+class MarginTradingCronSchedule(BaseModel):
+    """Recurring Kalshi trading hours, including market-specific overrides.
 
-    Regular daily and weekend closures are not included. The schedules
-    endpoint returns a ticker → details map; this is one value.
+    Empty cron arrays mean continuous trading except for closures in
+    ``kalshi_trading_holidays``.
+    """
+
+    timezone: Literal["America/New_York"]
+    open_crons: NullableList[str]
+    close_crons: NullableList[str]
+
+    model_config = {"extra": "allow"}
+
+
+class MarginMarketScheduleDetails(BaseModel):
+    """Recurring Kalshi trading hours and holiday closures for one margin market.
+
+    The schedules endpoint returns a ticker → details map; this is one value.
     """
 
     kalshi_trading_holidays: list[MarginHolidayWindow]
+    kalshi_trading_schedule: MarginTradingCronSchedule | None = None
 
     model_config = {"extra": "allow"}

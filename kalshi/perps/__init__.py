@@ -120,6 +120,7 @@ from kalshi.perps.models.margin_account import (
 )
 from kalshi.perps.models.markets import (
     BidAskDistributionHistorical,
+    MarginAskDistributionHistorical,
     MarginHolidayWindow,
     MarginMarket,
     MarginMarketCandlestick,
@@ -128,6 +129,7 @@ from kalshi.perps.models.markets import (
     MarginMarketStatusLiteral,
     MarginOrderbook,
     MarginOrderbookLevel,
+    MarginTradingCronSchedule,
     PriceDistributionHistorical,
 )
 from kalshi.perps.models.order_groups import (
@@ -336,6 +338,7 @@ __all__ = [
     "LastUpdateReasonLiteral",
     "MaintenanceMarginDetail",
     "MarginAccountResource",
+    "MarginAskDistributionHistorical",
     "MarginCorporateAction",
     "MarginCorporateActionCashTerms",
     "MarginCorporateActionFinalSettlementTerms",
@@ -381,6 +384,7 @@ __all__ = [
     "MarginTrade",
     "MarginTradeMessage",
     "MarginTradePayload",
+    "MarginTradingCronSchedule",
     "MarginUserOrderMessage",
     "MarginUserOrderPayload",
     "MarketSettlementEstimate",

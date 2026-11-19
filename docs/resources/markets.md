@@ -23,6 +23,9 @@ recent trades.
 | `concert_cancellation_availability(...)` | `GET /concert_cancellation_markets/availability` | no |
 | `list_concerts(*, metro_id, ...)` | `GET /concert_cancellation_markets/concerts` | **yes** |
 | `search_concerts(*, q)` | `GET /concert_cancellation_markets/concerts/search` | **yes** |
+| `create_flight_disruption_market(...)` | `POST /flight_disruption_markets` | **yes** |
+| `flight_disruption_availability()` | `GET /flight_disruption_markets/availability` | no |
+| `list_flights(*, carrier, flight_number, date)` | `GET /flight_disruption_markets/flights` | **yes** |
 
 !!! warning "Orderbook endpoints require auth"
     `orderbook()` and `bulk_orderbooks()` raise `AuthRequiredError` on an
@@ -155,7 +158,7 @@ Creation is authenticated; availability is public. POST is never retried.
 
 ```python
 avail = client.markets.weather_point_availability()
-print(avail.enabled, [d.name for d in avail.domains])
+print(avail.enabled, [d.name for d in avail.domains], avail.max_window_days)
 
 resp = client.markets.create_weather_point_market(
     latitude=40.785,
@@ -167,6 +170,7 @@ resp = client.markets.create_weather_point_market(
     end_hour=24,
     timezone="America/New_York",
     floor_value=2,
+    end_date="2026-11-12",         # optional; omit for a same-day window
 )
 print(resp.market_ticker, resp.created, resp.latitude, resp.longitude)
 ```
@@ -175,7 +179,10 @@ print(resp.market_ticker, resp.created, resp.latitude, resp.longitude)
 `cap_value` for `"less"` and `"between"`. The SDK does not enforce that —
 unset optional fields are omitted from the wire body. The same request
 always returns the same market; `created` is false when it already existed.
-The response coordinates are the snapped NOAA MRMS grid-cell center.
+Coordinates are rounded to three decimal places; requests that agree to
+three decimals share a market. Optional `end_date` (the day after `date`)
+opens a window that crosses midnight, at most 24 hours, where availability
+returns `max_window_days == 2`.
 
 ## Concert cancellation markets
 
@@ -201,11 +208,50 @@ print(resp.market_ticker, resp.created, resp.cover)
 ```
 
 Take `jambase_event_id` and `scheduled_date` from `list_concerts` or
-`search_concerts`. A cover missing from `avail.covers` cannot be created. The
-same request always returns the same market; `created` is false when it already
-existed. Pass the returned `market_ticker` to `POST /communications/rfqs`.
+`search_concerts`. A cover missing from `avail.covers` cannot be created.
+`enabled` means concerts are listed; it does not promise that a create will
+succeed — where listing is on before markets are offered, create returns 409.
+The same request always returns the same market; `created` is false when it
+already existed. Pass the returned `market_ticker` to `POST /communications/rfqs`.
 `list_concerts` is paged by the server (`page` / `total_pages`); there is no
 SDK paginator.
+
+## Flight disruption markets
+
+On-request markets on whether a flight is canceled or delayed. Creation and
+flight lookup are authenticated; availability is public. POST is never
+retried. These endpoints are marked `x-excluded` in the spec; they may not
+be launched yet.
+
+```python
+avail = client.markets.flight_disruption_availability()
+print(avail.enabled, avail.covers, avail.delay_bases, avail.delay_step_minutes)
+
+flights = client.markets.list_flights(
+    carrier="AA",
+    flight_number="100",
+    date="2026-11-25",             # YYYY-MM-DD
+)
+leg = flights.flights[0]
+
+resp = client.markets.create_flight_disruption_market(
+    carrier=leg.carrier,
+    flight_number=leg.flight_number,
+    departure_airport=leg.departure_airport,
+    arrival_airport=leg.arrival_airport,
+    scheduled_date=leg.scheduled_date,
+    cover="cancelled",             # FlightCoverLiteral: "cancelled" / "delayed" / "either"
+)
+print(resp.market_ticker, resp.created, resp.cover)
+```
+
+Take the five flight fields from `list_flights`. For `"delayed"` and
+`"either"`, also pass `delay_basis` (`"departure"` / `"arrival"`) and
+`delay_minutes` (a multiple of `avail.delay_step_minutes`, up to
+`avail.max_delay_minutes`); leave both out for `"cancelled"`. A cover
+missing from `avail.covers` cannot be created. The same request always
+returns the same market; `created` is false when it already existed.
+Pass the returned `market_ticker` to `POST /communications/rfqs`.
 
 ## Reference
 

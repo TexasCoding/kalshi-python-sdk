@@ -17,10 +17,16 @@ from kalshi.models.markets import (
     ConcertCoverLiteral,
     CreateConcertCancellationMarketRequest,
     CreateConcertCancellationMarketResponse,
+    CreateFlightDisruptionMarketRequest,
+    CreateFlightDisruptionMarketResponse,
     CreateWeatherPointMarketRequest,
     CreateWeatherPointMarketResponse,
+    FlightCoverLiteral,
+    FlightDelayBasisLiteral,
     GetConcertCancellationAvailabilityResponse,
     GetConcertsResponse,
+    GetFlightDisruptionAvailabilityResponse,
+    GetFlightsResponse,
     GetMarketCandlesticksResponse,
     GetMarketOrderbooksResponse,
     GetWeatherPointAvailabilityResponse,
@@ -237,6 +243,7 @@ def _build_create_weather_point_market_body(
     variable: WeatherPointVariableLiteral | None,
     strike_type: Literal["greater", "less", "between"] | None,
     date: str | None,
+    end_date: str | None,
     start_hour: int | None,
     end_hour: int | None,
     timezone: str | None,
@@ -250,6 +257,7 @@ def _build_create_weather_point_market_body(
         variable=variable,
         strike_type=strike_type,
         date=date,
+        end_date=end_date,
         start_hour=start_hour,
         end_hour=end_hour,
         timezone=timezone,
@@ -278,6 +286,7 @@ def _build_create_weather_point_market_body(
             variable=variable,
             strike_type=strike_type,
             date=date,
+            end_date=end_date,
             start_hour=start_hour,
             end_hour=end_hour,
             timezone=timezone,
@@ -310,6 +319,56 @@ def _build_create_concert_cancellation_market_body(
             jambase_event_id=jambase_event_id,
             scheduled_date=scheduled_date,
             cover=cover,
+        )
+    return request.model_dump(exclude_none=True, by_alias=True, mode="json")
+
+
+def _build_create_flight_disruption_market_body(
+    request: CreateFlightDisruptionMarketRequest | None,
+    *,
+    carrier: str | None,
+    flight_number: str | None,
+    departure_airport: str | None,
+    arrival_airport: str | None,
+    scheduled_date: str | None,
+    cover: FlightCoverLiteral | None,
+    delay_basis: FlightDelayBasisLiteral | None,
+    delay_minutes: int | None,
+) -> dict[str, Any]:
+    _check_request_exclusive(
+        request,
+        carrier=carrier,
+        flight_number=flight_number,
+        departure_airport=departure_airport,
+        arrival_airport=arrival_airport,
+        scheduled_date=scheduled_date,
+        cover=cover,
+        delay_basis=delay_basis,
+        delay_minutes=delay_minutes,
+    )
+    if request is None:
+        if (
+            carrier is None
+            or flight_number is None
+            or departure_airport is None
+            or arrival_airport is None
+            or scheduled_date is None
+            or cover is None
+        ):
+            raise TypeError(
+                "create_flight_disruption_market() requires `carrier`, "
+                "`flight_number`, `departure_airport`, `arrival_airport`, "
+                "`scheduled_date`, and `cover` (or pass `request=...`)"
+            )
+        request = CreateFlightDisruptionMarketRequest(
+            carrier=carrier,
+            flight_number=flight_number,
+            departure_airport=departure_airport,
+            arrival_airport=arrival_airport,
+            scheduled_date=scheduled_date,
+            cover=cover,
+            delay_basis=delay_basis,
+            delay_minutes=delay_minutes,
         )
     return request.model_dump(exclude_none=True, by_alias=True, mode="json")
 
@@ -582,6 +641,7 @@ class MarketsResource(SyncResource):
         start_hour: int,
         end_hour: int,
         timezone: str,
+        end_date: str | None = ...,
         floor_value: int | None = ...,
         cap_value: int | None = ...,
         extra_headers: dict[str, str] | None = None,
@@ -595,6 +655,7 @@ class MarketsResource(SyncResource):
         variable: WeatherPointVariableLiteral | None = None,
         strike_type: Literal["greater", "less", "between"] | None = None,
         date: str | None = None,
+        end_date: str | None = None,
         start_hour: int | None = None,
         end_hour: int | None = None,
         timezone: str | None = None,
@@ -606,7 +667,8 @@ class MarketsResource(SyncResource):
 
         Returns the on-request weather market for a location, time window and
         threshold, creating it if it does not exist. ``created`` is false when
-        a market for the same request already existed.
+        a market for the same request already existed. Optional ``end_date``
+        (YYYY-MM-DD) is omitted when unset.
         """
         self._require_auth()
         body = _build_create_weather_point_market_body(
@@ -616,6 +678,7 @@ class MarketsResource(SyncResource):
             variable=variable,
             strike_type=strike_type,
             date=date,
+            end_date=end_date,
             start_hour=start_hour,
             end_hour=end_hour,
             timezone=timezone,
@@ -725,6 +788,94 @@ class MarketsResource(SyncResource):
             extra_headers=extra_headers,
         )
         return SearchConcertsResponse.model_validate(data)
+
+    @overload
+    def create_flight_disruption_market(
+        self,
+        *,
+        request: CreateFlightDisruptionMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse: ...
+    @overload
+    def create_flight_disruption_market(
+        self,
+        *,
+        carrier: str,
+        flight_number: str,
+        departure_airport: str,
+        arrival_airport: str,
+        scheduled_date: str,
+        cover: FlightCoverLiteral,
+        delay_basis: FlightDelayBasisLiteral | None = ...,
+        delay_minutes: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse: ...
+    def create_flight_disruption_market(
+        self,
+        *,
+        request: CreateFlightDisruptionMarketRequest | None = None,
+        carrier: str | None = None,
+        flight_number: str | None = None,
+        departure_airport: str | None = None,
+        arrival_airport: str | None = None,
+        scheduled_date: str | None = None,
+        cover: FlightCoverLiteral | None = None,
+        delay_basis: FlightDelayBasisLiteral | None = None,
+        delay_minutes: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse:
+        """``POST /flight_disruption_markets``. Not retried.
+
+        Returns the on-request flight disruption market for a flight, cover
+        and optional delay, creating it if it does not exist. ``created`` is
+        false when a market for the same request already existed. Marked
+        x-excluded in the spec; availability may not be launched.
+        """
+        self._require_auth()
+        body = _build_create_flight_disruption_market_body(
+            request,
+            carrier=carrier,
+            flight_number=flight_number,
+            departure_airport=departure_airport,
+            arrival_airport=arrival_airport,
+            scheduled_date=scheduled_date,
+            cover=cover,
+            delay_basis=delay_basis,
+            delay_minutes=delay_minutes,
+        )
+        data = self._post("/flight_disruption_markets", json=body, extra_headers=extra_headers)
+        return CreateFlightDisruptionMarketResponse.model_validate(data)
+
+    def flight_disruption_availability(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFlightDisruptionAvailabilityResponse:
+        """``GET /flight_disruption_markets/availability``. Public.
+
+        Marked x-excluded in the spec; availability may not be launched.
+        """
+        data = self._get("/flight_disruption_markets/availability", extra_headers=extra_headers)
+        return GetFlightDisruptionAvailabilityResponse.model_validate(data)
+
+    def list_flights(
+        self,
+        *,
+        carrier: str,
+        flight_number: str,
+        date: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetFlightsResponse:
+        """``GET /flight_disruption_markets/flights``. Authenticated.
+
+        Marked x-excluded in the spec; availability may not be launched.
+        """
+        self._require_auth()
+        params = _params(carrier=carrier, flight_number=flight_number, date=date)
+        data = self._get(
+            "/flight_disruption_markets/flights",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetFlightsResponse.model_validate(data)
 
 
 class AsyncMarketsResource(AsyncResource):
@@ -1001,6 +1152,7 @@ class AsyncMarketsResource(AsyncResource):
         start_hour: int,
         end_hour: int,
         timezone: str,
+        end_date: str | None = ...,
         floor_value: int | None = ...,
         cap_value: int | None = ...,
         extra_headers: dict[str, str] | None = None,
@@ -1014,6 +1166,7 @@ class AsyncMarketsResource(AsyncResource):
         variable: WeatherPointVariableLiteral | None = None,
         strike_type: Literal["greater", "less", "between"] | None = None,
         date: str | None = None,
+        end_date: str | None = None,
         start_hour: int | None = None,
         end_hour: int | None = None,
         timezone: str | None = None,
@@ -1030,6 +1183,7 @@ class AsyncMarketsResource(AsyncResource):
             variable=variable,
             strike_type=strike_type,
             date=date,
+            end_date=end_date,
             start_hour=start_hour,
             end_hour=end_hour,
             timezone=timezone,
@@ -1136,3 +1290,83 @@ class AsyncMarketsResource(AsyncResource):
             extra_headers=extra_headers,
         )
         return SearchConcertsResponse.model_validate(data)
+
+    @overload
+    async def create_flight_disruption_market(
+        self,
+        *,
+        request: CreateFlightDisruptionMarketRequest,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse: ...
+    @overload
+    async def create_flight_disruption_market(
+        self,
+        *,
+        carrier: str,
+        flight_number: str,
+        departure_airport: str,
+        arrival_airport: str,
+        scheduled_date: str,
+        cover: FlightCoverLiteral,
+        delay_basis: FlightDelayBasisLiteral | None = ...,
+        delay_minutes: int | None = ...,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse: ...
+    async def create_flight_disruption_market(
+        self,
+        *,
+        request: CreateFlightDisruptionMarketRequest | None = None,
+        carrier: str | None = None,
+        flight_number: str | None = None,
+        departure_airport: str | None = None,
+        arrival_airport: str | None = None,
+        scheduled_date: str | None = None,
+        cover: FlightCoverLiteral | None = None,
+        delay_basis: FlightDelayBasisLiteral | None = None,
+        delay_minutes: int | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> CreateFlightDisruptionMarketResponse:
+        """Async :meth:`MarketsResource.create_flight_disruption_market`."""
+        self._require_auth()
+        body = _build_create_flight_disruption_market_body(
+            request,
+            carrier=carrier,
+            flight_number=flight_number,
+            departure_airport=departure_airport,
+            arrival_airport=arrival_airport,
+            scheduled_date=scheduled_date,
+            cover=cover,
+            delay_basis=delay_basis,
+            delay_minutes=delay_minutes,
+        )
+        data = await self._post(
+            "/flight_disruption_markets", json=body, extra_headers=extra_headers
+        )
+        return CreateFlightDisruptionMarketResponse.model_validate(data)
+
+    async def flight_disruption_availability(
+        self, *, extra_headers: dict[str, str] | None = None
+    ) -> GetFlightDisruptionAvailabilityResponse:
+        """Async :meth:`MarketsResource.flight_disruption_availability`."""
+        data = await self._get(
+            "/flight_disruption_markets/availability", extra_headers=extra_headers
+        )
+        return GetFlightDisruptionAvailabilityResponse.model_validate(data)
+
+    async def list_flights(
+        self,
+        *,
+        carrier: str,
+        flight_number: str,
+        date: str,
+        extra_headers: dict[str, str] | None = None,
+    ) -> GetFlightsResponse:
+        """Async :meth:`MarketsResource.list_flights`."""
+        self._require_auth()
+        params = _params(carrier=carrier, flight_number=flight_number, date=date)
+        data = await self._get(
+            "/flight_disruption_markets/flights",
+            params=params,
+            extra_headers=extra_headers,
+        )
+        return GetFlightsResponse.model_validate(data)

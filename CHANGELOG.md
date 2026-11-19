@@ -2,6 +2,70 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.15.0 — 2026-11-19
+
+Adds on-request flight disruption markets (#586) against OpenAPI v3.37.0
+and reconciles weather-window, perps schedule, and perps candlestick/WS
+drift. Additive only. No breaking changes.
+
+### Added
+
+- **`markets.create_flight_disruption_market(...)`** (sync and async) —
+  `POST /flight_disruption_markets`, 200 `CreateFlightDisruptionMarketResponse`.
+  Authenticated. Returns the flight disruption market for a flight, cover
+  and optional delay, creating it if it does not exist. `created` is false
+  when a market for the same request already existed. Required: `carrier`,
+  `flight_number`, `departure_airport`, `arrival_airport`, `scheduled_date`
+  (YYYY-MM-DD), `cover` (`FlightCoverLiteral`: `"cancelled"` / `"delayed"` /
+  `"either"`). Optional: `delay_basis` (`FlightDelayBasisLiteral`:
+  `"departure"` / `"arrival"`), `delay_minutes`. Accepts
+  `request=CreateFlightDisruptionMarketRequest(...)` or keyword fields.
+  POST is never retried.
+- **`markets.flight_disruption_availability()`** (sync and async) —
+  `GET /flight_disruption_markets/availability`, 200
+  `GetFlightDisruptionAvailabilityResponse`. Public. These three endpoints
+  are marked `x-excluded` in the spec; they may not be launched yet.
+- **`markets.list_flights(*, carrier, flight_number, date)`** (sync and
+  async) — `GET /flight_disruption_markets/flights`, 200 `GetFlightsResponse`.
+  Authenticated. Looks up a flight number on a departure date. (Closes #586).
+- Optional **`end_date`** (`str | None`) on
+  `CreateWeatherPointMarketRequest` and both sync and async
+  `create_weather_point_market` overloads. Omitted when unset; existing
+  callers are unchanged. The spec marks this field optional.
+- Perps **`MarginMarketScheduleDetails.kalshi_trading_schedule`** optional
+  `MarginTradingCronSchedule` (`timezone` is `"America/New_York"`;
+  `open_crons` / `close_crons` lists).
+- Perps WS optional **`subaccount_type`** on `MarginOrderbookDeltaPayload`,
+  `MarginFillPayload`, and `MarginUserOrderPayload`, typed with REST
+  `SubaccountTypeLiteral` (also accepts `"auto_rebalance"`).
+
+### Changed
+
+- **`GetWeatherPointAvailabilityResponse.max_window_days`** /
+  **`max_window_hours`** are optional (`int | None`). Spec 3.37.0 marks
+  both required; the SDK keeps them optional so payloads that omit the
+  keys still parse (`server_omits_despite_required`).
+- Perps **`MarginMarketCandlestick.ask`** is now
+  `MarginAskDistributionHistorical`: required keys, JSON-nullable
+  `open` / `low` / `high` / `close` (`DollarDecimal | None`,
+  `AliasChoices(foo_dollars, foo)`), so candlesticks from periods with no
+  asks parse instead of failing validation. Bid OHLC stays non-null
+  `BidAskDistributionHistorical`. Strict-mypy code doing arithmetic on ask
+  values may need a `None` check.
+
+### Docs
+
+- Weather point: coordinates rounded to three decimals; `end_date` can
+  cross midnight (at most 24 hours) when `max_window_days == 2`.
+- Concert `enabled` lists concerts; it does not promise that create will
+  succeed.
+- Perps market schedules include recurring trading hours, not only
+  holiday closures.
+- Perps `managed_isolated` uses the same subaccount number as the
+  market's isolated subaccount.
+- AsyncAPI orderbook snapshot `market_id` may now be `""` (already accepted
+  as `str`). Snapshot parsing is unchanged and still requires both book sides.
+
 ## 22.14.0 — 2026-11-13
 
 Adds on-request concert cancellation markets (#582) against OpenAPI v3.36.0
