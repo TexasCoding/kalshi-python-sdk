@@ -15,6 +15,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.perps.ws.models._common import (
     PerpsBookSide,
     PerpsLastUpdateReason,
@@ -95,6 +96,7 @@ class MarginOrderbookDeltaPayload(BaseModel):
     Single-sided incremental update. ``price`` is a dollar-decimal string,
     ``delta`` is a fixed-point count string (may be negative), ``side`` is
     ``bid``/``ask``. ``ts_ms`` is epoch milliseconds (``int``), NOT RFC3339.
+    ``subaccount_type`` is present only when ``subaccount`` is.
     """
 
     market_ticker: str
@@ -104,6 +106,7 @@ class MarginOrderbookDeltaPayload(BaseModel):
     last_update_reason: PerpsLastUpdateReason | None = None
     client_order_id: str | None = None
     subaccount: int | None = None
+    subaccount_type: SubaccountTypeLiteral | None = None
     ts_ms: int | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 

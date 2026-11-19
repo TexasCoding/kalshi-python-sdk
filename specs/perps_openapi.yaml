@@ -742,7 +742,7 @@ paths:
     get:
       operationId: GetMarginMarketSchedules
       summary: Get Market Schedules
-      description: Endpoint for retrieving Kalshi trading holiday closures for multiple margin markets. Returns a map keyed by market ticker. Regular daily and weekend closures are not included.
+      description: Endpoint for retrieving recurring Kalshi trading hours and holiday closures for multiple margin markets. Returns a map keyed by market ticker.
       tags:
         - market
       parameters:
@@ -3520,6 +3520,31 @@ components:
           description: Kalshi trading holiday closures for the market.
           items:
             $ref: '#/components/schemas/MarginHolidayWindow'
+        kalshi_trading_schedule:
+          $ref: '#/components/schemas/MarginTradingCronSchedule'
+
+    MarginTradingCronSchedule:
+      type: object
+      description: Recurring Kalshi trading hours, including market-specific overrides. Available after schedule synchronization. Empty cron arrays mean continuous trading except for closures in kalshi_trading_holidays.
+      required:
+        - timezone
+        - open_crons
+        - close_crons
+      properties:
+        timezone:
+          type: string
+          description: IANA timezone used to evaluate the cron expressions.
+          enum: [America/New_York]
+        open_crons:
+          type: array
+          description: Five-field cron expressions (minute, hour, day of month, month, day of week) for recurring trading session opens. Day of week 0 is Sunday.
+          items:
+            type: string
+        close_crons:
+          type: array
+          description: Five-field cron expressions (minute, hour, day of month, month, day of week) for recurring trading session closes. Day of week 0 is Sunday.
+          items:
+            type: string
 
     MarginHolidayWindow:
       type: object
@@ -3595,7 +3620,7 @@ components:
       type: string
       enum: ['cross', 'isolated', 'auto_rebalance', 'managed_isolated']
       x-enum-varnames: [SubaccountTypeCross, SubaccountTypeIsolated, SubaccountTypeAutoRebalance, SubaccountTypeManagedIsolated]
-      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, `auto_rebalance` for an auto-rebalanced isolated position, which shares its market's isolated subaccount number, and `managed_isolated` for a managed isolated position, whose subaccount number is its slot number rather than the market's isolated subaccount number.
+      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, `auto_rebalance` for an auto-rebalanced isolated position, which shares its market's isolated subaccount number, and `managed_isolated` for a managed isolated position, whose subaccount number is the same as the market's isolated subaccount number.
 
     LastUpdateReason:
       type: string
@@ -4324,7 +4349,7 @@ components:
           $ref: '#/components/schemas/BidAskDistributionHistorical'
           description: Open, high, low, close (OHLC) data for buy offers on the market during the candlestick period.
         ask:
-          $ref: '#/components/schemas/BidAskDistributionHistorical'
+          $ref: '#/components/schemas/MarginAskDistributionHistorical'
           description: Open, high, low, close (OHLC) data for sell offers on the market during the candlestick period.
         price:
           $ref: '#/components/schemas/PriceDistributionHistorical'
@@ -4363,6 +4388,36 @@ components:
         close:
           $ref: '#/components/schemas/FixedPointDollars'
           description: Quoted price at the end of the candlestick period (in dollars).
+
+    MarginAskDistributionHistorical:
+      type: object
+      required:
+        - open
+        - low
+        - high
+        - close
+      description: OHLC data for ask quotes during the candlestick period. These values reflect ask quotes, not executed trade prices. A value is null when the orderbook had no asks.
+      properties:
+        open:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          nullable: true
+          description: Ask at the start of the candlestick period (in dollars). Null if the orderbook had no asks at that time.
+        low:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          nullable: true
+          description: Lowest ask during the candlestick period (in dollars). Null if the orderbook had no asks during the period.
+        high:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          nullable: true
+          description: Highest ask during the candlestick period (in dollars). Null if the orderbook had no asks during the period.
+        close:
+          allOf:
+            - $ref: '#/components/schemas/FixedPointDollars'
+          nullable: true
+          description: Ask at the end of the candlestick period (in dollars). Null if the orderbook had no asks at that time.
 
     PriceDistributionHistorical:
       type: object

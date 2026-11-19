@@ -1463,6 +1463,9 @@ BODY_MODEL_MAP: dict[str, str] = {
     "#/components/schemas/CreateConcertCancellationMarketRequest": (
         "kalshi.models.markets.CreateConcertCancellationMarketRequest"
     ),
+    "#/components/schemas/CreateFlightDisruptionMarketRequest": (
+        "kalshi.models.markets.CreateFlightDisruptionMarketRequest"
+    ),
     "#/components/schemas/CreateOrderGroupRequest": (
         "kalshi.models.order_groups.CreateOrderGroupRequest"
     ),

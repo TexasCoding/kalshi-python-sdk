@@ -13,6 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.perps.ws.models._common import (
     PerpsBookSide,
     PerpsOrderSource,
@@ -28,8 +29,10 @@ class MarginUserOrderPayload(BaseModel):
     ``ticker`` (note: ``ticker``, NOT ``market_ticker``), ``side`` (``bid``/
     ``ask``), ``price`` (dollar-decimal), ``fill_count``/``remaining_count``
     (fixed-point counts), ``created_ts_ms`` (epoch ms), and ``order_source``
-    (``user``/``system``). The remaining fields — STP type, order-group id, and
-    the ``*_ts_ms`` timestamps — are optional.
+    (``user``/``system``). The remaining fields — STP type, order-group id,
+    the ``*_ts_ms`` timestamps, ``subaccount_number``, and ``subaccount_type``
+    — are optional. ``subaccount_type`` is present only when
+    ``subaccount_number`` is.
     """
 
     order_id: str
@@ -47,6 +50,7 @@ class MarginUserOrderPayload(BaseModel):
     expiration_ts_ms: int | None = None
     last_updated_ts_ms: int | None = None
     subaccount_number: int | None = None
+    subaccount_type: SubaccountTypeLiteral | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

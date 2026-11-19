@@ -217,12 +217,11 @@ class PerpsMarketsResource(SyncResource):
         tickers: builtins.list[str],
         extra_headers: dict[str, str] | None = None,
     ) -> dict[str, MarginMarketScheduleDetails]:
-        """``GET /margin/markets/schedules`` — holiday closures for up to 100 tickers.
+        """``GET /margin/markets/schedules`` — recurring hours and holiday closures.
 
         Public market data (no auth). ``tickers`` is required (1-100, each
         1-200 characters) and serializes as a comma-separated query string.
-        The body is a map keyed by market ticker. Regular daily and weekend
-        closures are not included.
+        The body is a map keyed by market ticker.
         """
         params = _schedules_params(tickers=tickers)
         data = self._get(

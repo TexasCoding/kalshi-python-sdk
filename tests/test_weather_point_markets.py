@@ -117,6 +117,7 @@ class TestCreateWeatherPointMarket:
         assert body == _CREATE_BODY
         assert "floor_value" not in body
         assert "cap_value" not in body
+        assert "end_date" not in body
         assert body["latitude"] == 0.0
         assert resp.event_ticker == "KXRFQ-E"
         assert resp.market_ticker == _CREATE_RESPONSE["market_ticker"]
@@ -131,8 +132,31 @@ class TestCreateWeatherPointMarket:
         )
         req = CreateWeatherPointMarketRequest(**_CREATE_KWARGS)
         resp = markets.create_weather_point_market(request=req)
-        assert json.loads(route.calls[0].request.content) == _CREATE_BODY
+        body = json.loads(route.calls[0].request.content)
+        assert body == _CREATE_BODY
+        assert "end_date" not in body
         assert resp.created is True
+
+    @respx.mock
+    def test_end_date_sent_when_set(self, markets: MarketsResource) -> None:
+        route = respx.post(f"{BASE}/weather_point_markets").mock(
+            return_value=httpx.Response(200, json=_CREATE_RESPONSE)
+        )
+        markets.create_weather_point_market(**_CREATE_KWARGS, end_date="2026-11-12")
+        body = json.loads(route.calls[0].request.content)
+        assert body["end_date"] == "2026-11-12"
+        for key, value in _CREATE_BODY.items():
+            assert body[key] == value
+
+    @respx.mock
+    def test_request_model_end_date(self, markets: MarketsResource) -> None:
+        route = respx.post(f"{BASE}/weather_point_markets").mock(
+            return_value=httpx.Response(200, json=_CREATE_RESPONSE)
+        )
+        req = CreateWeatherPointMarketRequest(**_CREATE_KWARGS, end_date="2026-11-12")
+        markets.create_weather_point_market(request=req)
+        body = json.loads(route.calls[0].request.content)
+        assert body["end_date"] == "2026-11-12"
 
     def test_request_and_kwargs_exclusive(self, markets: MarketsResource) -> None:
         req = CreateWeatherPointMarketRequest(**_CREATE_KWARGS)
@@ -196,8 +220,21 @@ class TestCreateWeatherPointMarket:
         body = json.loads(route.calls[0].request.content)
         assert body == _CREATE_BODY
         assert "floor_value" not in body
+        assert "end_date" not in body
         assert body["latitude"] == 0.0
         assert resp.created is True
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_end_date_sent_when_set(
+        self, async_markets: AsyncMarketsResource
+    ) -> None:
+        route = respx.post(f"{BASE}/weather_point_markets").mock(
+            return_value=httpx.Response(200, json=_CREATE_RESPONSE)
+        )
+        await async_markets.create_weather_point_market(**_CREATE_KWARGS, end_date="2026-11-12")
+        body = json.loads(route.calls[0].request.content)
+        assert body["end_date"] == "2026-11-12"
 
     @respx.mock
     @pytest.mark.asyncio
@@ -279,6 +316,19 @@ class TestWeatherPointAvailability:
         assert resp.domains[0].north == 49.0
         assert resp.variables[0].variable == "precip_hours"
         assert resp.variables[0].domains == ["conus"]
+        assert resp.max_window_days is None
+        assert resp.max_window_hours is None
+
+    @respx.mock
+    def test_window_fields_set(self, markets: MarketsResource) -> None:
+        respx.get(f"{BASE}/weather_point_markets/availability").mock(
+            return_value=httpx.Response(
+                200, json={**_AVAIL_RESPONSE, "max_window_days": 2, "max_window_hours": 24}
+            )
+        )
+        resp = markets.weather_point_availability()
+        assert resp.max_window_days == 2
+        assert resp.max_window_hours == 24
 
     @respx.mock
     def test_empty_lists(self, markets: MarketsResource) -> None:
@@ -326,6 +376,20 @@ class TestWeatherPointAvailability:
         assert route.calls[0].request.method == "GET"
         assert resp.enabled is True
         assert resp.domains[0].name == "conus"
+        assert resp.max_window_days is None
+        assert resp.max_window_hours is None
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_async_window_fields_set(self, async_markets: AsyncMarketsResource) -> None:
+        respx.get(f"{BASE}/weather_point_markets/availability").mock(
+            return_value=httpx.Response(
+                200, json={**_AVAIL_RESPONSE, "max_window_days": 2, "max_window_hours": 24}
+            )
+        )
+        resp = await async_markets.weather_point_availability()
+        assert resp.max_window_days == 2
+        assert resp.max_window_hours == 24
 
     @respx.mock
     @pytest.mark.asyncio

@@ -760,6 +760,11 @@ components:
       enum: ["Decrease", "Amend", "MarginCancel", "SelfTradeCancel", "ExpiryCancel", "CloseCancel", "HaltCancel", "Trade", "PostOnlyCrossCancel", "ReduceOnlyCancel", "SettlementBoundsCancel"]
       description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement, and SettlementBoundsCancel means the overnight settlement band canceled a resting order priced outside it. The field is omitted when no reason applies.
 
+    subaccountType:
+      type: string
+      enum: ["cross", "isolated", "managed_isolated"]
+      description: How the subaccount is margined. `cross` for the primary account and numbered subaccounts, `isolated` for a market's isolated subaccount, and `managed_isolated` for a managed isolated subaccount, whose number is the same as the market's isolated subaccount number.
+
     tickerPrice:
       type: object
       required: ["price", "ts_ms"]
@@ -1120,6 +1125,9 @@ components:
                 It can decrease between deltas; follow the subscription's seq for delivery order.
             subaccount:
               type: integer
+            subaccount_type:
+              $ref: '#/components/schemas/subaccountType'
+              description: Present only when subaccount is.
         sending_ts_ms:
           $ref: '#/components/schemas/sendingTimestampMs'
 
@@ -1422,6 +1430,9 @@ components:
               x-rust-serialize-with: ws::dto::serde_money::serialize_position_fixed_point_count
             subaccount:
               type: integer
+            subaccount_type:
+              $ref: '#/components/schemas/subaccountType'
+              description: Present only when subaccount is.
             order_source:
               type: string
               enum: ["user", "system"]
@@ -1491,6 +1502,9 @@ components:
               description: Margin order update reason. The value ReduceOnlyCancel means reduce_only capped the order at placement. The field is omitted when no reason applies.
             subaccount_number:
               type: integer
+            subaccount_type:
+              $ref: '#/components/schemas/subaccountType'
+              description: Present only when subaccount_number is.
             order_source:
               type: string
               enum: ["user", "system"]

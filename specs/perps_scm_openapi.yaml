@@ -225,16 +225,15 @@ paths:
       summary: Get Large Trader Positions
       description: >-
         Positions of the authenticated clearing member that meet the CFTC
-        large-trader reporting levels for a settlement day (17 CFR 15.03(b);
-        each row's reportable_threshold is its market's level), plus exit-day
+        large-trader reporting level for a settlement day (25 contracts in
+        every market; each row's reportable_threshold carries it), plus exit-day
         positions that were reportable on the prior settlement day and are now
         below the threshold.
         Members with reportable positions are subject to their own CFTC Part 17
         large-trader reporting obligations; this endpoint provides the position
         data needed to meet them. Empty when no positions meet the reporting
-        levels and no prior-day reportable positions need exit reporting. See the
-        [CFTC's Large Trader Reporting Program](https://www.cftc.gov/IndustryOversight/MarketSurveillance/LargeTraderReportingProgram/index.htm)
-        and reporting levels at [17 CFR 15.03](https://www.ecfr.gov/current/title-17/chapter-I/part-15).
+        level and no prior-day reportable positions need exit reporting. See the
+        [CFTC's Large Trader Reporting Program](https://www.cftc.gov/IndustryOversight/MarketSurveillance/LargeTraderReportingProgram/index.htm).
 
       parameters:
         - { name: report_date, in: query, required: false, schema: { type: string, format: date }, description: "ET settlement day to report, YYYY-MM-DD. Defaults to the most recent ET settlement day whose settlement window has closed." }
@@ -1007,7 +1006,7 @@ components:
               market_ticker: { type: string }
               position: { type: integer, description: "Signed contract count; positive long, negative short. Can be below the reportable threshold when exit_day is true." }
               exit_day: { type: boolean, description: True when this row is included because the same market was reportable on the prior settlement day but is now below the reportable threshold. }
-              reportable_threshold: { type: integer, format: int64, description: 'CFTC reporting level for this market, in contracts (17 CFR 15.03(b)). A position of at least this size in either direction is reportable.' }
+              reportable_threshold: { type: integer, format: int64, description: 'CFTC reporting level for this market, in contracts; 25 in every market. A position of at least this size in either direction is reportable.' }
     EstimatePortfolioMaintenanceMarginPosition:
       type: object
       required: [market_ticker]

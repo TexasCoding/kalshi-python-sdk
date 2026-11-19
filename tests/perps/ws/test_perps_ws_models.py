@@ -335,6 +335,45 @@ class TestOrderbookDelta:
         msg = MarginOrderbookDeltaMessage.model_validate(frame)
         assert msg.msg.last_update_reason == "SettlementBoundsCancel"
 
+    def test_delta_subaccount_type_optional(self) -> None:
+        frame = {
+            "type": "orderbook_delta",
+            "sid": 1,
+            "seq": 2,
+            "msg": {
+                "market_ticker": "BTC-PERP",
+                "price": "100.5000",
+                "delta": "3.00",
+                "side": "ask",
+                "subaccount": 3,
+                "subaccount_type": "isolated",
+            },
+        }
+        msg = MarginOrderbookDeltaMessage.model_validate(frame)
+        assert msg.msg.subaccount == 3
+        assert msg.msg.subaccount_type == "isolated"
+        omitted = MarginOrderbookDeltaMessage.model_validate(
+            {
+                "type": "orderbook_delta",
+                "sid": 1,
+                "seq": 2,
+                "msg": {
+                    "market_ticker": "BTC-PERP",
+                    "price": "100.5000",
+                    "delta": "3.00",
+                    "side": "ask",
+                },
+            }
+        )
+        assert omitted.msg.subaccount_type is None
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+            frame["msg"]["subaccount_type"] = value
+            parsed = MarginOrderbookDeltaMessage.model_validate(frame)
+            assert parsed.msg.subaccount_type == value
+        frame["msg"]["subaccount_type"] = "nope"
+        with pytest.raises(ValidationError):
+            MarginOrderbookDeltaMessage.model_validate(frame)
+
 
 class TestTicker:
     def _full_frame(self) -> dict[str, Any]:
@@ -531,6 +570,21 @@ class TestFill:
         msg = MarginFillMessage.model_validate(frame)
         assert msg.msg.client_order_id == "coid-1"
         assert msg.msg.subaccount == 7
+        assert msg.msg.subaccount_type is None
+
+    def test_subaccount_type_optional(self) -> None:
+        frame = self._frame()
+        frame["msg"]["subaccount"] = 7
+        frame["msg"]["subaccount_type"] = "cross"
+        msg = MarginFillMessage.model_validate(frame)
+        assert msg.msg.subaccount_type == "cross"
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+            frame["msg"]["subaccount_type"] = value
+            parsed = MarginFillMessage.model_validate(frame)
+            assert parsed.msg.subaccount_type == value
+        frame["msg"]["subaccount_type"] = "nope"
+        with pytest.raises(ValidationError):
+            MarginFillMessage.model_validate(frame)
 
     def test_missing_post_position_raises(self) -> None:
         frame = self._frame()
@@ -582,6 +636,22 @@ class TestUserOrders:
     def test_rejects_bad_stp(self) -> None:
         frame = self._frame()
         frame["msg"]["self_trade_prevention_type"] = "bogus"
+        with pytest.raises(ValidationError):
+            MarginUserOrderMessage.model_validate(frame)
+
+    def test_subaccount_type_optional(self) -> None:
+        frame = self._frame()
+        assert MarginUserOrderMessage.model_validate(frame).msg.subaccount_type is None
+        frame["msg"]["subaccount_number"] = 4
+        frame["msg"]["subaccount_type"] = "managed_isolated"
+        msg = MarginUserOrderMessage.model_validate(frame)
+        assert msg.msg.subaccount_number == 4
+        assert msg.msg.subaccount_type == "managed_isolated"
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+            frame["msg"]["subaccount_type"] = value
+            parsed = MarginUserOrderMessage.model_validate(frame)
+            assert parsed.msg.subaccount_type == value
+        frame["msg"]["subaccount_type"] = "nope"
         with pytest.raises(ValidationError):
             MarginUserOrderMessage.model_validate(frame)
 

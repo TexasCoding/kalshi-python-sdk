@@ -322,7 +322,7 @@ class CreateWeatherPointMarketRequest(BaseModel):
     Matches spec ``components.schemas.CreateWeatherPointMarketRequest``.
     Required: ``latitude``, ``longitude``, ``variable``, ``strike_type``,
     ``date``, ``start_hour``, ``end_hour``, ``timezone``. Optional:
-    ``floor_value``, ``cap_value``.
+    ``end_date``, ``floor_value``, ``cap_value``.
     """
 
     latitude: float
@@ -330,6 +330,7 @@ class CreateWeatherPointMarketRequest(BaseModel):
     variable: WeatherPointVariableLiteral
     strike_type: Literal["greater", "less", "between"]
     date: str
+    end_date: str | None = None
     start_hour: int
     end_hour: int
     timezone: str
@@ -373,11 +374,17 @@ class WeatherPointVariableAvailability(BaseModel):
 
 
 class GetWeatherPointAvailabilityResponse(BaseModel):
-    """Response from GET /weather_point_markets/availability."""
+    """Response from GET /weather_point_markets/availability.
+
+    ``max_window_days`` / ``max_window_hours`` are spec-required; the SDK
+    keeps them optional so payloads that omit the keys still parse.
+    """
 
     enabled: bool
     domains: NullableList[WeatherPointDomain]
     variables: NullableList[WeatherPointVariableAvailability]
+    max_window_days: int | None = None
+    max_window_hours: int | None = None
 
     model_config = {"extra": "allow"}
 
@@ -424,7 +431,12 @@ class ConcertMetro(BaseModel):
 
 
 class GetConcertCancellationAvailabilityResponse(BaseModel):
-    """Response from GET /concert_cancellation_markets/availability."""
+    """Response from GET /concert_cancellation_markets/availability.
+
+    ``enabled`` is whether concerts are listed. It does not promise that
+    markets can be created: where concerts are listed before markets are
+    offered, it is true and every create request returns 409.
+    """
 
     enabled: bool
     covers: NullableList[ConcertCoverLiteral]
@@ -480,5 +492,108 @@ class SearchConcertsResponse(BaseModel):
     """Response from GET /concert_cancellation_markets/concerts/search."""
 
     concerts: NullableList[Concert]
+
+    model_config = {"extra": "allow"}
+
+
+FlightCoverLiteral = Literal["cancelled", "delayed", "either"]
+"""What a flight disruption market pays on. Spec: FlightCover enum."""
+
+FlightDelayBasisLiteral = Literal["departure", "arrival"]
+"""Which gate time a delay is measured at. Spec: FlightDelayBasis enum."""
+
+
+class CreateFlightDisruptionMarketRequest(BaseModel):
+    """Body for POST /flight_disruption_markets.
+
+    Matches spec ``components.schemas.CreateFlightDisruptionMarketRequest``.
+    Required: ``carrier``, ``flight_number``, ``departure_airport``,
+    ``arrival_airport``, ``scheduled_date``, ``cover``. Optional:
+    ``delay_basis``, ``delay_minutes``.
+    """
+
+    carrier: str
+    flight_number: str
+    departure_airport: str
+    arrival_airport: str
+    scheduled_date: str
+    cover: FlightCoverLiteral
+    delay_basis: FlightDelayBasisLiteral | None = None
+    delay_minutes: int | None = None
+
+    model_config = {"extra": "forbid"}
+
+
+class CreateFlightDisruptionMarketResponse(BaseModel):
+    """Response from POST /flight_disruption_markets."""
+
+    cover: FlightCoverLiteral
+    event_ticker: str
+    market_ticker: str
+    created: bool
+    delay_basis: FlightDelayBasisLiteral | None = None
+    delay_minutes: int | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetFlightDisruptionAvailabilityResponse(BaseModel):
+    """Response from GET /flight_disruption_markets/availability."""
+
+    enabled: bool
+    covers: NullableList[FlightCoverLiteral]
+    delay_bases: NullableList[FlightDelayBasisLiteral]
+    delay_step_minutes: int
+    max_delay_minutes: int
+    max_days_ahead: int
+    min_lead_minutes: int
+    departure_countries: NullableList[str]
+
+    model_config = {"extra": "allow"}
+
+
+class FlightCoverEvent(BaseModel):
+    """Event and market tickers a flight has or would get for one cover."""
+
+    cover: FlightCoverLiteral
+    series_ticker: str
+    event_ticker: str
+    market_ticker: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class Flight(BaseModel):
+    """A flight listing that a disruption market can still be created for."""
+
+    carrier: str
+    flight_number: str
+    departure_airport: str
+    arrival_airport: str
+    scheduled_date: str
+    events: NullableList[FlightCoverEvent]
+    airline_name: str | None = None
+    departure_airport_name: str | None = None
+    departure_city: str | None = None
+    departure_country: str | None = None
+    departure_timezone: str | None = None
+    arrival_airport_name: str | None = None
+    arrival_city: str | None = None
+    arrival_country: str | None = None
+    arrival_timezone: str | None = None
+    scheduled_departure: AwareDatetime | None = None
+    scheduled_arrival: AwareDatetime | None = None
+    close_time: AwareDatetime | None = None
+    settle_after: AwareDatetime | None = None
+    requested_carrier: str | None = None
+    requested_flight_number: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
+class GetFlightsResponse(BaseModel):
+    """Response from GET /flight_disruption_markets/flights."""
+
+    flights: NullableList[Flight]
 
     model_config = {"extra": "allow"}

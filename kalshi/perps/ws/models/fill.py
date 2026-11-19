@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from kalshi.perps.models.common import SubaccountTypeLiteral
 from kalshi.perps.ws.models._common import PerpsBookSide, PerpsOrderSource
 from kalshi.types import DollarDecimal, FixedPointCount
 
@@ -21,7 +22,8 @@ class MarginFillPayload(BaseModel):
     ``is_taker``, ``side`` (``bid``/``ask``), ``ts_ms`` (epoch ms), ``price``
     (dollar-decimal), ``count``/``post_position`` (fixed-point counts),
     ``fee_cost`` (dollar-decimal), and ``order_source`` (``user``/``system``).
-    ``client_order_id`` and ``subaccount`` are optional.
+    ``client_order_id``, ``subaccount``, and ``subaccount_type`` are optional.
+    ``subaccount_type`` is present only when ``subaccount`` is.
     """
 
     trade_id: str
@@ -37,6 +39,7 @@ class MarginFillPayload(BaseModel):
     order_source: PerpsOrderSource
     client_order_id: str | None = None
     subaccount: int | None = None
+    subaccount_type: SubaccountTypeLiteral | None = None
     model_config = {"extra": "allow", "populate_by_name": True}
 
 

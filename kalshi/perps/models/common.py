@@ -110,7 +110,7 @@ SubaccountTypeLiteral = Literal["cross", "isolated", "auto_rebalance", "managed_
 a market's isolated subaccount, ``auto_rebalance`` for an auto-rebalanced
 isolated position (shares its market's isolated subaccount number), and
 ``managed_isolated`` for a managed isolated position (subaccount number is
-its slot number rather than the market's isolated subaccount number).
+the same as the market's isolated subaccount number).
 """
 
 
