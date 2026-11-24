@@ -75,7 +75,12 @@ paths:
     get:
       operationId: GetObligationHistory
       summary: Get Obligation History
-      description: Completed obligations from previous settlements, ordered by most recent first.
+      description: >-
+        Completed obligations from previous settlements, ordered by most recent
+        first. Each settlement cycle produces at most one obligation per asset
+        class, and none when nothing settles in it (no PnL in any market, no
+        fees and no maintenance margin change). Markets whose PnL offsets still
+        produce an obligation, at $0.
 
       parameters:
         - { name: limit, in: query, required: false, schema: { type: integer, default: 20, maximum: 100 }, description: Number of results per page. }
@@ -824,7 +829,18 @@ components:
             Kalshi Klear; positive means Kalshi Klear pays the clearing member.
         amount_fp: { type: string, description: "amount_centicents as a fixed-point dollar string with 6 decimal places (e.g. \"10005.000000\")." }
         fees_centicents: { type: integer, format: int64, description: Trading fees incurred during the settlement period. }
-        maintenance_margin_centicents: { type: integer, format: int64, description: Current maintenance margin requirement for this obligation. }
+        maintenance_margin_centicents:
+          type: integer
+          format: int64
+          description: |
+            Maintenance margin change settled by this obligation: the sum of
+            `maintenance_margin_delta_centicents` over all of its maintenance
+            margin details (when `maintenance_margin_details_truncated` is set,
+            page `/margin/obligations/{obligation_id}/maintenance_margin_details`
+            for the full set). Positive means margin released to the clearing
+            member; negative means additional margin the clearing member owes.
+            This is not the requirement: per-subtrader requirements are the
+            `maintenance_margin_centicents` values in the details.
         pnl_centicents: { type: integer, format: int64, description: "Total PnL for this settlement period; the sum of the settlement details for this settlement cycle." }
         pnl_fp: { type: string, description: pnl_centicents as a fixed-point dollar string with 6 decimal places. }
         execution_time: { type: string, format: date-time, description: Settlement cycle time this obligation belongs to. }
@@ -937,7 +953,14 @@ components:
         subtrader_id: { type: string, description: Empty when not populated or when the subtrader is part of a subtrader group. }
         margin_group_id: { type: string, description: Set when the subtrader is part of a subtrader group. }
         maintenance_margin_centicents: { type: integer, format: int64, description: Maintenance margin requirement after this settlement. }
-        maintenance_margin_delta_centicents: { type: integer, format: int64, description: Change in maintenance margin between the previous settlement and this one. }
+        maintenance_margin_delta_centicents:
+          type: integer
+          format: int64
+          description: |
+            Requirement at the previous settlement minus the requirement after
+            this one. Positive means margin released to the clearing member;
+            negative means the requirement rose and the clearing member owes
+            the increase.
 
     ObligationEntry:
       allOf:
@@ -959,8 +982,12 @@ components:
               type: array
               items: { $ref: '#/components/schemas/MaintenanceMarginDetail' }
               description: |
-                Breakdown of the maintenance margin requirement and the delta
-                from the prior settlement.
+                Per-subtrader maintenance margin requirement after this
+                settlement and its delta from the prior settlement. Lists each
+                subtrader or subtrader group that holds positions at this
+                settlement or had a nonzero requirement at the prior one, so a
+                subtrader that goes flat appears with a requirement of 0.
+                Others are omitted.
             funding_payments:
               type: array
               items: { $ref: '#/components/schemas/FundingPaymentDetail' }

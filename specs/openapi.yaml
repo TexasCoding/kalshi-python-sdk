@@ -4237,14 +4237,24 @@ paths:
         `end_date` set to the day after `date`, from one day into the next.
         A window that crosses midnight is at most 24 hours long, and only
         offered where `GET /weather_point_markets/availability` returns
-        `max_window_days: 2`. Where it returns 1, the limit applies to the
-        local dates the market stores, which are those of the first request
-        for its variable, location and window: a new threshold on an event
-        first requested across midnight is refused even when your request
-        names one date in another time zone, and one on an event first
-        requested within one date is accepted even with `end_date`. A market
-        that already exists is returned either way. A new market's window must start at least 15
-        minutes from now and within 365 days.
+        `max_window_days: 2`. A new market's window must start at least 6
+        hours from now (15 minutes on demo) and within 365 days.
+
+        `timezone` only says which span of time `date` and the hours mean. The
+        market is described in the IANA time zone of its location, which
+        Kalshi determines from the coordinates: its title and `rules_primary`
+        give the window there, with the weekday and the zone abbreviation in
+        force (`on Thu, Nov 19, 2026, 8pm–12am PST`), whatever zone the
+        request used. The limits on a window's dates go by the location's
+        zone as well: where `max_window_days` is 1, a new market whose window
+        crosses midnight at the location is refused even when the request
+        names one date in another zone, and one within one date at the
+        location is accepted even with `end_date`; and a window that crosses
+        midnight at the location is at most 24 hours long there. A market
+        that already exists is returned either way. An event created before
+        this applied keeps its description and its dates, in the time zone of
+        its first request, and so do thresholds added to it later: for those,
+        the `max_window_days` limit goes by the dates the event stores.
 
         A market is traded through RFQs: pass the returned `market_ticker` to
         `POST /communications/rfqs`. These markets are in series starting with
@@ -4259,9 +4269,9 @@ paths:
         | --- | --- | --- |
         | 400 | `bad_request` | The body isn't valid JSON, or a field has the wrong type. |
         | 400 | `missing_parameters` | A required field is missing or empty. |
-        | 400 | `invalid_parameters` | A field is present but unusable, or the request can't define a market: a latitude or hour out of range, an `end_hour` not after `start_hour` on one day, an `end_date` other than `date` or the day after it, a window across midnight longer than 24 hours, an unknown variable or strike type, thresholds that don't fit the strike type or the variable's range, a location outside NOAA MRMS coverage, an unknown time zone, a window that doesn't start and end on whole UTC hours, has already ended or starts more than 365 days out, or an hour that a clock change skips or repeats. |
-        | 409 | `weather_point_market_unavailable` | The request is valid but the market isn't offered: the variable isn't offered at that location, the market's grid cell is entirely over open water or outside US land, the window starts in less than 15 minutes, or the market's window is stored across two local dates where `max_window_days` is 1. |
-        | 429 | `weather_point_market_limit_exceeded` | A creation limit was reached: the daily limit on new weather markets across all users, or 40 markets for one variable, location and window. Retrying at once doesn't help. |
+        | 400 | `invalid_parameters` | A field is present but unusable, or the request can't define a market: a latitude or hour out of range, an `end_hour` not after `start_hour` on one day, an `end_date` other than `date` or the day after it, a window across midnight, in `timezone` or at the location, longer than 24 hours, an unknown variable or strike type, thresholds that don't fit the strike type or the variable's range, a location outside NOAA MRMS coverage, an unknown time zone, a window that doesn't start and end on whole UTC hours, has already ended or starts more than 365 days out, or an hour that a clock change skips or repeats in `timezone`. |
+        | 409 | `weather_point_market_unavailable` | The request is valid but the market isn't offered: the variable isn't offered at that location, the market's grid cell is entirely over open water or outside US land, the window starts in less than 6 hours (15 minutes on demo), the market's window crosses midnight in the location's time zone where `max_window_days` is 1, or the location's time zone can't be determined. |
+        | 429 | `weather_point_market_limit_exceeded` | A creation limit was reached: the daily limit on new weather markets for your account, the daily limit across all users, or 40 markets for one variable, location and window. Returning an existing market never counts toward your account's limit. Retrying at once doesn't help. |
         | 429 | `too_many_requests` | Your API rate limit. This endpoint is charged against your write budget. |
       tags:
         - markets
@@ -4342,11 +4352,17 @@ paths:
         refused when the show has moved to another date or has already been
         canceled or postponed.
 
-        An existing market is usually returned until it closes, even when new
-        markets are no longer offered; where creation or its cover is switched
-        off, the request returns 409. A new market's show must start more than an
-        hour from now and within the `max_days_ahead` that
-        `GET /concert_cancellation_markets/availability` reports.
+        A new market's show must start more than 7 days from now and within
+        the `max_days_ahead` that
+        `GET /concert_cancellation_markets/availability` reports. An existing
+        market is returned only while its show is more than 7 days away too:
+        inside that, counted to the market's close time or the show's start as
+        now listed, whichever is earlier, the request returns 409. Further
+        out, an existing market is usually returned even when new markets are
+        no longer offered; where creation or its cover is switched off, the
+        request returns 409. A 409 here changes nothing about the market
+        itself, which stays open until its close time and is still returned by
+        `GET /markets/{ticker}`.
 
         A market is traded through RFQs: pass the returned `market_ticker` to
         `POST /communications/rfqs`. These markets are in series starting with
@@ -4363,8 +4379,8 @@ paths:
         | 400 | `missing_parameters` | A required field is missing or empty. |
         | 400 | `invalid_parameters` | A field is present but unusable: an unknown cover, a `jambase_event_id` that isn't `jambase:<id>`, a `scheduled_date` that isn't YYYY-MM-DD, or a show scheduled further ahead than `max_days_ahead`. |
         | 404 | `not_found` | The listing source has no show with that id. |
-        | 409 | `concert_cancellation_market_unavailable` | The request is valid but the market isn't offered: concert markets or the cover are switched off, the show is now listed on another date, has already been canceled or postponed, starts too soon, isn't a concert, or its market has closed. |
-        | 429 | `concert_cancellation_market_limit_exceeded` | The daily limit on new concert markets across all users was reached. Retrying at once doesn't help. |
+        | 409 | `concert_cancellation_market_unavailable` | The request is valid but the market isn't offered: concert markets or the cover are switched off, the show is now listed on another date, has already been canceled or postponed, starts in 7 days or less (whether or not its market already exists), isn't a concert, or its market has closed. |
+        | 429 | `concert_cancellation_market_limit_exceeded` | A daily limit on new concert markets was reached: your account's, or the one across all users. Returning an existing market never counts toward your account's limit. Retrying at once doesn't help. |
         | 429 | `too_many_requests` | Your API rate limit. This endpoint is charged against your write budget. |
       tags:
         - markets
@@ -4630,7 +4646,7 @@ paths:
         | 400 | `invalid_parameters` | A field is present but unusable: an unknown cover or delay basis, a carrier, flight number or airport code of the wrong form, a `scheduled_date` that isn't YYYY-MM-DD, a `delayed` or `either` request without `delay_basis` and `delay_minutes`, a `cancelled` request with either of them, a `delay_minutes` that isn't a multiple of `delay_step_minutes` or is above `max_delay_minutes`, or a flight scheduled further ahead than `max_days_ahead`. |
         | 404 | `not_found` | No such flight is scheduled on that date. |
         | 409 | `flight_disruption_market_unavailable` | The request is valid but the market isn't offered: flight markets or the cover are switched off, the flight leaves too soon, departs from a country that isn't offered, or its market has closed. |
-        | 429 | `flight_disruption_market_limit_exceeded` | A limit on new flight markets was reached. Retrying at once doesn't help. |
+        | 429 | `flight_disruption_market_limit_exceeded` | A daily limit on new flight markets was reached: your account's, or the one across all users. Returning an existing market never counts toward your account's limit. Retrying at once doesn't help. |
         | 429 | `too_many_requests` | Your API rate limit. This endpoint is charged against your write budget. |
       tags:
         - markets
@@ -5674,7 +5690,12 @@ paths:
           kalshiAccessTimestamp: []
         - kalshiOauthAccessToken: []
       parameters:
-        - $ref: '#/components/parameters/TickerQuery'
+        - name: ticker
+          in: query
+          description: Filter by market ticker. Accepts a comma-separated list of up to 100 market tickers.
+          schema:
+            type: string
+            x-go-type-skip-optional-pointer: true
         - $ref: '#/components/parameters/MinTsQuery'
         - $ref: '#/components/parameters/MaxTsQuery'
         - $ref: '#/components/parameters/LimitQuery'
@@ -11659,7 +11680,7 @@ components:
             validate: required,datetime=2006-01-02
         end_date:
           type: string
-          description: Local calendar date the window ends on, as YYYY-MM-DD in `timezone`. Leave it out, or repeat `date`, for a window within one day. Set it to the day after `date` for a window that crosses midnight, where availability returns `max_window_days` 2; `end_hour` is then read on this date, and the window is at most 24 hours long. Any other date is refused.
+          description: Local calendar date the window ends on, as YYYY-MM-DD in `timezone`. Leave it out, or repeat `date`, for a window within one day. Set it to the day after `date` for a window that crosses midnight in `timezone`; `end_hour` is then read on this date, and the window is at most 24 hours long. Any other date is refused. Whether a window across midnight is offered (`max_window_days` 2 in availability) doesn't go by this field. For a market that starts a new event it goes by the dates at the market's location; where `max_window_days` is 1, a request with `end_date` is accepted when the window lies within one date at the location, and one without it is refused when the window crosses midnight there. A threshold added to an event that already exists goes by the dates that event stores, which on an older event are those of its first request.
           example: '2026-11-12'
           x-oapi-codegen-extra-tags:
             validate: omitempty,datetime=2006-01-02
@@ -11683,7 +11704,7 @@ components:
             validate: required,gte=1,lte=24
         timezone:
           type: string
-          description: IANA time zone of the location, which the date and hours are read in. The window must start and end on whole UTC hours, so zones offset by a fraction of an hour are refused.
+          description: IANA time zone that `date`, `end_date` and the hours are read in. It only says which span of time they mean, and needn't be the location's; the market's title and rules are written in the location's own time zone, whatever is sent here. The window must start and end on whole UTC hours, so zones offset by a fraction of an hour are refused.
           example: America/New_York
           x-oapi-codegen-extra-tags:
             validate: required
@@ -11804,11 +11825,19 @@ components:
         - ConcertCoverCancelled
         - ConcertCoverEither
       description: |
-        What a concert cancellation market pays on, read from the show's
-        listing after its scheduled date has ended:
-        - `postponed`: Yes when the show is listed as postponed, or as taking
-          place on any other date. A show listed as canceled resolves to No.
-        - `cancelled`: Yes when the show is listed as canceled.
+        What a concert cancellation market pays on: what the show's listing
+        first shows from the market's creation to the show's scheduled start
+        (the market's close time is one minute before it), whatever the
+        listing says afterwards.
+        - `postponed`: Yes when the show is postponed, or moved to a later
+          date. A new start time on the scheduled date, or within six hours
+          of the scheduled start, is not a postponement, even when it falls
+          on the next calendar day (11:30 PM moved to 12:30 AM). A
+          cancellation alone doesn't count: a show that is canceled and not
+          postponed resolves to No, and one that is canceled, reinstated and
+          then postponed was postponed.
+        - `cancelled`: Yes when the show is canceled, including after a
+          postponement.
         - `either`: Yes in both of those cases.
 
     CreateConcertCancellationMarketRequest:
