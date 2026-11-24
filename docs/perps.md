@@ -231,12 +231,13 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
   identifying which subaccount holds the position. `subaccount_type`
-  (`"cross"` / `"isolated"` / `"auto_rebalance"` / `"managed_isolated"`, or
-  `None` when the key is absent) is optional on `MarginPosition`,
+  (`"cross"` / `"isolated"` / `"auto_rebalance"` / `"managed_isolated"` /
+  `"swaps"`, or `None` when the key is absent) is optional on `MarginPosition`,
   `MarginSubaccountBalance`, `MarginRiskPosition`, and
   `MarginFundingHistoryEntry`. `managed_isolated` uses the same subaccount
-  number as the market's isolated subaccount. The spec marks it required; the
-  SDK keeps it optional so older payloads still parse.
+  number as the market's isolated subaccount. `swaps` is a cross-margined
+  swaps wallet whose subaccount number is its swaps code. The spec marks it
+  required; the SDK keeps it optional so older payloads still parse.
 - **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
   `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
   the position is hedged within a portfolio so its margin is computed at the
@@ -371,7 +372,8 @@ Credentials can also come from the environment via `KlearClient.from_env()` (rea
 
 `klear.margin.active_obligations()` returns all currently-active settlement
 obligations. `klear.margin.obligation_history()` / `obligation_history_all()`
-page historical obligations; optional `settlement_start_ts` /
+page historical obligations; each cycle produces at most one obligation per
+asset class, and none when nothing settles. Optional `settlement_start_ts` /
 `settlement_end_ts` (RFC3339 `datetime` or `str`) bound settlement time.
 `klear.margin.settlement_balance_history()` /
 `settlement_balance_history_all()` page settlement-buffer history; optional

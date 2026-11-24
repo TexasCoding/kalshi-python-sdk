@@ -180,9 +180,15 @@ print(resp.market_ticker, resp.created, resp.latitude, resp.longitude)
 unset optional fields are omitted from the wire body. The same request
 always returns the same market; `created` is false when it already existed.
 Coordinates are rounded to three decimal places; requests that agree to
-three decimals share a market. Optional `end_date` (the day after `date`)
-opens a window that crosses midnight, at most 24 hours, where availability
-returns `max_window_days == 2`.
+three decimals share a market. A new market's window must start at least
+6 hours from now (15 minutes on demo). `timezone` only says which span of
+time `date` and the hours mean; the market's title and rules are written in
+the location's IANA zone, and `max_window_days` limits go by that zone too.
+Optional `end_date` (the day after `date`) opens a window that crosses
+midnight in `timezone`, at most 24 hours. Whether a window across midnight
+is offered does not go by `end_date`: where `max_window_days` is 1, a
+request with `end_date` is accepted when the window lies within one date at
+the location.
 
 ## Concert cancellation markets
 
@@ -211,8 +217,13 @@ Take `jambase_event_id` and `scheduled_date` from `list_concerts` or
 `search_concerts`. A cover missing from `avail.covers` cannot be created.
 `enabled` means concerts are listed; it does not promise that a create will
 succeed — where listing is on before markets are offered, create returns 409.
-The same request always returns the same market; `created` is false when it
-already existed. Pass the returned `market_ticker` to `POST /communications/rfqs`.
+A new market's show must start more than 7 days from now. An existing market
+is returned only while the show is more than 7 days away too; inside that,
+create returns 409. Further out, `created` is false when a market for the
+same request already existed. Cover is what the listing first shows from
+creation to the show's scheduled start: a new start time on the scheduled
+date, or within six hours of the scheduled start, is not a postponement.
+Pass the returned `market_ticker` to `POST /communications/rfqs`.
 `list_concerts` is paged by the server (`page` / `total_pages`); there is no
 SDK paginator.
 

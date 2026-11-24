@@ -103,14 +103,17 @@ class ExchangeInstance(StrEnum):
     MARGINED = "margined"
 
 
-SubaccountTypeLiteral = Literal["cross", "isolated", "auto_rebalance", "managed_isolated"]
+SubaccountTypeLiteral = Literal[
+    "cross", "isolated", "auto_rebalance", "managed_isolated", "swaps"
+]
 """Spec ``SubaccountType`` — how a subaccount is margined.
 
 ``cross`` for the primary account and numbered subaccounts, ``isolated`` for
 a market's isolated subaccount, ``auto_rebalance`` for an auto-rebalanced
-isolated position (shares its market's isolated subaccount number), and
+isolated position (shares its market's isolated subaccount number),
 ``managed_isolated`` for a managed isolated position (subaccount number is
-the same as the market's isolated subaccount number).
+the same as the market's isolated subaccount number), and ``swaps`` for a
+cross-margined swaps wallet (subaccount number is its swaps code).
 """
 
 

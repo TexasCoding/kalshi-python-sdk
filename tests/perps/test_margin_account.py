@@ -937,6 +937,8 @@ class TestSubaccountType:
             _balance_row(subaccount_type="isolated")
         )
         assert parsed.subaccount_type == "isolated"
+        swaps = MarginSubaccountBalance.model_validate(_balance_row(subaccount_type="swaps"))
+        assert swaps.subaccount_type == "swaps"
 
     def test_balance_invalid_raises(self) -> None:
         with pytest.raises(ValidationError):
@@ -946,6 +948,8 @@ class TestSubaccountType:
         assert MarginRiskPosition.model_validate(_risk_row()).subaccount_type is None
         parsed = MarginRiskPosition.model_validate(_risk_row(subaccount_type="auto_rebalance"))
         assert parsed.subaccount_type == "auto_rebalance"
+        swaps = MarginRiskPosition.model_validate(_risk_row(subaccount_type="swaps"))
+        assert swaps.subaccount_type == "swaps"
 
     def test_risk_invalid_raises(self) -> None:
         with pytest.raises(ValidationError):

@@ -390,7 +390,12 @@ class GetWeatherPointAvailabilityResponse(BaseModel):
 
 
 ConcertCoverLiteral = Literal["postponed", "cancelled", "either"]
-"""What a concert cancellation market pays on. Spec: ConcertCover enum."""
+"""What a concert cancellation market pays on. Spec: ConcertCover enum.
+
+Pays on what the listing first shows from creation to the show's scheduled
+start. A new start time on the scheduled date, or within six hours of the
+scheduled start, is not a postponement.
+"""
 
 
 class CreateConcertCancellationMarketRequest(BaseModel):

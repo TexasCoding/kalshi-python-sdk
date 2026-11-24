@@ -366,7 +366,7 @@ class TestOrderbookDelta:
             }
         )
         assert omitted.msg.subaccount_type is None
-        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance", "swaps"):
             frame["msg"]["subaccount_type"] = value
             parsed = MarginOrderbookDeltaMessage.model_validate(frame)
             assert parsed.msg.subaccount_type == value
@@ -578,7 +578,7 @@ class TestFill:
         frame["msg"]["subaccount_type"] = "cross"
         msg = MarginFillMessage.model_validate(frame)
         assert msg.msg.subaccount_type == "cross"
-        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance", "swaps"):
             frame["msg"]["subaccount_type"] = value
             parsed = MarginFillMessage.model_validate(frame)
             assert parsed.msg.subaccount_type == value
@@ -647,7 +647,7 @@ class TestUserOrders:
         msg = MarginUserOrderMessage.model_validate(frame)
         assert msg.msg.subaccount_number == 4
         assert msg.msg.subaccount_type == "managed_isolated"
-        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance"):
+        for value in ("cross", "isolated", "managed_isolated", "auto_rebalance", "swaps"):
             frame["msg"]["subaccount_type"] = value
             parsed = MarginUserOrderMessage.model_validate(frame)
             assert parsed.msg.subaccount_type == value
