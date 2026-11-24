@@ -2,6 +2,38 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.16.0 — 2026-11-24
+
+Reconciles nightly spec drift (#588). Additive only. No breaking changes.
+
+### Added
+
+- Perps **`SubaccountTypeLiteral`** gains `"swaps"` (a cross-margined swaps
+  wallet whose subaccount number is its swaps code). Shared by REST models
+  (`MarginPosition`, `MarginSubaccountBalance`, `MarginRiskPosition`,
+  `MarginFundingHistoryEntry`) and perps WS payloads (orderbook delta, fill,
+  user orders). Without this, REST responses carrying `subaccount_type`
+  `"swaps"` fail validation.
+
+### Docs
+
+- Historical fills (`fills` / `fills_all`, sync and async): `ticker` accepts
+  a comma-separated list of up to 100 market tickers.
+- Weather point create: a new window must start at least 6 hours from now
+  (15 minutes on demo); title, rules, and `max_window_days` limits go by
+  the location's IANA zone; 429 includes a per-account daily creation limit.
+- Concert cancellation create: the show must start more than 7 days from
+  now; an existing market is returned only while that is still true (else
+  409). Cover is what the listing first shows from creation to scheduled
+  start; a move within six hours of the scheduled start is not a
+  postponement. 429 includes a per-account daily limit.
+- Flight disruption 429 is a per-account or global daily creation limit.
+- Klear `ObligationEntry.maintenance_margin_centicents` is the maintenance
+  margin change settled this cycle (sum of detail deltas, positive =
+  released), not the requirement. Detail delta is previous minus after.
+  Obligation history: at most one obligation per asset class per cycle,
+  none when nothing settles.
+
 ## 22.15.0 — 2026-11-19
 
 Adds on-request flight disruption markets (#586) against OpenAPI v3.37.0

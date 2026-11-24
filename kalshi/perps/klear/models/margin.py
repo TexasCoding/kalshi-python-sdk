@@ -176,10 +176,14 @@ class SettlementDetail(BaseModel):
 
 
 class MaintenanceMarginDetail(BaseModel):
-    """Spec ``MaintenanceMarginDetail`` — maintenance-margin requirement + delta.
+    """Spec ``MaintenanceMarginDetail`` — per-subtrader requirement after settlement.
 
-    ``subtrader_id`` may be an empty string when not populated.
-    ``margin_group_id`` is set when the subtrader is part of a subtrader group.
+    ``maintenance_margin_centicents`` is the requirement after this settlement
+    (0 when the subtrader goes flat). ``maintenance_margin_delta_centicents``
+    is the previous settlement's requirement minus this one (positive means
+    margin released to the clearing member). ``subtrader_id`` may be an empty
+    string when not populated. ``margin_group_id`` is set when the subtrader
+    is part of a subtrader group.
     """
 
     id: str
@@ -270,6 +274,8 @@ class ObligationEntry(BaseModel):
     amount_centicents: int
     amount_fp: DollarDecimal | None = None
     fees_centicents: int
+    # Change settled this cycle (sum of detail deltas), not the requirement.
+    # Positive = released to the clearing member.
     maintenance_margin_centicents: int
     pnl_centicents: int
     pnl_fp: DollarDecimal | None = None
@@ -294,8 +300,10 @@ class ObligationEntry(BaseModel):
 class GetObligationHistoryResponse(BaseModel):
     """Spec ``GetObligationHistoryResponse`` — cursor-paginated obligation page.
 
-    ``cursor`` is an RFC3339 date-time string; absent on the last page. The
-    resource consumes this via the generic ``Page[ObligationEntry]`` envelope.
+    Each settlement cycle produces at most one obligation per asset class, and
+    none when nothing settles. ``cursor`` is an RFC3339 date-time string;
+    absent on the last page. The resource consumes this via the generic
+    ``Page[ObligationEntry]`` envelope.
     """
 
     obligations: NullableList[ObligationEntry]

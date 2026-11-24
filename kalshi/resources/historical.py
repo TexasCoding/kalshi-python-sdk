@@ -229,6 +229,10 @@ class HistoricalResource(SyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List historical fills (``GET /historical/fills``).
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         params = _historical_fills_or_orders_params(
             limit=limit,
@@ -253,6 +257,10 @@ class HistoricalResource(SyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[Fill]:
+        """Auto-paginate historical fills.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _historical_fills_or_orders_params(
@@ -540,6 +548,10 @@ class AsyncHistoricalResource(AsyncResource):
         subaccount: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Page[Fill]:
+        """List historical fills (``GET /historical/fills``, async).
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         params = _historical_fills_or_orders_params(
             limit=limit,
@@ -564,6 +576,10 @@ class AsyncHistoricalResource(AsyncResource):
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[Fill]:
+        """Auto-paginate historical fills (async). Use ``async for``.
+
+        ``ticker`` accepts a comma-separated list of up to 100 market tickers.
+        """
         self._require_auth()
         _validate_max_pages(max_pages)
         params = _historical_fills_or_orders_params(

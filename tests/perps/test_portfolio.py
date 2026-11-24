@@ -798,6 +798,11 @@ class TestSubaccountType:
             MarginPosition.model_validate(payload).subaccount_type == "managed_isolated"
         )
 
+    def test_parses_swaps(self) -> None:
+        payload = _long_position()
+        payload["subaccount_type"] = "swaps"
+        assert MarginPosition.model_validate(payload).subaccount_type == "swaps"
+
     def test_invalid_raises(self) -> None:
         payload = _long_position()
         payload["subaccount_type"] = "hedged"

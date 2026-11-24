@@ -496,6 +496,9 @@ class TestSubaccountType:
         present = _entry(funding_amount="1.00", subaccount_number=0)
         present["subaccount_type"] = "isolated"
         assert MarginFundingHistoryEntry.model_validate(present).subaccount_type == "isolated"
+        swaps = _entry(funding_amount="1.00", subaccount_number=0)
+        swaps["subaccount_type"] = "swaps"
+        assert MarginFundingHistoryEntry.model_validate(swaps).subaccount_type == "swaps"
 
     def test_invalid_raises(self) -> None:
         payload = _entry(funding_amount="1.00", subaccount_number=0)

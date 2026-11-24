@@ -667,8 +667,11 @@ class MarketsResource(SyncResource):
 
         Returns the on-request weather market for a location, time window and
         threshold, creating it if it does not exist. ``created`` is false when
-        a market for the same request already existed. Optional ``end_date``
-        (YYYY-MM-DD) is omitted when unset.
+        a market for the same request already existed. A new window must start
+        at least 6 hours from now (15 minutes on demo). ``timezone`` only
+        names the span of time; title, rules, and ``max_window_days`` limits
+        go by the location's IANA zone. Optional ``end_date`` (YYYY-MM-DD) is
+        omitted when unset.
         """
         self._require_auth()
         body = _build_create_weather_point_market_body(
@@ -723,8 +726,10 @@ class MarketsResource(SyncResource):
         """``POST /concert_cancellation_markets``. Not retried.
 
         Returns the on-request concert cancellation market for a show, date and
-        cover, creating it if it does not exist. ``created`` is false when a
-        market for the same request already existed.
+        cover, creating it if it does not exist. The show must start more than
+        7 days from now (an existing market is returned only while that is
+        still true; otherwise 409). ``created`` is false when a market for the
+        same request already existed.
         """
         self._require_auth()
         body = _build_create_concert_cancellation_market_body(
