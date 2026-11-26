@@ -89,11 +89,16 @@ class OrderSource(StrEnum):
 
 
 class MarginMarketStatus(StrEnum):
-    """Spec ``MarginMarketStatus`` — the status of a margin market."""
+    """Spec ``MarginMarketStatus`` — the status of a margin market.
+
+    The spec renamed ``closed`` to ``finalized``. ``CLOSED`` is kept for
+    compatibility.
+    """
 
     INACTIVE = "inactive"
     ACTIVE = "active"
     CLOSED = "closed"
+    FINALIZED = "finalized"
 
 
 class ExchangeInstance(StrEnum):
@@ -108,12 +113,13 @@ SubaccountTypeLiteral = Literal[
 ]
 """Spec ``SubaccountType`` — how a subaccount is margined.
 
-``cross`` for the primary account and numbered subaccounts, ``isolated`` for
-a market's isolated subaccount, ``auto_rebalance`` for an auto-rebalanced
-isolated position (shares its market's isolated subaccount number),
-``managed_isolated`` for a managed isolated position (subaccount number is
-the same as the market's isolated subaccount number), and ``swaps`` for a
-cross-margined swaps wallet (subaccount number is its swaps code).
+``cross`` for the primary account and numbered subaccounts (0-63),
+``isolated`` for a market's isolated subaccount (64-4095),
+``auto_rebalance`` for an auto-rebalanced isolated position (shares its
+market's isolated subaccount number), ``managed_isolated`` for a managed
+isolated position (subaccount number is the same as the market's isolated
+subaccount number), and ``swaps`` for a cross-margined swaps wallet
+(subaccount number is its swaps code).
 """
 
 

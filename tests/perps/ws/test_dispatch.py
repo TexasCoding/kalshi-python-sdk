@@ -34,6 +34,7 @@ def test_control_types_and_message_models() -> None:
         "fill",
         "user_order",
         "order_group_updates",
+        "exchange_status",
     }
 
 

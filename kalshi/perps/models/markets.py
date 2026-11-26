@@ -22,12 +22,15 @@ from pydantic import AliasChoices, AwareDatetime, BaseModel, Field
 
 from kalshi.types import DollarDecimal, FixedPointCount, MultiplierDecimal, NullableList
 
-MarginMarketStatusLiteral = Literal["inactive", "active", "closed"]
+MarginMarketStatusLiteral = Literal["inactive", "active", "closed", "finalized"]
 """Status filter for GET /margin/markets and ``MarginMarket.status``.
 
 Spec schema ``MarginMarketStatus`` (``type: string``). Defined here as a
 ``Literal`` for the query-param signature; the ``StrEnum`` form lives in
 :mod:`kalshi.perps.models.common` as :class:`~kalshi.perps.models.common.MarginMarketStatus`.
+
+The spec renamed ``closed`` to ``finalized``. ``closed`` is kept for
+compatibility.
 """
 
 
@@ -80,8 +83,13 @@ class MarginMarket(BaseModel):
     status: MarginMarketStatusLiteral
     # Stable market UUID; remains unchanged if the ticker is renamed.
     market_id: str | None = None
+    # Size of one contract in the market's underlying units (6 decimal places).
+    # Prices are per contract, and track the underlying asset's price x
+    # ``underlying_multiplier`` x ``contract_size``.
     contract_size: DollarDecimal
-    # Spec 3.30.0: underlying units per contract-size unit (required string).
+    # How many of the underlying asset make up one underlying unit
+    # (6-decimal fixed-point string). e.g. ``1000.000000`` when the unit is
+    # a thousand of the asset.
     underlying_multiplier: str
     tick_size: DollarDecimal
     fractional_trading_enabled: bool
@@ -128,11 +136,14 @@ class MarginMarket(BaseModel):
     long_leverage_estimates: dict[str, MultiplierDecimal] | None = None
     short_leverage_estimates: dict[str, MultiplierDecimal] | None = None
     price: DollarDecimal | None = None
+    # ``0.0000`` when there is no bid; check ``bid_size`` before using it.
     bid: DollarDecimal | None = None
     bid_size: FixedPointCount | None = Field(
         default=None,
         validation_alias=AliasChoices("bid_size_fp", "bid_size"),
     )
+    # Placeholder when there is no ask (``922337203685477.5807`` or
+    # ``0.0000``); check ``ask_size`` before using it.
     ask: DollarDecimal | None = None
     ask_size: FixedPointCount | None = Field(
         default=None,

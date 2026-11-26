@@ -43,6 +43,7 @@ from kalshi.perps.ws.channels import PerpsSubscriptionManager
 from kalshi.perps.ws.connection import ConnectionState, PerpsConnectionManager
 from kalshi.perps.ws.dispatch import PerpsMessageDispatcher
 from kalshi.perps.ws.models.control import PerpsErrorResponse, SubscriptionEntry
+from kalshi.perps.ws.models.exchange_status import MarginExchangeStatusMessage
 from kalshi.perps.ws.models.fill import MarginFillMessage
 from kalshi.perps.ws.models.market_lifecycle import MarginMarketLifecycleV2Message
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
@@ -600,7 +601,8 @@ class PerpsWebSocket:
     # ``corporate_actions`` is on :class:`PerpsChannel` and is subscribed
     # via the generic :meth:`subscribe`. ``market_lifecycle_v2`` is a perps
     # channel (activation / deactivation of every margin market; ticker
-    # filters are not supported).
+    # filters are not supported). ``exchange_status`` is exchange-wide
+    # pause/resume (no ticker filters).
     #
     # ``builtins.list[str]`` is used for ``tickers`` params: the surrounding
     # API has a ``list_subscriptions`` method, so the ``list`` builtin is
@@ -734,6 +736,24 @@ class PerpsWebSocket:
         """
         return await self._do_subscribe(
             "market_lifecycle_v2",
+            overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
+        )
+
+    async def subscribe_exchange_status(
+        self,
+        *,
+        maxsize: int = 1000,
+    ) -> AsyncIterator[MarginExchangeStatusMessage]:
+        """Subscribe to ``exchange_status`` (exchange-wide pause/resume).
+
+        Trading messages carry ``trading_active``. Exchange status messages
+        carry ``exchange_active``. Trading is open exchange-wide only while
+        both are true. Per-market halts ride ``market_lifecycle_v2``. Ticker
+        filters are not supported. Not sequence-gap tracked, so overflow is
+        ``DROP_OLDEST``.
+        """
+        return await self._do_subscribe(
+            "exchange_status",
             overflow=OverflowStrategy.DROP_OLDEST, maxsize=maxsize,
         )
 

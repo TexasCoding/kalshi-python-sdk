@@ -81,6 +81,7 @@ class CreateMarginOrderRequest(BaseModel):
     client_order_id: str
     side: BookSideLiteral
     count: FixedPointCount = Field(gt=0)
+    # Price per contract, not per unit of the underlying.
     price: OrderPrice
     time_in_force: TimeInForceLiteral
     self_trade_prevention_type: SelfTradePreventionTypeLiteral

@@ -1871,6 +1871,11 @@ PERPS_METHOD_ENDPOINT_MAP: list[MethodEndpointEntry] = [
         http_method="GET",
         path_template="/margin/corporate_actions",
     ),
+    MethodEndpointEntry(
+        sdk_method="kalshi.perps.resources.margin_account.MarginAccountResource.corporate_action_payment_history",
+        http_method="GET",
+        path_template="/margin/corporate_action_payment_history",
+    ),
     # ── perps funding (#395) ───────────────────────────────────────────
     MethodEndpointEntry(
         sdk_method="kalshi.perps.resources.funding.FundingResource.rate_estimate",
