@@ -46,7 +46,15 @@ class TestEnums:
         assert OrderSource("system") is OrderSource.SYSTEM
 
     def test_margin_market_status_values(self) -> None:
-        assert {s.value for s in MarginMarketStatus} == {"inactive", "active", "closed"}
+        assert {s.value for s in MarginMarketStatus} == {
+            "inactive",
+            "active",
+            "closed",
+            "finalized",
+        }
+        assert MarginMarketStatus("finalized") is MarginMarketStatus.FINALIZED
+        # Spec renamed closed → finalized; closed is kept for compatibility.
+        assert MarginMarketStatus("closed") is MarginMarketStatus.CLOSED
 
     def test_exchange_instance_values(self) -> None:
         assert ExchangeInstance("event_contract") is ExchangeInstance.EVENT_CONTRACT

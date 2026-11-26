@@ -18,7 +18,12 @@ import pytest
 import respx
 from pydantic import ValidationError
 
-from kalshi.errors import AuthRequiredError, KalshiServerError, KalshiValidationError
+from kalshi.errors import (
+    AuthRequiredError,
+    KalshiAuthError,
+    KalshiServerError,
+    KalshiValidationError,
+)
 from kalshi.perps import AsyncPerpsClient, PerpsClient, PerpsConfig
 from kalshi.perps.models.margin_account import MarginRiskPosition, MarginSubaccountBalance
 
@@ -868,6 +873,207 @@ class TestCorporateActions:
         )
         with pytest.raises(KalshiServerError):
             await async_perps_client.margin.corporate_actions()
+        await async_perps_client.close()
+
+
+# ── corporate_action_payment_history ──────────────────────────────────────────
+
+
+def _payment_entry(**overrides: object) -> dict[str, object]:
+    entry: dict[str, object] = {
+        "corporate_action_id": "ca-pay-1",
+        "type": "cash_dividend",
+        "market_ticker": "AAPL-PERP",
+        "payment_time": "2026-10-15T00:00:00Z",
+        "payment_amount": "12.5000",
+        "quantity": "10.00",
+        "subaccount_number": 0,
+        "subaccount_type": "cross",
+        "withholding_amount": "1.2500",
+    }
+    entry.update(overrides)
+    return entry
+
+
+class TestCorporateActionPaymentHistory:
+    @respx.mock
+    def test_happy_path_serializes_dates_and_optionals(
+        self, perps_client: PerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(
+                200, json={"payment_history": [_payment_entry()]}
+            )
+        )
+        resp = perps_client.margin.corporate_action_payment_history(
+            start_date=date(2026, 10, 1),
+            end_date=date(2026, 10, 31),
+            ticker="AAPL-PERP",
+            subaccount=2,
+        )
+        assert route.called
+        params = route.calls.last.request.url.params
+        assert params["start_date"] == "2026-10-01"
+        assert params["end_date"] == "2026-10-31"
+        assert params["ticker"] == "AAPL-PERP"
+        assert params["subaccount"] == "2"
+        assert len(resp.payment_history) == 1
+        entry = resp.payment_history[0]
+        assert entry.corporate_action_id == "ca-pay-1"
+        assert entry.type == "cash_dividend"
+        assert entry.market_ticker == "AAPL-PERP"
+        assert isinstance(entry.payment_time, datetime)
+        assert entry.payment_time.tzinfo is not None
+        assert entry.payment_amount == Decimal("12.5000")
+        assert isinstance(entry.payment_amount, Decimal)
+        assert entry.quantity == Decimal("10.00")
+        assert isinstance(entry.quantity, Decimal)
+        assert entry.subaccount_number == 0
+        assert entry.subaccount_type == "cross"
+        assert entry.withholding_amount == Decimal("1.2500")
+
+    @respx.mock
+    def test_str_dates_and_optional_params_omitted(
+        self, perps_client: PerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(200, json={"payment_history": []})
+        )
+        perps_client.margin.corporate_action_payment_history(
+            start_date="2026-01-01",
+            end_date="2026-01-31",
+        )
+        params = route.calls.last.request.url.params
+        assert params["start_date"] == "2026-01-01"
+        assert params["end_date"] == "2026-01-31"
+        assert "ticker" not in params
+        assert "subaccount" not in params
+
+    @respx.mock
+    def test_null_payment_history_coerced_to_empty(
+        self, perps_client: PerpsClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(200, json={"payment_history": None})
+        )
+        resp = perps_client.margin.corporate_action_payment_history(
+            start_date="2026-01-01",
+            end_date="2026-01-31",
+        )
+        assert resp.payment_history == []
+
+    @respx.mock
+    def test_negative_payment_amount_and_null_subaccount(
+        self, perps_client: PerpsClient
+    ) -> None:
+        respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "payment_history": [
+                        _payment_entry(
+                            type="spin_off",
+                            payment_amount="-3.2500",
+                            quantity="-5.00",
+                            subaccount_number=None,
+                            subaccount_type="isolated",
+                            withholding_amount="0.0000",
+                        )
+                    ]
+                },
+            )
+        )
+        entry = perps_client.margin.corporate_action_payment_history(
+            start_date="2026-01-01",
+            end_date="2026-01-31",
+        ).payment_history[0]
+        assert entry.type == "spin_off"
+        assert entry.payment_amount == Decimal("-3.2500")
+        assert entry.quantity == Decimal("-5.00")
+        assert entry.subaccount_number is None
+        assert entry.subaccount_type == "isolated"
+
+    def test_start_and_end_date_required(self, perps_client: PerpsClient) -> None:
+        with pytest.raises(TypeError):
+            perps_client.margin.corporate_action_payment_history()  # type: ignore[call-arg]
+        with pytest.raises(TypeError):
+            perps_client.margin.corporate_action_payment_history(  # type: ignore[call-arg]
+                start_date="2026-01-01"
+            )
+
+    @respx.mock
+    def test_unauthenticated_raises_before_http(self) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(200, json={"payment_history": []})
+        )
+        client = PerpsClient(config=PerpsConfig.demo())
+        with pytest.raises(AuthRequiredError):
+            client.margin.corporate_action_payment_history(
+                start_date="2026-01-01",
+                end_date="2026-01-31",
+            )
+        assert not route.called
+        client.close()
+
+    @respx.mock
+    def test_error_401_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(401, json={"error": {"code": "unauthorized"}})
+        )
+        with pytest.raises(KalshiAuthError):
+            perps_client.margin.corporate_action_payment_history(
+                start_date="2026-01-01",
+                end_date="2026-01-31",
+            )
+
+    @respx.mock
+    def test_error_400_maps(self, perps_client: PerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(400, json={"error": {"code": "bad_request"}})
+        )
+        with pytest.raises(KalshiValidationError):
+            perps_client.margin.corporate_action_payment_history(
+                start_date="2026-01-01",
+                end_date="2026-01-31",
+            )
+
+    @respx.mock
+    async def test_async_happy_and_optionals_omitted(
+        self, async_perps_client: AsyncPerpsClient
+    ) -> None:
+        route = respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "payment_history": [
+                        _payment_entry(type="special_dividend", payment_amount="8.0000")
+                    ]
+                },
+            )
+        )
+        resp = await async_perps_client.margin.corporate_action_payment_history(
+            start_date=date(2026, 2, 1),
+            end_date="2026-02-28",
+        )
+        params = route.calls.last.request.url.params
+        assert params["start_date"] == "2026-02-01"
+        assert params["end_date"] == "2026-02-28"
+        assert "ticker" not in params
+        assert "subaccount" not in params
+        assert resp.payment_history[0].type == "special_dividend"
+        assert resp.payment_history[0].payment_amount == Decimal("8.0000")
+        await async_perps_client.close()
+
+    @respx.mock
+    async def test_async_error_401(self, async_perps_client: AsyncPerpsClient) -> None:
+        respx.get(f"{BASE}/margin/corporate_action_payment_history").mock(
+            return_value=httpx.Response(401, json={"error": {"code": "unauthorized"}})
+        )
+        with pytest.raises(KalshiAuthError):
+            await async_perps_client.margin.corporate_action_payment_history(
+                start_date="2026-01-01",
+                end_date="2026-01-31",
+            )
         await async_perps_client.close()
 
 

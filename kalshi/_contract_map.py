@@ -1060,6 +1060,14 @@ PERPS_CONTRACT_MAP: list[ContractEntry] = [
         spec_schema="MarginCorporateAction",
     ),
     ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.GetMarginCorporateActionPaymentHistoryResponse",
+        spec_schema="GetMarginCorporateActionPaymentHistoryResponse",
+    ),
+    ContractEntry(
+        sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionPaymentHistoryEntry",
+        spec_schema="MarginCorporateActionPaymentHistoryEntry",
+    ),
+    ContractEntry(
         sdk_model="kalshi.perps.models.margin_account.MarginCorporateActionCashTerms",
         spec_schema="MarginCorporateActionCashTerms",
     ),

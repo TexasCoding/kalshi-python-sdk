@@ -36,6 +36,7 @@ from kalshi.perps.ws.models.control import (
     UnsubscribeCommand,
     UnsubscribeParams,
 )
+from kalshi.perps.ws.models.exchange_status import MarginExchangeStatusMessage
 from kalshi.perps.ws.models.fill import MarginFillMessage
 from kalshi.perps.ws.models.market_lifecycle import MarginMarketLifecycleV2Message
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
@@ -65,6 +66,7 @@ MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     "user_order": MarginUserOrderMessage,
     "order_group_updates": OrderGroupUpdatesMessage,
     "market_lifecycle_v2": MarginMarketLifecycleV2Message,
+    "exchange_status": MarginExchangeStatusMessage,
 }
 
 # Control message types (not routed to subscription queues).

@@ -23,6 +23,10 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from kalshi.perps.ws.models.exchange_status import (
+    MarginExchangeStatusMessage,
+    MarginExchangeStatusPayload,
+)
 from kalshi.perps.ws.models.fill import MarginFillMessage, MarginFillPayload
 from kalshi.perps.ws.models.market_lifecycle import (
     MarginMarketLifecycleV2Message,
@@ -76,6 +80,10 @@ _PAYLOAD_MODELS: dict[str, tuple[type[BaseModel], type[BaseModel]]] = {
     "marginMarketLifecycleV2Payload": (
         MarginMarketLifecycleV2Message,
         MarginMarketLifecycleV2Payload,
+    ),
+    "marginExchangeStatusPayload": (
+        MarginExchangeStatusMessage,
+        MarginExchangeStatusPayload,
     ),
     "marginUserOrderPayload": (MarginUserOrderMessage, MarginUserOrderPayload),
     "orderGroupUpdatesPayload": (
@@ -143,6 +151,7 @@ class TestPayloadDriftGuard:
             "orderGroupUpdatesPayload",
             "marginTradePayload",
             "marginMarketLifecycleV2Payload",
+            "marginExchangeStatusPayload",
         ):
             assert "seq" in spec["components"]["schemas"][schema_name]["required"]
         for schema_name in (
@@ -770,6 +779,49 @@ class TestMarketLifecycle:
             MarginMarketLifecycleV2Message.model_validate(bad)
 
 
+class TestExchangeStatus:
+    def test_parses_trading_paused_example(self) -> None:
+        spec = _load_spec()
+        example = spec["components"]["messages"]["exchangeStatus"]["examples"][0][
+            "payload"
+        ]
+        msg = MarginExchangeStatusMessage.model_validate(example)
+        assert msg.type == "exchange_status"
+        assert msg.sid == 3
+        assert msg.seq == 1
+        assert msg.sending_ts_ms == 1733047200123
+        assert msg.msg.trading_active is False
+        assert msg.msg.exchange_active is None
+        assert msg.msg.ts_ms == 1733047200000
+
+    def test_parses_exchange_active_variant(self) -> None:
+        msg = MarginExchangeStatusMessage.model_validate(
+            {
+                "type": "exchange_status",
+                "sid": 3,
+                "seq": 2,
+                "msg": {
+                    "exchange_active": True,
+                    "ts_ms": 1733047200000,
+                },
+            }
+        )
+        assert msg.msg.exchange_active is True
+        assert msg.msg.trading_active is None
+        assert msg.sending_ts_ms is None
+
+    def test_missing_ts_ms_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            MarginExchangeStatusMessage.model_validate(
+                {
+                    "type": "exchange_status",
+                    "sid": 3,
+                    "seq": 1,
+                    "msg": {"trading_active": False},
+                }
+            )
+
+
 class TestDispatcherRegistration:
     def test_message_models_registers_all_seven_types(self) -> None:
         from kalshi.perps.ws.dispatch import MESSAGE_MODELS
@@ -783,6 +835,7 @@ class TestDispatcherRegistration:
             "user_order": MarginUserOrderMessage,
             "order_group_updates": OrderGroupUpdatesMessage,
             "market_lifecycle_v2": MarginMarketLifecycleV2Message,
+            "exchange_status": MarginExchangeStatusMessage,
         } == MESSAGE_MODELS
 
 
@@ -798,6 +851,7 @@ class TestSubscribeHelpers:
             "subscribe_user_orders",
             "subscribe_order_group",
             "subscribe_market_lifecycle",
+            "subscribe_exchange_status",
         ):
             assert callable(getattr(PerpsWebSocket, name))
 

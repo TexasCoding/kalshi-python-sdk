@@ -93,6 +93,7 @@ class MarketPosition(BaseModel):
     market_exposure: DollarDecimal | None = Field(
         validation_alias=AliasChoices("market_exposure_dollars", "market_exposure"),
     )
+    # Locked-in PnL in dollars, before fees. Fees are in ``fees_paid``.
     realized_pnl: DollarDecimal | None = Field(
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )
@@ -125,6 +126,7 @@ class EventPosition(BaseModel):
     event_exposure: DollarDecimal | None = Field(
         validation_alias=AliasChoices("event_exposure_dollars", "event_exposure"),
     )
+    # Locked-in PnL in dollars, before fees. Fees are in ``fees_paid``.
     realized_pnl: DollarDecimal | None = Field(
         validation_alias=AliasChoices("realized_pnl_dollars", "realized_pnl"),
     )

@@ -8,7 +8,7 @@ Auth required throughout.
 | Method | Endpoint |
 |---|---|
 | `balance(*, subaccount=None, exchange_index=None)` | `GET /portfolio/balance` |
-| `positions(*, ..., exchange_index=None)` | `GET /portfolio/positions` |
+| `positions(*, ..., exchange_index=None, sort_by=None)` | `GET /portfolio/positions` |
 | `settlements(...)` / `settlements_all(...)` | `GET /portfolio/settlements` |
 | `fills(...)` / `fills_all(..., exchange_index=None)` | `GET /portfolio/fills` |
 | `total_resting_order_value()` | `GET /portfolio/summary/total_resting_order_value` (FCM only) |
@@ -76,6 +76,7 @@ resp = client.portfolio.positions(
     settlement_status="unsettled",  # "unsettled" (server default) | "settled" | "all"
     ticker="KXPRES-24-DJT",
     event_ticker="KXPRES-24",
+    sort_by="event_ticker",         # order event groups by ticker; omit for default
 )
 for mp in resp.market_positions:
     print(mp.ticker, mp.position, mp.realized_pnl)
@@ -115,6 +116,10 @@ for ep in resp.event_positions:
 contracts, including closed markets awaiting determination) or
 `"total_traded"` (any contracts traded, including fully exited positions).
 Omit it for no count filter.
+
+`sort_by="event_ticker"` orders event groups by ticker ascending. Omit it
+for the default ordering. Keep filters and `sort_by` unchanged while
+paginating with `cursor`.
 
 `settlement_status` (`SettlementStatusLiteral`: `"unsettled"`, `"settled"`,
 `"all"`) filters settlement state, not trading status. Unsettled (the
@@ -305,7 +310,8 @@ are unaffected; constructors/fixtures must pass it.
 wire-format aliases — on the wire you see `total_traded_dollars`,
 `market_exposure_dollars`, `realized_pnl_dollars`, `fees_paid_dollars`,
 `position_fp`. The SDK normalizes to short names returning `Decimal`.
-`realized_pnl` is signed. Optional `netting_enabled` (`bool | None`) reports
+`realized_pnl` is signed, before fees (`fees_paid` is reported separately).
+Optional `netting_enabled` (`bool | None`) reports
 whether netting applies to the position's event (`None` when the server
 omits the key).
 

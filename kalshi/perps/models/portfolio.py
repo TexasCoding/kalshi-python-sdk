@@ -52,6 +52,8 @@ class MarginPosition(BaseModel):
     friendlier :attr:`return_on_equity`.
     """
 
+    # 0 for primary, 1-63 for numbered subaccounts, 64-4095 for a market's
+    # isolated subaccount.
     subaccount: int
     # Spec 3.35.0 marks subaccount_type required. Kept optional (None when
     # the key is absent) so fixtures and payloads from before the field
@@ -60,6 +62,7 @@ class MarginPosition(BaseModel):
     market_ticker: str
     position: FixedPointCount
     entry_price: DollarDecimal
+    # Mark-to-market unrealized PnL, before fees. Fees are in ``fees``.
     unrealized_pnl: DollarDecimal
     # Spec 3.23.0 relaxed margin_used from required to optional (still a property).
     # Optional/defensive so a response omitting it does not hard-fail parsing.
@@ -100,6 +103,7 @@ class MarginFill(BaseModel):
     price: DollarDecimal
     entry_price: DollarDecimal
     fees: DollarDecimal
+    # Incremental realized PnL contributed by this fill, before fees.
     realized_pnl: DollarDecimal
     order_source: OrderSourceLiteral | None = None
 
@@ -182,6 +186,9 @@ class ExitTrigger(BaseModel):
     ticker: str
     kind: ExitTriggerKindLiteral
     status: ExitTriggerStatusLiteral
+    # Contracts this trigger closes when it fires. ``0`` means the whole
+    # position, except on an order-anchored trigger whose order has not
+    # filled, which covers nothing.
     count: FixedPointCount
     filled_count: FixedPointCount
     created_time: AwareDatetime
@@ -212,6 +219,9 @@ class GetExitTriggersResponse(BaseModel):
 class SetCrossExitTriggerRequest(BaseModel):
     """Body for PUT /margin/cross/positions/{ticker}/exit_trigger."""
 
+    # Omit to cover the whole position. If supplied, a whole number of
+    # contracts, or a multiple of ``0.01`` when the market has
+    # ``fractional_trading_enabled``.
     count: FixedPointCount | None = None
     anchor_order_id: str | None = None
     client_trigger_id: str | None = None

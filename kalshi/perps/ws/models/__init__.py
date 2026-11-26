@@ -34,6 +34,10 @@ from kalshi.perps.ws.models.control import (
     UpdateSubscriptionCommand,
     UpdateSubscriptionParams,
 )
+from kalshi.perps.ws.models.exchange_status import (
+    MarginExchangeStatusMessage,
+    MarginExchangeStatusPayload,
+)
 from kalshi.perps.ws.models.fill import MarginFillMessage, MarginFillPayload
 from kalshi.perps.ws.models.market_lifecycle import (
     MarginMarketLifecycleV2Message,
@@ -65,6 +69,8 @@ __all__ = [
     "FundingRate",
     "ListSubscriptionsCommand",
     "ListSubscriptionsResponse",
+    "MarginExchangeStatusMessage",
+    "MarginExchangeStatusPayload",
     "MarginFillMessage",
     "MarginFillPayload",
     "MarginMarketLifecycleEventType",

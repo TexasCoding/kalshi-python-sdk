@@ -63,7 +63,7 @@ async with AsyncPerpsClient.from_env(demo=True) as perps:
 | `orders` | `create()`, `get()`, `list()` / `list_all()`, `cancel()`, `cancel_all()`, `decrease()`, `amend()` |
 | `order_groups` | `list()`, `get()`, `create()`, `delete()`, `reset()`, `trigger()`, `update_limit()` |
 | `portfolio` | `positions()`, `fills()` / `fills_all()`, `trades()` / `trades_all()`, cross/isolated exit triggers |
-| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()`, `corporate_actions()` |
+| `margin` | `balance()`, `risk()`, `notional_risk_limit()`, `fee_tiers()`, `fee_tier_rates()`, `api_limits()`, `corporate_actions()`, `corporate_action_payment_history()` |
 | `funding` | `rate_estimate()`, `historical_rates()`, `premium_index()`, `history()` |
 | `transfers` | `transfer_instance()`, `create_subaccount()`, `transfer_subaccount()` |
 | `fcm` | `create_subtrader(subtrader_suffix=..., require_category_cap=...)`; `risk_controls` / `update_risk_controls` / `delete_risk_controls`; `update_notional_risk_limit` / `delete_notional_risk_limit`; `transfer_position(...)` |
@@ -94,6 +94,7 @@ Empty cron arrays mean continuous trading except for
 `start` on `MarginHolidayWindow` (`until` is the exclusive end).
 
 The margin order side is `bid` / `ask` (not the prediction API's `yes` / `no`).
+Order `price` is per contract, not per unit of the underlying.
 Orders create/cancel/decrease/amend are POSTs/DELETEs and are **never retried**.
 `orders.amend(..., expiration_time=)` is int64 Unix seconds: omit it to keep
 the current expiry, or pass `0` to clear it (good-till-canceled).
@@ -106,9 +107,12 @@ stable exchange market UUID. It may be supplied with `ticker` (ticker takes
 precedence when both are set). Omit so the key is not sent.
 `orders.create(..., subaccount=)` is optional (0 = primary). Omit so the
 key is not sent.
-`portfolio.fills()` / `portfolio.positions()` omit `subaccount` to return
-rows across all subaccounts (subaccount-restricted API keys still only
-see their locked subaccount). Pass `subaccount=0` for the primary.
+`portfolio.fills()` omit `subaccount` to return rows across all
+subaccounts (subaccount-restricted API keys still only see their locked
+subaccount). Pass `subaccount=0` for the primary. `portfolio.positions()`
+with `subaccount=0` returns only the primary account's cross-margin
+positions; omit `subaccount` to include isolated positions held in a
+market's isolated subaccount (64–4095).
 `portfolio.trades()` / `trades_all()` take an optional `ticker`; omit it
 to retrieve public trades across all margin markets. Optional
 `is_block_trade` filters by block / non-block: omit for all trades,
@@ -160,7 +164,10 @@ the same subtrader). Each `FCMSubtraderRiskControls` row includes required
 
 Exit triggers (stop-loss / take-profit / trailing) sit on a position slot.
 Bracket `stop_loss_price` / `take_profit_price` must be strictly positive when
-supplied; the client rejects zero and negative values.
+supplied; the client rejects zero and negative values. Optional `count` is
+the contracts the trigger closes when it fires; omit it to cover the whole
+position. If supplied, it must be a whole number of contracts, or a multiple
+of `0.01` on a market whose `fractional_trading_enabled` is true.
 
 ```python
 from decimal import Decimal
@@ -199,7 +206,14 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   config / price data is unavailable. `MarginMarket.bid_size` / `ask_size`
   (`FixedPointCount | None`) are the resting size at the best bid/ask
   (`bid_size_fp` / `ask_size_fp` on the wire); omitted when market stats are
-  unavailable. `MarginMarket.funding_deadband` / `funding_cap`
+  unavailable. `MarginMarket.bid` is `0.0000` when there is no bid, so check
+  `bid_size` first. `MarginMarket.ask` is a placeholder when there is no
+  ask (`922337203685477.5807` or `0.0000`), so check `ask_size` first.
+  `MarginMarket.contract_size` is the size of one contract in the market's
+  underlying units; `underlying_multiplier` is how many of the underlying
+  asset make up one underlying unit. Prices are per contract and track the
+  underlying × `underlying_multiplier` × `contract_size`.
+  `MarginMarket.funding_deadband` / `funding_cap`
   (`MultiplierDecimal`) and `funding_limit_unit` (`"percentage"` /
   `"dollar"`) are required; they are the funding limits configured at
   market creation, expressed in `funding_limit_unit`.
@@ -230,7 +244,9 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   null while open.
 - **Subaccounts** (since the v3.21.0 spec sync) — `MarginPosition` (the
   `portfolio.positions()` rows) carries a **required** `subaccount` (`int`)
-  identifying which subaccount holds the position. `subaccount_type`
+  identifying which subaccount holds the position (0 for primary, 1–63 for
+  numbered subaccounts, 64–4095 for a market's isolated subaccount).
+  `subaccount_type`
   (`"cross"` / `"isolated"` / `"auto_rebalance"` / `"managed_isolated"` /
   `"swaps"`, or `None` when the key is absent) is optional on `MarginPosition`,
   `MarginSubaccountBalance`, `MarginRiskPosition`, and
@@ -238,6 +254,8 @@ perps.portfolio.cancel_cross_exit_trigger("BTC-PERP", trig.id)
   number as the market's isolated subaccount. `swaps` is a cross-margined
   swaps wallet whose subaccount number is its swaps code. The spec marks it
   required; the SDK keeps it optional so older payloads still parse.
+  `MarginPosition.unrealized_pnl` and `MarginFill.realized_pnl` are before
+  fees (`fees` is reported separately).
 - **Portfolio hedging** (since the v3.23.0 spec sync) — `MarginPosition` and
   `MarginRiskPosition` carry a **required** `is_portfolio` (`bool`), `True` when
   the position is hedged within a portfolio so its margin is computed at the
@@ -299,6 +317,28 @@ for action in notices.corporate_actions:
         print(action.cash.cash_per_contract, action.cash.ex_date)
 ```
 
+`perps.margin.corporate_action_payment_history(*, start_date, end_date)`
+(`GET /margin/corporate_action_payment_history`) returns cash received or
+paid for corporate actions (cash dividends, special dividends, and cash
+spin-offs) over an inclusive UTC date range. Auth required. `start_date`
+and `end_date` are required YYYY-MM-DD (`datetime.date` or `str`). Optional
+`ticker` filters to one market; omit for all markets. Optional
+`subaccount`; omit for all subaccounts. Stock split adjustments are not
+included. `payment_amount` is gross dollars before withholding (positive =
+received, negative = paid).
+
+```python
+from datetime import date
+
+history = perps.margin.corporate_action_payment_history(
+    start_date=date(2026, 10, 1),
+    end_date=date(2026, 10, 31),
+    ticker="AAPL-PERP",
+)
+for row in history.payment_history:
+    print(row.corporate_action_id, row.payment_amount, row.withholding_amount)
+```
+
 ## WebSocket streaming
 
 ```python
@@ -312,12 +352,13 @@ async with ws.connect() as session:
             print(msg.msg.funding_rate.rate, msg.msg.funding_rate.next_funding_time_ms)
 ```
 
-Eight data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
+Nine data channels — `orderbook_delta` (snapshot + delta, sequenced), `ticker`,
 `trade`, `fill`, `user_orders`, `order_group_updates`, `corporate_actions`,
-`market_lifecycle_v2`. The connection, sequence-gap detection, reconnect, and
-backpressure machinery are reused from the event-contract WS stack (see
-[WebSocket](websockets.md)); the perps orderbook is `bid` / `ask`. The
-prediction-only channels (`market_positions`, `multivariate*`, `communications`,
+`market_lifecycle_v2`, `exchange_status`. The connection, sequence-gap
+detection, reconnect, and backpressure machinery are reused from the
+event-contract WS stack (see [WebSocket](websockets.md)); the perps
+orderbook is `bid` / `ask`. The prediction-only channels
+(`market_positions`, `multivariate*`, `communications`,
 `cfbenchmarks_value`) have no perps counterpart. `corporate_actions` streams
 applied split / final-settlement / ticker-change notices (cash actions are
 REST-only); subscribe with `session.subscribe(channel="corporate_actions")`.
@@ -327,6 +368,11 @@ activation and deactivation of every margin market (`event_type` is
 `activated` or `deactivated`). `is_deactivated` is true when trading is
 paused because the market is halted or outside its trading hours. Ticker
 filters are not supported on that channel.
+`subscribe_exchange_status()` yields `MarginExchangeStatusMessage` when
+trading is paused or resumed exchange-wide, or when the exchange status
+changes. Trading messages carry `trading_active`; exchange status messages
+carry `exchange_active`. Trading is open exchange-wide only while both are
+true. Per-market halts ride `market_lifecycle_v2`.
 
 ## FCM position transfer
 

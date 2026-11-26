@@ -247,6 +247,18 @@ class TestList:
         perps_client.markets.list(status="active")
         assert route.calls[0].request.url.params["status"] == "active"
 
+    def test_finalized_status_parses(self) -> None:
+        m = MarginMarket.model_validate(_market_dict(status="finalized"))
+        assert m.status == "finalized"
+
+    @respx.mock
+    def test_list_sends_finalized_status(self, perps_client: PerpsClient) -> None:
+        route = respx.get(f"{BASE}/margin/markets").mock(
+            return_value=httpx.Response(200, json={"markets": []})
+        )
+        perps_client.markets.list(status="finalized")
+        assert route.calls[0].request.url.params["status"] == "finalized"
+
     @respx.mock
     def test_null_leverage_and_missing_optionals(self, perps_client: PerpsClient) -> None:
         respx.get(f"{BASE}/margin/markets").mock(

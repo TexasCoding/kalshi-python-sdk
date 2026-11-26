@@ -1,7 +1,9 @@
 """Perps margin-account models — balance, risk, notional risk limit, fee tiers.
 
 Response models for the read-only direct-margin account endpoints (#394) plus
-``GetMarginCorporateActions`` (#550). All are pure response models — every one
+``GetMarginCorporateActions`` (#550) and
+``GetMarginCorporateActionPaymentHistory`` (#590). All are pure response
+models — every one
 carries ``model_config = {"extra": "allow"}`` so additive spec fields don't
 break parsing, and none have request bodies (the endpoints are GETs with at
 most query flags).
@@ -257,3 +259,47 @@ class GetMarginCorporateActionsResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     corporate_actions: NullableList[MarginCorporateAction]
+
+
+MarginCorporateActionPaymentHistoryTypeLiteral = Literal[
+    "cash_dividend",
+    "special_dividend",
+    "spin_off",
+]
+"""Spec ``MarginCorporateActionPaymentHistoryEntry.type`` — cash payment kinds."""
+
+
+class MarginCorporateActionPaymentHistoryEntry(BaseModel):
+    """Spec ``MarginCorporateActionPaymentHistoryEntry`` — one cash payment.
+
+    Wire field names already match the short Python names (no ``_dollars``
+    / ``_fp`` suffix), so no ``validation_alias`` is used. ``payment_amount``
+    is gross dollars before withholding (positive = received, negative =
+    paid). ``quantity`` is the signed position the payment was computed on.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    corporate_action_id: str
+    type: MarginCorporateActionPaymentHistoryTypeLiteral
+    market_ticker: str
+    payment_time: AwareDatetime
+    payment_amount: DollarDecimal
+    quantity: FixedPointCount
+    # Spec-required and nullable.
+    subaccount_number: int | None
+    subaccount_type: SubaccountTypeLiteral
+    withholding_amount: DollarDecimal
+
+
+class GetMarginCorporateActionPaymentHistoryResponse(BaseModel):
+    """Spec ``GetMarginCorporateActionPaymentHistoryResponse``.
+
+    ``payment_history`` is spec-required and uses
+    :data:`~kalshi.types.NullableList`: a missing key raises
+    ``ValidationError``, while a ``null`` array coerces to ``[]``.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    payment_history: NullableList[MarginCorporateActionPaymentHistoryEntry]

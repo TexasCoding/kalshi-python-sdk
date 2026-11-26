@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from typing import Any
+from typing import Any, Literal
 
 from kalshi.errors import KalshiError
 from kalshi.models.common import Page
@@ -52,6 +52,7 @@ def _positions_params(
     event_ticker: str | None,
     subaccount: int | None,
     exchange_index: int | None,
+    sort_by: Literal["event_ticker"] | None,
 ) -> dict[str, Any]:
     limit = _validate_limit(limit, hi=1000)
     return _params(
@@ -63,6 +64,7 @@ def _positions_params(
         event_ticker=event_ticker,
         subaccount=subaccount,
         exchange_index=exchange_index,
+        sort_by=sort_by,
     )
 
 
@@ -115,6 +117,7 @@ class PortfolioResource(SyncResource):
         event_ticker: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        sort_by: Literal["event_ticker"] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
@@ -127,6 +130,7 @@ class PortfolioResource(SyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
             exchange_index=exchange_index,
+            sort_by=sort_by,
         )
         data = self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
@@ -141,6 +145,7 @@ class PortfolioResource(SyncResource):
         event_ticker: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        sort_by: Literal["event_ticker"] | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> Iterator[MarketPosition]:
@@ -164,6 +169,7 @@ class PortfolioResource(SyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
             exchange_index=exchange_index,
+            sort_by=sort_by,
         )
         return self._list_all(
             "/portfolio/positions",
@@ -644,6 +650,7 @@ class AsyncPortfolioResource(AsyncResource):
         event_ticker: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        sort_by: Literal["event_ticker"] | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> PositionsResponse:
         self._require_auth()
@@ -656,6 +663,7 @@ class AsyncPortfolioResource(AsyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
             exchange_index=exchange_index,
+            sort_by=sort_by,
         )
         data = await self._get("/portfolio/positions", params=params, extra_headers=extra_headers)
         return PositionsResponse.model_validate(data)
@@ -670,6 +678,7 @@ class AsyncPortfolioResource(AsyncResource):
         event_ticker: str | None = None,
         subaccount: int | None = None,
         exchange_index: int | None = None,
+        sort_by: Literal["event_ticker"] | None = None,
         max_pages: int | None = None,
         extra_headers: dict[str, str] | None = None,
     ) -> AsyncIterator[MarketPosition]:
@@ -693,6 +702,7 @@ class AsyncPortfolioResource(AsyncResource):
             event_ticker=event_ticker,
             subaccount=subaccount,
             exchange_index=exchange_index,
+            sort_by=sort_by,
         )
         return self._list_all(
             "/portfolio/positions",

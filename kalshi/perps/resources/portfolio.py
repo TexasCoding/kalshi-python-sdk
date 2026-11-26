@@ -4,7 +4,8 @@ Three margin read endpoints on the standalone perps client:
 
 - ``positions`` — ``GET /margin/positions``: auth required, single
   non-paginated array (no ``_all()``). Omit ``subaccount`` to return
-  positions across all subaccounts.
+  positions across all subaccounts, including isolated. ``subaccount=0``
+  returns only the primary account's cross-margin positions.
 - ``fills`` / ``fills_all`` — ``GET /margin/fills``: auth required,
   cursor-paginated (the authenticated user's margin fills). Omit
   ``subaccount`` to return fills across all subaccounts.

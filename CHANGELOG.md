@@ -2,6 +2,51 @@
 
 All notable changes to kalshi-sdk will be documented in this file.
 
+## 22.17.0 — 2026-11-26
+
+Reconciles nightly spec drift (#590). Additive only. No breaking changes.
+
+### Added
+
+- Perps **`margin.corporate_action_payment_history(*, start_date, end_date,
+  ticker=, subaccount=)`** (sync + async) —
+  `GET /margin/corporate_action_payment_history`. Auth required. Returns
+  cash received or paid for corporate actions (cash dividends, special
+  dividends, cash spin-offs) over an inclusive UTC date range.
+  `start_date` / `end_date` are required YYYY-MM-DD (`datetime.date` or
+  `str`). Optional `ticker` and `subaccount` are sent only when set.
+  Stock split adjustments are not included. (Closes #590).
+- Perps **`MarginMarketStatus` / `MarginMarketStatusLiteral`** gain
+  `"finalized"`. The spec renamed `"closed"` to `"finalized"`; `"closed"`
+  is kept for compatibility.
+- Optional **`sort_by="event_ticker"`** on core `portfolio.positions` and
+  `positions_all` (sync and async). Orders event groups by ticker
+  ascending; omit for the default ordering. Sent only when set. Keep
+  filters and `sort_by` unchanged while paginating.
+- Perps WebSocket **`exchange_status`** channel and
+  **`subscribe_exchange_status()`**. Payload
+  `MarginExchangeStatusMessage`: trading messages carry `trading_active`,
+  exchange status messages carry `exchange_active`. Trading is open
+  exchange-wide only while both are true.
+
+### Changed
+
+- Perps **`MarginMarketStatus`** spec enum is now `inactive` / `active` /
+  `finalized`. SDK still accepts `"closed"`.
+
+### Docs
+
+- Core `MarketPosition` / `EventPosition` `realized_pnl` and perps
+  `MarginPosition.unrealized_pnl` / `MarginFill.realized_pnl` are before
+  fees (`fees_paid` / `fees` reported separately).
+- Perps subaccount numbers 64–4095 are a market's isolated subaccount.
+  `portfolio.positions(subaccount=0)` returns only primary cross-margin
+  positions; omit `subaccount` to include isolated.
+- Perps `MarginMarket.bid` is `0` when none; `ask` is a placeholder
+  (`922337203685477.5807` or `0`) when none — check size first.
+  `contract_size` / `underlying_multiplier` meanings; order `price` is
+  per contract; exit-trigger `count` fractional rule.
+
 ## 22.16.0 — 2026-11-24
 
 Reconciles nightly spec drift (#588). Additive only. No breaking changes.

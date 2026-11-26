@@ -16,6 +16,7 @@ import pytest
 
 from kalshi.perps.config import PerpsConfig
 from kalshi.perps.ws import PerpsWebSocket
+from kalshi.perps.ws.models.exchange_status import MarginExchangeStatusMessage
 from kalshi.perps.ws.models.fill import MarginFillMessage
 from kalshi.perps.ws.models.market_lifecycle import MarginMarketLifecycleV2Message
 from kalshi.perps.ws.models.order_group import OrderGroupUpdatesMessage
@@ -89,6 +90,32 @@ async def test_subscribe_market_lifecycle_yields_typed_message(
         assert isinstance(frame, MarginMarketLifecycleV2Message)
         assert frame.msg.event_type == "deactivated"
         assert frame.seq == 4
+
+
+async def test_subscribe_exchange_status_yields_typed_message(
+    fake_perps_ws: FakePerpsWS, perps_ws_config: PerpsConfig, perps_auth
+) -> None:
+    ws = PerpsWebSocket(auth=perps_auth, config=perps_ws_config)
+    async with ws.connect() as session:
+        stream = await session.subscribe_exchange_status()
+        sid = await _sid(fake_perps_ws)
+        cmd = fake_perps_ws.received_commands[-1]
+        assert cmd["params"]["channels"] == ["exchange_status"]
+        assert "market_tickers" not in cmd["params"]
+        await fake_perps_ws.send_to_all({
+            "type": "exchange_status",
+            "sid": sid,
+            "seq": 1,
+            "sending_ts_ms": 1733047200123,
+            "msg": {
+                "trading_active": False,
+                "ts_ms": 1733047200000,
+            },
+        })
+        frame = await asyncio.wait_for(stream.__anext__(), timeout=2.0)
+        assert isinstance(frame, MarginExchangeStatusMessage)
+        assert frame.msg.trading_active is False
+        assert frame.seq == 1
 
 
 async def test_subscribe_trade_yields_typed_message(

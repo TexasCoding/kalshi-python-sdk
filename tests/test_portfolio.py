@@ -293,6 +293,26 @@ class TestPortfolioPositions:
         assert params["subaccount"] == "7"
         assert params["exchange_index"] == "0"
 
+    @respx.mock
+    def test_sort_by_sent_when_set(self, portfolio: PortfolioResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": []}
+            )
+        )
+        portfolio.positions(sort_by="event_ticker")
+        assert route.calls[0].request.url.params["sort_by"] == "event_ticker"
+
+    @respx.mock
+    def test_sort_by_omitted_by_default(self, portfolio: PortfolioResource) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": []}
+            )
+        )
+        portfolio.positions()
+        assert "sort_by" not in route.calls[0].request.url.params
+
 
 class TestPortfolioPositionsAll:
     @respx.mock
@@ -341,6 +361,7 @@ class TestPortfolioPositionsAll:
                 event_ticker="EVT-X",
                 subaccount=3,
                 exchange_index=1,
+                sort_by="event_ticker",
             )
         )
         params = dict(route.calls[0].request.url.params)
@@ -351,7 +372,20 @@ class TestPortfolioPositionsAll:
         assert params["event_ticker"] == "EVT-X"
         assert params["subaccount"] == "3"
         assert params["exchange_index"] == "1"
+        assert params["sort_by"] == "event_ticker"
         assert "cursor" not in params
+
+    @respx.mock
+    def test_positions_all_omits_sort_by_by_default(
+        self, portfolio: PortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        list(portfolio.positions_all())
+        assert "sort_by" not in route.calls[0].request.url.params
 
     def test_positions_all_requires_auth(self, unauth_portfolio: PortfolioResource) -> None:
         with pytest.raises(AuthRequiredError):
@@ -851,6 +885,32 @@ class TestAsyncPortfolioPositions:
         assert params["subaccount"] == "7"
         assert params["exchange_index"] == "0"
 
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_sort_by_sent_when_set(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": []}
+            )
+        )
+        await async_portfolio.positions(sort_by="event_ticker")
+        assert route.calls[0].request.url.params["sort_by"] == "event_ticker"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_sort_by_omitted_by_default(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": []}
+            )
+        )
+        await async_portfolio.positions()
+        assert "sort_by" not in route.calls[0].request.url.params
+
 
 class TestAsyncPortfolioSettlements:
     @respx.mock
@@ -1185,6 +1245,34 @@ class TestAsyncPortfolioPositionsAll:
             pass
         assert route.calls[0].request.url.params["settlement_status"] == "settled"
         assert "cursor" not in route.calls[0].request.url.params
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_positions_all_sort_by_sent_when_set(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        async for _ in async_portfolio.positions_all(sort_by="event_ticker"):
+            pass
+        assert route.calls[0].request.url.params["sort_by"] == "event_ticker"
+
+    @pytest.mark.asyncio
+    @respx.mock
+    async def test_positions_all_sort_by_omitted_by_default(
+        self, async_portfolio: AsyncPortfolioResource
+    ) -> None:
+        route = respx.get("https://test.kalshi.com/trade-api/v2/portfolio/positions").mock(
+            return_value=httpx.Response(
+                200, json={"market_positions": [], "event_positions": [], "cursor": ""}
+            )
+        )
+        async for _ in async_portfolio.positions_all():
+            pass
+        assert "sort_by" not in route.calls[0].request.url.params
 
     @pytest.mark.asyncio
     async def test_positions_all_requires_auth(
